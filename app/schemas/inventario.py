@@ -180,6 +180,74 @@ class IngredienteResponse(BaseModel):
 
 
 # =============================================================================
+# Insumo Schemas
+# =============================================================================
+
+class InsumoCreate(BaseModel):
+    """Esquema para crear un Insumo."""
+    nombre: str = Field(
+        ..., min_length=1, max_length=100,
+        description="Nombre único del insumo",
+        examples=["Servilletas"]
+    )
+    cantidad_actual: Decimal = Field(
+        default=Decimal("0.00"), ge=0, decimal_places=2,
+        description="Cantidad actual en inventario",
+        examples=[100.00]
+    )
+    unidad_medida_id: int = Field(
+        ..., gt=0,
+        description="ID de la unidad de medida",
+        examples=[1]
+    )
+    categoria_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la categoría del insumo (opcional)",
+        examples=[1]
+    )
+    stock_minimo: Decimal = Field(
+        default=Decimal("5.00"), gt=0, decimal_places=2,
+        description="Stock mínimo para alertas de reabastecimiento",
+        examples=[10.00]
+    )
+
+
+class InsumoResponse(BaseModel):
+    """Esquema de respuesta para Insumo."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int = Field(..., description="ID único del insumo")
+    nombre: str = Field(..., description="Nombre del insumo")
+    cantidad_actual: Decimal = Field(..., decimal_places=2, description="Cantidad actual en inventario")
+    unidad_medida: str = Field(..., description="Nombre de la unidad de medida")
+    unidad_medida_id: int = Field(..., description="ID de la unidad de medida")
+    categoria_id: Optional[int] = Field(default=None, description="ID de la categoría")
+    categoria_nombre: Optional[str] = Field(default=None, description="Nombre de la categoría")
+    stock_minimo: Decimal = Field(..., decimal_places=2, description="Stock mínimo para alertas")
+    costo_unitario: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Costo por unidad de medida")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_virtual_fields(cls, data):
+        obj = data
+        um = getattr(obj, "unidad_medida_obj", None) or getattr(obj, "unidad_medida", None)
+        if hasattr(um, "nombre"):
+            setattr(obj, "unidad_medida", um.nombre)
+            setattr(obj, "unidad_medida_id", um.id)
+        elif isinstance(um, str):
+            setattr(obj, "unidad_medida", um)
+            if not hasattr(obj, "unidad_medida_id") or getattr(obj, "unidad_medida_id", None) is None:
+                setattr(obj, "unidad_medida_id", 0)
+        cat = getattr(obj, "categoria", None)
+        if hasattr(cat, "nombre"):
+            setattr(obj, "categoria_nombre", cat.nombre)
+            setattr(obj, "categoria_id", cat.id)
+        elif cat is None:
+            setattr(obj, "categoria_nombre", None)
+        return obj
+
+
+# =============================================================================
 # MovimientoInventario Schemas
 # =============================================================================
 
@@ -246,74 +314,6 @@ class MovimientoResponse(BaseModel):
         default=None,
         description="Información del insumo asociado"
     )
-
-
-# =============================================================================
-# Insumo Schemas
-# =============================================================================
-
-class InsumoCreate(BaseModel):
-    """Esquema para crear un Insumo."""
-    nombre: str = Field(
-        ..., min_length=1, max_length=100,
-        description="Nombre único del insumo",
-        examples=["Servilletas"]
-    )
-    cantidad_actual: Decimal = Field(
-        default=Decimal("0.00"), ge=0, decimal_places=2,
-        description="Cantidad actual en inventario",
-        examples=[100.00]
-    )
-    unidad_medida_id: int = Field(
-        ..., gt=0,
-        description="ID de la unidad de medida",
-        examples=[1]
-    )
-    categoria_id: Optional[int] = Field(
-        default=None, gt=0,
-        description="ID de la categoría del insumo (opcional)",
-        examples=[1]
-    )
-    stock_minimo: Decimal = Field(
-        default=Decimal("5.00"), gt=0, decimal_places=2,
-        description="Stock mínimo para alertas de reabastecimiento",
-        examples=[10.00]
-    )
-
-
-class InsumoResponse(BaseModel):
-    """Esquema de respuesta para Insumo."""
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int = Field(..., description="ID único del insumo")
-    nombre: str = Field(..., description="Nombre del insumo")
-    cantidad_actual: Decimal = Field(..., decimal_places=2, description="Cantidad actual en inventario")
-    unidad_medida: str = Field(..., description="Nombre de la unidad de medida")
-    unidad_medida_id: int = Field(..., description="ID de la unidad de medida")
-    categoria_id: Optional[int] = Field(default=None, description="ID de la categoría")
-    categoria_nombre: Optional[str] = Field(default=None, description="Nombre de la categoría")
-    stock_minimo: Decimal = Field(..., decimal_places=2, description="Stock mínimo para alertas")
-    costo_unitario: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Costo por unidad de medida")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _populate_virtual_fields(cls, data):
-        obj = data
-        um = getattr(obj, "unidad_medida_obj", None) or getattr(obj, "unidad_medida", None)
-        if hasattr(um, "nombre"):
-            setattr(obj, "unidad_medida", um.nombre)
-            setattr(obj, "unidad_medida_id", um.id)
-        elif isinstance(um, str):
-            setattr(obj, "unidad_medida", um)
-            if not hasattr(obj, "unidad_medida_id") or getattr(obj, "unidad_medida_id", None) is None:
-                setattr(obj, "unidad_medida_id", 0)
-        cat = getattr(obj, "categoria", None)
-        if hasattr(cat, "nombre"):
-            setattr(obj, "categoria_nombre", cat.nombre)
-            setattr(obj, "categoria_id", cat.id)
-        elif cat is None:
-            setattr(obj, "categoria_nombre", None)
-        return obj
 
 
 class ActualizarStockInsumo(BaseModel):
