@@ -127,8 +127,31 @@ app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates"
 async def startup_event():
     """Evento de inicio de la aplicación."""
     Base.metadata.create_all(bind=engine)
+    _migrate_constraints()
     _auto_seed_admin()
     asyncio.create_task(_heartbeat_watcher())
+
+
+def _migrate_constraints():
+    """Aplica migraciones de constraints que create_all no actualiza."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE puestos DROP CHECK ck_puestos_salario_positivo"
+            ))
+        except Exception:
+            pass
+        try:
+            db.execute(text(
+                "ALTER TABLE puestos ADD CONSTRAINT ck_puestos_salario_positivo "
+                "CHECK (salario_base >= 0)"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def _auto_seed_admin():
