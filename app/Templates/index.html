@@ -682,10 +682,22 @@
           <input type="text" id="ne-telefono" class="form-input" placeholder="3001234567">
         </div>
         <div class="form-group">
-          <label class="form-label" for="ne-puesto">Puesto</label>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <label class="form-label" for="ne-puesto" style="flex:1;">Puesto</label>
+            <button type="button" class="icon-btn-sm" id="btn-toggle-puesto-panel" title="Crear puesto">⚙️</button>
+          </div>
           <select id="ne-puesto" class="form-input" required>
             <option value="">Seleccionar puesto…</option>
           </select>
+          <div id="puesto-panel" class="inline-subpanel" style="display:none;">
+            <div class="form-group" style="margin-bottom:6px;">
+              <input type="text" id="new-puesto-nombre" class="form-input" placeholder="Nombre del puesto" style="font-size:13px;">
+            </div>
+            <div class="form-group" style="margin-bottom:6px;">
+              <input type="number" id="new-puesto-salario" class="form-input" step="0.01" min="0.01" placeholder="Salario base (C$)" style="font-size:13px;">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-puesto" style="width:100%;font-size:12px;padding:5px 0;">Guardar Puesto</button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="ne-salario">Salario Base (C$)</label>

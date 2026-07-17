@@ -164,7 +164,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Responsive design: Custom CSS (NOT Tailwind); mobile `<768px`, tablet `768-1024px`
 - Dynamic Carta categories: Fetches from `GET /menu/categorias`
 - C$ currency: All monetary values use `C$` (Córdobas nicaragüenses)
-- Personal module: New employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` in employee body
+- Personal module: New employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` in employee body; ⚙️ button next to Puesto select opens `#puesto-panel` (inline subpanel) to create new Puesto inline — `guardarPuesto()` posts `POST /personal/puestos`, reloads select, auto-selects new puesto
 
 ### Design Tokens (CSS)
 
@@ -221,6 +221,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 |--------|---------------------------------------------|----------|--------------------|
 | POST   | /api/v1/auth/login                          | No       | —                  |
 | GET    | /api/v1/personal/puestos                    | Yes      | Any                |
+| POST   | /api/v1/personal/puestos                    | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/empleados                  | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/usuarios                   | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |

@@ -2009,8 +2009,8 @@ function renderNominaHistorial(nominas) {
    ========================================================================= */
 let puestosCache = [];
 
-async function loadPuestos() {
-  if (puestosCache.length > 0) return;
+async function loadPuestos(force) {
+  if (!force && puestosCache.length > 0) return;
   try { puestosCache = await api('/personal/puestos'); } catch { puestosCache = []; }
 }
 
@@ -2021,6 +2021,29 @@ function populatePuestoSelect() {
   puestosCache.forEach(p => {
     sel.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
   });
+}
+
+function togglePuestoPanel() {
+  const panel = document.getElementById('puesto-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarPuesto() {
+  const nombre = document.getElementById('new-puesto-nombre').value.trim();
+  const salario = parseFloat(document.getElementById('new-puesto-salario').value);
+  if (!nombre) return showToast('Ingresa el nombre del puesto', 'warning');
+  if (!salario || salario <= 0) return showToast('Ingresa un salario válido', 'warning');
+  try {
+    const nuevo = await api('/personal/puestos', { method: 'POST', body: JSON.stringify({ nombre, salario_base: salario }) });
+    document.getElementById('new-puesto-nombre').value = '';
+    document.getElementById('new-puesto-salario').value = '';
+    document.getElementById('puesto-panel').style.display = 'none';
+    await loadPuestos(true);
+    populatePuestoSelect();
+    const sel = document.getElementById('ne-puesto');
+    sel.value = nuevo.id;
+    showToast('Puesto creado');
+  } catch { /* handled */ }
 }
 
 function openNuevoEmpleadoModal() {
@@ -2883,6 +2906,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-nuevo-empleado')?.addEventListener('click', closeNuevoEmpleadoModal);
   document.getElementById('cancel-nuevo-empleado')?.addEventListener('click', closeNuevoEmpleadoModal);
   document.getElementById('nuevo-empleado-form')?.addEventListener('submit', saveNuevoEmpleado);
+  document.getElementById('btn-toggle-puesto-panel')?.addEventListener('click', togglePuestoPanel);
+  document.getElementById('btn-save-puesto')?.addEventListener('click', guardarPuesto);
 
   // Reset Password modal
   document.getElementById('close-reset-password')?.addEventListener('click', closeResetPasswordModal);
