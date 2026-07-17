@@ -127,7 +127,60 @@ app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates"
 async def startup_event():
     """Evento de inicio de la aplicación."""
     Base.metadata.create_all(bind=engine)
+    _auto_seed_admin()
     asyncio.create_task(_heartbeat_watcher())
+
+
+def _auto_seed_admin():
+    """Crea un usuario administrador si la tabla usuarios está vacía."""
+    from datetime import date
+    from decimal import Decimal
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+    from app.models.personal import Puesto, Empleado, Usuario
+
+    with Session(engine) as db:
+        try:
+            existe = db.execute(select(Usuario).limit(1)).scalar_one_or_none()
+            if existe:
+                return
+
+            print("  ▸ Tabla 'usuarios' vacía — creando administrador automático...")
+
+            stmt = select(Puesto).where(Puesto.nombre == "Administrador")
+            puesto = db.execute(stmt).scalar_one_or_none()
+            if not puesto:
+                puesto = Puesto(nombre="Administrador", salario_base=Decimal("1200.00"))
+                db.add(puesto)
+                db.flush()
+
+            empleado = Empleado(
+                cedula_identidad="ADMIN-001",
+                nombre="Administrador",
+                apellido="Sistema",
+                puesto_id=puesto.id,
+                salario_base=puesto.salario_base,
+                fecha_ingreso=date.today(),
+                activo=True,
+            )
+            db.add(empleado)
+            db.flush()
+
+            usuario = Usuario(
+                username="Joshi_0211",
+                password_hash=obtener_password_hash("@0420311001000V"),
+                rol="Administrador",
+                empleado_id=empleado.id,
+                activo=True,
+            )
+            db.add(usuario)
+            db.commit()
+
+            print("    [+] Administrador creado: Joshi_0211")
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al crear administrador automático: {e}")
 
 
 async def _heartbeat_watcher():
