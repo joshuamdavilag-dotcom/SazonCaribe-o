@@ -28,7 +28,7 @@ class PuestoBase(BaseModel):
     )
     salario_base: Decimal = Field(
         ...,
-        gt=0,
+        ge=0,
         decimal_places=2,
         description="Salario base del puesto",
         examples=[1500.00]

@@ -2030,13 +2030,10 @@ function togglePuestoPanel() {
 
 async function guardarPuesto() {
   const nombre = document.getElementById('new-puesto-nombre').value.trim();
-  const salario = parseFloat(document.getElementById('new-puesto-salario').value);
   if (!nombre) return showToast('Ingresa el nombre del puesto', 'warning');
-  if (!salario || salario <= 0) return showToast('Ingresa un salario válido', 'warning');
   try {
-    const nuevo = await api('/personal/puestos', { method: 'POST', body: JSON.stringify({ nombre, salario_base: salario }) });
+    const nuevo = await api('/personal/puestos', { method: 'POST', body: JSON.stringify({ nombre, salario_base: 0 }) });
     document.getElementById('new-puesto-nombre').value = '';
-    document.getElementById('new-puesto-salario').value = '';
     document.getElementById('puesto-panel').style.display = 'none';
     await loadPuestos(true);
     populatePuestoSelect();

@@ -14,7 +14,7 @@ class Puesto(Base):
     __tablename__ = "puestos"
     __table_args__ = (
         CheckConstraint(
-            "salario_base > 0",
+            "salario_base >= 0",
             name="ck_puestos_salario_positivo"
         ),
     )
