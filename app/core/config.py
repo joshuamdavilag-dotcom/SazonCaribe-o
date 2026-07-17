@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
 from functools import lru_cache
 from typing import Optional
 
@@ -7,11 +7,26 @@ from typing import Optional
 class Settings(BaseSettings):
     """Configuración del sistema Sazón Caribeño."""
 
-    # Base de datos
-    DATABASE_URL: str = Field(
-        default="mysql+pymysql://root:password@localhost:3306/sazon_caribenio",
-        description="URL de conexión a MySQL"
+    # Base de datos — individual vars (Render, etc.) o URL directa
+    DB_HOST: str = Field(default="localhost", description="Host de la base de datos")
+    DB_USER: str = Field(default="root", description="Usuario de la base de datos")
+    DB_PASSWORD: str = Field(default="password", description="Contraseña de la base de datos")
+    DB_NAME: str = Field(default="sazon_caribeno", description="Nombre de la base de datos")
+    DB_PORT: str = Field(default="3306", description="Puerto de la base de datos")
+
+    DATABASE_URL: Optional[str] = Field(
+        default=None,
+        description="URL de conexión directa a MySQL (sobreescribe DB_* si se define)"
     )
+
+    @model_validator(mode="after")
+    def build_database_url(self) -> "Settings":
+        if not self.DATABASE_URL:
+            self.DATABASE_URL = (
+                f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
+                f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            )
+        return self
 
     # Seguridad
     SECRET_KEY: str = Field(
@@ -58,6 +73,12 @@ class Settings(BaseSettings):
 
     # Impuestos — precios del menú son netos (IVA incluido, no se cobra extra)
     IVA_RATE: float = Field(default=0.0, description="Tasa de IVA — deshabilitada, precios netos")
+
+    # CORS
+    CORS_ORIGINS: str = Field(
+        default="http://127.0.0.1:5500,http://localhost:5500",
+        description="Orígenes permitidos para CORS (separados por coma)"
+    )
 
     model_config = {
         "env_file": ".env",
