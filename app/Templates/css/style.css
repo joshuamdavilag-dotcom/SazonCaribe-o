@@ -475,16 +475,13 @@ input, select, textarea { font: inherit; }
    ========================================================================= */
 .chips-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
   padding: var(--space-md);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
 }
 .chips-row::-webkit-scrollbar { display: none; }
 
 .chip {
-  flex-shrink: 0;
   height: 36px;
   padding: 0 var(--space-md);
   border-radius: var(--radius-full);
@@ -1305,17 +1302,15 @@ input, select, textarea { font: inherit; }
    ========================================================================= */
 .alerts-strip {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
   padding: var(--space-md);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
 .alerts-strip::-webkit-scrollbar { display: none; }
 
 .alert-card {
-  flex-shrink: 0;
-  min-width: 220px;
+  flex: 1 1 220px;
+  max-width: 100%;
   background: linear-gradient(135deg, #FFF5F5, #FFEDD5);
   border: 1px solid rgba(230,57,70,0.2);
   border-left: 4px solid var(--rojo-cangrejo);
@@ -2003,9 +1998,7 @@ body:not(.role-administrador) .admin-only {
   .chips-row,
   .period-tabs,
   .category-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap !important;
+    flex-wrap: wrap;
     scrollbar-width: none;
   }
 
