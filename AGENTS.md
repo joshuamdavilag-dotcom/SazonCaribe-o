@@ -118,11 +118,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Seed Users
 
-| Username | Password    | Role           |
-|----------|-------------|----------------|
-| admin    | password123 | Administrador  |
-| gerente  | password123 | Gerente        |
-| mesero   | password123 | Vendedor       |
+| Username | Password    | Role           | Notes |
+|----------|-------------|----------------|-------|
+| Joshi_0211 | @0420311001000V | Administrador | Auto-seeded on startup if DB empty |
+| admin    | password123 | Administrador  | init_db.py seed |
+| gerente  | password123 | Gerente        | init_db.py seed |
+| mesero   | password123 | Vendedor       | init_db.py seed |
 
 `_seed_datos_prueba()` also creates 4 more employees with full July 2026 test data.
 
@@ -147,7 +148,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ### Frontend / JS
 
 - Vanilla JS SPA — no frameworks, no build step
-- `API_BASE = 'http://127.0.0.1:8000/api/v1'`
+- `API_BASE` auto-detects: local (`localhost`/`127.0.0.1`) → `http://127.0.0.1:8000/api/v1`, otherwise → `${location.origin}/api/v1` (works on Render)
 - Token stored in `localStorage` as `pos_token`; user as `pos_user`
 - Adding items to existing order uses `POST /ordenes/{id}/items` (legacy PATCH endpoint removed)
 - Sidebar layout: 260px fixed sidebar + flex main content
@@ -354,7 +355,7 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 ## Known Issues / TODO
 
 - No Alembic migrations generated yet — using `create_all` on startup
-- CORS: `allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"]` with `allow_credentials=True`
+- CORS: configurable via `CORS_ORIGINS` env var (comma-separated); defaults to `http://127.0.0.1:5500,http://localhost:5500` with `allow_credentials=True`
 - Frontend `api()` helper doesn't distinguish error types — `iniciarTurno()` uses direct `fetch()` for 403 handling
 - No refresh token flow — single 8h access token
 - `turno_service.py`: three standalone functions (not a class) — inconsistent with other services
