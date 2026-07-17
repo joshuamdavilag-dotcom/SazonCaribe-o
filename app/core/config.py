@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, model_validator
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 class Settings(BaseSettings):
@@ -26,6 +27,14 @@ class Settings(BaseSettings):
                 f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
                 f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
             )
+        parsed = urlparse(self.DATABASE_URL)
+        params = parse_qs(parsed.query)
+        params.pop("ssl-mode", None)
+        params.pop("ssl_ca", None)
+        params.pop("ssl_cert", None)
+        params.pop("ssl_key", None)
+        new_query = urlencode(params, doseq=True) if params else ""
+        self.DATABASE_URL = urlunparse(parsed._replace(query=new_query))
         return self
 
     # Seguridad
