@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#003366">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sazón Caribeño — POS</title>
+  <link rel="stylesheet" href="css/style.css?v=2.1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+</head>
+<body>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <!-- =================================================================
+       SCREEN: LOGIN
+       ================================================================= -->
+  <section id="screen-login" class="screen screen-login active" aria-label="Inicio de sesión">
+    <div class="login-card animate-in">
+      <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo login-logo-img">
+      <h1 class="login-logo">Sazón Caribeño</h1>
+      <p class="login-tagline">Sistema de Gestión Restaurante</p>
+      <form id="login-form" autocomplete="on" novalidate>
+        <div class="input-group">
+          <span class="icon" aria-hidden="true">👤</span>
+          <input type="text" id="login-username" class="input-field" placeholder="Usuario" autocomplete="username" required>
+        </div>
+        <div class="input-group">
+          <span class="icon" aria-hidden="true">🔒</span>
+          <input type="password" id="login-password" class="input-field" placeholder="Contraseña" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-login">Iniciar Sesión</button>
+      </form>
+      <p class="caption mt-md">v1.0.0 — Caribe</p>
+    </div>
+  </section>
+
+  <!-- =================================================================
+       APP SHELL
+       ================================================================= -->
+  <div id="app-shell" class="app-shell">
+
+    <!-- SIDEBAR -->
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo">
+        <div class="brand-name">Sazón Caribeño</div>
+        <div class="brand-tagline">POS Restaurante</div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Navegación principal">
+        <button class="nav-item active" data-screen="salon">
+          <span class="nav-icon">🍽️</span>
+          <span class="nav-label">Salón</span>
+        </button>
+        <button class="nav-item" data-screen="comandero">
+          <span class="nav-icon">📝</span>
+          <span class="nav-label">Comandas</span>
+        </button>
+        <button class="nav-item" data-screen="menu-view">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">Carta</span>
+        </button>
+        <button class="nav-item nav-item-admin" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
+          <span class="nav-icon">🍽️</span>
+          <span class="nav-label">Gestión Menú</span>
+        </button>
+        <button class="nav-item nav-item-admin" data-screen="inventory" data-roles="Administrador,Gerente">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Inventario</span>
+        </button>
+        <button class="nav-item nav-item-admin" data-screen="personal" data-roles="Administrador,Gerente">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">Personal</span>
+        </button>
+        <button class="nav-item" data-screen="cuenta">
+          <span class="nav-icon">💰</span>
+          <span class="nav-label">Cierre de Caja</span>
+        </button>
+        <button class="nav-item nav-item-admin" data-screen="gastos" data-roles="Administrador,Gerente">
+          <span class="nav-icon">💸</span>
+          <span class="nav-label">Gastos</span>
+        </button>
+      </nav>
+
+      <!-- Attendance Control -->
+      <div id="attendance-panel" class="attendance-panel" style="display:none;">
+        <div class="attendance-label">Control de Turno</div>
+        <select id="turno-select" class="form-input" style="height:36px;font-size:12px;padding:0 8px;margin-bottom:8px;">
+          <option value="">Seleccionar turno…</option>
+        </select>
+        <div style="display:flex;gap:6px;">
+          <button id="btn-iniciar-turno" class="btn btn-sm" style="flex:1;height:34px;font-size:12px;background:#2A9D8F;color:#fff;border:none;border-radius:8px;cursor:pointer;">▶ Iniciar</button>
+          <button id="btn-finalizar-turno" class="btn btn-sm" style="flex:1;height:34px;font-size:12px;background:#E63946;color:#fff;border:none;border-radius:8px;cursor:pointer;opacity:0.4;pointer-events:none;">⏹ Finalizar</button>
+        </div>
+        <div id="attendance-status" style="margin-top:6px;font-size:11px;color:#6b7280;text-align:center;"></div>
+      </div>
+
+      <div class="sidebar-user">
+        <div class="avatar" id="sidebar-avatar">U</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-username">Usuario</div>
+          <div class="user-role" id="sidebar-role">Rol</div>
+        </div>
+        <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">⏻</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- SCREEN: SALÓN -->
+      <section id="screen-salon" class="screen active" aria-label="Salón">
+        <header class="screen-header">
+          <h2 class="title">🍽️ Mapa de Mesas</h2>
+          <div class="header-actions">
+            <button class="btn btn-secondary admin-only" id="btn-gestion-mesas" style="font-size:13px;">⚙️ Gestionar Mesas</button>
+            <span class="caption" id="salon-clock"></span>
+          </div>
+        </header>
+        <div class="screen-body">
+          <div class="chips-row" role="tablist" aria-label="Filtrar mesas">
+            <button class="chip active" data-filter="all" role="tab" aria-selected="true">Todas</button>
+            <button class="chip" data-filter="LIBRE" role="tab">🟢 Libres</button>
+            <button class="chip" data-filter="OCUPADA" role="tab">🔴 Ocupadas</button>
+            <button class="chip" data-filter="RESERVADA" role="tab">🟡 Reservadas</button>
+          </div>
+          <div class="chips-row" id="zona-filters" role="tablist" aria-label="Filtrar por zona" style="margin-top:6px;">
+            <button class="chip active" data-zona="all" role="tab" aria-selected="true">🗺️ Todas las Zonas</button>
+          </div>
+          <main id="table-grid" class="table-grid" aria-label="Mapa de mesas"></main>
+        </div>
+      </section>
+
+      <!-- SCREEN: COMANDERO / KDS -->
+      <section id="screen-comandero" class="screen" aria-label="Panel de Cocina">
+        <header class="screen-header">
+          <h2 class="title">🍳 Panel de Cocina</h2>
+          <div class="header-actions">
+            <button class="btn btn-secondary" id="btn-refresh-cocina" style="font-size:13px;">🔄 Actualizar</button>
+            <span class="caption" id="comandero-clock"></span>
+          </div>
+        </header>
+        <div class="screen-body pb-xl">
+          <div class="period-tabs" style="margin-bottom:16px;">
+            <button class="period-tab active" data-cocina-tab="cocina">🔥 En Cocina</button>
+            <button class="period-tab" data-cocina-tab="lista">✅ Listas para Servir</button>
+            <button class="period-tab" data-cocina-tab="historial">📋 Historial</button>
+          </div>
+          <div id="cocina-grid" class="cocina-grid" aria-label="Órdenes activas">
+            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando órdenes…</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CARTA (Browse Only) -->
+      <section id="screen-menu-view" class="screen" aria-label="Carta">
+        <header class="screen-header">
+          <h2 class="title">📖 Carta</h2>
+          <div class="header-actions"></div>
+        </header>
+        <div class="chips-row" id="carta-cat-filters" role="tablist" aria-label="Filtrar por categoría">
+          <button class="chip active" data-cat="all" role="tab" aria-selected="true">Todas</button>
+        </div>
+        <div class="screen-body">
+          <main id="menu-browse-grid" class="menu-grid" aria-label="Productos"></main>
+        </div>
+      </section>
+
+      <!-- SCREEN: GESTIÓN MENÚ (Admin/Gerente) -->
+      <section id="screen-menu-mgmt" class="screen" aria-label="Gestión de Menú">
+        <header class="screen-header">
+          <h2 class="title">🍽️ Gestión de Menú</h2>
+          <div class="header-actions">
+            <button class="btn btn-turquoise" id="btn-new-dish" style="height:40px;padding:0 16px;font-size:14px;">+ Nuevo Platillo</button>
+          </div>
+        </header>
+        <div class="chips-row" id="menu-mgmt-cat-filters" role="tablist" aria-label="Filtrar por categoría">
+          <button class="chip active" data-cat="all" role="tab" aria-selected="true">Todas</button>
+        </div>
+        <div class="screen-body">
+          <div id="menu-mgmt-grid" class="data-card-grid" aria-label="Platillos"></div>
+        </div>
+      </section>
+
+      <!-- SCREEN: INVENTARIO (Admin/Gerente) -->
+      <section id="screen-inventory" class="screen" aria-label="Inventario">
+        <header class="screen-header">
+          <h2 class="title">📦 Almacén Digital</h2>
+          <div class="header-actions">
+            <button class="btn btn-turquoise" id="btn-new-insumo" style="height:40px;padding:0 16px;font-size:14px;">+ Nuevo Insumo</button>
+          </div>
+        </header>
+        <div id="insumo-cat-filters" class="chips-row" style="padding:0 20px 8px;"></div>
+        <div class="screen-body pb-xl">
+          <div id="inventory-alerts" class="alerts-strip" aria-label="Alertas de stock"></div>
+          <div id="inventory-grid" class="data-card-grid" aria-label="Insumos"></div>
+        </div>
+      </section>
+
+      <!-- SCREEN: PERSONAL (Admin/Gerente) -->
+      <section id="screen-personal" class="screen" aria-label="Personal y Nóminas">
+        <header class="screen-header">
+          <h2 class="title">👥 Personal y Nóminas</h2>
+          <div class="header-actions">
+            <button class="btn btn-turquoise" id="btn-new-empleado" style="height:40px;padding:0 16px;font-size:14px;">➕ Agregar Empleado</button>
+          </div>
+        </header>
+        <div class="screen-body pb-xl">
+          <div id="personal-table-container"></div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CUENTA / DASHBOARD -->
+      <section id="screen-cuenta" class="screen" aria-label="Cuenta y cierre de caja">
+        <header class="screen-header">
+          <h2 class="title">💰 Cierre de Caja</h2>
+          <div class="header-actions"><span class="caption" id="cuenta-role-badge"></span></div>
+        </header>
+        <div class="screen-body pb-xl" id="panel-reportes-cierre">
+
+          <!-- Period Selector + Cerrar Caja -->
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div class="period-tabs" style="flex:1;">
+              <button class="period-tab active" data-periodo="diario">📅 Hoy</button>
+              <button class="period-tab" data-periodo="semanal">📆 Esta Semana</button>
+              <button class="period-tab" data-periodo="quincenal">📋 Quincenal</button>
+              <button class="period-tab" data-periodo="mensual">🗓️ Este Mes</button>
+            </div>
+            <button class="btn" id="btn-cerrar-caja" style="background:#E63946;color:#fff;padding:10px 20px;font-weight:700;border-radius:10px;white-space:nowrap;">🔒 Cerrar Caja</button>
+          </div>
+
+          <!-- Summary Cards -->
+          <div class="cierre-summary-grid" id="cierre-summary-grid">
+            <div class="cierre-card cierre-card--ingresos">
+              <div class="cc-icon">💵</div>
+              <div class="cc-body">
+                <div class="cc-label">Ingresos Totales</div>
+                <div class="cc-value" id="cc-ingresos">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--nomina">
+              <div class="cc-icon">👥</div>
+              <div class="cc-body">
+                <div class="cc-label">Gastos Nómina</div>
+                <div class="cc-value" id="cc-nomina">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--insumos">
+              <div class="cc-icon">📦</div>
+              <div class="cc-body">
+                <div class="cc-label">Costo Insumos</div>
+                <div class="cc-value" id="cc-insumos">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--gastos">
+              <div class="cc-icon">💸</div>
+              <div class="cc-body">
+                <div class="cc-label">Gastos Operativos</div>
+                <div class="cc-value" id="cc-gastos-op">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--utilidad">
+              <div class="cc-icon">📈</div>
+              <div class="cc-body">
+                <div class="cc-label">Utilidad Neta</div>
+                <div class="cc-value" id="cc-utilidad">C$0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Period Info + Orders Count -->
+          <div class="cierre-meta" id="cierre-meta">
+            <span id="cierre-periodo-label"></span>
+            <span id="cierre-ordenes-info"></span>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="cierre-charts-row">
+            <div class="cierre-chart-box">
+              <h4 class="cierre-chart-title">Distribución de Costos</h4>
+              <div class="cierre-chart-canvas-wrap">
+                <canvas id="chart-pie-costos"></canvas>
+              </div>
+            </div>
+            <div class="cierre-chart-box">
+              <h4 class="cierre-chart-title">Top 5 Platillos Más Vendidos</h4>
+              <div class="cierre-chart-canvas-wrap">
+                <canvas id="chart-bar-platillos"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Platillos List -->
+          <div id="cierre-top-list"></div>
+
+          <!-- Daily Orders History -->
+          <div id="historial-ordenes-dia" style="margin-top:24px;">
+            <h4 class="cierre-top-title">📋 Historial de Órdenes del Día</h4>
+            <div id="historial-ordenes-list" style="margin-top:10px;"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCREEN: GASTOS (Admin/Gerente) -->
+      <section id="screen-gastos" class="screen" aria-label="Gastos operativos">
+        <header class="screen-header">
+          <h2 class="title">💸 Gestión de Gastos Operativos</h2>
+          <div class="header-actions">
+            <button class="btn btn-turquoise" id="btn-new-gasto" style="height:40px;padding:0 16px;font-size:14px;">+ Registrar Gasto</button>
+          </div>
+        </header>
+        <div class="screen-body pb-xl">
+          <div id="gastos-cat-filters" class="chips-row" style="padding:0 0 var(--space-md) 0;"></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <thead>
+                <tr style="background:var(--azul-marino);color:#fff;text-align:left;">
+                  <th style="padding:12px 16px;font-weight:600;">ID</th>
+                  <th style="padding:12px 16px;font-weight:600;">Fecha</th>
+                  <th style="padding:12px 16px;font-weight:600;">Categoría</th>
+                  <th style="padding:12px 16px;font-weight:600;">Descripción</th>
+                  <th style="padding:12px 16px;font-weight:600;text-align:right;">Monto</th>
+                  <th style="padding:12px 16px;font-weight:600;">Registrado Por</th>
+                </tr>
+              </thead>
+              <tbody id="gastos-table-body">
+                <tr><td colspan="6" style="padding:32px;text-align:center;color:#9ca3af;">Cargando gastos…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="bottom-nav" id="bottom-nav" aria-label="Navegación móvil">
+      <button class="bottom-nav-item active" data-screen="salon"><span class="bnav-icon">🍽️</span><span class="bnav-label">Salón</span></button>
+      <button class="bottom-nav-item" data-screen="comandero"><span class="bnav-icon">📝</span><span class="bnav-label">Comandas</span></button>
+      <button class="bottom-nav-item" data-screen="menu-view"><span class="bnav-icon">📖</span><span class="bnav-label">Carta</span></button>
+      <button class="bottom-nav-item" data-screen="cuenta"><span class="bnav-icon">💰</span><span class="bnav-label">Caja</span></button>
+      <button class="bottom-nav-item bottom-nav-more" id="bottom-nav-more"><span class="bnav-icon">⋯</span><span class="bnav-label">Más</span></button>
+    </nav>
+  </div>
+
+  <!-- =================================================================
+       MODALS
+       ================================================================= -->
+
+  <!-- Modal: Crear/Editar Platillo -->
+  <div id="modal-dish" class="modal-overlay" aria-label="Formulario de platillo">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dish-modal-title">Nuevo Platillo</h3>
+        <button class="modal-close" id="close-dish-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="dish-form" novalidate>
+        <input type="hidden" id="dish-id">
+        <div class="form-group">
+          <label class="form-label" for="dish-name">Nombre</label>
+          <input type="text" id="dish-name" class="form-input" placeholder="Ej: Arroz con Camarón" required>
+        </div>
+          <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="dish-price">Precio (C$)</label>
+            <input type="number" id="dish-price" class="form-input" step="0.01" min="0.01" placeholder="15.99" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dish-category">Categoría</label>
+            <div style="display:flex;gap:6px;">
+              <select id="dish-category" class="form-input" style="flex:1;" required>
+                <option value="">Seleccionar…</option>
+              </select>
+              <button type="button" class="btn btn-secondary" id="btn-toggle-cat-panel" title="Administrar categorías" style="padding:0 10px;font-size:16px;height:38px;">⚙️</button>
+            </div>
+          </div>
+        </div>
+        <!-- Panel de Gestión de Categorías (colapsable) -->
+        <div id="cat-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Categorías</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input type="text" id="cat-nueva-nombre" class="form-input" placeholder="Nombre de la nueva categoría…" style="flex:1;height:36px;font-size:13px;">
+            <button class="btn btn-turquoise" id="btn-guardar-cat" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;">+ Guardar</button>
+          </div>
+          <div id="cat-list" style="max-height:160px;overflow-y:auto;"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dish-desc">Descripción</label>
+          <input type="text" id="dish-desc" class="form-input" placeholder="Descripción del plato">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <div class="toggle-row">
+            <button type="button" class="toggle-btn active" id="dish-active-btn" data-val="true">✅ Activo</button>
+            <button type="button" class="toggle-btn" id="dish-inactive-btn" data-val="false">🚫 Inactivo</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label class="form-label" style="font-weight:700;">🧾 Receta / Ingredientes</label>
+          <div id="dish-recipe-rows"></div>
+          <button type="button" class="btn btn-secondary" id="btn-add-recipe-row" style="margin-top:6px;font-size:13px;padding:6px 12px;">➕ Añadir Ingrediente</button>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-dish-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-dish-btn" style="flex:1;">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ajustar Stock -->
+  <div id="modal-stock" class="modal-overlay" aria-label="Ajustar stock">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="stock-modal-title">Ajustar Stock</h3>
+        <button class="modal-close" id="close-stock-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="stock-form" novalidate>
+        <input type="hidden" id="stock-insumo-id">
+        <div class="stock-info" id="stock-info"></div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Movimiento</label>
+          <div class="toggle-row">
+            <button type="button" class="toggle-btn toggle-entrada active" id="stock-entrada-btn" data-val="ENTRADA">📥 Entrada</button>
+            <button type="button" class="toggle-btn toggle-salida" id="stock-salida-btn" data-val="SALIDA">📤 Salida</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="stock-qty">Cantidad</label>
+          <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="stock-motivo">Motivo</label>
+          <input type="text" id="stock-motivo" class="form-input" placeholder="Compra a proveedor" value="Ajuste de inventario">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-stock-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-stock-btn" style="flex:1;">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Insumo -->
+  <div id="modal-insumo" class="modal-overlay" aria-label="Formulario de insumo">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title">Nuevo Insumo</h3>
+        <button class="modal-close" id="close-insumo-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="insumo-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="insumo-name">Nombre</label>
+          <input type="text" id="insumo-name" class="form-input" placeholder="Ej: Servilletas" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="insumo-qty">Cantidad Inicial</label>
+            <input type="number" id="insumo-qty" class="form-input" step="0.01" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <label class="form-label" for="insumo-unit" style="flex:1;">Unidad</label>
+              <button type="button" class="icon-btn-sm" id="btn-toggle-unidad-panel" title="Gestionar unidades">⚙️</button>
+            </div>
+            <select id="insumo-unit" class="form-input" required></select>
+            <div id="unidad-panel" class="inline-subpanel" style="display:none;">
+              <div class="form-row" style="gap:4px;">
+                <input type="text" id="new-unidad-nombre" class="form-input" placeholder="Nombre" style="flex:1;">
+                <input type="text" id="new-unidad-abrev" class="form-input" placeholder="Abrev." style="width:60px;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-save-unidad" style="font-size:12px;padding:4px 8px;">+</button>
+              </div>
+              <div id="unidad-list" class="inline-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <label class="form-label" for="insumo-cat" style="flex:1;">Categoría</label>
+            <button type="button" class="icon-btn-sm" id="btn-toggle-cat-insumo-panel" title="Gestionar categorías">⚙️</button>
+          </div>
+          <select id="insumo-cat" class="form-input">
+            <option value="">Sin categoría</option>
+          </select>
+          <div id="cat-insumo-panel" class="inline-subpanel" style="display:none;">
+            <div class="form-row" style="gap:4px;">
+              <input type="text" id="new-cat-insumo-nombre" class="form-input" placeholder="Nueva categoría" style="flex:1;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-save-cat-insumo" style="font-size:12px;padding:4px 8px;">+</button>
+            </div>
+            <div id="cat-insumo-list" class="inline-list"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="insumo-min">Stock Mínimo</label>
+          <input type="number" id="insumo-min" class="form-input" step="0.01" min="0.01" value="5">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-insumo-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Crear Insumo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Tomar Comanda -->
+  <div id="modal-order" class="modal-overlay" aria-label="Tomar comanda">
+    <div class="modal-sheet" style="max-width:920px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">Nueva Comanda — Mesa <span id="order-modal-mesa"></span></h3>
+        <button class="modal-close" id="close-order-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;display:flex;gap:0;overflow:hidden;">
+        <!-- Left: Menú + buscador -->
+        <div style="flex:2;display:flex;flex-direction:column;overflow:hidden;padding:0 16px;">
+          <input type="text" id="order-modal-search" placeholder="🔍 Buscar platillo…" class="form-input" style="margin:8px 0;height:36px;font-size:13px;">
+          <div id="order-modal-categories" class="category-tabs" role="tablist" style="margin-bottom:8px;flex-shrink:0;">
+            <button class="category-tab active" data-om-cat="all">Todo</button>
+            <button class="category-tab" data-om-cat="bebidas">🥤 Bebidas</button>
+            <button class="category-tab" data-om-cat="ceviches">🐟 Ceviches</button>
+            <button class="category-tab" data-om-cat="fuertes">🍛 Fuertes</button>
+            <button class="category-tab" data-om-cat="postres">🍰 Postres</button>
+          </div>
+          <div id="order-modal-menu" class="menu-grid" style="grid-template-columns:1fr;overflow-y:auto;flex:1;padding-bottom:8px;"></div>
+        </div>
+        <!-- Right: Carrito / Resumen -->
+        <div style="flex:1;display:flex;flex-direction:column;border-left:1px solid #e5e7eb;padding:12px 16px;overflow:hidden;min-width:240px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🛒 Resumen</div>
+          <div id="order-modal-cart" style="flex:1;overflow-y:auto;margin-bottom:8px;"></div>
+          <div style="border-top:1px solid #e5e7eb;padding-top:8px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="caption">Ítems</span>
+              <span class="caption" id="order-modal-count">0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="caption">Subtotal</span>
+              <span class="price" id="order-modal-subtotal">C$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-weight:700;color:var(--azul-marino);">Total</span>
+              <span class="price-lg" style="color:var(--azul-marino);" id="order-modal-total">C$0.00</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" id="cancel-order-modal" style="flex:1;">Cancelar</button>
+              <button class="btn btn-primary" id="confirm-order-modal" style="flex:2;">📤 Confirmar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Detalle Mesa Ocupada -->
+  <div id="modal-detalle-mesa-ocupada" class="modal-overlay" aria-label="Detalle de mesa ocupada">
+    <div class="modal-sheet" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔴 Mesa <span id="oc-mesa-numero"></span> — Orden #<span id="oc-orden-id"></span></h3>
+        <button class="modal-close" id="close-detalle-mesa-ocupada" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <div id="oc-items-list" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="caption">Subtotal</span>
+            <span class="price" id="oc-subtotal">C$0.00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-weight:700;color:var(--azul-marino);">Total</span>
+            <span class="price-lg" style="color:var(--azul-marino);" id="oc-total">C$0.00</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="btn-agregar-pedido" style="flex:1;">➕ Agregar al Pedido</button>
+          <button class="btn btn-secondary" id="btn-pre-cuenta" style="flex:1;">🧾 Pre-Cuenta</button>
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:#fff;padding:12px;font-weight:700;border-radius:10px;">💰 Cerrar Cuenta y Liberar Mesa</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Pre-Cuenta (Ticket) -->
+  <div id="modal-pre-cuenta" class="modal-overlay" aria-label="Pre-cuenta">
+    <div class="modal-sheet" style="max-width:380px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🧾 Pre-Cuenta</h3>
+        <button class="modal-close" id="close-pre-cuenta" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <div id="pre-cuenta-content" style="background:#f8fafc;border:1px dashed #d1d5db;border-radius:12px;padding:20px;font-family:monospace;font-size:13px;"></div>
+        <div style="text-align:center;margin-top:16px;">
+          <button class="btn btn-secondary" id="close-pre-cuenta-btn" style="padding:10px 24px;">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestionar Mesas -->
+  <div id="modal-gestion-mesas" class="modal-overlay" aria-label="Gestionar mesas">
+    <div class="modal-sheet" style="max-width:800px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Gestionar Mesas</h3>
+        <button class="modal-close" id="close-gestion-mesas" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 16px 16px;">
+        <!-- Formulario crear/editar mesa -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;" id="gestion-form-title">Nueva Mesa</div>
+          <input type="hidden" id="gestion-mesa-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <label class="label" for="gestion-mesa-numero">Número</label>
+              <input type="number" id="gestion-mesa-numero" class="form-input" min="1" placeholder="Ej: 5">
+            </div>
+            <div>
+              <label class="label" for="gestion-mesa-capacidad">Capacidad</label>
+              <input type="number" id="gestion-mesa-capacidad" class="form-input" min="1" value="4">
+            </div>
+            <div>
+              <label class="label" for="gestion-mesa-zona">Zona</label>
+              <div style="display:flex;gap:6px;">
+                <select id="gestion-mesa-zona" class="form-input" style="flex:1;"></select>
+                <button type="button" class="btn btn-secondary" id="btn-toggle-zonas-panel" title="Administrar zonas" style="padding:0 10px;font-size:16px;height:38px;">⚙️</button>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button class="btn btn-primary" id="gestion-guardar-mesa" style="flex:1;">💾 Guardar</button>
+            <button class="btn btn-secondary" id="gestion-cancelar-edicion" style="display:none;">Cancelar</button>
+          </div>
+        </div>
+
+        <!-- Panel de Gestión de Zonas (colapsable) -->
+        <div id="zonas-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Zonas</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input type="text" id="zona-nueva-nombre" class="form-input" placeholder="Nombre de la nueva zona…" style="flex:1;height:36px;font-size:13px;">
+            <button class="btn btn-turquoise" id="btn-guardar-zona" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;">+ Guardar</button>
+          </div>
+          <div id="zonas-list" style="max-height:160px;overflow-y:auto;"></div>
+        </div>
+
+        <!-- Lista de mesas existentes -->
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Mesas Existentes</div>
+        <div id="gestion-mesas-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Empleado -->
+  <div id="modal-nuevo-empleado" class="modal-overlay" aria-label="Agregar nuevo empleado">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Nuevo Empleado</h3>
+        <button class="modal-close" id="close-nuevo-empleado" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="nuevo-empleado-form" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ne-nombre">Nombre</label>
+            <input type="text" id="ne-nombre" class="form-input" placeholder="Juan" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ne-apellido">Apellido</label>
+            <input type="text" id="ne-apellido" class="form-input" placeholder="Pérez" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-cedula">Cédula de Identidad</label>
+          <input type="text" id="ne-cedula" class="form-input" placeholder="12345678" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-telefono">Teléfono</label>
+          <input type="text" id="ne-telefono" class="form-input" placeholder="3001234567">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-puesto">Puesto</label>
+          <select id="ne-puesto" class="form-input" required>
+            <option value="">Seleccionar puesto…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-salario">Salario Base (C$)</label>
+          <input type="number" id="ne-salario" class="form-input" step="0.01" min="0.01" placeholder="1500.00" required>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;margin:12px 0;padding-top:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#374151;">Credenciales de Acceso</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-username">Nombre de Usuario</label>
+          <input type="text" id="ne-username" class="form-input" placeholder="jperez" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-password">Contraseña Temporal</label>
+          <input type="password" id="ne-password" class="form-input" placeholder="Mínimo 6 caracteres" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-rol">Rol</label>
+          <select id="ne-rol" class="form-input" required>
+            <option value="">Seleccionar rol…</option>
+            <option value="Administrador">Administrador</option>
+            <option value="Gerente">Gerente</option>
+            <option value="Vendedor">Vendedor</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-nuevo-empleado" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Crear Empleado y Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Restablecer Contraseña -->
+  <div id="modal-reset-password" class="modal-overlay" aria-label="Restablecer contraseña">
+    <div class="modal-sheet" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Restablecer Contraseña</h3>
+        <button class="modal-close" id="close-reset-password" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#6b7280;margin-bottom:12px;">
+          Establece una nueva contraseña temporal para <strong id="reset-pwd-username"></strong>.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="reset-pwd-new">Nueva Contraseña</label>
+          <input type="password" id="reset-pwd-new" class="form-input" placeholder="Mínimo 6 caracteres" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-reset-password" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-reset-password" style="flex:1;">Guardar Contraseña</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Asistencias del Empleado -->
+  <div id="modal-asistencias" class="modal-overlay" aria-label="Asistencias del empleado">
+    <div class="modal-sheet" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕒 Asistencias — <span id="asis-employee-name"></span></h3>
+        <button class="modal-close" id="close-asistencias" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+        <div id="asis-table-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Horas Extras -->
+  <div id="modal-edit-ot" class="modal-overlay" aria-label="Editar horas extras">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕒 Editar Horas Extras</h3>
+        <button class="modal-close" id="close-edit-ot" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+          Asistencia del <strong id="edit-ot-fecha"></strong> — Actual: <strong id="edit-ot-current"></strong>h
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="edit-ot-valor">Nuevas Horas Extras</label>
+          <input type="number" id="edit-ot-valor" class="form-input" step="0.01" min="0" placeholder="2.50" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <textarea id="edit-ot-motivo" class="form-input" rows="3" placeholder="Ej: Turno extendido autorizado por gerente…" required style="resize:vertical;"></textarea>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-edit-ot" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-edit-ot" style="flex:1;" disabled>Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nómina del Empleado -->
+  <div id="modal-nomina" class="modal-overlay" aria-label="Nómina del empleado">
+    <div class="modal-sheet" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">📊 Nómina — <span id="nomina-employee-name"></span></h3>
+        <button class="modal-close" id="close-nomina-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+
+        <!-- Date Range + Calculate -->
+        <div class="nomina-calc-section">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Calcular Nómina del Período</div>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:150px;">
+              <label class="form-label" for="nomina-fecha-inicio">Fecha Inicio</label>
+              <input type="date" id="nomina-fecha-inicio" class="form-input" style="height:40px;">
+            </div>
+            <div style="flex:1;min-width:150px;">
+              <label class="form-label" for="nomina-fecha-fin">Fecha Fin</label>
+              <input type="date" id="nomina-fecha-fin" class="form-input" style="height:40px;">
+            </div>
+            <button class="btn btn-primary" id="btn-calcular-nomina" style="height:40px;padding:0 20px;white-space:nowrap;">🧮 Calcular Nómina</button>
+          </div>
+        </div>
+
+        <!-- Calculation Result -->
+        <div id="nomina-result" style="display:none;" class="nomina-result-card">
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Período</div>
+            <div style="font-size:14px;font-weight:500;color:#374151;" id="nomina-periodo-text"></div>
+          </div>
+          <div class="nomina-breakdown">
+            <div class="nomina-row" id="nomina-horas-normales-row" style="cursor:pointer;" onclick="toggleNominaDetalle()" title="Ver desglose de horas">
+              <span class="nomina-label">⏱️ Horas Normales Trabajadas <span style="font-size:11px;color:var(--turquesa-ola);">▸ Ver detalle</span></span>
+              <span class="nomina-value" id="nomina-horas-normales">—</span>
+            </div>
+            <div id="nomina-detalle-panel" style="display:none;background:#f8fafc;border-left:3px solid var(--turquesa-ola);margin:4px 0 8px 12px;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#374151;">
+              <div id="nomina-detalle-content"></div>
+            </div>
+            <div class="nomina-row">
+              <span class="nomina-label">💰 Importe Base (Horas Normales)</span>
+              <span class="nomina-value" id="nomina-pago-normales">—</span>
+            </div>
+            <div class="nomina-divider"></div>
+            <div class="nomina-row">
+              <span class="nomina-label">⚡ Horas Extras</span>
+              <span class="nomina-value" id="nomina-horas-extras">—</span>
+            </div>
+            <div class="nomina-row">
+              <span class="nomina-label">💰 Importe Horas Extras (1.0x)</span>
+              <span class="nomina-value" id="nomina-pago-extras">—</span>
+            </div>
+            <div class="nomina-divider" style="border-top:2px solid var(--azul-marino);"></div>
+            <div class="nomina-row nomina-total">
+              <span>💵 Total a Pagar</span>
+              <span id="nomina-neto-display">C$0.00</span>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:16px;">
+            <button class="btn btn-primary nomina-pay-btn" id="btn-pagar-nomina" style="height:48px;padding:0 32px;font-size:16px;font-weight:700;">
+              💵 Registrar Pago
+            </button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div style="margin-top:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Historial de Nóminas</div>
+          <div id="nomina-history-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Error de IP (RN-602) -->
+  <div id="modal-ip-block" class="modal-overlay" aria-label="Error de ubicación de red" style="display:none;">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="bg-red-50 border-2 border-red-300 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-in">
+        <div class="flex justify-center mb-4">
+          <span class="material-symbols-outlined text-red-600" style="font-size:64px;">lock</span>
+        </div>
+        <h3 class="text-xl font-bold text-red-800 mb-2">Error de Ubicación</h3>
+        <p class="text-red-700 text-sm leading-relaxed mb-6">
+          No se encuentra conectado a la red oficial de Sazón Caribeño.
+          El inicio de turno ha sido bloqueado.
+        </p>
+        <p class="text-red-500 text-xs mb-6" id="ip-block-detail"></p>
+        <button onclick="closeIPBlockModal()"
+                class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar Gasto -->
+  <div id="modal-registrar-gasto" class="modal-overlay" aria-label="Registrar gasto operativo">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💸 Registrar Gasto</h3>
+        <button class="modal-close" id="close-gasto-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="gasto-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="gasto-categoria">Categoría</label>
+          <select id="gasto-categoria" class="form-input" required>
+            <option value="">Seleccionar categoría…</option>
+            <option value="OPERATIVO">🔧 Operativo</option>
+            <option value="MANTENIMIENTO">🛠️ Mantenimiento</option>
+            <option value="SUMINISTROS">📦 Suministros</option>
+            <option value="SERVICIOS">⚙️ Servicios</option>
+            <option value="IMPUESTOS">🏛️ Impuestos</option>
+            <option value="OTROS">📋 Otros</option>
+          </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="gasto-monto">Monto (C$)</label>
+          <input type="number" id="gasto-monto" class="form-input" step="0.01" min="0.01" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="gasto-descripcion">Descripción</label>
+          <textarea id="gasto-descripcion" class="form-input" rows="3" placeholder="Detalle del gasto…" required style="resize:vertical;"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-gasto-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-gasto-btn" style="flex:1;">Guardar Gasto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
