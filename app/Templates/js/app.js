@@ -1545,6 +1545,7 @@ function openStockModal(insumoId) {
   if (!insumo) return;
 
   document.getElementById('stock-insumo-id').value = insumo.id;
+  document.getElementById('stock-detalles-insumo-id').value = insumo.id;
   document.getElementById('stock-info').innerHTML = `
     <div class="stock-info-name">${insumo.nombre}</div>
     <div class="stock-info-qty">${insumo.cantidad_actual} ${insumo.unidad_medida}</div>
@@ -1552,7 +1553,26 @@ function openStockModal(insumoId) {
   document.getElementById('stock-qty').value = '';
   document.getElementById('stock-motivo').value = 'Ajuste de inventario';
   setStockType('ENTRADA');
+  switchStockTab('movimiento');
+
+  const catSel = document.getElementById('stock-cat-select');
+  catSel.innerHTML = '<option value="">Sin categoría</option>' +
+    state.categoriasInsumo.map(c => `<option value="${c.id}" ${c.id === insumo.categoria_id ? 'selected' : ''}>${c.nombre}</option>`).join('');
+  const unidadSel = document.getElementById('stock-unidad-select');
+  unidadSel.innerHTML = state.unidadesMedida.map(u =>
+    `<option value="${u.id}" ${u.id === insumo.unidad_medida_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`
+  ).join('');
+  document.getElementById('stock-minimo').value = insumo.stock_minimo ?? '';
+  document.getElementById('stock-cat-panel').style.display = 'none';
+  document.getElementById('stock-unidad-panel').style.display = 'none';
+
   document.getElementById('modal-stock').classList.add('show');
+}
+
+function switchStockTab(tab) {
+  document.querySelectorAll('#stock-tabs .period-tab').forEach(b => b.classList.toggle('active', b.dataset.stockTab === tab));
+  document.getElementById('stock-tab-movimiento').style.display = tab === 'movimiento' ? '' : 'none';
+  document.getElementById('stock-tab-detalles').style.display = tab === 'detalles' ? '' : 'none';
 }
 
 function setStockType(tipo) {
@@ -1567,9 +1587,6 @@ function closeStockModal() {
 async function saveStock(e) {
   e.preventDefault();
   const insumoId = document.getElementById('stock-insumo-id').value;
-  const tipo = document.getElementById('stock-entrada-btn').classList.contains('ENTRADA') ||
-               document.getElementById('stock-entrada-btn').classList.contains('active')
-    ? 'ENTRADA' : 'SALIDA';
   const tipoFinal = document.getElementById('stock-entrada-btn').classList.contains('active') ? 'ENTRADA' : 'SALIDA';
   const payload = {
     cantidad: parseFloat(document.getElementById('stock-qty').value),
@@ -1588,6 +1605,80 @@ async function saveStock(e) {
     showToast(`Stock ${tipoFinal === 'ENTRADA' ? 'incrementado' : 'reducido'}`);
     closeStockModal();
     loadInventory();
+  } catch { /* handled */ }
+}
+
+async function saveStockDetails(e) {
+  e.preventDefault();
+  const insumoId = document.getElementById('stock-detalles-insumo-id').value;
+  const catVal = document.getElementById('stock-cat-select').value;
+  const unidadVal = document.getElementById('stock-unidad-select').value;
+  const minimoVal = document.getElementById('stock-minimo').value;
+  const payload = {};
+  if (catVal) payload.categoria_id = parseInt(catVal);
+  if (unidadVal) payload.unidad_medida_id = parseInt(unidadVal);
+  if (minimoVal !== '' && minimoVal !== null) payload.stock_minimo = parseFloat(minimoVal);
+
+  if (Object.keys(payload).length === 0) {
+    return showToast('No hay cambios para guardar', 'warning');
+  }
+
+  try {
+    await api(`/inventario/insumos/${insumoId}`, {
+      method: 'PATCH', body: JSON.stringify(payload),
+    });
+    showToast('Detalles actualizados');
+    closeStockModal();
+    loadInventory();
+  } catch { /* handled */ }
+}
+
+/* --- Stock Detalles — Gear Subpanels --- */
+function toggleStockCatPanel() {
+  const p = document.getElementById('stock-cat-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarStockCategoriaInsumo() {
+  const nombre = document.getElementById('stock-cat-nombre').value.trim();
+  if (!nombre) return showToast('Ingresa el nombre', 'warning');
+  try {
+    await api('/inventario/categorias-insumo', { method: 'POST', body: JSON.stringify({ nombre }) });
+    document.getElementById('stock-cat-nombre').value = '';
+    await loadCategoriasInsumo();
+    const sel = document.getElementById('stock-cat-select');
+    const insumoId = parseInt(document.getElementById('stock-detalles-insumo-id').value);
+    const insumo = state.insumos.find(i => i.id === insumoId);
+    sel.innerHTML = '<option value="">Sin categoría</option>' +
+      state.categoriasInsumo.map(c => `<option value="${c.id}" ${insumo && c.id === insumo.categoria_id ? 'selected' : ''}>${c.nombre}</option>`).join('');
+    document.getElementById('stock-cat-panel').style.display = 'none';
+    showToast('Categoría creada');
+  } catch { /* handled */ }
+}
+
+function toggleStockUnidadPanel() {
+  const p = document.getElementById('stock-unidad-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarStockUnidadMedida() {
+  const nombre = document.getElementById('stock-unidad-nombre').value.trim();
+  const abreviatura = document.getElementById('stock-unidad-abrev').value.trim();
+  if (!nombre) return showToast('Ingresa el nombre', 'warning');
+  if (!abreviatura) return showToast('Ingresa la abreviatura', 'warning');
+  try {
+    await api('/inventario/unidades-medida', { method: 'POST', body: JSON.stringify({ nombre, abreviatura }) });
+    document.getElementById('stock-unidad-nombre').value = '';
+    document.getElementById('stock-unidad-abrev').value = '';
+    await loadUnidadesMedida();
+    const sel = document.getElementById('stock-unidad-select');
+    const insumoId = parseInt(document.getElementById('stock-detalles-insumo-id').value);
+    const insumo = state.insumos.find(i => i.id === insumoId);
+    sel.innerHTML = state.unidadesMedida.map(u =>
+      `<option value="${u.id}" ${insumo && u.id === insumo.unidad_medida_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`
+    ).join('');
+    document.getElementById('stock-unidad-panel').style.display = 'none';
+    showToast('Unidad creada');
   } catch { /* handled */ }
 }
 
@@ -2854,6 +2945,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('stock-form')?.addEventListener('submit', saveStock);
   document.getElementById('stock-entrada-btn')?.addEventListener('click', () => setStockType('ENTRADA'));
   document.getElementById('stock-salida-btn')?.addEventListener('click', () => setStockType('SALIDA'));
+  document.querySelectorAll('#stock-tabs .period-tab').forEach(b => {
+    b.addEventListener('click', () => switchStockTab(b.dataset.stockTab));
+  });
+  document.getElementById('stock-details-form')?.addEventListener('submit', saveStockDetails);
+  document.querySelectorAll('#modal-stock .stock-cancel-details').forEach(b => {
+    b.addEventListener('click', closeStockModal);
+  });
+  document.getElementById('stock-cat-toggle')?.addEventListener('click', toggleStockCatPanel);
+  document.getElementById('stock-cat-save')?.addEventListener('click', guardarStockCategoriaInsumo);
+  document.getElementById('stock-cat-cancel')?.addEventListener('click', toggleStockCatPanel);
+  document.getElementById('stock-unidad-toggle')?.addEventListener('click', toggleStockUnidadPanel);
+  document.getElementById('stock-unidad-save')?.addEventListener('click', guardarStockUnidadMedida);
+  document.getElementById('stock-unidad-cancel')?.addEventListener('click', toggleStockUnidadPanel);
 
   // Order modal
   document.getElementById('close-order-modal')?.addEventListener('click', closeOrderModal);

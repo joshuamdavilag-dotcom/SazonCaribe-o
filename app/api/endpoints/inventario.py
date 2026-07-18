@@ -15,6 +15,7 @@ from app.schemas.inventario import (
     MovimientoResponse,
     InsumoCreate,
     InsumoResponse,
+    InsumoUpdate,
     ActualizarStockInsumo,
     CategoriaInsumoCreate,
     CategoriaInsumoResponse,
@@ -322,6 +323,26 @@ def actualizar_stock_insumo(
     un registro de movimiento en el historial.
     """
     return service.actualizar_stock_insumo(insumo_id, datos)
+
+
+@router.patch(
+    "/insumos/{insumo_id}",
+    response_model=InsumoResponse,
+    summary="Actualizar detalles de un insumo",
+    description=(
+        "Actualiza categoría, unidad de medida o stock mínimo de un insumo."
+    ),
+    tags=["Inventario"],
+    dependencies=[_requerir_rol_inventario]
+)
+def actualizar_insumo(
+    insumo_id: int = Path(
+        ..., gt=0, description="ID del insumo"
+    ),
+    datos: InsumoUpdate = ...,
+    service: InventarioService = Depends(get_inventario_service)
+) -> InsumoResponse:
+    return service.actualizar_insumo(insumo_id, datos)
 
 
 # =============================================================================

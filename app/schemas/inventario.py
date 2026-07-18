@@ -338,3 +338,19 @@ class ActualizarStockInsumo(BaseModel):
         description="Motivo del ajuste",
         examples=["Compra a proveedor"]
     )
+
+
+class InsumoUpdate(BaseModel):
+    """Esquema para actualizar los detalles de un insumo (PATCH)."""
+    categoria_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la categoría del insumo"
+    )
+    unidad_medida_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad de medida"
+    )
+    stock_minimo: Optional[Decimal] = Field(
+        default=None, gt=0, decimal_places=2,
+        description="Stock mínimo para alertas"
+    )

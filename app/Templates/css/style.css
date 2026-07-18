@@ -1842,6 +1842,43 @@ body:not(.role-administrador) .admin-only {
 }
 
 /* =========================================================================
+   Stock Modal — Tabs + Select with Gear
+   ========================================================================= */
+.stock-tab-panel {
+  padding: 12px 14px 0;
+}
+
+.stock-tab-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#modal-stock .period-tabs {
+  padding: 0 14px;
+}
+
+.select-with-gear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.select-with-gear .form-select {
+  flex: 1;
+}
+
+.stock-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  margin-bottom: 2px;
+}
+
+/* =========================================================================
    RESPONSIVE — Mobile (< 768px)
    ========================================================================= */
 

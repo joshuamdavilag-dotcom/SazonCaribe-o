@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=2.1">
+  <link rel="stylesheet" href="css/style.css?v=2.2">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
@@ -423,29 +423,79 @@
         <h3 class="modal-title" id="stock-modal-title">Ajustar Stock</h3>
         <button class="modal-close" id="close-stock-modal" aria-label="Cerrar">✕</button>
       </div>
-      <form id="stock-form" novalidate>
-        <input type="hidden" id="stock-insumo-id">
-        <div class="stock-info" id="stock-info"></div>
-        <div class="form-group">
-          <label class="form-label">Tipo de Movimiento</label>
-          <div class="toggle-row">
-            <button type="button" class="toggle-btn toggle-entrada active" id="stock-entrada-btn" data-val="ENTRADA">📥 Entrada</button>
-            <button type="button" class="toggle-btn toggle-salida" id="stock-salida-btn" data-val="SALIDA">📤 Salida</button>
+      <div class="period-tabs" id="stock-tabs">
+        <button type="button" class="period-tab active" data-stock-tab="movimiento">Movimiento</button>
+        <button type="button" class="period-tab" data-stock-tab="detalles">Detalles</button>
+      </div>
+
+      <div id="stock-tab-movimiento" class="stock-tab-panel">
+        <form id="stock-form" novalidate>
+          <input type="hidden" id="stock-insumo-id">
+          <div class="stock-info" id="stock-info"></div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Movimiento</label>
+            <div class="toggle-row">
+              <button type="button" class="toggle-btn toggle-entrada active" id="stock-entrada-btn" data-val="ENTRADA">📥 Entrada</button>
+              <button type="button" class="toggle-btn toggle-salida" id="stock-salida-btn" data-val="SALIDA">📤 Salida</button>
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="stock-qty">Cantidad</label>
-          <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="stock-motivo">Motivo</label>
-          <input type="text" id="stock-motivo" class="form-input" placeholder="Compra a proveedor" value="Ajuste de inventario">
-        </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" id="cancel-stock-modal" style="flex:1;">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="save-stock-btn" style="flex:1;">Confirmar</button>
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label" for="stock-qty">Cantidad</label>
+            <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="stock-motivo">Motivo</label>
+            <input type="text" id="stock-motivo" class="form-input" placeholder="Compra a proveedor" value="Ajuste de inventario">
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="cancel-stock-modal" style="flex:1;">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="save-stock-btn" style="flex:1;">Confirmar</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="stock-tab-detalles" class="stock-tab-panel" style="display:none;">
+        <form id="stock-details-form" novalidate>
+          <input type="hidden" id="stock-detalles-insumo-id">
+          <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <div class="select-with-gear">
+              <select id="stock-cat-select" class="form-select"></select>
+              <button type="button" class="icon-btn-sm" id="stock-cat-toggle" title="Nueva categoría">⚙️</button>
+            </div>
+            <div id="stock-cat-panel" class="inline-subpanel" style="display:none;">
+              <input type="text" id="stock-cat-nombre" class="form-input" placeholder="Nombre categoría">
+              <div class="form-actions" style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="stock-cat-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="stock-cat-save">Guardar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad de Medida</label>
+            <div class="select-with-gear">
+              <select id="stock-unidad-select" class="form-select"></select>
+              <button type="button" class="icon-btn-sm" id="stock-unidad-toggle" title="Nueva unidad">⚙️</button>
+            </div>
+            <div id="stock-unidad-panel" class="inline-subpanel" style="display:none;">
+              <input type="text" id="stock-unidad-nombre" class="form-input" placeholder="Nombre (ej: Kilogramo)">
+              <input type="text" id="stock-unidad-abrev" class="form-input" placeholder="Abreviatura (ej: kg)" style="margin-top:6px;">
+              <div class="form-actions" style="display:flex; gap:6px; margin-top:6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="stock-unidad-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="stock-unidad-save">Guardar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="stock-minimo">Stock Mínimo</label>
+            <input type="number" id="stock-minimo" class="form-input" step="0.01" min="0" placeholder="5.00">
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary stock-cancel-details" style="flex:1;">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="save-stock-details-btn" style="flex:1;">Guardar</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

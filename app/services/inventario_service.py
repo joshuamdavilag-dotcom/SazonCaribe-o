@@ -21,6 +21,7 @@ from app.schemas.inventario import (
     MovimientoResponse,
     InsumoCreate,
     InsumoResponse,
+    InsumoUpdate,
     ActualizarStockInsumo,
     CategoriaInsumoCreate,
     CategoriaInsumoResponse,
@@ -403,6 +404,34 @@ class InventarioService:
         """
         insumos = self.insumo_repo.get_bajo_stock_minimo()
         return [InsumoResponse.model_validate(i) for i in insumos]
+
+    def actualizar_insumo(
+        self, insumo_id: int, datos: InsumoUpdate
+    ) -> InsumoResponse:
+        """
+        Actualiza detalles de un insumo (categoría, unidad, stock_mínimo).
+
+        Args:
+            insumo_id: ID del insumo.
+            datos: Campos a actualizar (parcial).
+
+        Returns:
+            InsumoResponse con el insumo actualizado.
+
+        Raises:
+            HTTPException 404: Si el insumo no existe.
+        """
+        insumo = self.insumo_repo.get_by_id(insumo_id)
+        if not insumo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el insumo con ID {insumo_id}"
+            )
+        update_data = datos.model_dump(exclude_unset=True)
+        if update_data:
+            self.insumo_repo.update(insumo_id, update_data)
+            insumo = self.insumo_repo.get_by_id(insumo_id)
+        return InsumoResponse.model_validate(insumo)
 
     # =========================================================================
     # Categorías de Insumo
