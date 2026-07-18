@@ -48,7 +48,7 @@ def crear_turno(
     """
     Crea un nuevo turno laboral.
 
-    - **nombre**: Nombre único del turno (ej: "Mañana", "Tarde", "Noche")
+    - **nombre**: Nombre único del turno (ej: "Matutino", "Nocturno")
     - **hora_entrada**: Hora de entrada (ej: "08:00:00")
     - **hora_salida**: Hora de salida (ej: "16:00:00")
     - **horas_teoricas**: Horas teóricas del turno (por defecto 8)

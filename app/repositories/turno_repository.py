@@ -23,7 +23,7 @@ class TurnoRepository(BaseRepository[Turno]):
         Busca un turno por su nombre.
 
         Args:
-            nombre: Nombre del turno (ej. "Mañana", "Tarde", "Noche").
+            nombre: Nombre del turno (ej. "Matutino", "Nocturno").
 
         Returns:
             El turno encontrado o None si no existe.

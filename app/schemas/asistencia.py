@@ -16,7 +16,7 @@ class TurnoBase(BaseModel):
         min_length=1,
         max_length=50,
         description="Nombre del turno laboral",
-        examples=["Mañana"]
+        examples=["Matutino"]
     )
     hora_entrada: time = Field(
         ...,

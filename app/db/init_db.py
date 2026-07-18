@@ -118,8 +118,8 @@ ZONAS_SEED = [
 ]
 
 TURNOS_SEED = [
-    {"nombre": "Mañana", "hora_entrada": time(8, 0),  "hora_salida": time(16, 0),  "horas_teoricas": 8},
-    {"nombre": "Tarde",   "hora_entrada": time(14, 0), "hora_salida": time(22, 0),  "horas_teoricas": 8},
+    {"nombre": "Matutino", "hora_entrada": time(8, 0),  "hora_salida": time(16, 0),  "horas_teoricas": 8},
+    {"nombre": "Nocturno", "hora_entrada": time(14, 0), "hora_salida": time(22, 0),  "horas_teoricas": 8},
 ]
 
 INGREDIENTES_SEED = [
@@ -395,6 +395,8 @@ def _seed_zonas_mesas(db: Session) -> list[Mesa]:
 
 def _seed_turnos(db: Session) -> dict[str, Turno]:
     """Inserta turnos base y retorna dict nombre→Turno."""
+    _migrate_turnos(db)
+
     stmt = select(Turno).limit(1)
     if db.execute(stmt).scalar_one_or_none():
         print("  [=] Turnos ya existen, omitiendo.")
@@ -409,6 +411,19 @@ def _seed_turnos(db: Session) -> dict[str, Turno]:
         mapping[turno.nombre] = turno
         print(f"    [+] {turno.nombre}: {turno.hora_entrada}–{turno.hora_salida}")
     return mapping
+
+
+def _migrate_turnos(db: Session) -> None:
+    """Renombra turnos legacy Mañana/Tarde a Matutino/Nocturno."""
+    renames = {"Mañana": "Matutino", "Tarde": "Nocturno"}
+    for old_name, new_name in renames.items():
+        turno = db.execute(
+            select(Turno).where(Turno.nombre == old_name)
+        ).scalar_one_or_none()
+        if turno:
+            print(f"  [~] Migrando turno '{old_name}' → '{new_name}'")
+            turno.nombre = new_name
+            db.flush()
 
 
 def _seed_categorias_insumo(db: Session) -> list[CategoriaInsumo]:
@@ -556,8 +571,8 @@ def _seed_asistencias(
     print("  ▸ Generando asistencias (1 jul – 13 jul 2026)...")
     random.seed(42)
 
-    turno_manana = turnos["Mañana"]
-    turno_tarde = turnos["Tarde"]
+    turno_manana = turnos["Matutino"]
+    turno_tarde = turnos["Nocturno"]
 
     fecha_inicio = date(2026, 7, 1)
     fecha_fin = date(2026, 7, 13)

@@ -194,7 +194,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Payroll**: Biweekly (monthly_salary / 2); salary is per-employee (`Empleado.salario_base`), not per-puesto
 - **Overtime**: (salary / 30 / 8) per hour over `horas_teoricas`
 - **IVA**: Removed — menu prices are tax-inclusive; `IVA_RATE=0.0`
-- **Turno**: Template (Mañana/Tarde/Noche); Asistencia = actual check-in record
+- **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
 - **Orden**: Requires `mesa_id` + array of `detalles` (each with `producto_id`, `cantidad`)
