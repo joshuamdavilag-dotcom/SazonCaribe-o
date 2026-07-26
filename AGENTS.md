@@ -13,7 +13,7 @@ Frontend is a Vanilla JS SPA served by FastAPI from `app/Templates/`.
 | ORM          | SQLAlchemy 2.x (mapped_column, Mapped)      |
 | Schemas      | Pydantic v2 (ConfigDict from_attributes)    |
 | Database     | MySQL via PyMySQL                            |
-| Auth         | python-jose (JWT HS256) + passlib (bcrypt)  |
+| Auth         | python-jose (JWT HS256) + bcrypt (direct)   |
 | Migrations   | Alembic                                     |
 | Frontend     | Vanilla JS SPA + Custom CSS (style.css)      |
 | Testing      | requests (standalone E2E scripts)            |
@@ -28,7 +28,7 @@ app/
 ├── core/
 │   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS
 │   ├── database.py          # Engine, SessionLocal, Base, get_db()
-│   └── security.py          # bcrypt + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
+│   └── security.py          # bcrypt (direct) + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
 ├── api/
 │   ├── deps.py              # get_current_user, requerir_rol(roles)
 │   └── endpoints/           # API controllers (one file per domain)
@@ -120,7 +120,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 | Username | Password    | Role           | Notes |
 |----------|-------------|----------------|-------|
-| Joshi_0211 | @0420311001000V | Administrador | Auto-seeded on startup if DB empty |
+| joshi_0211 | @0420311001000V | Administrador | Auto-seeded on startup if DB empty |
 | admin    | password123 | Administrador  | init_db.py seed |
 | gerente  | password123 | Gerente        | init_db.py seed |
 | mesero   | password123 | Vendedor       | init_db.py seed |
@@ -144,6 +144,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Spanish user-facing strings, English internal identifiers
 - `RolEnum` defined in `app/schemas/personal.py`
 - SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES read from `.env` via `get_settings()`
+- Case-insensitive login: usernames normalized to lowercase (`strip().lower()`) at auth endpoint and user creation service
 
 ### Frontend / JS
 
@@ -159,7 +160,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - IP block modal: `#modal-ip-block` + `blockPOSAccess()` disables all actions
 - Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
 - Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal
-- Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge
+- Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
 - KDS (Panel de Cocina): `#screen-comandero` with 3 filter tabs (`data-cocina-tab`: cocina/lista/historial), `#cocina-grid` card grid; `loadCocinaOrdenes()` → `renderCocinaCards()`; `cambiarEstadoKDS(id, estado)` → `PATCH /ordenes/{id}/estado`; cards show zone, mesa, mesero, elapsed time with urgency colors, and item list with `producto_nombre`
 - Responsive design: Custom CSS (NOT Tailwind); mobile `<768px`, tablet `768-1024px`
 - Dynamic Carta categories: Fetches from `GET /menu/categorias`
@@ -243,6 +244,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/inventario/insumos                  | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/insumos                  | Yes      | Any                |
 | PATCH  | /api/v1/inventario/insumos/{id}/stock       | Yes      | Admin, Gerente     |
+| PATCH  | /api/v1/inventario/insumos/{id}             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/insumos/alertas          | Yes      | Any                |
 | POST   | /api/v1/inventario/movimientos              | Yes      | Any                |
 | GET    | /api/v1/inventario/proveedores              | Yes      | Any                |
@@ -357,7 +359,7 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 
 - No Alembic migrations generated yet — using `create_all` on startup
 - CORS: configurable via `CORS_ORIGINS` env var (comma-separated); defaults to `http://127.0.0.1:5500,http://localhost:5500` with `allow_credentials=True`
-- Frontend `api()` helper doesn't distinguish error types — `iniciarTurno()` uses direct `fetch()` for 403 handling
+- Frontend `api()` helper skips 401 session-expired logic for `/auth/login` (login errors handled by `login()` function)
 - No refresh token flow — single 8h access token
 - `turno_service.py`: three standalone functions (not a class) — inconsistent with other services
 - E2E test scripts (`test_ordenes.py` etc.) require auth tokens for most endpoints but don't implement login flow — run `init_db.py` seed data first
