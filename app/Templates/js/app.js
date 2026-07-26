@@ -1940,12 +1940,19 @@ function openEditUnidadForm(id) {
 
 function populateUnidadBaseSelect(magnitud, selectedId) {
   const sel = document.getElementById('unidad-form-base');
-  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === magnitud);
   const excludeId = parseInt(document.getElementById('unidad-edit-id').value) || null;
-  sel.innerHTML = '<option value="">Seleccionar base...</option>' +
-    sameType
-      .filter(u => u.id !== excludeId)
-      .map(u => `<option value="${u.id}" ${u.id === selectedId ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`)
+  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === magnitud && u.id !== excludeId);
+  const candidates = (magnitud === 'PERSONALIZADO' || sameType.length === 0)
+    ? state.unidadesMedida.filter(u => u.id !== excludeId)
+    : sameType;
+  const hint = magnitud === 'PERSONALIZADO'
+    ? 'Todas las unidades disponibles'
+    : sameType.length === 0
+      ? 'No hay otras unidades de esta magnitud'
+      : '';
+  sel.innerHTML = `<option value="">${hint || 'Seleccionar base...'}</option>` +
+    candidates
+      .map(u => `<option value="${u.id}" ${u.id === selectedId ? 'selected' : ''}>${u.nombre} (${u.abreviatura}) [${u.tipo_magnitud}]</option>`)
       .join('');
 }
 
