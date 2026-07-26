@@ -128,6 +128,7 @@ async def startup_event():
     """Evento de inicio de la aplicación."""
     Base.metadata.create_all(bind=engine)
     _migrate_constraints()
+    _migrate_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
     asyncio.create_task(_heartbeat_watcher())
@@ -153,6 +154,26 @@ def _migrate_constraints():
             db.commit()
         except Exception:
             db.rollback()
+
+
+def _migrate_unidades_medida():
+    """Agrega columnas de conversión a unidades_medida si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    cols = [
+        ("tipo_magnitud", "ALTER TABLE unidades_medida ADD COLUMN tipo_magnitud VARCHAR(20) NOT NULL DEFAULT 'UNIDAD'"),
+        ("unidad_base_id", "ALTER TABLE unidades_medida ADD COLUMN unidad_base_id INT NULL"),
+        ("factor_conversion", "ALTER TABLE unidades_medida ADD COLUMN factor_conversion FLOAT NULL"),
+    ]
+    with Session(engine) as db:
+        for col_name, ddl in cols:
+            try:
+                db.execute(text(ddl))
+                db.commit()
+                print(f"  [~] Columna '{col_name}' agregada a unidades_medida")
+            except Exception:
+                db.rollback()
 
 
 def _auto_seed_admin():

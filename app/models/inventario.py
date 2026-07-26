@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List
 
-from sqlalchemy import String, Integer, DateTime, Numeric, ForeignKey, CheckConstraint
+from sqlalchemy import String, Integer, DateTime, Numeric, Float, ForeignKey, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -26,11 +26,26 @@ class UnidadMedida(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     abreviatura: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    tipo_magnitud: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="UNIDAD",
+        comment="PESO, VOLUMEN, UNIDAD, PERSONALIZADO"
+    )
+    unidad_base_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("unidades_medida.id"), nullable=True,
+        comment="FK a unidad base para conversión"
+    )
+    factor_conversion: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, default=1.0,
+        comment="1 unidad = factor_conversion unidades_base"
+    )
 
     insumos: Mapped[List["Insumo"]] = relationship("Insumo", back_populates="unidad_medida_obj")
+    unidad_base: Mapped[Optional["UnidadMedida"]] = relationship(
+        "UnidadMedida", remote_side="UnidadMedida.id", foreign_keys=[unidad_base_id]
+    )
 
     def __repr__(self) -> str:
-        return f"<UnidadMedida(id={self.id}, nombre='{self.nombre}', abrev='{self.abreviatura}')>"
+        return f"<UnidadMedida(id={self.id}, nombre='{self.nombre}', abrev='{self.abreviatura}', mag='{self.tipo_magnitud}')>"
 
 
 class Proveedor(Base):

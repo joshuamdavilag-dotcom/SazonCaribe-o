@@ -26,6 +26,7 @@ from app.schemas.inventario import (
     CategoriaInsumoCreate,
     CategoriaInsumoResponse,
     UnidadMedidaCreate,
+    UnidadMedidaUpdate,
     UnidadMedidaResponse,
 )
 from app.services.gasto_service import GastoService
@@ -484,12 +485,49 @@ class InventarioService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Ya existe una unidad con la abreviatura '{data.abreviatura}'"
                 )
-        unidad = self.unidad_medida_repo.create({"nombre": data.nombre, "abreviatura": data.abreviatura})
+        if data.unidad_base_id and data.unidad_base_id == data.nombre:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Una unidad no puede ser su propia base"
+            )
+        create_data = data.model_dump(exclude_unset=True)
+        unidad = self.unidad_medida_repo.create(create_data)
         return UnidadMedidaResponse.model_validate(unidad)
 
     def listar_unidades_medida(self) -> List[UnidadMedidaResponse]:
         units = self.unidad_medida_repo.get_all(order_by="nombre")
         return [UnidadMedidaResponse.model_validate(u) for u in units]
+
+    def actualizar_unidad_medida(
+        self, unidad_id: int, datos: UnidadMedidaUpdate
+    ) -> UnidadMedidaResponse:
+        unidad = self.unidad_medida_repo.get_by_id(unidad_id)
+        if not unidad:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la unidad de medida con ID {unidad_id}"
+            )
+        update_data = datos.model_dump(exclude_unset=True)
+        if "nombre" in update_data or "abreviatura" in update_data:
+            existing = self.unidad_medida_repo.get_all()
+            new_nombre = update_data.get("nombre", unidad.nombre).lower()
+            new_abrev = update_data.get("abreviatura", unidad.abreviatura).lower()
+            for u in existing:
+                if u.id != unidad_id:
+                    if u.nombre.lower() == new_nombre:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Ya existe una unidad con el nombre '{update_data['nombre']}'"
+                        )
+                    if u.abreviatura.lower() == new_abrev:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Ya existe una unidad con la abreviatura '{update_data['abreviatura']}'"
+                        )
+        if update_data:
+            self.unidad_medida_repo.update(unidad_id, update_data)
+            unidad = self.unidad_medida_repo.get_by_id(unidad_id)
+        return UnidadMedidaResponse.model_validate(unidad)
 
     def eliminar_unidad_medida(self, unidad_id: int) -> None:
         unidad = self.unidad_medida_repo.get_by_id(unidad_id)

@@ -27,6 +27,30 @@ class CategoriaInsumoResponse(BaseModel):
 class UnidadMedidaCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=50, description="Nombre de la unidad")
     abreviatura: str = Field(..., min_length=1, max_length=10, description="Abreviatura")
+    tipo_magnitud: str = Field(
+        default="UNIDAD",
+        pattern=r"^(PESO|VOLUMEN|UNIDAD|PERSONALIZADO)$",
+        description="Tipo de magnitud: PESO, VOLUMEN, UNIDAD, PERSONALIZADO"
+    )
+    unidad_base_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad base para conversión"
+    )
+    factor_conversion: Optional[float] = Field(
+        default=None, gt=0,
+        description="1 unidad = factor_conversion unidades_base"
+    )
+
+
+class UnidadMedidaUpdate(BaseModel):
+    nombre: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    abreviatura: Optional[str] = Field(default=None, min_length=1, max_length=10)
+    tipo_magnitud: Optional[str] = Field(
+        default=None,
+        pattern=r"^(PESO|VOLUMEN|UNIDAD|PERSONALIZADO)$"
+    )
+    unidad_base_id: Optional[int] = Field(default=None, gt=0)
+    factor_conversion: Optional[float] = Field(default=None, gt=0)
 
 
 class UnidadMedidaResponse(BaseModel):
@@ -35,6 +59,9 @@ class UnidadMedidaResponse(BaseModel):
     id: int = Field(..., description="ID único de la unidad")
     nombre: str = Field(..., description="Nombre de la unidad")
     abreviatura: str = Field(..., description="Abreviatura de la unidad")
+    tipo_magnitud: str = Field(..., description="Tipo de magnitud")
+    unidad_base_id: Optional[int] = Field(default=None, description="ID unidad base")
+    factor_conversion: Optional[float] = Field(default=None, description="Factor de conversión")
 
 
 # =============================================================================

@@ -21,6 +21,7 @@ from app.schemas.inventario import (
     CategoriaInsumoCreate,
     CategoriaInsumoResponse,
     UnidadMedidaCreate,
+    UnidadMedidaUpdate,
     UnidadMedidaResponse,
 )
 from app.services.inventario_service import InventarioService
@@ -443,3 +444,34 @@ def eliminar_unidad_medida(
     service: InventarioService = Depends(get_inventario_service),
 ):
     service.eliminar_unidad_medida(unidad_id)
+
+
+@router.put(
+    "/unidades-medida/{unidad_id}",
+    response_model=UnidadMedidaResponse,
+    summary="Actualizar unidad de medida",
+    tags=["Inventario"],
+    dependencies=[_requerir_rol_inventario],
+)
+def actualizar_unidad_medida(
+    unidad_id: int = Path(..., gt=0, description="ID de la unidad"),
+    datos: UnidadMedidaUpdate = ...,
+    service: InventarioService = Depends(get_inventario_service),
+) -> UnidadMedidaResponse:
+    return service.actualizar_unidad_medida(unidad_id, datos)
+
+
+@router.get(
+    "/unidades-medida/convertir",
+    summary="Convertir cantidad entre unidades",
+    tags=["Inventario"],
+)
+def convertir_unidades(
+    cantidad: float,
+    origen: int,
+    destino: int,
+    service: InventarioService = Depends(get_inventario_service),
+) -> dict:
+    from app.services.conversion_service import convertir_cantidad
+    resultado = convertir_cantidad(service.db, cantidad, origen, destino)
+    return {"cantidad_origen": cantidad, "unidad_origen": origen, "unidad_destino": destino, "cantidad_convertida": round(resultado, 4)}

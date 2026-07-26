@@ -102,14 +102,18 @@ CATEGORIAS_INSUMO_SEED = [
 ]
 
 UNIDADES_MEDIDA_SEED = [
-    {"nombre": "Kilogramo",     "abreviatura": "Kg"},
-    {"nombre": "Litro",         "abreviatura": "L"},
-    {"nombre": "Unidad",        "abreviatura": "Un"},
-    {"nombre": "Gramo",         "abreviatura": "g"},
-    {"nombre": "Mililitro",     "abreviatura": "ml"},
-    {"nombre": "Docena",        "abreviatura": "Doc"},
-    {"nombre": "Metro",         "abreviatura": "m"},
-    {"nombre": "Paquete",       "abreviatura": "Pq"},
+    # Weight — base: Gramo
+    {"nombre": "Kilogramo",  "abreviatura": "Kg",  "tipo_magnitud": "PESO",      "factor_conversion": 1000.0,  "base_ref": "Gramo"},
+    {"nombre": "Gramo",      "abreviatura": "g",   "tipo_magnitud": "PESO",      "factor_conversion": None,    "base_ref": None},
+    # Volume — base: Mililitro
+    {"nombre": "Litro",      "abreviatura": "L",   "tipo_magnitud": "VOLUMEN",   "factor_conversion": 1000.0,  "base_ref": "Mililitro"},
+    {"nombre": "Mililitro",  "abreviatura": "ml",  "tipo_magnitud": "VOLUMEN",   "factor_conversion": None,    "base_ref": None},
+    # Count — base: Unidad
+    {"nombre": "Unidad",     "abreviatura": "Un",  "tipo_magnitud": "UNIDAD",    "factor_conversion": None,    "base_ref": None},
+    {"nombre": "Docena",     "abreviatura": "Doc", "tipo_magnitud": "UNIDAD",    "factor_conversion": 12.0,    "base_ref": "Unidad"},
+    # No conversion
+    {"nombre": "Metro",      "abreviatura": "m",   "tipo_magnitud": "PERSONALIZADO", "factor_conversion": None, "base_ref": None},
+    {"nombre": "Paquete",    "abreviatura": "Pq",  "tipo_magnitud": "PERSONALIZADO", "factor_conversion": None, "base_ref": None},
 ]
 
 ZONAS_SEED = [
@@ -448,14 +452,25 @@ def _seed_unidades_medida(db: Session) -> list[UnidadMedida]:
         print("  [=] Unidades de medida ya existen, omitiendo.")
         return list(db.execute(select(UnidadMedida)).scalars().all())
     print("  ▸ Insertando unidades de medida...")
-    units = []
+    units_map: dict[str, UnidadMedida] = {}
+    refs: dict[str, str] = {}
     for data in UNIDADES_MEDIDA_SEED:
-        unit = UnidadMedida(**data)
+        base_ref = data.get("base_ref")
+        model_data = {k: v for k, v in data.items() if k != "base_ref"}
+        unit = UnidadMedida(**model_data)
         db.add(unit)
         db.flush()
-        units.append(unit)
-        print(f"    [+] {unit.nombre} ({unit.abreviatura})")
-    return units
+        units_map[unit.nombre] = unit
+        if base_ref:
+            refs[unit.nombre] = base_ref
+        print(f"    [+] {unit.nombre} ({unit.abreviatura}) [{unit.tipo_magnitud}]")
+    for nombre, base_ref in refs.items():
+        if base_ref in units_map:
+            unit = units_map[nombre]
+            unit.unidad_base_id = units_map[base_ref].id
+            db.flush()
+            print(f"    [~] {nombre} → base: {base_ref}")
+    return list(units_map.values())
 
 
 def _seed_ingredientes(db: Session, proveedores: list[Proveedor]) -> list[Ingrediente]:
