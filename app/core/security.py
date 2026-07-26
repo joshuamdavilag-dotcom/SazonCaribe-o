@@ -1,18 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, status
 
 from app.core.config import get_settings
-
-
-# =============================================================================
-# Configuración de Bcrypt
-# =============================================================================
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # =============================================================================
@@ -27,34 +20,21 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 # =============================================================================
-# Funciones de Contraseña
+# Funciones de Contraseña (bcrypt directo, sin passlib)
 # =============================================================================
 
 def verificar_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifica si una contraseña en texto plano coincide con su hash bcrypt.
-
-    Args:
-        plain_password: Contraseña original del usuario.
-        hashed_password: Hash almacenado en la base de datos.
-
-    Returns:
-        True si coinciden, False si no.
-    """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 def obtener_password_hash(password: str) -> str:
-    """
-    Genera el hash bcrypt de una contraseña para almacenamiento seguro.
-
-    Args:
-        password: Contraseña en texto plano.
-
-    Returns:
-        Hash bcrypt de la contraseña.
-    """
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
 
 
 # =============================================================================

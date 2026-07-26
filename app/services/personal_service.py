@@ -251,13 +251,14 @@ class PersonalService:
                 detail=f"El empleado con ID {usuario_in.empleado_id} no está activo"
             )
 
-        if self.usuario_repo.exists_by_username(usuario_in.username):
+        if self.usuario_repo.exists_by_username(usuario_in.username.strip().lower()):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"El nombre de usuario '{usuario_in.username}' ya está en uso"
             )
 
         usuario_data = usuario_in.model_dump()
+        usuario_data["username"] = usuario_data["username"].strip().lower()
         password_plano = usuario_data.pop("password")
         usuario_data["password_hash"] = obtener_password_hash(password_plano)
 

@@ -191,7 +191,7 @@ def _auto_seed_admin():
             db.flush()
 
             usuario = Usuario(
-                username="Joshi_0211",
+                username="joshi_0211",
                 password_hash=obtener_password_hash("@0420311001000V"),
                 rol="Administrador",
                 empleado_id=empleado.id,
@@ -200,7 +200,7 @@ def _auto_seed_admin():
             db.add(usuario)
             db.commit()
 
-            print("    [+] Administrador creado: Joshi_0211")
+            print("    [+] Administrador creado: joshi_0211")
         except Exception as e:
             db.rollback()
             print(f"  [!] Error al crear administrador automático: {e}")

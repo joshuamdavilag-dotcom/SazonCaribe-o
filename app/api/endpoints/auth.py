@@ -27,7 +27,7 @@ def login(
     - Retorna un token JWT con id, username y rol.
     """
     usuario_repo = UsuarioRepository(db)
-    usuario = usuario_repo.get_by_username(data.username)
+    usuario = usuario_repo.get_by_username(data.username.strip().lower())
 
     if not usuario:
         raise HTTPException(
