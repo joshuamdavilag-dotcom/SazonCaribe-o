@@ -105,15 +105,22 @@ UNIDADES_MEDIDA_SEED = [
     # Weight — base: Gramo
     {"nombre": "Kilogramo",  "abreviatura": "Kg",  "tipo_magnitud": "PESO",      "factor_conversion": 1000.0,  "base_ref": "Gramo"},
     {"nombre": "Gramo",      "abreviatura": "g",   "tipo_magnitud": "PESO",      "factor_conversion": None,    "base_ref": None},
+    {"nombre": "Libra",      "abreviatura": "lb",  "tipo_magnitud": "PESO",      "factor_conversion": 453.592, "base_ref": "Gramo"},
+    {"nombre": "Onza",       "abreviatura": "oz",  "tipo_magnitud": "PESO",      "factor_conversion": 28.3495, "base_ref": "Gramo"},
     # Volume — base: Mililitro
     {"nombre": "Litro",      "abreviatura": "L",   "tipo_magnitud": "VOLUMEN",   "factor_conversion": 1000.0,  "base_ref": "Mililitro"},
     {"nombre": "Mililitro",  "abreviatura": "ml",  "tipo_magnitud": "VOLUMEN",   "factor_conversion": None,    "base_ref": None},
+    {"nombre": "Botella",    "abreviatura": "Bot", "tipo_magnitud": "VOLUMEN",   "factor_conversion": 1000.0,  "base_ref": "Mililitro"},
+    {"nombre": "Lata",       "abreviatura": "Lta", "tipo_magnitud": "VOLUMEN",   "factor_conversion": 355.0,   "base_ref": "Mililitro"},
     # Count — base: Unidad
     {"nombre": "Unidad",     "abreviatura": "Un",  "tipo_magnitud": "UNIDAD",    "factor_conversion": None,    "base_ref": None},
     {"nombre": "Docena",     "abreviatura": "Doc", "tipo_magnitud": "UNIDAD",    "factor_conversion": 12.0,    "base_ref": "Unidad"},
-    # No conversion
+    {"nombre": "Par",        "abreviatura": "Pr",  "tipo_magnitud": "UNIDAD",    "factor_conversion": 2.0,     "base_ref": "Unidad"},
+    # No conversion — standalone
     {"nombre": "Metro",      "abreviatura": "m",   "tipo_magnitud": "PERSONALIZADO", "factor_conversion": None, "base_ref": None},
-    {"nombre": "Paquete",    "abreviatura": "Pq",  "tipo_magnitud": "PERSONALIZADO", "factor_conversion": None, "base_ref": None},
+    {"nombre": "Paquete",    "abreviatura": "Pq",  "tipo_magnitud": "UNIDAD",    "factor_conversion": None,    "base_ref": None},
+    {"nombre": "Bolsa",      "abreviatura": "Bol", "tipo_magnitud": "UNIDAD",    "factor_conversion": None,    "base_ref": None},
+    {"nombre": "Porción",    "abreviatura": "Por", "tipo_magnitud": "UNIDAD",    "factor_conversion": None,    "base_ref": None},
 ]
 
 ZONAS_SEED = [

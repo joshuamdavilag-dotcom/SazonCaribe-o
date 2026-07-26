@@ -130,6 +130,7 @@ async def startup_event():
     _migrate_constraints()
     _migrate_unidades_medida()
     _migrate_recetas_unidad()
+    _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
     asyncio.create_task(_heartbeat_watcher())
@@ -191,6 +192,93 @@ def _migrate_recetas_unidad():
             print("  [~] Columna 'unidad_medida_id' agregada a recetas")
         except Exception:
             db.rollback()
+
+
+def _fix_unidades_medida():
+    """Corrige magnitudes y cadenas de conversión de unidades existentes.
+
+    - Actualiza tipo_magnitud para unidades conocidas que pudieran tener el valor incorrecto.
+    - Establece unidad_base_id y factor_conversion donde falten.
+    - Agrega unidades estándar que no existan (Onza, Libra, Botella, Lata, Par, Bolsa, Porción).
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import Session
+    from app.models.inventario import UnidadMedida
+
+    CORRECCIONES = {
+        "Kilogramo":  {"tipo_magnitud": "PESO"},
+        "Gramo":      {"tipo_magnitud": "PESO"},
+        "Libra":      {"tipo_magnitud": "PESO"},
+        "Onza":       {"tipo_magnitud": "PESO"},
+        "Litro":      {"tipo_magnitud": "VOLUMEN"},
+        "Mililitro":  {"tipo_magnitud": "VOLUMEN"},
+        "Botella":    {"tipo_magnitud": "VOLUMEN"},
+        "Lata":       {"tipo_magnitud": "VOLUMEN"},
+        "Unidad":     {"tipo_magnitud": "UNIDAD"},
+        "Docena":     {"tipo_magnitud": "UNIDAD"},
+        "Par":        {"tipo_magnitud": "UNIDAD"},
+        "Paquete":    {"tipo_magnitud": "UNIDAD"},
+        "Bolsa":      {"tipo_magnitud": "UNIDAD"},
+        "Porción":    {"tipo_magnitud": "UNIDAD"},
+    }
+
+    CONVERSIONES = {
+        "Kilogramo": {"base": "Gramo",  "factor": 1000.0},
+        "Libra":     {"base": "Gramo",  "factor": 453.592},
+        "Onza":      {"base": "Gramo",  "factor": 28.3495},
+        "Litro":     {"base": "Mililitro", "factor": 1000.0},
+        "Botella":   {"base": "Mililitro", "factor": 1000.0},
+        "Lata":      {"base": "Mililitro", "factor": 355.0},
+        "Docena":    {"base": "Unidad", "factor": 12.0},
+        "Par":       {"base": "Unidad", "factor": 2.0},
+    }
+
+    NUEVAS = [
+        {"nombre": "Onza",    "abreviatura": "oz",  "tipo_magnitud": "PESO"},
+        {"nombre": "Libra",   "abreviatura": "lb",  "tipo_magnitud": "PESO"},
+        {"nombre": "Botella", "abreviatura": "Bot", "tipo_magnitud": "VOLUMEN"},
+        {"nombre": "Lata",    "abreviatura": "Lta", "tipo_magnitud": "VOLUMEN"},
+        {"nombre": "Par",     "abreviatura": "Pr",  "tipo_magnitud": "UNIDAD"},
+        {"nombre": "Bolsa",   "abreviatura": "Bol", "tipo_magnitud": "UNIDAD"},
+        {"nombre": "Porción", "abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
+    ]
+
+    with Session(engine) as db:
+        existing = {u.nombre: u for u in db.execute(select(UnidadMedida)).scalars().all()}
+
+        for nombre, data in NUEVAS.items():
+            if nombre not in existing:
+                unit = UnidadMedida(nombre=nombre, abreviatura=data["abreviatura"], tipo_magnitud=data["tipo_magnitud"])
+                db.add(unit)
+                db.flush()
+                existing[nombre] = unit
+                print(f"  [+] Unidad creada: {nombre} ({data['abreviatura']}) [{data['tipo_magnitud']}]")
+
+        for nombre, corr in CORRECCIONES.items():
+            if nombre in existing:
+                unit = existing[nombre]
+                new_mag = corr.get("tipo_magnitud")
+                if new_mag and unit.tipo_magnitud != new_mag:
+                    old = unit.tipo_magnitud
+                    unit.tipo_magnitud = new_mag
+                    print(f"  [~] {nombre}: magnitud {old} → {new_mag}")
+
+        for nombre, conv in CONVERSIONES.items():
+            if nombre in existing:
+                unit = existing[nombre]
+                base_name = conv["base"]
+                if base_name in existing:
+                    base_id = existing[base_name].id
+                    needs_update = (
+                        unit.unidad_base_id != base_id
+                        or unit.factor_conversion != conv["factor"]
+                    )
+                    if needs_update:
+                        unit.unidad_base_id = base_id
+                        unit.factor_conversion = conv["factor"]
+                        print(f"  [~] {nombre} → base: {base_name} (factor: {conv['factor']})")
+
+        db.commit()
 
 
 def _auto_seed_admin():
