@@ -306,6 +306,10 @@ class MovimientoCreate(BaseModel):
         description="Motivo del movimiento",
         examples=["Compra a proveedor"]
     )
+    unidad_medida_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad de medida del movimiento. Si difiere de la unidad base del insumo, se convierte automáticamente."
+    )
 
 
 class MovimientoResponse(BaseModel):
@@ -364,6 +368,10 @@ class ActualizarStockInsumo(BaseModel):
         max_length=100,
         description="Motivo del ajuste",
         examples=["Compra a proveedor"]
+    )
+    unidad_medida_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad de medida del movimiento. Si difiere de la unidad base del insumo, se convierte automáticamente."
     )
 
 

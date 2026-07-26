@@ -432,6 +432,7 @@
       <div id="stock-tab-movimiento" class="stock-tab-panel">
         <form id="stock-form" novalidate>
           <input type="hidden" id="stock-insumo-id">
+          <input type="hidden" id="stock-insumo-unidad-base-id">
           <div class="stock-info" id="stock-info"></div>
           <div class="form-group">
             <label class="form-label">Tipo de Movimiento</label>
@@ -440,10 +441,17 @@
               <button type="button" class="toggle-btn toggle-salida" id="stock-salida-btn" data-val="SALIDA">📤 Salida</button>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="stock-qty">Cantidad</label>
-            <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="stock-qty">Cantidad</label>
+              <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="stock-mov-unidad">Unidad</label>
+              <select id="stock-mov-unidad" class="form-input"></select>
+            </div>
           </div>
+          <div id="stock-conversion-preview" class="conversion-preview" style="display:none;"></div>
           <div class="form-group">
             <label class="form-label" for="stock-motivo">Motivo</label>
             <input type="text" id="stock-motivo" class="form-input" placeholder="Compra a proveedor" value="Ajuste de inventario">

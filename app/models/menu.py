@@ -125,6 +125,12 @@ class Receta(Base):
         Numeric(10, 3),
         nullable=False
     )
+    unidad_medida_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("unidades_medida.id", name="fk_recetas_unidad_medida_id"),
+        nullable=True,
+        comment="Unidad de medida de la receta. Si difiere del insumo, se convierte automáticamente."
+    )
 
     # Relación muchos-a-uno con MenuItem
     menu_item: Mapped["MenuItem"] = relationship(
@@ -136,6 +142,12 @@ class Receta(Base):
     # Relación muchos-a-uno con Insumo (stock real del restaurante)
     insumo: Mapped["Insumo"] = relationship(
         "Insumo",
+        lazy="selectin"
+    )
+
+    # Relación muchos-a-uno con UnidadMedida
+    unidad_medida: Mapped[Optional["UnidadMedida"]] = relationship(
+        "UnidadMedida",
         lazy="selectin"
     )
 

@@ -1554,6 +1554,7 @@ function openStockModal(insumoId) {
 
   document.getElementById('stock-insumo-id').value = insumo.id;
   document.getElementById('stock-detalles-insumo-id').value = insumo.id;
+  document.getElementById('stock-insumo-unidad-base-id').value = insumo.unidad_medida_id;
   document.getElementById('stock-info').innerHTML = `
     <div class="stock-info-name">${insumo.nombre}</div>
     <div class="stock-info-qty">${insumo.cantidad_actual} ${insumo.unidad_medida}</div>
@@ -1562,6 +1563,14 @@ function openStockModal(insumoId) {
   document.getElementById('stock-motivo').value = 'Ajuste de inventario';
   setStockType('ENTRADA');
   switchStockTab('movimiento');
+
+  const movUnidadSel = document.getElementById('stock-mov-unidad');
+  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === (state.unidadesMedida.find(u2 => u2.id === insumo.unidad_medida_id)?.tipo_magnitud || 'UNIDAD'));
+  movUnidadSel.innerHTML = sameType.map(u =>
+    `<option value="${u.id}" ${u.id === insumo.unidad_medida_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`
+  ).join('');
+  document.getElementById('stock-conversion-preview').style.display = 'none';
+  updateStockConversionPreview();
 
   const catSel = document.getElementById('stock-cat-select');
   catSel.innerHTML = '<option value="">Sin categoría</option>' +
@@ -1586,6 +1595,27 @@ function switchStockTab(tab) {
 function setStockType(tipo) {
   document.getElementById('stock-entrada-btn').classList.toggle('active', tipo === 'ENTRADA');
   document.getElementById('stock-salida-btn').classList.toggle('active', tipo === 'SALIDA');
+  updateStockConversionPreview();
+}
+
+function updateStockConversionPreview() {
+  const preview = document.getElementById('stock-conversion-preview');
+  const baseId = parseInt(document.getElementById('stock-insumo-unidad-base-id').value) || null;
+  const selectedId = parseInt(document.getElementById('stock-mov-unidad').value) || null;
+  const qty = parseFloat(document.getElementById('stock-qty').value) || 0;
+  const tipo = document.getElementById('stock-entrada-btn').classList.contains('active') ? 'ENTRADA' : 'SALIDA';
+  const insumo = state.insumos.find(i => i.id === parseInt(document.getElementById('stock-insumo-id').value));
+  if (!baseId || !selectedId || selectedId === baseId || qty <= 0 || !insumo) {
+    preview.style.display = 'none';
+    return;
+  }
+  const movUnit = state.unidadesMedida.find(u => u.id === selectedId);
+  const baseUnit = state.unidadesMedida.find(u => u.id === baseId);
+  if (!movUnit || !baseUnit) { preview.style.display = 'none'; return; }
+  const arrow = tipo === 'ENTRADA' ? '➕' : '➖';
+  const sign = tipo === 'ENTRADA' ? '+' : '-';
+  preview.textContent = `${arrow} ${qty} ${movUnit.abreviatura} equivalen a ${sign}${qty} ${movUnit.abreviatura} → ${baseUnit.nombre} (${baseUnit.abreviatura}) en stock`;
+  preview.style.display = '';
 }
 
 function closeStockModal() {
@@ -1596,11 +1626,16 @@ async function saveStock(e) {
   e.preventDefault();
   const insumoId = document.getElementById('stock-insumo-id').value;
   const tipoFinal = document.getElementById('stock-entrada-btn').classList.contains('active') ? 'ENTRADA' : 'SALIDA';
+  const movUnidadId = parseInt(document.getElementById('stock-mov-unidad').value) || null;
+  const baseId = parseInt(document.getElementById('stock-insumo-unidad-base-id').value) || null;
   const payload = {
     cantidad: parseFloat(document.getElementById('stock-qty').value),
     tipo: tipoFinal,
     motivo: document.getElementById('stock-motivo').value.trim() || 'Ajuste de inventario',
   };
+  if (movUnidadId && movUnidadId !== baseId) {
+    payload.unidad_medida_id = movUnidadId;
+  }
 
   if (!payload.cantidad || payload.cantidad <= 0) {
     return showToast('Ingresa una cantidad válida', 'warning');
@@ -3146,6 +3181,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('stock-unidad-toggle')?.addEventListener('click', toggleStockUnidadPanel);
   document.getElementById('stock-unidad-save')?.addEventListener('click', guardarStockUnidadMedida);
   document.getElementById('stock-unidad-cancel')?.addEventListener('click', toggleStockUnidadPanel);
+  document.getElementById('stock-mov-unidad')?.addEventListener('change', updateStockConversionPreview);
+  document.getElementById('stock-qty')?.addEventListener('input', updateStockConversionPreview);
 
   // Order modal
   document.getElementById('close-order-modal')?.addEventListener('click', closeOrderModal);

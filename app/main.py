@@ -129,6 +129,7 @@ async def startup_event():
     Base.metadata.create_all(bind=engine)
     _migrate_constraints()
     _migrate_unidades_medida()
+    _migrate_recetas_unidad()
     _auto_seed_admin()
     _fix_joshi_password()
     asyncio.create_task(_heartbeat_watcher())
@@ -174,6 +175,22 @@ def _migrate_unidades_medida():
                 print(f"  [~] Columna '{col_name}' agregada a unidades_medida")
             except Exception:
                 db.rollback()
+
+
+def _migrate_recetas_unidad():
+    """Agrega columna unidad_medida_id a recetas si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE recetas ADD COLUMN unidad_medida_id INT NULL"
+            ))
+            db.commit()
+            print("  [~] Columna 'unidad_medida_id' agregada a recetas")
+        except Exception:
+            db.rollback()
 
 
 def _auto_seed_admin():

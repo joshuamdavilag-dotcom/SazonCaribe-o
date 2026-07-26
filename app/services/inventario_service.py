@@ -32,6 +32,21 @@ from app.schemas.inventario import (
 from app.services.gasto_service import GastoService
 
 
+def _convertir_cantidad_si_necesaria(
+    db: Session,
+    cantidad: Decimal,
+    unidad_movimiento_id: int | None,
+    insumo_unidad_id: int,
+) -> Decimal:
+    """Si la unidad del movimiento difiere de la unidad base del insumo,
+    convierte la cantidad usando la cadena de conversiones."""
+    if unidad_movimiento_id is None or unidad_movimiento_id == insumo_unidad_id:
+        return cantidad
+    from app.services.conversion_service import convertir_cantidad
+    resultado = convertir_cantidad(db, float(cantidad), unidad_movimiento_id, insumo_unidad_id)
+    return Decimal(str(round(resultado, 4)))
+
+
 class InventarioService:
     """
     Servicio de lógica de negocio para el módulo de inventario.
@@ -67,44 +82,37 @@ class InventarioService:
         """
         Registra un movimiento de inventario y actualiza el stock.
 
-        Flujo:
-        1. Actualiza el stock del ingrediente (valida existencia y stock suficiente).
-        2. Registra el movimiento en la base de datos.
-        3. Retorna el movimiento creado.
-
-        Args:
-            movimiento_in: Datos del movimiento a registrar.
-
-        Returns:
-            MovimientoResponse con el movimiento registrado.
-
-        Raises:
-            HTTPException 404: Si el ingrediente no existe.
-            HTTPException 400: Si no hay stock suficiente para una salida.
+        Si la unidad del movimiento difiere de la unidad base del insumo,
+        convierte automáticamente la cantidad antes de aplicar.
         """
+        insumo_obj = self.insumo_repo.get_by_id(movimiento_in.insumo_id)
+        if not insumo_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el insumo con ID {movimiento_in.insumo_id}"
+            )
+        cantidad_convertida = _convertir_cantidad_si_necesaria(
+            self.db, movimiento_in.cantidad, movimiento_in.unidad_medida_id,
+            insumo_obj.unidad_medida_id
+        )
         try:
             insumo = self.insumo_repo.actualizar_stock(
                 insumo_id=movimiento_in.insumo_id,
-                cantidad=movimiento_in.cantidad,
+                cantidad=cantidad_convertida,
                 tipo_movimiento=movimiento_in.tipo
             )
         except ValueError as e:
-            if "No se encontró" in str(e):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=str(e)
-                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
 
         movimiento_data = movimiento_in.model_dump()
+        movimiento_data["cantidad"] = cantidad_convertida
         movimiento_creado = self.movimiento_repo.create(movimiento_data)
 
         if movimiento_in.tipo == "SALIDA":
-            insumo_obj = self.insumo_repo.get_by_id(movimiento_in.insumo_id)
-            costo = Decimal(str(movimiento_in.cantidad)) * Decimal(str(insumo_obj.costo_unitario))
+            costo = cantidad_convertida * Decimal(str(insumo_obj.costo_unitario))
             if costo > 0:
                 self.gasto_service.registrar_gasto_automatico(
                     insumo_id=movimiento_in.insumo_id,
@@ -366,29 +374,25 @@ class InventarioService:
         """
         Actualiza el stock de un insumo (entrada o salida).
 
-        Args:
-            insumo_id: ID del insumo.
-            datos: Datos del ajuste de stock.
-
-        Returns:
-            InsumoResponse con el insumo actualizado.
-
-        Raises:
-            HTTPException 404: Si el insumo no existe.
-            HTTPException 400: Si no hay stock suficiente para una salida.
+        Si la unidad del movimiento difiere de la unidad base del insumo,
+        convierte automáticamente la cantidad antes de aplicar.
         """
+        insumo_obj = self.insumo_repo.get_by_id(insumo_id)
+        if not insumo_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el insumo con ID {insumo_id}"
+            )
+        cantidad_convertida = _convertir_cantidad_si_necesaria(
+            self.db, datos.cantidad, datos.unidad_medida_id, insumo_obj.unidad_medida_id
+        )
         try:
             insumo = self.insumo_repo.actualizar_stock(
                 insumo_id=insumo_id,
-                cantidad=datos.cantidad,
+                cantidad=cantidad_convertida,
                 tipo_movimiento=datos.tipo
             )
         except ValueError as e:
-            if "No se encontró" in str(e):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=str(e)
-                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)

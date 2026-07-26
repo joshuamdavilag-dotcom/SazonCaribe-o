@@ -28,15 +28,29 @@ class OrdenService:
     #  Stock: validación, descuento y reversión                           #
     # ================================================================== #
 
+    def _convertir_si_necesario(
+        self,
+        receta_unidad_id: int | None,
+        insumo_unidad_id: int,
+        cantidad: Decimal,
+    ) -> Decimal:
+        """Si la unidad de la receta difiere de la unidad del insumo, convierte."""
+        if receta_unidad_id is None or receta_unidad_id == insumo_unidad_id:
+            return cantidad
+        from app.services.conversion_service import convertir_cantidad
+        resultado = convertir_cantidad(
+            self.db, float(cantidad), receta_unidad_id, insumo_unidad_id
+        )
+        return Decimal(str(round(resultado, 4)))
+
     def validar_stock_suficiente(
         self,
         detalles: list[DetalleOrdenCreate],
     ) -> None:
         """Valida que haya stock suficiente para todos los ingredientes.
 
-        Recorre cada platillo, busca su receta y verifica que cada
-        ingrediente tenga stock_actual >= cantidad_necesaria * porciones.
-        Lanza HTTPException 400 con mensaje descriptivo si falta stock.
+        Si la receta especifica una unidad diferente a la del insumo,
+        convierte automáticamente antes de comparar.
         """
         for item in detalles:
             producto = self.menu_repo.obtener_menu_item_por_id(item.producto_id)
@@ -47,17 +61,18 @@ class OrdenService:
                 )
             for receta in producto.ingredientes_receta:
                 insumo = receta.insumo
-                cantidad_total = (
-                    Decimal(str(receta.cantidad_necesaria)) * item.cantidad
+                cantidad_base = Decimal(str(receta.cantidad_necesaria)) * item.cantidad
+                cantidad_convertida = self._convertir_si_necesario(
+                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
                 )
-                if Decimal(str(insumo.cantidad_actual)) < cantidad_total:
+                if Decimal(str(insumo.cantidad_actual)) < cantidad_convertida:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=(
                             f"No hay suficiente '{insumo.nombre}' en "
                             f"inventario (disponible: "
                             f"{insumo.cantidad_actual}, "
-                            f"requerido: {cantidad_total})"
+                            f"requerido: {cantidad_convertida})"
                         ),
                     )
 
@@ -68,10 +83,8 @@ class OrdenService:
     ) -> None:
         """Descuenta insumos del inventario para los detalles proporcionados.
 
-        Para cada platillo, busca su receta y por cada ingrediente:
-        - Resta cantidad_necesaria * porciones del stock_actual
-        - Registra un MovimientoInventario de tipo SALIDA
-        - Auto-genera un Gasto de categoría SUMINISTROS
+        Si la receta especifica una unidad diferente a la del insumo,
+        convierte automáticamente antes de descontar.
         """
         for item in detalles:
             producto = self.menu_repo.obtener_menu_item_por_id(item.producto_id)
@@ -82,18 +95,21 @@ class OrdenService:
                 )
             for receta in producto.ingredientes_receta:
                 insumo = receta.insumo
-                cantidad_total = (
+                cantidad_base = (
                     Decimal(str(receta.cantidad_necesaria)) * item.cantidad
                 )
-                insumo.cantidad_actual -= cantidad_total
+                cantidad_convertida = self._convertir_si_necesario(
+                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
+                )
+                insumo.cantidad_actual -= cantidad_convertida
                 self.db.add(MovimientoInventario(
                     insumo_id=insumo.id,
                     tipo="SALIDA",
-                    cantidad=cantidad_total,
+                    cantidad=cantidad_convertida,
                     motivo=contexto,
                     fecha=datetime.now(),
                 ))
-                costo = cantidad_total * Decimal(
+                costo = cantidad_convertida * Decimal(
                     str(insumo.costo_unitario)
                 )
                 if costo > 0:
@@ -108,11 +124,8 @@ class OrdenService:
     def revertir_stock(self, orden: Orden) -> None:
         """Revierte el stock descontado para todos los ítems de una orden.
 
-        Se invoca cuando la orden pasa a estado CANCELADA.
-        Para cada DetalleOrden, busca la receta del platillo y por
-        cada ingrediente suma de vuelta cantidad_necesaria * porciones
-        al stock_actual, registrando un MovimientoInventario de tipo
-        ENTRADA como auditoría.
+        Si la receta especifica una unidad diferente a la del insumo,
+        convierte automáticamente al revertir.
         """
         for detalle in orden.detalles:
             producto = self.menu_repo.obtener_menu_item_por_id(
@@ -122,14 +135,17 @@ class OrdenService:
                 continue
             for receta in producto.ingredientes_receta:
                 insumo = receta.insumo
-                cantidad_revertir = (
+                cantidad_base = (
                     Decimal(str(receta.cantidad_necesaria)) * detalle.cantidad
                 )
-                insumo.cantidad_actual += cantidad_revertir
+                cantidad_convertida = self._convertir_si_necesario(
+                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
+                )
+                insumo.cantidad_actual += cantidad_convertida
                 self.db.add(MovimientoInventario(
                     insumo_id=insumo.id,
                     tipo="ENTRADA",
-                    cantidad=cantidad_revertir,
+                    cantidad=cantidad_convertida,
                     motivo=f"Reversión Orden #{orden.id} cancelada",
                     fecha=datetime.now(),
                 ))
