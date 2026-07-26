@@ -263,14 +263,17 @@ def _fix_unidades_medida():
     }
 
     with Session(engine) as db:
-        existing = {u.nombre: u for u in db.execute(select(UnidadMedida)).scalars().all()}
+        all_units = db.execute(select(UnidadMedida)).scalars().all()
+        existing = {u.nombre: u for u in all_units}
+        existing_abrev = {u.abreviatura.lower(): u for u in all_units}
 
         for nombre, data in NUEVAS.items():
-            if nombre not in existing:
+            if nombre not in existing and data["abreviatura"].lower() not in existing_abrev:
                 unit = UnidadMedida(nombre=nombre, abreviatura=data["abreviatura"], tipo_magnitud=data["tipo_magnitud"])
                 db.add(unit)
                 db.flush()
                 existing[nombre] = unit
+                existing_abrev[data["abreviatura"].lower()] = unit
                 print(f"  [+] Unidad creada: {nombre} ({data['abreviatura']}) [{data['tipo_magnitud']}]")
 
         for nombre, corr in CORRECCIONES.items():
