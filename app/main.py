@@ -252,15 +252,15 @@ def _fix_unidades_medida():
         "Par":       {"base": "Unidad", "factor": 2.0},
     }
 
-    NUEVAS = [
-        {"nombre": "Onza",    "abreviatura": "oz",  "tipo_magnitud": "PESO"},
-        {"nombre": "Libra",   "abreviatura": "lb",  "tipo_magnitud": "PESO"},
-        {"nombre": "Botella", "abreviatura": "Bot", "tipo_magnitud": "VOLUMEN"},
-        {"nombre": "Lata",    "abreviatura": "Lta", "tipo_magnitud": "VOLUMEN"},
-        {"nombre": "Par",     "abreviatura": "Pr",  "tipo_magnitud": "UNIDAD"},
-        {"nombre": "Bolsa",   "abreviatura": "Bol", "tipo_magnitud": "UNIDAD"},
-        {"nombre": "Porción", "abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
-    ]
+    NUEVAS = {
+        "Onza":    {"abreviatura": "oz",  "tipo_magnitud": "PESO"},
+        "Libra":   {"abreviatura": "lb",  "tipo_magnitud": "PESO"},
+        "Botella": {"abreviatura": "Bot", "tipo_magnitud": "VOLUMEN"},
+        "Lata":    {"abreviatura": "Lta", "tipo_magnitud": "VOLUMEN"},
+        "Par":     {"abreviatura": "Pr",  "tipo_magnitud": "UNIDAD"},
+        "Bolsa":   {"abreviatura": "Bol", "tipo_magnitud": "UNIDAD"},
+        "Porción": {"abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
+    }
 
     with Session(engine) as db:
         existing = {u.nombre: u for u in db.execute(select(UnidadMedida)).scalars().all()}
