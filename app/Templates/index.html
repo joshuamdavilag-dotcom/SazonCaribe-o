@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=2.2">
+  <link rel="stylesheet" href="css/style.css?v=2.4">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
@@ -194,6 +194,7 @@
         <header class="screen-header">
           <h2 class="title">📦 Almacén Digital</h2>
           <div class="header-actions">
+            <button class="btn btn-secondary" id="btn-manage-unidades" style="height:40px;padding:0 16px;font-size:14px;">⚖️ Unidades</button>
             <button class="btn btn-turquoise" id="btn-new-insumo" style="height:40px;padding:0 16px;font-size:14px;">+ Nuevo Insumo</button>
           </div>
         </header>
@@ -495,6 +496,87 @@
             <button type="submit" class="btn btn-primary" id="save-stock-details-btn" style="flex:1;">Guardar</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestión de Unidades de Medida -->
+  <div id="modal-unidades" class="modal-overlay" aria-label="Gestión de unidades de medida">
+    <div class="modal-sheet" style="max-width:640px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="unidades-modal-title">Unidades de Medida</h3>
+        <button class="modal-close" id="close-unidades-modal" aria-label="Cerrar">✕</button>
+      </div>
+
+      <!-- Panel Lista -->
+      <div id="unidades-list-panel">
+        <div class="form-actions" style="justify-content:flex-end;margin-bottom:12px;">
+          <button class="btn btn-turquoise btn-sm" id="btn-create-unidad" style="height:36px;padding:0 14px;font-size:13px;">+ Nueva Unidad</button>
+        </div>
+        <div id="unidades-table-wrapper">
+          <table class="unidades-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Abrev.</th>
+                <th>Magnitud</th>
+                <th>Base</th>
+                <th>Factor</th>
+                <th style="width:80px;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="unidades-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Panel Crear/Editar -->
+      <div id="unidades-form-panel" style="display:none;">
+        <input type="hidden" id="unidad-edit-id">
+        <div class="form-group">
+          <label class="form-label" for="unidad-form-nombre">Nombre</label>
+          <input type="text" id="unidad-form-nombre" class="form-input" placeholder="Ej: Bolsa 5lb" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="unidad-form-abrev">Abreviatura</label>
+            <input type="text" id="unidad-form-abrev" class="form-input" placeholder="Ej: b5lb" maxlength="10" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="unidad-form-magnitud">Tipo de Magnitud</label>
+            <select id="unidad-form-magnitud" class="form-input">
+              <option value="PESO">⚖️ Peso</option>
+              <option value="VOLUMEN">🧪 Volumen</option>
+              <option value="UNIDAD" selected>📦 Unidad</option>
+              <option value="PERSONALIZADO">✏️ Personalizado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="unidad-derivada-toggle">
+            <input type="checkbox" id="unidad-form-derivada">
+            <span>¿Es una unidad derivada/convertible?</span>
+          </label>
+        </div>
+        <div id="unidad-conversion-fields" style="display:none;">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="unidad-form-base">Unidad Base</label>
+              <select id="unidad-form-base" class="form-input">
+                <option value="">Seleccionar base...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="unidad-form-factor">Factor de Conversión</label>
+              <input type="number" id="unidad-form-factor" class="form-input" step="0.001" min="0.001" placeholder="Ej: 1000">
+            </div>
+          </div>
+          <div id="unidad-conversion-preview" class="conversion-preview"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-unidad-form" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="save-unidad-form" style="flex:1;">Guardar</button>
+        </div>
       </div>
     </div>
   </div>

@@ -1828,6 +1828,168 @@ async function eliminarUnidadMedida(id) {
 }
 
 /* =========================================================================
+   Unidades de Medida — Gestión Completa (Modal)
+   ========================================================================= */
+function openUnidadesModal() {
+  document.getElementById('unidades-list-panel').style.display = '';
+  document.getElementById('unidades-form-panel').style.display = 'none';
+  document.getElementById('unidades-modal-title').textContent = 'Unidades de Medida';
+  renderUnidadesTable();
+  document.getElementById('modal-unidades').classList.add('show');
+}
+
+function closeUnidadesModal() {
+  document.getElementById('modal-unidades').classList.remove('show');
+}
+
+function renderUnidadesTable() {
+  const tbody = document.getElementById('unidades-table-body');
+  const units = state.unidadesMedida;
+  if (!units || units.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:24px;">No hay unidades registradas</td></tr>';
+    return;
+  }
+  const magnitudIcons = { PESO: '⚖️', VOLUMEN: '🧪', UNIDAD: '📦', PERSONALIZADO: '✏️' };
+  const unitsById = {};
+  units.forEach(u => { unitsById[u.id] = u; });
+  tbody.innerHTML = units.map(u => {
+    const icon = magnitudIcons[u.tipo_magnitud] || '📦';
+    const base = u.unidad_base_id ? (unitsById[u.unidad_base_id]?.nombre || '?') : '—';
+    const factor = u.factor_conversion != null ? u.factor_conversion : '—';
+    return `<tr>
+      <td class="unidades-td-name">${u.nombre}</td>
+      <td><span class="unidades-abrev-badge">${u.abreviatura}</span></td>
+      <td><span class="unidades-mag-badge">${icon} ${u.tipo_magnitud}</span></td>
+      <td>${base}</td>
+      <td>${factor}</td>
+      <td>
+        <button class="icon-btn-sm" onclick="openEditUnidadForm(${u.id})" title="Editar">✏️</button>
+        <button class="icon-btn-sm" onclick="eliminarUnidadCompleta(${u.id})" title="Eliminar">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCreateUnidadForm() {
+  document.getElementById('unidad-edit-id').value = '';
+  document.getElementById('unidad-form-nombre').value = '';
+  document.getElementById('unidad-form-abrev').value = '';
+  document.getElementById('unidad-form-magnitud').value = 'UNIDAD';
+  document.getElementById('unidad-form-derivada').checked = false;
+  document.getElementById('unidad-conversion-fields').style.display = 'none';
+  document.getElementById('unidad-form-base').innerHTML = '<option value="">Seleccionar base...</option>';
+  document.getElementById('unidad-form-factor').value = '';
+  document.getElementById('unidad-conversion-preview').textContent = '';
+  document.getElementById('unidades-modal-title').textContent = 'Nueva Unidad';
+  document.getElementById('unidades-list-panel').style.display = 'none';
+  document.getElementById('unidades-form-panel').style.display = '';
+}
+
+function openEditUnidadForm(id) {
+  const unit = state.unidadesMedida.find(u => u.id === id);
+  if (!unit) return;
+  document.getElementById('unidad-edit-id').value = id;
+  document.getElementById('unidad-form-nombre').value = unit.nombre;
+  document.getElementById('unidad-form-abrev').value = unit.abreviatura;
+  document.getElementById('unidad-form-magnitud').value = unit.tipo_magnitud;
+  const hasBase = !!unit.unidad_base_id;
+  document.getElementById('unidad-form-derivada').checked = hasBase;
+  document.getElementById('unidad-conversion-fields').style.display = hasBase ? '' : 'none';
+  populateUnidadBaseSelect(unit.tipo_magnitud, unit.unidad_base_id);
+  document.getElementById('unidad-form-factor').value = unit.factor_conversion != null ? unit.factor_conversion : '';
+  document.getElementById('unidades-modal-title').textContent = 'Editar Unidad';
+  document.getElementById('unidades-list-panel').style.display = 'none';
+  document.getElementById('unidades-form-panel').style.display = '';
+  updateConversionPreview();
+}
+
+function populateUnidadBaseSelect(magnitud, selectedId) {
+  const sel = document.getElementById('unidad-form-base');
+  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === magnitud);
+  const excludeId = parseInt(document.getElementById('unidad-edit-id').value) || null;
+  sel.innerHTML = '<option value="">Seleccionar base...</option>' +
+    sameType
+      .filter(u => u.id !== excludeId)
+      .map(u => `<option value="${u.id}" ${u.id === selectedId ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`)
+      .join('');
+}
+
+function toggleUnidadDerivada() {
+  const checked = document.getElementById('unidad-form-derivada').checked;
+  document.getElementById('unidad-conversion-fields').style.display = checked ? '' : 'none';
+  if (checked) {
+    const magnitud = document.getElementById('unidad-form-magnitud').value;
+    populateUnidadBaseSelect(magnitud, null);
+  }
+  updateConversionPreview();
+}
+
+function updateConversionPreview() {
+  const preview = document.getElementById('unidad-conversion-preview');
+  const derivada = document.getElementById('unidad-form-derivada').checked;
+  if (!derivada) { preview.textContent = ''; return; }
+  const nombre = document.getElementById('unidad-form-nombre').value.trim();
+  const abrev = document.getElementById('unidad-form-abrev').value.trim();
+  const factor = document.getElementById('unidad-form-factor').value;
+  const baseId = parseInt(document.getElementById('unidad-form-base').value) || null;
+  const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
+  if (!nombre || !factor || !baseUnit) {
+    preview.textContent = 'Completa nombre, factor y unidad base para ver la vista previa.';
+    return;
+  }
+  preview.textContent = `1 ${nombre} (${abrev || '?'}) = ${factor} ${baseUnit.nombre} (${baseUnit.abreviatura})`;
+}
+
+async function saveUnidadFormCompleta() {
+  const id = document.getElementById('unidad-edit-id').value || null;
+  const nombre = document.getElementById('unidad-form-nombre').value.trim();
+  const abreviatura = document.getElementById('unidad-form-abrev').value.trim();
+  const tipo_magnitud = document.getElementById('unidad-form-magnitud').value;
+  const derivada = document.getElementById('unidad-form-derivada').checked;
+  const factor = parseFloat(document.getElementById('unidad-form-factor').value) || null;
+  const baseId = parseInt(document.getElementById('unidad-form-base').value) || null;
+
+  if (!nombre) return showToast('Ingresa el nombre', 'warning');
+  if (!abreviatura) return showToast('Ingresa la abreviatura', 'warning');
+  if (derivada && !baseId) return showToast('Selecciona una unidad base', 'warning');
+  if (derivada && !factor) return showToast('Ingresa el factor de conversión', 'warning');
+
+  const body = { nombre, abreviatura, tipo_magnitud };
+  if (derivada) {
+    body.unidad_base_id = baseId;
+    body.factor_conversion = factor;
+  } else {
+    body.unidad_base_id = null;
+    body.factor_conversion = null;
+  }
+
+  try {
+    if (id) {
+      await api(`/inventario/unidades-medida/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      showToast('Unidad actualizada');
+    } else {
+      await api('/inventario/unidades-medida', { method: 'POST', body: JSON.stringify(body) });
+      showToast('Unidad creada');
+    }
+    await loadUnidadesMedida();
+    populateUnidadSelect();
+    openUnidadesModal();
+  } catch { /* handled by api() */ }
+}
+
+async function eliminarUnidadCompleta(id) {
+  const unit = state.unidadesMedida.find(u => u.id === id);
+  if (!confirm(`¿Eliminar la unidad "${unit?.nombre || id}"?`)) return;
+  try {
+    await api(`/inventario/unidades-medida/${id}`, { method: 'DELETE' });
+    await loadUnidadesMedida();
+    populateUnidadSelect();
+    renderUnidadesTable();
+    showToast('Unidad eliminada');
+  } catch { /* handled */ }
+}
+
+/* =========================================================================
    Personal & Nómina
    ========================================================================= */
 async function loadPersonal() {
@@ -2946,6 +3108,24 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-save-unidad')?.addEventListener('click', guardarUnidadMedida);
   document.getElementById('new-unidad-nombre')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); guardarUnidadMedida(); } });
   document.getElementById('new-unidad-abrev')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); guardarUnidadMedida(); } });
+
+  // Unidades modal
+  document.getElementById('btn-manage-unidades')?.addEventListener('click', openUnidadesModal);
+  document.getElementById('close-unidades-modal')?.addEventListener('click', closeUnidadesModal);
+  document.getElementById('btn-create-unidad')?.addEventListener('click', openCreateUnidadForm);
+  document.getElementById('cancel-unidad-form')?.addEventListener('click', openUnidadesModal);
+  document.getElementById('save-unidad-form')?.addEventListener('click', saveUnidadFormCompleta);
+  document.getElementById('unidad-form-derivada')?.addEventListener('change', toggleUnidadDerivada);
+  document.getElementById('unidad-form-magnitud')?.addEventListener('change', () => {
+    if (document.getElementById('unidad-form-derivada').checked) {
+      populateUnidadBaseSelect(document.getElementById('unidad-form-magnitud').value, null);
+    }
+    updateConversionPreview();
+  });
+  document.getElementById('unidad-form-base')?.addEventListener('change', updateConversionPreview);
+  ['unidad-form-nombre', 'unidad-form-abrev', 'unidad-form-factor'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateConversionPreview);
+  });
 
   // Stock modal
   document.getElementById('close-stock-modal')?.addEventListener('click', closeStockModal);
