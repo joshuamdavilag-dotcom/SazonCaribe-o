@@ -39,7 +39,9 @@ class UnidadMedida(Base):
         comment="1 unidad = factor_conversion unidades_base"
     )
 
-    insumos: Mapped[List["Insumo"]] = relationship("Insumo", back_populates="unidad_medida_obj")
+    insumos: Mapped[List["Insumo"]] = relationship(
+        "Insumo", foreign_keys="[Insumo.unidad_medida_id]", back_populates="unidad_medida_obj"
+    )
     unidad_base: Mapped[Optional["UnidadMedida"]] = relationship(
         "UnidadMedida", remote_side="UnidadMedida.id", foreign_keys=[unidad_base_id]
     )
@@ -196,7 +198,9 @@ class Insumo(Base):
         comment="1 empaque = factor_empaque unidades base (ej: 1 Bolsa = 5 Libras)"
     )
 
-    unidad_medida_obj: Mapped["UnidadMedida"] = relationship("UnidadMedida", back_populates="insumos", lazy="selectin")
+    unidad_medida_obj: Mapped["UnidadMedida"] = relationship(
+        "UnidadMedida", foreign_keys=[unidad_medida_id], back_populates="insumos", lazy="selectin"
+    )
     unidad_empaque_obj: Mapped[Optional["UnidadMedida"]] = relationship(
         "UnidadMedida", foreign_keys=[unidad_empaque_id], lazy="selectin"
     )
