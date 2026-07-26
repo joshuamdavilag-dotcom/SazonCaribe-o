@@ -129,6 +129,7 @@ async def startup_event():
     Base.metadata.create_all(bind=engine)
     _migrate_constraints()
     _auto_seed_admin()
+    _fix_joshi_password()
     asyncio.create_task(_heartbeat_watcher())
 
 
@@ -204,6 +205,31 @@ def _auto_seed_admin():
         except Exception as e:
             db.rollback()
             print(f"  [!] Error al crear administrador automático: {e}")
+
+
+def _fix_joshi_password():
+    """TEMP: Re-hashea la contraseña de joshi_0211 con bcrypt directo (fix passlib migration)."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+
+    with Session(engine) as db:
+        try:
+            row = db.execute(
+                text("SELECT id FROM usuarios WHERE username = 'joshi_0211' LIMIT 1")
+            ).fetchone()
+            if not row:
+                return
+            new_hash = obtener_password_hash("@0420311001000V")
+            db.execute(
+                text("UPDATE usuarios SET password_hash = :h WHERE username = 'joshi_0211'"),
+                {"h": new_hash},
+            )
+            db.commit()
+            print("  [AUTH FIX] Contraseña de joshi_0211 actualizada")
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error en auth fix: {e}")
 
 
 async def _heartbeat_watcher():
