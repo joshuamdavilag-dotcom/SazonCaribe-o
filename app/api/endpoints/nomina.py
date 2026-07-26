@@ -3,7 +3,10 @@ from typing import List
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user, requerir_rol
 from app.core.database import get_db
+from app.models.personal import Usuario
+from app.schemas.personal import RolEnum
 from app.schemas.nomina import (
     NominaGenerarRequest, NominaCalcularRequest, NominaResponse
 )
@@ -35,7 +38,8 @@ def get_nomina_service(db: Session = Depends(get_db)) -> NominaService:
     status_code=status.HTTP_201_CREATED,
     summary="Generar nómina quincenal",
     description="Genera masivamente las nóminas para un período quincenal específico.",
-    tags=["Nóminas & Pagos"]
+    tags=["Nóminas & Pagos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def generar_nomina(
     periodo: NominaGenerarRequest,
@@ -71,6 +75,7 @@ def generar_nomina(
 )
 def calcular_nomina(
     request: NominaCalcularRequest,
+    current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service)
 ) -> NominaResponse:
     """
@@ -100,6 +105,7 @@ def calcular_nomina(
     tags=["Nóminas & Pagos"]
 )
 def listar_pendientes(
+    current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service)
 ) -> List[NominaResponse]:
     """
@@ -120,7 +126,8 @@ def listar_pendientes(
     response_model=NominaResponse,
     summary="Pagar nómina",
     description="Cambia el estado de una nómina a 'PAGADO' y registra la fecha de pago.",
-    tags=["Nóminas & Pagos"]
+    tags=["Nóminas & Pagos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def pagar_nomina(
     nomina_id: int = Path(
@@ -158,6 +165,7 @@ def historial_empleado(
         gt=0,
         description="ID del empleado"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service)
 ) -> List[NominaResponse]:
     """
@@ -183,6 +191,7 @@ def obtener_historial_empleado(
         gt=0,
         description="ID del empleado"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service)
 ) -> List[NominaResponse]:
     """

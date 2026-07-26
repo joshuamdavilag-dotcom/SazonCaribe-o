@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import requerir_rol
+from app.api.deps import get_current_user, requerir_rol
+from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.menu import (
     CategoriaMenuCreate,
@@ -70,6 +71,7 @@ def crear_categoria(
     tags=["Menú y Recetas"]
 )
 def listar_categorias(
+    current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> List[CategoriaMenuResponse]:
     """
@@ -150,6 +152,7 @@ def listar_menu_items(
         gt=0,
         description="Filtrar por ID de categoría (opcional)"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> List[MenuItemResponse]:
     """
@@ -178,6 +181,7 @@ def obtener_menu_item(
         gt=0,
         description="ID del plato"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> MenuItemResponse:
     """

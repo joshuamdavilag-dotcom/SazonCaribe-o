@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import requerir_rol
+from app.api.deps import get_current_user, requerir_rol
+from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.inventario import (
     ProveedorCreate,
@@ -81,6 +82,7 @@ def crear_proveedor(
     tags=["Inventario & Proveedores"]
 )
 def listar_proveedores(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[ProveedorResponse]:
     """
@@ -129,6 +131,7 @@ def crear_ingrediente(
     tags=["Inventario & Proveedores"]
 )
 def listar_ingredientes(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[IngredienteResponse]:
     """
@@ -145,6 +148,7 @@ def listar_ingredientes(
     tags=["Inventario & Proveedores"]
 )
 def obtener_alertas(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[IngredienteResponse]:
     """
@@ -203,6 +207,7 @@ def historial_movimientos(
         gt=0,
         description="ID del ingrediente"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[MovimientoResponse]:
     """
@@ -223,6 +228,7 @@ def historial_movimientos(
     tags=["Inventario"]
 )
 def listar_insumos(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[InsumoResponse]:
     """
@@ -239,6 +245,7 @@ def listar_insumos(
     tags=["Inventario"]
 )
 def alertas_insumos(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> List[InsumoResponse]:
     """
@@ -260,6 +267,7 @@ def obtener_insumo(
         gt=0,
         description="ID del insumo"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service)
 ) -> InsumoResponse:
     """
@@ -356,6 +364,7 @@ def actualizar_insumo(
     tags=["Inventario"],
 )
 def listar_categorias_insumo(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service),
 ) -> List[CategoriaInsumoResponse]:
     return service.listar_categorias_insumo()
@@ -401,6 +410,7 @@ def eliminar_categoria_insumo(
     tags=["Inventario"],
 )
 def listar_unidades_medida(
+    current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service),
 ) -> List[UnidadMedidaResponse]:
     return service.listar_unidades_medida()

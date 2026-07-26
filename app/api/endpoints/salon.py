@@ -4,8 +4,11 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user, requerir_rol
 from app.core.database import get_db
+from app.models.personal import Usuario
 from app.models.salon import EstadoMesa
+from app.schemas.personal import RolEnum
 from app.schemas.salon import (
     ZonaCreate,
     ZonaResponse,
@@ -50,7 +53,8 @@ class CambioEstadoRequest(BaseModel):
     status_code=status.HTTP_201_CREATED,
     summary="Crear zona del restaurante",
     description="Registra una nueva zona en el restaurante (ej: Terraza, Barra).",
-    tags=["Salón y Mesas"]
+    tags=["Salón y Mesas"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def crear_zona(
     zona_in: ZonaCreate,
@@ -73,6 +77,7 @@ def crear_zona(
     tags=["Salón y Mesas"]
 )
 def obtener_mapa_completo(
+    current_user: Usuario = Depends(get_current_user),
     service: SalonService = Depends(get_salon_service)
 ) -> List[ZonaResponse]:
     """
@@ -93,6 +98,7 @@ def obtener_mapa_completo(
     tags=["Salón y Mesas"]
 )
 def listar_zonas(
+    current_user: Usuario = Depends(get_current_user),
     service: SalonService = Depends(get_salon_service)
 ) -> List[ZonaResponse]:
     return service.listar_zonas()
@@ -103,7 +109,8 @@ def listar_zonas(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar zona",
     description="Elimina una zona que no tenga mesas asociadas.",
-    tags=["Salón y Mesas"]
+    tags=["Salón y Mesas"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def eliminar_zona(
     zona_id: int = Path(..., gt=0, description="ID de la zona"),
@@ -122,7 +129,8 @@ def eliminar_zona(
     status_code=status.HTTP_201_CREATED,
     summary="Crear mesa",
     description="Registra una nueva mesa en una zona del restaurante.",
-    tags=["Salón y Mesas"]
+    tags=["Salón y Mesas"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def crear_mesa(
     mesa_in: MesaCreate,
@@ -155,6 +163,7 @@ def listar_mesas(
         default=None,
         description="Filtrar por estado(s). Ejemplo: ?estados=LIBRE&estados=RESERVADA"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: SalonService = Depends(get_salon_service)
 ) -> List[MesaResponse]:
     """
@@ -184,6 +193,7 @@ def cambiar_estado_mesa(
         description="ID de la mesa"
     ),
     body: CambioEstadoRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
     service: SalonService = Depends(get_salon_service)
 ) -> MesaResponse:
     """
@@ -206,7 +216,8 @@ def cambiar_estado_mesa(
     response_model=MesaResponse,
     summary="Actualizar mesa",
     description="Actualiza número, capacidad, estado o zona de una mesa.",
-    tags=["Salón y Mesas"]
+    tags=["Salón y Mesas"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def actualizar_mesa(
     mesa_id: int = Path(..., gt=0, description="ID de la mesa"),
@@ -221,7 +232,8 @@ def actualizar_mesa(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar mesa",
     description="Elimina una mesa que no esté ocupada.",
-    tags=["Salón y Mesas"]
+    tags=["Salón y Mesas"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def eliminar_mesa(
     mesa_id: int = Path(..., gt=0, description="ID de la mesa"),

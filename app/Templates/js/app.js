@@ -47,7 +47,10 @@ async function api(endpoint, options = {}) {
 
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-    if (res.status === 401) { logout(); throw new Error('Sesión expirada'); }
+    if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
+      logout();
+      throw new Error('Sesión expirada');
+    }
     if (res.status === 403) {
       const err = await res.json().catch(() => ({ detail: 'Acceso denegado' }));
       showIPBlockModal(err.detail || 'Acceso denegado');
@@ -157,24 +160,29 @@ function applyRoleRestrictions() {
    Auth
    ========================================================================= */
 async function login(username, password) {
-  const data = await api('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password }),
-  });
-  state.token = data.access_token;
-  localStorage.setItem('pos_token', data.access_token);
+  try {
+    const data = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    state.token = data.access_token;
+    localStorage.setItem('pos_token', data.access_token);
 
-  const payload = JSON.parse(atob(data.access_token.split('.')[1]));
-  state.user = { id: parseInt(payload.sub), username: payload.username, rol: payload.rol };
-  localStorage.setItem('pos_user', JSON.stringify(state.user));
+    const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+    state.user = { id: parseInt(payload.sub), username: payload.username, rol: payload.rol };
+    localStorage.setItem('pos_user', JSON.stringify(state.user));
 
-  updateUserBadges();
-  applyRoleRestrictions();
-  showApp();
-  showAttendancePanel();
-  loadTurnos();
-  navigateTo('salon');
-  showToast(`Bienvenido, ${state.user.username}`);
+    updateUserBadges();
+    applyRoleRestrictions();
+    showApp();
+    showAttendancePanel();
+    loadTurnos();
+    navigateTo('salon');
+    showToast(`Bienvenido, ${state.user.username}`);
+  } catch {
+    showToast('Usuario o contraseña incorrectos', 'error');
+    return;
+  }
 }
 
 function logout() {

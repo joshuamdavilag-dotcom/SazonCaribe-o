@@ -39,7 +39,8 @@ def get_asistencia_service(db: Session = Depends(get_db)) -> AsistenciaService:
     status_code=status.HTTP_201_CREATED,
     summary="Crear turno laboral",
     description="Registra un nuevo turno laboral en el sistema.",
-    tags=["Turnos"]
+    tags=["Turnos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
 def crear_turno(
     turno_in: TurnoCreate,
@@ -64,6 +65,7 @@ def crear_turno(
     tags=["Turnos"]
 )
 def listar_turnos(
+    current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> List[TurnoResponse]:
     """
@@ -118,6 +120,7 @@ def iniciar_turno(
 )
 def heartbeat_turno(
     asistencia_id: int = Path(..., gt=0, description="ID de la asistencia activa"),
+    current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
     return service.actualizar_heartbeat(asistencia_id)
@@ -138,6 +141,7 @@ def heartbeat_turno(
 def registrar_entrada(
     checkin_in: AsistenciaCheckIn,
     request: Request = None,
+    current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
     """
@@ -199,6 +203,7 @@ def historial_empleado(
     ),
     fecha_inicio: Optional[date] = Query(None, description="Fecha inicio del filtro"),
     fecha_fin: Optional[date] = Query(None, description="Fecha fin del filtro"),
+    current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> List[AsistenciaResponse]:
     """
