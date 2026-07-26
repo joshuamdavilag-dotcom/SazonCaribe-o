@@ -36,14 +36,22 @@ def _convertir_cantidad_si_necesaria(
     db: Session,
     cantidad: Decimal,
     unidad_movimiento_id: int | None,
-    insumo_unidad_id: int,
+    insumo,
 ) -> Decimal:
-    """Si la unidad del movimiento difiere de la unidad base del insumo,
-    convierte la cantidad usando la cadena de conversiones."""
-    if unidad_movimiento_id is None or unidad_movimiento_id == insumo_unidad_id:
+    """Convierte la cantidad usando el factor de empaque del insumo o la cadena global.
+
+    Prioridad:
+    1. Si unidad_movimiento coincide con unidad_empaque del insumo → factor_empaque.
+    2. Si no, cadena global de conversión entre unidades.
+    """
+    if unidad_movimiento_id is None or unidad_movimiento_id == insumo.unidad_medida_id:
         return cantidad
+    if (insumo.unidad_empaque_id is not None
+            and unidad_movimiento_id == insumo.unidad_empaque_id
+            and insumo.factor_empaque):
+        return Decimal(str(round(float(cantidad) * insumo.factor_empaque, 4)))
     from app.services.conversion_service import convertir_cantidad
-    resultado = convertir_cantidad(db, float(cantidad), unidad_movimiento_id, insumo_unidad_id)
+    resultado = convertir_cantidad(db, float(cantidad), unidad_movimiento_id, insumo.unidad_medida_id)
     return Decimal(str(round(resultado, 4)))
 
 
@@ -93,7 +101,7 @@ class InventarioService:
             )
         cantidad_convertida = _convertir_cantidad_si_necesaria(
             self.db, movimiento_in.cantidad, movimiento_in.unidad_medida_id,
-            insumo_obj.unidad_medida_id
+            insumo_obj
         )
         try:
             insumo = self.insumo_repo.actualizar_stock(
@@ -384,7 +392,7 @@ class InventarioService:
                 detail=f"No se encontró el insumo con ID {insumo_id}"
             )
         cantidad_convertida = _convertir_cantidad_si_necesaria(
-            self.db, datos.cantidad, datos.unidad_medida_id, insumo_obj.unidad_medida_id
+            self.db, datos.cantidad, datos.unidad_medida_id, insumo_obj
         )
         try:
             insumo = self.insumo_repo.actualizar_stock(

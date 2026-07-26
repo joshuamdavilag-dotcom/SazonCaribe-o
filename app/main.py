@@ -130,6 +130,7 @@ async def startup_event():
     _migrate_constraints()
     _migrate_unidades_medida()
     _migrate_recetas_unidad()
+    _migrate_insumos_empaque()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -192,6 +193,24 @@ def _migrate_recetas_unidad():
             print("  [~] Columna 'unidad_medida_id' agregada a recetas")
         except Exception:
             db.rollback()
+
+
+def _migrate_insumos_empaque():
+    """Agrega columnas de empaque a insumos si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        for col, typedef in [
+            ("unidad_empaque_id", "INT NULL"),
+            ("factor_empaque", "DOUBLE NULL"),
+        ]:
+            try:
+                db.execute(text(f"ALTER TABLE insumos ADD COLUMN {col} {typedef}"))
+                db.commit()
+                print(f"  [~] Columna '{col}' agregada a insumos")
+            except Exception:
+                db.rollback()
 
 
 def _fix_unidades_medida():

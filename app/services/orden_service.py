@@ -31,15 +31,24 @@ class OrdenService:
     def _convertir_si_necesario(
         self,
         receta_unidad_id: int | None,
-        insumo_unidad_id: int,
+        insumo,
         cantidad: Decimal,
     ) -> Decimal:
-        """Si la unidad de la receta difiere de la unidad del insumo, convierte."""
-        if receta_unidad_id is None or receta_unidad_id == insumo_unidad_id:
+        """Convierte la cantidad de receta a la unidad base del insumo.
+
+        Prioridad:
+        1. Si la unidad de la receta coincide con unidad_empaque del insumo → factor_empaque.
+        2. Si no, cadena global de conversión entre unidades.
+        """
+        if receta_unidad_id is None or receta_unidad_id == insumo.unidad_medida_id:
             return cantidad
+        if (insumo.unidad_empaque_id is not None
+                and receta_unidad_id == insumo.unidad_empaque_id
+                and insumo.factor_empaque):
+            return Decimal(str(round(float(cantidad) * insumo.factor_empaque, 4)))
         from app.services.conversion_service import convertir_cantidad
         resultado = convertir_cantidad(
-            self.db, float(cantidad), receta_unidad_id, insumo_unidad_id
+            self.db, float(cantidad), receta_unidad_id, insumo.unidad_medida_id
         )
         return Decimal(str(round(resultado, 4)))
 
@@ -63,7 +72,7 @@ class OrdenService:
                 insumo = receta.insumo
                 cantidad_base = Decimal(str(receta.cantidad_necesaria)) * item.cantidad
                 cantidad_convertida = self._convertir_si_necesario(
-                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
+                    receta.unidad_medida_id, insumo, cantidad_base
                 )
                 if Decimal(str(insumo.cantidad_actual)) < cantidad_convertida:
                     raise HTTPException(
@@ -99,7 +108,7 @@ class OrdenService:
                     Decimal(str(receta.cantidad_necesaria)) * item.cantidad
                 )
                 cantidad_convertida = self._convertir_si_necesario(
-                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
+                    receta.unidad_medida_id, insumo, cantidad_base
                 )
                 insumo.cantidad_actual -= cantidad_convertida
                 self.db.add(MovimientoInventario(
@@ -139,7 +148,7 @@ class OrdenService:
                     Decimal(str(receta.cantidad_necesaria)) * detalle.cantidad
                 )
                 cantidad_convertida = self._convertir_si_necesario(
-                    receta.unidad_medida_id, insumo.unidad_medida_id, cantidad_base
+                    receta.unidad_medida_id, insumo, cantidad_base
                 )
                 insumo.cantidad_actual += cantidad_convertida
                 self.db.add(MovimientoInventario(

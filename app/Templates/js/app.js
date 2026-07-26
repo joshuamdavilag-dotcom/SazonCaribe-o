@@ -1555,6 +1555,8 @@ function openStockModal(insumoId) {
   document.getElementById('stock-insumo-id').value = insumo.id;
   document.getElementById('stock-detalles-insumo-id').value = insumo.id;
   document.getElementById('stock-insumo-unidad-base-id').value = insumo.unidad_medida_id;
+  document.getElementById('stock-insumo-empaque-id').value = insumo.unidad_empaque_id || '';
+  document.getElementById('stock-insumo-factor-empaque').value = insumo.factor_empaque || '';
   document.getElementById('stock-info').innerHTML = `
     <div class="stock-info-name">${insumo.nombre}</div>
     <div class="stock-info-qty">${insumo.cantidad_actual} ${insumo.unidad_medida}</div>
@@ -1565,10 +1567,17 @@ function openStockModal(insumoId) {
   switchStockTab('movimiento');
 
   const movUnidadSel = document.getElementById('stock-mov-unidad');
-  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === (state.unidadesMedida.find(u2 => u2.id === insumo.unidad_medida_id)?.tipo_magnitud || 'UNIDAD'));
-  movUnidadSel.innerHTML = sameType.map(u =>
+  const baseUnit = state.unidadesMedida.find(u => u.id === insumo.unidad_medida_id);
+  const sameType = state.unidadesMedida.filter(u => u.tipo_magnitud === (baseUnit?.tipo_magnitud || 'UNIDAD'));
+  const empaqueId = insumo.unidad_empaque_id;
+  const empaqueUnit = empaqueId ? state.unidadesMedida.find(u => u.id === empaqueId) : null;
+  const opts = [];
+  if (empaqueUnit && !sameType.some(u => u.id === empaqueUnit.id)) {
+    opts.push(`<option value="${empaqueUnit.id}">${empaqueUnit.nombre} (${empaqueUnit.abreviatura}) [Empaque]</option>`);
+  }
+  movUnidadSel.innerHTML = opts.concat(sameType.map(u =>
     `<option value="${u.id}" ${u.id === insumo.unidad_medida_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`
-  ).join('');
+  )).join('');
   document.getElementById('stock-conversion-preview').style.display = 'none';
   updateStockConversionPreview();
 
@@ -1580,6 +1589,16 @@ function openStockModal(insumoId) {
     `<option value="${u.id}" ${u.id === insumo.unidad_medida_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`
   ).join('');
   document.getElementById('stock-minimo').value = insumo.stock_minimo ?? '';
+
+  const empaqueSel = document.getElementById('stock-empaque-select');
+  const candidates = baseUnit
+    ? state.unidadesMedida.filter(u => u.id !== insumo.unidad_medida_id && (u.tipo_magnitud === baseUnit.tipo_magnitud || baseUnit.tipo_magnitud === 'PERSONALIZADO'))
+    : state.unidadesMedida;
+  empaqueSel.innerHTML = '<option value="">Sin empaque</option>' +
+    candidates.map(u => `<option value="${u.id}" ${u.id === insumo.unidad_empaque_id ? 'selected' : ''}>${u.nombre} (${u.abreviatura})</option>`).join('');
+  document.getElementById('stock-empaque-factor').value = insumo.factor_empaque ?? '';
+  updateStockDetailsEmpaquePreview();
+
   document.getElementById('stock-cat-panel').style.display = 'none';
   document.getElementById('stock-unidad-panel').style.display = 'none';
 
@@ -1612,9 +1631,17 @@ function updateStockConversionPreview() {
   const movUnit = state.unidadesMedida.find(u => u.id === selectedId);
   const baseUnit = state.unidadesMedida.find(u => u.id === baseId);
   if (!movUnit || !baseUnit) { preview.style.display = 'none'; return; }
-  const arrow = tipo === 'ENTRADA' ? '➕' : '➖';
-  const sign = tipo === 'ENTRADA' ? '+' : '-';
-  preview.textContent = `${arrow} ${qty} ${movUnit.abreviatura} equivalen a ${sign}${qty} ${movUnit.abreviatura} → ${baseUnit.nombre} (${baseUnit.abreviatura}) en stock`;
+  const arrow = tipo === 'ENTRADA' ? '+' : '-';
+  let convertedQty;
+  if (insumo.unidad_empaque_id && selectedId === insumo.unidad_empaque_id && insumo.factor_empaque) {
+    convertedQty = qty * insumo.factor_empaque;
+    preview.textContent = `${arrow} ${qty} ${movUnit.nombre} = ${arrow}${convertedQty.toFixed(2)} ${baseUnit.abreviatura} en stock (factor empaque: ${insumo.factor_empaque})`;
+  } else {
+    const fromChain = movUnit.factor_conversion || 1;
+    const toChain = baseUnit.factor_conversion || 1;
+    convertedQty = qty * fromChain / toChain;
+    preview.textContent = `${arrow} ${qty} ${movUnit.nombre} = ${arrow}${convertedQty.toFixed(2)} ${baseUnit.nombre} (${baseUnit.abreviatura}) en stock`;
+  }
   preview.style.display = '';
 }
 
@@ -1657,10 +1684,19 @@ async function saveStockDetails(e) {
   const catVal = document.getElementById('stock-cat-select').value;
   const unidadVal = document.getElementById('stock-unidad-select').value;
   const minimoVal = document.getElementById('stock-minimo').value;
+  const empaqueVal = document.getElementById('stock-empaque-select').value;
+  const empaqueFactorVal = document.getElementById('stock-empaque-factor').value;
   const payload = {};
   if (catVal) payload.categoria_id = parseInt(catVal);
   if (unidadVal) payload.unidad_medida_id = parseInt(unidadVal);
   if (minimoVal !== '' && minimoVal !== null) payload.stock_minimo = parseFloat(minimoVal);
+  if (empaqueVal) {
+    payload.unidad_empaque_id = parseInt(empaqueVal);
+    if (empaqueFactorVal) payload.factor_empaque = parseFloat(empaqueFactorVal);
+  } else {
+    payload.unidad_empaque_id = null;
+    payload.factor_empaque = null;
+  }
 
   if (Object.keys(payload).length === 0) {
     return showToast('No hay cambios para guardar', 'warning');
@@ -1674,6 +1710,24 @@ async function saveStockDetails(e) {
     closeStockModal();
     loadInventory();
   } catch { /* handled */ }
+}
+
+function updateStockDetailsEmpaquePreview() {
+  const preview = document.getElementById('stock-details-empaque-preview');
+  const empaqueId = parseInt(document.getElementById('stock-empaque-select')?.value) || null;
+  const factor = parseFloat(document.getElementById('stock-empaque-factor')?.value) || 0;
+  const insumoId = parseInt(document.getElementById('stock-detalles-insumo-id')?.value) || null;
+  const insumo = insumoId ? state.insumos.find(i => i.id === insumoId) : null;
+  const baseId = parseInt(document.getElementById('stock-unidad-select')?.value) || null;
+  const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
+  if (!empaqueId || factor <= 0 || !insumo || !baseUnit) {
+    preview.style.display = 'none';
+    return;
+  }
+  const empaqueUnit = state.unidadesMedida.find(u => u.id === empaqueId);
+  if (!empaqueUnit) { preview.style.display = 'none'; return; }
+  preview.textContent = `1 ${empaqueUnit.nombre} de ${insumo.nombre} equivale a ${factor} ${baseUnit.abreviatura}`;
+  preview.style.display = '';
 }
 
 /* --- Stock Detalles — Gear Subpanels --- */
@@ -1731,7 +1785,10 @@ function openNewInsumoModal() {
   document.getElementById('insumo-qty').value = '0';
   document.getElementById('insumo-min').value = '5';
   populateUnidadSelect();
+  populateInsumoEmpaqueSelect();
   populateCatInsumoSelect();
+  document.getElementById('insumo-empaque-factor').disabled = true;
+  document.getElementById('insumo-empaque-preview').style.display = 'none';
   document.getElementById('unidad-panel').style.display = 'none';
   document.getElementById('cat-insumo-panel').style.display = 'none';
   document.getElementById('modal-insumo').classList.add('show');
@@ -1750,6 +1807,36 @@ function populateCatInsumoSelect() {
     state.categoriasInsumo.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
 }
 
+function populateInsumoEmpaqueSelect() {
+  const sel = document.getElementById('insumo-empaque-unit');
+  const baseId = parseInt(document.getElementById('insumo-unit')?.value) || null;
+  const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
+  const candidates = baseUnit
+    ? state.unidadesMedida.filter(u => u.id !== baseId && (u.tipo_magnitud === baseUnit.tipo_magnitud || baseUnit.tipo_magnitud === 'PERSONALIZADO'))
+    : state.unidadesMedida;
+  sel.innerHTML = '<option value="">Sin empaque</option>' +
+    candidates.map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
+}
+
+function updateInsumoEmpaquePreview() {
+  const preview = document.getElementById('insumo-empaque-preview');
+  const factorInput = document.getElementById('insumo-empaque-factor');
+  const empaqueId = parseInt(document.getElementById('insumo-empaque-unit').value) || null;
+  const factor = parseFloat(document.getElementById('insumo-empaque-factor').value) || 0;
+  const insumoNombre = document.getElementById('insumo-name').value.trim() || 'este insumo';
+  const baseId = parseInt(document.getElementById('insumo-unit')?.value) || null;
+  const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
+  factorInput.disabled = !empaqueId;
+  if (!empaqueId || factor <= 0 || !baseUnit) {
+    preview.style.display = 'none';
+    return;
+  }
+  const empaqueUnit = state.unidadesMedida.find(u => u.id === empaqueId);
+  if (!empaqueUnit) { preview.style.display = 'none'; return; }
+  preview.textContent = `1 ${empaqueUnit.nombre} de ${insumoNombre} equivale a ${factor} ${baseUnit.abreviatura}`;
+  preview.style.display = '';
+}
+
 function closeInsumoModal() {
   document.getElementById('modal-insumo').classList.remove('show');
 }
@@ -1763,6 +1850,12 @@ async function saveInsumo(e) {
     categoria_id: parseInt(document.getElementById('insumo-cat').value) || null,
     stock_minimo: parseFloat(document.getElementById('insumo-min').value) || 5,
   };
+  const empaqueId = parseInt(document.getElementById('insumo-empaque-unit').value) || null;
+  const empaqueFactor = parseFloat(document.getElementById('insumo-empaque-factor').value) || null;
+  if (empaqueId && empaqueFactor && empaqueFactor > 0) {
+    payload.unidad_empaque_id = empaqueId;
+    payload.factor_empaque = empaqueFactor;
+  }
   if (!payload.nombre) return showToast('Ingresa el nombre del insumo', 'warning');
   if (!payload.unidad_medida_id) return showToast('Selecciona una unidad de medida', 'warning');
 
@@ -3190,6 +3283,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('stock-unidad-cancel')?.addEventListener('click', toggleStockUnidadPanel);
   document.getElementById('stock-mov-unidad')?.addEventListener('change', updateStockConversionPreview);
   document.getElementById('stock-qty')?.addEventListener('input', updateStockConversionPreview);
+  document.getElementById('stock-empaque-select')?.addEventListener('change', updateStockDetailsEmpaquePreview);
+  document.getElementById('stock-empaque-factor')?.addEventListener('input', updateStockDetailsEmpaquePreview);
+  document.getElementById('stock-unidad-select')?.addEventListener('change', updateStockDetailsEmpaquePreview);
+
+  // Insumo modal — packaging
+  document.getElementById('insumo-unit')?.addEventListener('change', populateInsumoEmpaqueSelect);
+  document.getElementById('insumo-empaque-unit')?.addEventListener('change', updateInsumoEmpaquePreview);
+  document.getElementById('insumo-empaque-factor')?.addEventListener('input', updateInsumoEmpaquePreview);
 
   // Order modal
   document.getElementById('close-order-modal')?.addEventListener('click', closeOrderModal);

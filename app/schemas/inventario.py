@@ -224,7 +224,7 @@ class InsumoCreate(BaseModel):
     )
     unidad_medida_id: int = Field(
         ..., gt=0,
-        description="ID de la unidad de medida",
+        description="ID de la unidad de medida base (mínima para recetas)",
         examples=[1]
     )
     categoria_id: Optional[int] = Field(
@@ -237,6 +237,14 @@ class InsumoCreate(BaseModel):
         description="Stock mínimo para alertas de reabastecimiento",
         examples=[10.00]
     )
+    unidad_empaque_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad de empaque/compra (ej: Bolsa, Caja)"
+    )
+    factor_empaque: Optional[float] = Field(
+        default=None, gt=0,
+        description="1 empaque = factor_empaque unidades base (ej: 1 Bolsa = 5 lb)"
+    )
 
 
 class InsumoResponse(BaseModel):
@@ -246,12 +254,15 @@ class InsumoResponse(BaseModel):
     id: int = Field(..., description="ID único del insumo")
     nombre: str = Field(..., description="Nombre del insumo")
     cantidad_actual: Decimal = Field(..., decimal_places=2, description="Cantidad actual en inventario")
-    unidad_medida: str = Field(..., description="Nombre de la unidad de medida")
-    unidad_medida_id: int = Field(..., description="ID de la unidad de medida")
+    unidad_medida: str = Field(..., description="Nombre de la unidad de medida base")
+    unidad_medida_id: int = Field(..., description="ID de la unidad de medida base")
     categoria_id: Optional[int] = Field(default=None, description="ID de la categoría")
     categoria_nombre: Optional[str] = Field(default=None, description="Nombre de la categoría")
     stock_minimo: Decimal = Field(..., decimal_places=2, description="Stock mínimo para alertas")
     costo_unitario: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Costo por unidad de medida")
+    unidad_empaque_id: Optional[int] = Field(default=None, description="ID de la unidad de empaque")
+    unidad_empaque_nombre: Optional[str] = Field(default=None, description="Nombre de la unidad de empaque")
+    factor_empaque: Optional[float] = Field(default=None, description="Factor de empaque")
 
     @model_validator(mode="before")
     @classmethod
@@ -271,6 +282,12 @@ class InsumoResponse(BaseModel):
             setattr(obj, "categoria_id", cat.id)
         elif cat is None:
             setattr(obj, "categoria_nombre", None)
+        ue = getattr(obj, "unidad_empaque_obj", None)
+        if hasattr(ue, "nombre"):
+            setattr(obj, "unidad_empaque_nombre", ue.nombre)
+            setattr(obj, "unidad_empaque_id", ue.id)
+        elif ue is None:
+            setattr(obj, "unidad_empaque_nombre", None)
         return obj
 
 
@@ -383,9 +400,17 @@ class InsumoUpdate(BaseModel):
     )
     unidad_medida_id: Optional[int] = Field(
         default=None, gt=0,
-        description="ID de la unidad de medida"
+        description="ID de la unidad de medida base"
     )
     stock_minimo: Optional[Decimal] = Field(
         default=None, gt=0, decimal_places=2,
         description="Stock mínimo para alertas"
+    )
+    unidad_empaque_id: Optional[int] = Field(
+        default=None, gt=0,
+        description="ID de la unidad de empaque/compra"
+    )
+    factor_empaque: Optional[float] = Field(
+        default=None, gt=0,
+        description="Factor de empaque (1 empaque = X unidades base)"
     )

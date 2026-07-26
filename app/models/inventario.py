@@ -186,8 +186,20 @@ class Insumo(Base):
         default=Decimal("0.00"),
         comment="Costo por unidad de medida del insumo (para calculo de costos de recetas)"
     )
+    unidad_empaque_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("unidades_medida.id", name="fk_insumos_unidad_empaque_id"),
+        nullable=True,
+    )
+    factor_empaque: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True,
+        comment="1 empaque = factor_empaque unidades base (ej: 1 Bolsa = 5 Libras)"
+    )
 
     unidad_medida_obj: Mapped["UnidadMedida"] = relationship("UnidadMedida", back_populates="insumos", lazy="selectin")
+    unidad_empaque_obj: Mapped[Optional["UnidadMedida"]] = relationship(
+        "UnidadMedida", foreign_keys=[unidad_empaque_id], lazy="selectin"
+    )
     categoria: Mapped[Optional["CategoriaInsumo"]] = relationship("CategoriaInsumo", back_populates="insumos", lazy="selectin")
     movimientos: Mapped[List["MovimientoInventario"]] = relationship(
         "MovimientoInventario",
