@@ -69,6 +69,8 @@ class OrdenService:
                     detail=f"El producto con ID {item.producto_id} no existe",
                 )
             for receta in producto.ingredientes_receta:
+                if receta.descuento_por_lote:
+                    continue
                 insumo = receta.insumo
                 cantidad_base = Decimal(str(receta.cantidad_necesaria)) * item.cantidad
                 cantidad_convertida = self._convertir_si_necesario(
@@ -103,6 +105,8 @@ class OrdenService:
                     detail=f"El producto con ID {item.producto_id} no existe",
                 )
             for receta in producto.ingredientes_receta:
+                if receta.descuento_por_lote:
+                    continue
                 insumo = receta.insumo
                 cantidad_base = (
                     Decimal(str(receta.cantidad_necesaria)) * item.cantidad
@@ -143,6 +147,8 @@ class OrdenService:
             if not producto:
                 continue
             for receta in producto.ingredientes_receta:
+                if receta.descuento_por_lote:
+                    continue
                 insumo = receta.insumo
                 cantidad_base = (
                     Decimal(str(receta.cantidad_necesaria)) * detalle.cantidad

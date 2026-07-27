@@ -23,8 +23,11 @@ from app.schemas.inventario import (
     UnidadMedidaCreate,
     UnidadMedidaUpdate,
     UnidadMedidaResponse,
+    PreparacionCocinaCreate,
+    PreparacionCocinaResponse,
 )
 from app.services.inventario_service import InventarioService
+from app.services.preparacion_service import PreparacionService
 
 router = APIRouter()
 
@@ -475,3 +478,54 @@ def convertir_unidades(
     from app.services.conversion_service import convertir_cantidad
     resultado = convertir_cantidad(service.db, cantidad, origen, destino)
     return {"cantidad_origen": cantidad, "unidad_origen": origen, "unidad_destino": destino, "cantidad_convertida": round(resultado, 4)}
+
+
+def get_preparacion_service(db: Session = Depends(get_db)) -> PreparacionService:
+    return PreparacionService(db)
+
+
+@router.post(
+    "/preparaciones",
+    response_model=PreparacionCocinaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar preparación de cocina (producción por lote)",
+    description=(
+        "Descuenta insumos del inventario para producción del día. "
+        "Registra cada insumo como movimiento SALIDA y crea el gasto asociado."
+    ),
+    tags=["Inventario"],
+    dependencies=[_requerir_rol_inventario]
+)
+def registrar_preparacion(
+    data: PreparacionCocinaCreate,
+    current_user: Usuario = Depends(get_current_user),
+    service: PreparacionService = Depends(get_preparacion_service)
+) -> PreparacionCocinaResponse:
+    asistencia_id = None
+    if current_user.empleado_id:
+        from app.repositories.asistencia_repository import AsistenciaRepository
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        try:
+            asistencia_repo = AsistenciaRepository(db)
+            asistencias = asistencia_repo.get_asistencias_por_empleado(current_user.empleado_id)
+            activa = next((a for a in asistencias if a.hora_salida_real is None), None)
+            if activa:
+                asistencia_id = activa.id
+        finally:
+            db.close()
+    return service.registrar_preparacion(data, current_user.id, asistencia_id)
+
+
+@router.get(
+    "/preparaciones",
+    response_model=List[PreparacionCocinaResponse],
+    summary="Listar preparaciones de cocina del día",
+    tags=["Inventario"],
+)
+def listar_preparaciones(
+    current_user: Usuario = Depends(get_current_user),
+    service: PreparacionService = Depends(get_preparacion_service),
+) -> List[PreparacionCocinaResponse]:
+    from datetime import date
+    return service.listar_por_fecha(date.today())

@@ -1429,7 +1429,7 @@ async function openEditDish(itemId) {
 
   clearRecipeRows();
   if (item.ingredientes_receta && item.ingredientes_receta.length > 0) {
-    item.ingredientes_receta.forEach(r => addRecipeRow(r.insumo_id, r.cantidad_necesaria));
+    item.ingredientes_receta.forEach(r => addRecipeRow(r.insumo_id, r.cantidad_necesaria, r.descuento_por_lote));
   }
 
   const catPanel = document.getElementById('cat-panel');
@@ -1464,7 +1464,7 @@ function _buildCatInsumoOptions(selectedCatId) {
   return html;
 }
 
-function addRecipeRow(ingredienteId, cantidad) {
+function addRecipeRow(ingredienteId, cantidad, descuentoLote) {
   const container = document.getElementById('dish-recipe-rows');
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;';
@@ -1480,6 +1480,10 @@ function addRecipeRow(ingredienteId, cantidad) {
     <select class="form-input recipe-cat-filter" style="flex:1;height:36px;font-size:12px;">${_buildCatInsumoOptions(catId)}</select>
     <select class="form-input recipe-ingrediente" style="flex:2;height:36px;font-size:13px;">${_buildInsumoOptions(catId, ingredienteId)}</select>
     <input type="number" class="form-input recipe-cantidad" style="flex:1;height:36px;font-size:13px;" step="0.001" min="0.001" placeholder="Cant." value="${cantidad || ''}">
+    <label title="Si está activo, este ingrediente NO se descuenta por plato sino solo por Producción de Cocina" style="display:flex;align-items:center;gap:3px;font-size:11px;color:#6b7280;white-space:nowrap;cursor:pointer;">
+      <input type="checkbox" class="recipe-lote" style="width:14px;height:14px;">
+      <span>Lote</span>
+    </label>
     <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:#E63946;font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
   `;
 
@@ -1493,6 +1497,10 @@ function addRecipeRow(ingredienteId, cantidad) {
 
   row.querySelector('.btn-remove-recipe').addEventListener('click', () => row.remove());
   container.appendChild(row);
+  if (descuentoLote) {
+    const loteCb = row.querySelector('.recipe-lote');
+    if (loteCb) loteCb.checked = true;
+  }
 }
 
 function buildRecetaPayload() {
@@ -1503,8 +1511,9 @@ function buildRecetaPayload() {
     const rawId = sel ? sel.value : '';
     const insumo_id = parseInt(rawId, 10);
     const cantidad_necesaria = parseFloat(row.querySelector('.recipe-cantidad').value);
+    const descuento_por_lote = row.querySelector('.recipe-lote')?.checked || false;
     if (Number.isInteger(insumo_id) && insumo_id > 0 && Number.isFinite(cantidad_necesaria) && cantidad_necesaria > 0) {
-      receta.push({ insumo_id, cantidad_necesaria });
+      receta.push({ insumo_id, cantidad_necesaria, descuento_por_lote });
     }
   });
   return receta;
@@ -2957,6 +2966,89 @@ async function confirmEditarHorarios() {
 }
 
 /* =========================================================================
+   Preparación de Cocina (Producción por Lote)
+   ========================================================================= */
+let prepRowCount = 0;
+
+function openPreparacionModal() {
+  prepRowCount = 0;
+  document.getElementById('preparacion-rows').innerHTML = '';
+  document.getElementById('prep-notas').value = '';
+  updatePrepSummary();
+  addPreparacionRow();
+  document.getElementById('modal-preparacion').classList.add('show');
+}
+
+function closePreparacionModal() {
+  document.getElementById('modal-preparacion').classList.remove('show');
+}
+
+function addPreparacionRow() {
+  prepRowCount++;
+  const id = prepRowCount;
+  const container = document.getElementById('preparacion-rows');
+  const insumos = state.insumos || [];
+  const options = insumos.map(i =>
+    `<option value="${i.id}" data-stock="${i.cantidad_actual}" data-unit="${i.unidad_medida}">${i.nombre} (Stock: ${i.cantidad_actual} ${i.unidad_medida})</option>`
+  ).join('');
+
+  const row = document.createElement('div');
+  row.className = 'prep-row';
+  row.style.cssText = 'display:flex;gap:8px;align-items:end;margin-bottom:8px;';
+  row.innerHTML = `
+    <div style="flex:3;">
+      <label class="form-label" style="font-size:12px;">Insumo</label>
+      <select class="form-input prep-insumo" data-row="${id}" style="height:36px;font-size:13px;" onchange="updatePrepSummary()">
+        <option value="">Seleccionar…</option>
+        ${options}
+      </select>
+    </div>
+    <div style="flex:1.5;">
+      <label class="form-label" style="font-size:12px;">Cantidad</label>
+      <input type="number" class="form-input prep-cantidad" data-row="${id}" step="0.01" min="0.01" placeholder="0" style="height:36px;font-size:13px;" oninput="updatePrepSummary()">
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:#E63946;" title="Eliminar">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function updatePrepSummary() {
+  const rows = document.querySelectorAll('.prep-row');
+  let total = 0;
+  rows.forEach(row => {
+    const cant = parseFloat(row.querySelector('.prep-cantidad')?.value || 0);
+    if (cant > 0) total++;
+  });
+  document.getElementById('prep-summary').textContent = `Total insumos: ${total}`;
+}
+
+async function submitPreparacion() {
+  const rows = document.querySelectorAll('.prep-row');
+  const detalles = [];
+
+  for (const row of rows) {
+    const insumoId = row.querySelector('.prep-insumo')?.value;
+    const cantidad = parseFloat(row.querySelector('.prep-cantidad')?.value || 0);
+    if (!insumoId || cantidad <= 0) continue;
+    detalles.push({ insumo_id: parseInt(insumoId), cantidad });
+  }
+
+  if (detalles.length === 0) return showToast('Agrega al menos un insumo con cantidad', 'warning');
+
+  const notas = document.getElementById('prep-notas').value.trim() || null;
+
+  try {
+    await api('/inventario/preparaciones', {
+      method: 'POST',
+      body: JSON.stringify({ detalles, notas }),
+    });
+    showToast(`Producción registrada: ${detalles.length} insumo(s) descontado(s)`, 'success');
+    closePreparacionModal();
+    await loadInsumos();
+  } catch { /* handled by api() */ }
+}
+
+/* =========================================================================
    Dashboard (Cierre de Caja) — Reportes Visuales
    ========================================================================= */
 let pieChartInstance = null;
@@ -3707,6 +3799,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('venta-retroactiva-form')?.addEventListener('submit', (e) => { e.preventDefault(); guardarVentaRetroactiva(); });
 
   // Menu Management
+  document.getElementById('btn-preparacion-cocina')?.addEventListener('click', async () => {
+    await loadInsumos();
+    openPreparacionModal();
+  });
+  document.getElementById('close-preparacion')?.addEventListener('click', closePreparacionModal);
+  document.getElementById('cancel-preparacion')?.addEventListener('click', closePreparacionModal);
+  document.getElementById('confirm-preparacion')?.addEventListener('click', submitPreparacion);
+  document.getElementById('btn-add-prep-row')?.addEventListener('click', addPreparacionRow);
+
   document.getElementById('btn-new-dish')?.addEventListener('click', async () => {
     await loadCategories();
     populateCategorySelect();

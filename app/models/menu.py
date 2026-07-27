@@ -131,6 +131,10 @@ class Receta(Base):
         nullable=True,
         comment="Unidad de medida de la receta. Si difiere del insumo, se convierte automáticamente."
     )
+    descuento_por_lote: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False,
+        comment="Si True, este ingrediente NO se descuenta por plato sino solo via Producción de Cocina"
+    )
 
     # Relación muchos-a-uno con MenuItem
     menu_item: Mapped["MenuItem"] = relationship(

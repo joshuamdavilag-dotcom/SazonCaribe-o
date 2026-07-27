@@ -419,3 +419,62 @@ class InsumoUpdate(BaseModel):
         description="Cuántas unidades nuevas caben en 1 unidad anterior. "
                     "Requerido cuando unidad_medida_id cambia."
     )
+
+
+# =============================================================================
+# Preparación de Cocina Schemas
+# =============================================================================
+
+class PreparacionDetalleCreate(BaseModel):
+    """Detalle de un insumo consumido en una preparación de cocina."""
+    insumo_id: int = Field(..., gt=0, description="ID del insumo")
+    cantidad: Decimal = Field(..., gt=0, decimal_places=2, description="Cantidad consumida")
+
+
+class PreparacionCocinaCreate(BaseModel):
+    """Esquema para registrar una preparación de cocina por lote."""
+    detalles: list[PreparacionDetalleCreate] = Field(
+        ..., min_length=1, description="Lista de insumos consumidos"
+    )
+    notas: Optional[str] = Field(
+        default=None, max_length=500, description="Notas opcionales sobre la preparación"
+    )
+
+
+class DetallePreparacionCocinaResponse(BaseModel):
+    """Esquema de respuesta para un detalle de preparación."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    insumo_id: int
+    insumo_nombre: Optional[str] = None
+    cantidad: Decimal
+    costo_total: Decimal
+    unidad_nombre: Optional[str] = None
+
+
+class PreparacionCocinaResponse(BaseModel):
+    """Esquema de respuesta para una preparación de cocina."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    asistencia_id: Optional[int] = None
+    notas: Optional[str] = None
+    fecha: datetime
+    registrado_por: Optional[int] = None
+    detalles: list[DetallePreparacionCocinaResponse] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_detalles_virtual(cls, data):
+        obj = data
+        detalles = getattr(obj, "detalles", None)
+        if detalles:
+            for d in detalles:
+                insumo = getattr(d, "insumo", None)
+                if insumo:
+                    setattr(d, "insumo_nombre", getattr(insumo, "nombre", None))
+                    um = getattr(insumo, "unidad_medida_obj", None)
+                    if um:
+                        setattr(d, "unidad_nombre", getattr(um, "nombre", None))
+        return obj

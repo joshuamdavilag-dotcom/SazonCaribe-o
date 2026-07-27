@@ -270,3 +270,73 @@ class MovimientoInventario(Base):
             f"<MovimientoInventario(id={self.id}, tipo='{self.tipo}', "
             f"cantidad={self.cantidad}, fecha={self.fecha})>"
         )
+
+
+class PreparacionCocina(Base):
+    """Registro de producción/preparación de cocina por lote."""
+
+    __tablename__ = "preparaciones_cocina"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asistencia_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("asistencias.id", name="fk_preparaciones_asistencia_id"),
+        nullable=True,
+        comment="ID del turno activo al momento de la preparación",
+    )
+    notas: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True, default=None,
+    )
+    fecha: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.now,
+    )
+    registrado_por: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("usuarios.id", name="fk_preparaciones_registrado_por"),
+        nullable=True,
+    )
+
+    detalles: Mapped[List["DetallePreparacionCocina"]] = relationship(
+        "DetallePreparacionCocina",
+        back_populates="preparacion",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"<PreparacionCocina(id={self.id}, fecha={self.fecha})>"
+
+
+class DetallePreparacionCocina(Base):
+    """Detalle de cada insumo consumido en una preparación de cocina."""
+
+    __tablename__ = "detalles_preparaciones_cocina"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    preparacion_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("preparaciones_cocina.id", name="fk_detalles_prep_preparacion_id"),
+        nullable=False,
+    )
+    insumo_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("insumos.id", name="fk_detalles_prep_insumo_id"),
+        nullable=False,
+    )
+    cantidad: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False,
+    )
+    costo_total: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=Decimal("0.00"),
+    )
+
+    preparacion: Mapped["PreparacionCocina"] = relationship(
+        "PreparacionCocina", back_populates="detalles", lazy="selectin",
+    )
+    insumo: Mapped["Insumo"] = relationship("Insumo", lazy="selectin")
+
+    def __repr__(self) -> str:
+        return (
+            f"<DetallePreparacionCocina(preparacion_id={self.preparacion_id}, "
+            f"insumo_id={self.insumo_id}, cantidad={self.cantidad})>"
+        )

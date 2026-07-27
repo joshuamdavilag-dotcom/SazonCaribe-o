@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inventario import (
     Proveedor, Ingrediente, Insumo, MovimientoInventario,
-    CategoriaInsumo, UnidadMedida,
+    CategoriaInsumo, UnidadMedida, PreparacionCocina,
 )
 from app.repositories.base_repository import BaseRepository
 
@@ -303,3 +303,28 @@ class UnidadMedidaRepository(BaseRepository[UnidadMedida]):
     def contar_insumos_por_unidad(self, unidad_id: int) -> int:
         statement = select(Insumo).where(Insumo.unidad_medida_id == unidad_id)
         return len(list(self.db.execute(statement).scalars().all()))
+
+
+class PreparacionCocinaRepository(BaseRepository[PreparacionCocina]):
+    def __init__(self, db: Session) -> None:
+        super().__init__(PreparacionCocina, db)
+
+    def get_por_asistencia(self, asistencia_id: int) -> List[PreparacionCocina]:
+        statement = (
+            select(PreparacionCocina)
+            .where(PreparacionCocina.asistencia_id == asistencia_id)
+            .order_by(PreparacionCocina.fecha.desc())
+        )
+        return list(self.db.execute(statement).scalars().all())
+
+    def get_por_rango_fechas(self, fecha_inicio, fecha_fin) -> List[PreparacionCocina]:
+        from datetime import datetime
+        statement = (
+            select(PreparacionCocina)
+            .where(
+                PreparacionCocina.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
+                PreparacionCocina.fecha <= datetime.combine(fecha_fin, datetime.max.time()),
+            )
+            .order_by(PreparacionCocina.fecha.desc())
+        )
+        return list(self.db.execute(statement).scalars().all())

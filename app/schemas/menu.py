@@ -55,6 +55,10 @@ class RecetaBase(BaseModel):
         description="Cantidad necesaria del ingrediente (porción exacta que gasta el plato)",
         examples=[0.150]
     )
+    descuento_por_lote: bool = Field(
+        default=False,
+        description="Si True, este ingrediente NO se descuenta por plato sino solo via Producción de Cocina"
+    )
 
 
 class RecetaCreate(RecetaBase):

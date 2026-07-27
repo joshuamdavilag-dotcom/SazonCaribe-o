@@ -270,6 +270,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | DELETE | /api/v1/inventario/unidades-medida/{id}      | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/inventario/unidades-medida/{id}      | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/unidades-medida/convertir | Yes      | Any                |
+| POST   | /api/v1/inventario/preparaciones             | Yes      | Admin, Gerente     |
+| GET    | /api/v1/inventario/preparaciones             | Yes      | Any                |
 | GET    | /api/v1/salon/mapa                          | Yes      | Any                |
 | POST   | /api/v1/salon/mesas                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/salon/mesas/{id}                    | Yes      | Admin, Gerente     |
@@ -327,6 +329,15 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `ReportesRepository.obtener_gastos_operativos()` — sums all Gasto.monto in a date range
 - `ReportesService.obtener_cierre()` — utilidad_neta now subtracts gastos_operativos
 - **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form (with date picker); `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/` with optional `fecha`; Admin/Gerente only via `.nav-item-admin`
+
+### Kitchen production (batch preparation)
+- `PreparacionCocina` + `DetallePreparacionCocina` models in `app/models/inventario.py`
+- `Receta.descuento_por_lote` boolean — when True, ingredient is NOT deducted per-plato but only via batch production
+- `PreparacionService.registrar_preparacion()` — validates stock, deducts ingredients, creates `MovimientoInventario` (SALIDA) + auto-generated `Gasto` (SUMINISTROS) + `DetallePreparacionCocina` records
+- `POST /inventario/preparaciones` — Admin/Gerente only; auto-links to active asistencia if any
+- `GET /inventario/preparaciones` — lists today's preparations with detalles
+- `OrdenService.descontar_stock()` / `revertir_stock()` / `validar_stock_suficiente()` all skip ingredients where `descuento_por_lote=True`
+- **Frontend**: "🍳 Producción del Día" button in `#screen-menu-mgmt` header; `#modal-preparacion` with dynamic insumo rows (select + quantity); `openPreparacionModal()` loads insumos; `submitPreparacion()` posts to endpoint; recipe rows have "Lote" checkbox to toggle `descuento_por_lote`
 
 ### Venta retroactiva (ventas de días pasados)
 - `POST /ordenes/retroactiva` — creates and pays an order directly with a custom `fecha_creacion`; Admin/Gerente only

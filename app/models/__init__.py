@@ -1,7 +1,7 @@
 from app.models.personal import Puesto, Empleado, Usuario
 from app.models.asistencia import Turno, Asistencia
 from app.models.nomina import Nomina
-from app.models.inventario import Proveedor, Ingrediente, Insumo, MovimientoInventario, CategoriaInsumo, UnidadMedida
+from app.models.inventario import Proveedor, Ingrediente, Insumo, MovimientoInventario, CategoriaInsumo, UnidadMedida, PreparacionCocina, DetallePreparacionCocina
 from app.models.menu import CategoriaMenu, MenuItem, Receta
 from app.models.salon import Zona, Mesa, EstadoMesa
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
@@ -21,6 +21,8 @@ __all__ = [
     "MovimientoInventario",
     "CategoriaInsumo",
     "UnidadMedida",
+    "PreparacionCocina",
+    "DetallePreparacionCocina",
     "CategoriaMenu",
     "MenuItem",
     "Receta",
