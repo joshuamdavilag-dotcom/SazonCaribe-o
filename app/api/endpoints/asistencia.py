@@ -125,7 +125,8 @@ def iniciar_turno(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AsistenciaResponse:
-    ip_origen = request.client.host if request and request.client else ""
+    from app.services.turno_service import _get_ip_cliente
+    ip_origen = _get_ip_cliente(request)
 
     asistencia = turno_service.iniciar_turno(
         db=db,

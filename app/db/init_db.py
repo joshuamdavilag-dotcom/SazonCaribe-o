@@ -635,7 +635,7 @@ def _seed_asistencias(
                 hora_salida_real=h_salida,
                 horas_extras=horas_extra,
                 observaciones=None,
-                ip_origen="192.168.0.19",
+                ip_origen="190.143.254.134",
             )
             db.add(asistencia)
             db.flush()

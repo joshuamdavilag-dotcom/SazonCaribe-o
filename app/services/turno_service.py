@@ -4,12 +4,27 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.asistencia import Asistencia
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
 
 
-IP_AUTORIZADA = "192.168.0.19"
+def _get_ip_cliente(request) -> str:
+    if not request or not request.client:
+        return ""
+    if request.headers.get("cf-connecting-ip"):
+        return request.headers["cf-connecting-ip"]
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
+
+
+def _ip_allowed(ip: str) -> bool:
+    settings = get_settings()
+    allowed = {addr.strip() for addr in settings.ALLOWED_IPS.split(",") if addr.strip()}
+    return ip in allowed
 
 
 def iniciar_turno(
@@ -30,10 +45,10 @@ def iniciar_turno(
             detail=f"No se encontró el turno con ID {turno_id}",
         )
 
-    if rol == "Vendedor" and ip_cliente != IP_AUTORIZADA:
+    if rol == "Vendedor" and not _ip_allowed(ip_cliente):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado: Ubicación no autorizada",
+            detail=f"Acceso denegado: IP no autorizada ({ip_cliente})",
         )
 
     ahora = datetime.now()

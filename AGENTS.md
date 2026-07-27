@@ -140,7 +140,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - All API endpoints prefixed with `/api/v1/`
 - Write endpoints protected with `Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))`
 - All orden endpoints protected with `Depends(get_current_user)`
-- IP validation: Vendedor restricted to `192.168.0.19`; Admin/Gerente bypass
+- IP validation: Vendedor restricted to `ALLOWED_IPS` env var (comma-separated, default `190.143.254.134,127.0.0.1,::1`); Admin/Gerente bypass; proxy header support (`CF-Connecting-IP`, `X-Forwarded-For`)
 - No comments in code unless explicitly requested
 - Spanish user-facing strings, English internal identifiers
 - `RolEnum` defined in `app/schemas/personal.py`
@@ -190,7 +190,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Menu/Inventario write         | Y             | Y       | N        |
 | Ordenes (create, add items)   | Y             | Y       | Y        |
 | Pagar orden (auto-libera mesa)| Y             | Y       | Y        |
-| Iniciar turno (IP validated)  | Y (bypass)    | Y (bypass) | Y (must be 192.168.0.19) |
+| Iniciar turno (IP validated)  | Y (bypass)    | Y (bypass) | Y (must match ALLOWED_IPS) |
 | Gestionar turnos (CRUD)       | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |

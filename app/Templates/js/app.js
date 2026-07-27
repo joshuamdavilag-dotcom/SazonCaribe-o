@@ -562,6 +562,17 @@ function showIPBlockModal(detail) {
   const modal = document.getElementById('modal-ip-block');
   const detailEl = document.getElementById('ip-block-detail');
   if (detailEl && detail) detailEl.textContent = detail;
+
+  const ipEl = document.getElementById('ip-block-detected');
+  const ipValEl = document.getElementById('ip-block-detected-value');
+  const ipMatch = detail && detail.match(/\(([^)]+)\)/);
+  if (ipEl && ipValEl && ipMatch) {
+    ipValEl.textContent = ipMatch[1];
+    ipEl.style.display = '';
+  } else if (ipEl) {
+    ipEl.style.display = 'none';
+  }
+
   modal.style.display = 'flex';
   modal.classList.add('show');
   blockPOSAccess();

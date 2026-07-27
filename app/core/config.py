@@ -68,9 +68,9 @@ class Settings(BaseSettings):
     )
 
     # Red
-    ALLOWED_IP: str = Field(
-        default="192.168.1.0/24",
-        description="Rango de IPs permitidas para turnos"
+    ALLOWED_IPS: str = Field(
+        default="190.143.254.134,127.0.0.1,::1",
+        description="IPs autorizadas para iniciar turno (separadas por coma)"
     )
 
     # Nómina
