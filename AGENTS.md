@@ -172,6 +172,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
 - Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
+- `formatLocalTime(isoStr)` helper converts UTC datetime strings to Nicaragua local time (`es-NI` locale); all datetime strings from backend are naive UTC — helper appends `'Z'` if missing before parsing
 
 ### Design Tokens (CSS)
 
@@ -343,6 +344,14 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `CategoriaMenu` model (id, nombre, descripcion) with `MenuItem.categoria_id` FK
 - `GET /menu/categorias` → all categories; `POST /menu/categorias` → create; `DELETE /menu/categorias/{id}` → delete (guarded: 400 if category has platillos)
 - **Frontend**: `#screen-menu-mgmt` has `#menu-mgmt-cat-filters` chip row dynamically populated from `GET /menu/categorias`; `#modal-dish` has ⚙️ toggle button → `#cat-panel` (collapsible) with input + save + list with delete buttons; `loadCategorias()` fetches categories, `guardarCategoriaMenu()` posts, `eliminarCategoriaMenu()` deletes; filter logic via `activeMgmtCatFilter` + `applyMenuMgmtFilter()`
+
+### UTC timezone handling
+- All `datetime.now()` calls in asistencia-related code use `datetime.now(timezone.utc).replace(tzinfo=None)` to store naive UTC
+- Files: `asistencia_service.py`, `turno_service.py`, `asistencia_repository.py`
+- Frontend helper `formatLocalTime(isoStr)` in `app.js` treats all datetime strings as UTC (appends `'Z'` if missing) and formats with `es-NI` locale
+- All locale references use `es-NI` (Nicaragua, UTC-6) instead of `es-CO` (Colombia, UTC-5)
+- MySQL `DATETIME` type strips timezone info on read; stored values remain correct UTC
+- `security.py` uses `datetime.now(timezone.utc)` for JWT token expiration (timezone-aware)
 
 ### Heartbeat auto-close background task
 - `POST /asistencia/turnos/heartbeat/{id}` — updates `Asistencia.ultimo_heartbeat` timestamp

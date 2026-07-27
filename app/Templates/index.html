@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=2.9">
+  <link rel="stylesheet" href="css/style.css?v=3.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
@@ -485,7 +485,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Unidad de Medida</label>
+            <label class="form-label">Unidad de Uso / Receta <span style="font-weight:normal;font-size:12px;color:var(--text-muted);">(Ej: Gramos, Unidades, Onzas)</span></label>
             <div class="select-with-gear">
               <select id="stock-unidad-select" class="form-select"></select>
               <button type="button" class="icon-btn-sm" id="stock-unidad-toggle" title="Nueva unidad">⚙️</button>
@@ -503,21 +503,22 @@
             <label class="form-label" for="stock-minimo">Stock Mínimo</label>
             <input type="number" id="stock-minimo" class="form-input" step="0.01" min="0" placeholder="5.00">
           </div>
-          <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;">
-            <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Empaque / Compra</div>
+          <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;" id="stock-empaque-section">
+            <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Presentación de Compra (opcional)</div>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="stock-empaque-select">Unidad de Empaque</label>
+                <label class="form-label" for="stock-empaque-select">Se compra por (Empaque)</label>
                 <select id="stock-empaque-select" class="form-input">
                   <option value="">Sin empaque</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="stock-empaque-factor">Factor (1 empaque = X base)</label>
+              <div class="form-group" id="stock-empaque-factor-group">
+                <label class="form-label" for="stock-empaque-factor">¿Cuánto trae cada empaque?</label>
                 <input type="number" id="stock-empaque-factor" class="form-input" step="0.01" min="0" placeholder="Ej: 5">
               </div>
             </div>
             <div id="stock-details-empaque-preview" class="conversion-preview" style="display:none;"></div>
+            <div id="stock-details-empaque-helper" class="conversion-preview" style="display:none;color:var(--turquesa-ola);font-weight:500;"></div>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary stock-cancel-details" style="flex:1;">Cancelar</button>
@@ -574,7 +575,7 @@
                 <th>Abrev.</th>
                 <th>Magnitud</th>
                 <th>Base</th>
-                <th>Factor</th>
+                <th>Equivalencia / Contenido</th>
                 <th style="width:80px;">Acciones</th>
               </tr>
             </thead>
@@ -687,21 +688,22 @@
           <label class="form-label" for="insumo-min">Stock Mínimo</label>
           <input type="number" id="insumo-min" class="form-input" step="0.01" min="0.01" value="5">
         </div>
-        <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;">
-          <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Empaque / Compra (opcional)</div>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;" id="insumo-empaque-section">
+          <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Presentación de Compra (opcional)</div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="insumo-empaque-unit">Unidad de Empaque</label>
+              <label class="form-label" for="insumo-empaque-unit">Se compra por (Empaque)</label>
               <select id="insumo-empaque-unit" class="form-input">
                 <option value="">Sin empaque</option>
               </select>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="insumo-empaque-factor">Factor (1 empaque = X base)</label>
+            <div class="form-group" id="insumo-empaque-factor-group">
+              <label class="form-label" for="insumo-empaque-factor">¿Cuánto trae cada empaque?</label>
               <input type="number" id="insumo-empaque-factor" class="form-input" step="0.01" min="0" placeholder="Ej: 5" disabled>
             </div>
           </div>
           <div id="insumo-empaque-preview" class="conversion-preview" style="display:none;"></div>
+          <div id="insumo-empaque-helper" class="conversion-preview" style="display:none;color:var(--turquesa-ola);font-weight:500;"></div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-insumo-modal" style="flex:1;">Cancelar</button>

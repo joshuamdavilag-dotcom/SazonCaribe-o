@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional, List
 
 from sqlalchemy import select, and_, update
@@ -207,7 +207,7 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         stmt = (
             update(Asistencia)
             .where(Asistencia.id == asistencia_id)
-            .values(ultimo_heartbeat=datetime.now())
+            .values(ultimo_heartbeat=datetime.now(timezone.utc).replace(tzinfo=None))
         )
         self.db.execute(stmt)
         self.db.commit()

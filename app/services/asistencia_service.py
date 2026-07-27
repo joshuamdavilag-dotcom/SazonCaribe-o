@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -173,7 +173,7 @@ class AsistenciaService:
                 detail="El empleado ya registró su entrada para el día de hoy"
             )
 
-        ahora = datetime.now()
+        ahora = datetime.now(timezone.utc).replace(tzinfo=None)
         asistencia_data = {
             "empleado_id": checkin_in.empleado_id,
             "turno_id": checkin_in.turno_id,
@@ -213,7 +213,7 @@ class AsistenciaService:
                 detail="Esta asistencia ya cuenta con marca de salida"
             )
 
-        ahora = datetime.now()
+        ahora = datetime.now(timezone.utc).replace(tzinfo=None)
         horas_trabajadas = (ahora - asistencia.hora_entrada_real).total_seconds() / 3600
 
         turno = self.turno_repo.get_by_id(asistencia.turno_id)
@@ -373,7 +373,7 @@ class AsistenciaService:
         self,
         timeout_seconds: int,
     ) -> int:
-        timeout_desde = datetime.now() - timedelta(seconds=timeout_seconds)
+        timeout_desde = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=timeout_seconds)
         stale = self.asistencia_repo.get_activas_sin_heartbeat(timeout_desde)
         if not stale:
             return 0

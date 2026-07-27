@@ -39,6 +39,16 @@ const state = {
 };
 
 /* =========================================================================
+   Date/Time Helpers
+   ========================================================================= */
+function formatLocalTime(isoStr) {
+  if (!isoStr) return '';
+  const utcString = isoStr.endsWith('Z') ? isoStr : isoStr + 'Z';
+  const fecha = new Date(utcString);
+  return fecha.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+/* =========================================================================
    API Helpers
    ========================================================================= */
 async function api(endpoint, options = {}) {
@@ -310,7 +320,7 @@ function renderAttendanceStatus() {
 
   if (state.currentAsistencia) {
     if (statusEl) {
-      const hora = new Date(state.currentAsistencia.hora_entrada_real).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      const hora = formatLocalTime(state.currentAsistencia.hora_entrada_real);
       statusEl.innerHTML = `🟢 Turno activo — entrada ${hora}`;
       statusEl.style.color = '#2A9D8F';
     }
@@ -506,7 +516,7 @@ function renderGastosTable() {
   tbody.innerHTML = filtered.map(g => `
     <tr style="border-bottom:1px solid #f1f5f9;transition:background .15s;" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
       <td style="padding:12px 16px;font-weight:600;color:var(--azul-marino);">#${g.id}</td>
-      <td style="padding:12px 16px;color:#374151;">${new Date(g.fecha).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })}</td>
+      <td style="padding:12px 16px;color:#374151;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
       <td style="padding:12px 16px;"><span style="display:inline-block;background:#f1f5f9;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">${CATEGORIA_LABELS[g.categoria] || g.categoria}</span></td>
       <td style="padding:12px 16px;color:#374151;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.concepto}</td>
       <td style="padding:12px 16px;text-align:right;font-weight:700;color:var(--rojo-cangrejo);">C$${parseFloat(g.monto).toFixed(2)}</td>
@@ -1938,20 +1948,34 @@ async function confirmUnitEquiv() {
 
 function updateStockDetailsEmpaquePreview() {
   const preview = document.getElementById('stock-details-empaque-preview');
+  const helper = document.getElementById('stock-details-empaque-helper');
+  const factorGroup = document.getElementById('stock-empaque-factor-group');
+  const section = document.getElementById('stock-empaque-section');
   const empaqueId = parseInt(document.getElementById('stock-empaque-select')?.value) || null;
   const factor = parseFloat(document.getElementById('stock-empaque-factor')?.value) || 0;
   const insumoId = parseInt(document.getElementById('stock-detalles-insumo-id')?.value) || null;
   const insumo = insumoId ? state.insumos.find(i => i.id === insumoId) : null;
   const baseId = parseInt(document.getElementById('stock-unidad-select')?.value) || null;
   const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
-  if (!empaqueId || factor <= 0 || !insumo || !baseUnit) {
-    preview.style.display = 'none';
+
+  if (!empaqueId) {
+    if (factorGroup) factorGroup.style.display = 'none';
+    if (preview) preview.style.display = 'none';
+    if (helper) helper.style.display = 'none';
+    return;
+  }
+  if (factorGroup) factorGroup.style.display = '';
+  if (!factor || !insumo || !baseUnit) {
+    if (preview) preview.style.display = 'none';
+    if (helper) helper.style.display = 'none';
     return;
   }
   const empaqueUnit = state.unidadesMedida.find(u => u.id === empaqueId);
-  if (!empaqueUnit) { preview.style.display = 'none'; return; }
+  if (!empaqueUnit) { preview.style.display = 'none'; if (helper) helper.style.display = 'none'; return; }
   preview.textContent = `1 ${empaqueUnit.nombre} de ${insumo.nombre} equivale a ${factor} ${baseUnit.abreviatura}`;
   preview.style.display = '';
+  helper.textContent = `💡 Configuración: 1 ${empaqueUnit.nombre} equivale a ${factor} ${baseUnit.nombre} en inventario.`;
+  helper.style.display = '';
 }
 
 /* --- Stock Detalles — Gear Subpanels --- */
@@ -2044,21 +2068,27 @@ function populateInsumoEmpaqueSelect() {
 
 function updateInsumoEmpaquePreview() {
   const preview = document.getElementById('insumo-empaque-preview');
+  const helper = document.getElementById('insumo-empaque-helper');
   const factorInput = document.getElementById('insumo-empaque-factor');
+  const factorGroup = document.getElementById('insumo-empaque-factor-group');
   const empaqueId = parseInt(document.getElementById('insumo-empaque-unit').value) || null;
   const factor = parseFloat(document.getElementById('insumo-empaque-factor').value) || 0;
   const insumoNombre = document.getElementById('insumo-name').value.trim() || 'este insumo';
   const baseId = parseInt(document.getElementById('insumo-unit')?.value) || null;
   const baseUnit = baseId ? state.unidadesMedida.find(u => u.id === baseId) : null;
   factorInput.disabled = !empaqueId;
+  if (factorGroup) factorGroup.style.display = empaqueId ? '' : 'none';
   if (!empaqueId || factor <= 0 || !baseUnit) {
     preview.style.display = 'none';
+    if (helper) helper.style.display = 'none';
     return;
   }
   const empaqueUnit = state.unidadesMedida.find(u => u.id === empaqueId);
-  if (!empaqueUnit) { preview.style.display = 'none'; return; }
+  if (!empaqueUnit) { preview.style.display = 'none'; if (helper) helper.style.display = 'none'; return; }
   preview.textContent = `1 ${empaqueUnit.nombre} de ${insumoNombre} equivale a ${factor} ${baseUnit.abreviatura}`;
   preview.style.display = '';
+  helper.textContent = `💡 Configuración: 1 ${empaqueUnit.nombre} equivale a ${factor} ${baseUnit.nombre} en inventario.`;
+  helper.style.display = '';
 }
 
 function closeInsumoModal() {
@@ -2609,7 +2639,7 @@ function renderNominaHistorial(nominas) {
     const statusClass = esPagado ? 'nh-status-pagado' : 'nh-status-pendiente';
     const statusText = esPagado ? 'PAGADA' : 'PENDIENTE';
     const paidDate = n.fecha_pago
-      ? `Pagado: ${new Date(n.fecha_pago).toLocaleDateString('es-CO')}`
+      ? `Pagado: ${new Date(n.fecha_pago).toLocaleDateString('es-NI')}`
       : '';
 
     return `
@@ -2792,9 +2822,9 @@ function renderAsistenciasTable(asistencias, container) {
       </thead>
       <tbody>
         ${asistencias.map(a => {
-          const entrada = new Date(a.hora_entrada_real).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+          const entrada = formatLocalTime(a.hora_entrada_real);
           const salida = a.hora_salida_real
-            ? new Date(a.hora_salida_real).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+            ? formatLocalTime(a.hora_salida_real)
             : '<span style="color:#E63946;font-weight:600;">Activo</span>';
           const ot = parseFloat(a.horas_extras);
           const otBadge = ot > 0
@@ -2910,7 +2940,7 @@ function renderCierreReportes(data) {
     return;
   }
 
-  const fmt = v => 'C$' + parseFloat(v).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = v => 'C$' + parseFloat(v).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const utilPositiva = data.utilidad_neta >= 0;
 
   document.getElementById('cc-ingresos').textContent = fmt(data.ingresos_totales);
@@ -2972,7 +3002,7 @@ function renderPieChart(data) {
         legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } },
         tooltip: {
           callbacks: {
-            label: ctx => `${ctx.label}: C$${parseFloat(ctx.parsed).toLocaleString('es-CO', { minimumFractionDigits: 2 })}`,
+            label: ctx => `${ctx.label}: C$${parseFloat(ctx.parsed).toLocaleString('es-NI', { minimumFractionDigits: 2 })}`,
           },
         },
       },
@@ -3024,7 +3054,7 @@ function renderBarChart(topPlatillos) {
         tooltip: {
           callbacks: {
             label: ctx => {
-              if (ctx.datasetIndex === 1) return `Ingresos: C$${parseFloat(ctx.parsed.y).toLocaleString('es-CO')}`;
+              if (ctx.datasetIndex === 1) return `Ingresos: C$${parseFloat(ctx.parsed.y).toLocaleString('es-NI')}`;
               return `Vendidos: ${ctx.parsed.y}`;
             },
           },
@@ -3052,7 +3082,7 @@ function renderTopList(topPlatillos) {
           <span class="cierre-top-rank">#${i + 1}</span>
           <span class="cierre-top-name">${p.nombre}</span>
           <span class="cierre-top-qty">${p.cantidad_vendida} uds</span>
-          <span class="cierre-top-rev">C$${parseFloat(p.ingresos_generados).toLocaleString('es-CO')}</span>
+          <span class="cierre-top-rev">C$${parseFloat(p.ingresos_generados).toLocaleString('es-NI')}</span>
         </div>
       `).join('')}
     </div>`;
@@ -3196,8 +3226,8 @@ function openPreCuenta() {
   const detalles = orden.detalles || [];
   const mesa = state.tables.find(t => t.id === oc.mesaId);
   const now = new Date();
-  const fecha = now.toLocaleDateString('es-CO');
-  const hora = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const fecha = now.toLocaleDateString('es-NI');
+  const hora = now.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
   const total = parseFloat(orden.total || 0);
 
   let lines = [];
@@ -3491,7 +3521,7 @@ async function ejecutarCierreCaja() {
    ========================================================================= */
 function updateClock() {
   const now = new Date();
-  const time = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const time = now.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
   const el1 = document.getElementById('comandero-clock');
   const el2 = document.getElementById('salon-clock');
   if (el1) el1.textContent = time;

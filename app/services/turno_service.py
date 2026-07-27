@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -51,7 +51,7 @@ def iniciar_turno(
             detail=f"Acceso denegado: IP no autorizada ({ip_cliente})",
         )
 
-    ahora = datetime.now()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     datos = {
         "empleado_id": empleado_id,
         "turno_id": turno_id,
@@ -81,7 +81,7 @@ def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
             detail="Esta asistencia ya tiene registrada una salida",
         )
 
-    ahora = datetime.now()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     horas_reales = (ahora - asistencia.hora_entrada_real).total_seconds() / 3600
 
     turno = turno_repo.get_by_id(asistencia.turno_id)
