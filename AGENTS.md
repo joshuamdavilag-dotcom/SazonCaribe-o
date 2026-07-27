@@ -24,7 +24,7 @@ Multi-layer pattern: **API → Service → Repository → Model**
 
 ```
 app/
-├── main.py                  # FastAPI app, CORS, router registration, startup, heartbeat watcher BG task
+├── main.py                  # FastAPI app, CORS, router registration, startup, heartbeat watcher BG task, orphaned mesa fix
 ├── core/
 │   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS
 │   ├── database.py          # Engine, SessionLocal, Base, get_db()
@@ -160,7 +160,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Role-based nav: `.nav-locked` class for restricted items
 - IP block modal: `#modal-ip-block` + `blockPOSAccess()` disables all actions
 - Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
-- Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal
+- Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal; startup `_fix_orphaned_mesas()` auto-frees OCUPADA tables with no active orders; table detail modal shows "Forzar Libramiento" button when OCUPADA but no active order found
 - Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
 - KDS (Panel de Cocina): `#screen-comandero` with 3 filter tabs (`data-cocina-tab`: cocina/lista/historial), `#cocina-grid` card grid; `loadCocinaOrdenes()` → `renderCocinaCards()`; `cambiarEstadoKDS(id, estado)` → `PATCH /ordenes/{id}/estado`; cards show zone, mesa, mesero, elapsed time with urgency colors, and item list with `producto_nombre`
 - Responsive design: Custom CSS (NOT Tailwind); mobile `<768px`, tablet `768-1024px`

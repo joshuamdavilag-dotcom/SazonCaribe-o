@@ -135,6 +135,7 @@ async def startup_event():
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
+    _fix_orphaned_mesas()
     asyncio.create_task(_heartbeat_watcher())
 
 
@@ -394,6 +395,34 @@ def _fix_joshi_password():
         except Exception as e:
             db.rollback()
             print(f"  [!] Error en auth fix: {e}")
+
+
+def _fix_orphaned_mesas():
+    """Libera mesas OCUPADA que no tienen orden activa asociada."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            result = db.execute(text("""
+                UPDATE mesas
+                SET estado = 'LIBRE'
+                WHERE estado = 'OCUPADA'
+                  AND id NOT IN (
+                    SELECT DISTINCT ordenes.mesa_id
+                    FROM ordenes
+                    WHERE ordenes.mesa_id IS NOT NULL
+                      AND ordenes.estado IN ('PENDIENTE', 'PREPARANDO', 'ENTREGADA')
+                  )
+            """))
+            if result.rowcount > 0:
+                db.commit()
+                print(f"  [SALON] {result.rowcount} mesa(s) huérfana(s) liberada(s) automáticamente")
+            else:
+                db.rollback()
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al liberar mesas huérfanas: {e}")
 
 
 async def _heartbeat_watcher():

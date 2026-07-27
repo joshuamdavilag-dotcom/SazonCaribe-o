@@ -2956,6 +2956,11 @@ function openDetalleMesaOcupada(mesaId) {
     document.getElementById(id).textContent = 'C$0.00';
   });
 
+  document.getElementById('btn-agregar-pedido').style.display = '';
+  document.getElementById('btn-pre-cuenta').style.display = '';
+  document.getElementById('btn-cerrar-cuenta').style.display = '';
+  document.getElementById('btn-forzar-librar').style.display = 'none';
+
   document.getElementById('modal-detalle-mesa-ocupada').classList.add('show');
   loadOcupadaOrden(mesaId);
 }
@@ -2984,8 +2989,19 @@ async function loadOcupadaOrden(mesaId) {
     if (!orden) {
       document.getElementById('oc-items-list').innerHTML =
         '<p style="text-align:center;color:#9ca3af;padding:16px;">No se encontró orden activa para esta mesa.</p>';
+      document.getElementById('oc-subtotal').textContent = 'C$0.00';
+      document.getElementById('oc-total').textContent = 'C$0.00';
+      document.getElementById('btn-agregar-pedido').style.display = 'none';
+      document.getElementById('btn-pre-cuenta').style.display = 'none';
+      document.getElementById('btn-cerrar-cuenta').style.display = 'none';
+      document.getElementById('btn-forzar-librar').style.display = 'block';
       return;
     }
+
+    document.getElementById('btn-agregar-pedido').style.display = '';
+    document.getElementById('btn-pre-cuenta').style.display = '';
+    document.getElementById('btn-cerrar-cuenta').style.display = '';
+    document.getElementById('btn-forzar-librar').style.display = 'none';
 
     state.currentOcupada.orden = orden;
     document.getElementById('oc-orden-id').textContent = orden.id;
@@ -2993,6 +3009,26 @@ async function loadOcupadaOrden(mesaId) {
   } catch {
     document.getElementById('oc-items-list').innerHTML =
       '<p style="text-align:center;color:#E63946;padding:16px;">Error al cargar la orden.</p>';
+  }
+}
+
+async function forzarLibrarMesa() {
+  const oc = state.currentOcupada;
+  if (!oc) return;
+  if (!confirm('¿Liberar esta mesa? No se encontró orden activa asociada.')) return;
+
+  try {
+    await api(`/salon/mesas/${oc.mesaId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ estado: 'LIBRE' }),
+    });
+    const mesa = state.tables.find(t => t.id === oc.mesaId);
+    if (mesa) mesa.estado = 'LIBRE';
+    showToast('Mesa liberada correctamente', 'success');
+    closeDetalleMesaOcupada();
+    renderTables(state.tables);
+  } catch {
+    showToast('Error al liberar la mesa', 'error');
   }
 }
 
@@ -3641,6 +3677,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-agregar-pedido')?.addEventListener('click', agregarAlPedido);
   document.getElementById('btn-pre-cuenta')?.addEventListener('click', openPreCuenta);
   document.getElementById('btn-cerrar-cuenta')?.addEventListener('click', cerrarCuenta);
+  document.getElementById('btn-forzar-librar')?.addEventListener('click', forzarLibrarMesa);
 
   // Pre-Cuenta modal
   document.getElementById('close-pre-cuenta')?.addEventListener('click', closePreCuenta);
