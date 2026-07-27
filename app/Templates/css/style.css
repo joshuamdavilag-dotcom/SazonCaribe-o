@@ -1604,7 +1604,7 @@ select.form-input {
   font-size: 12px;
 }
 
-body:not(.role-administrador) .admin-only {
+body:not(.role-administrador):not(.role-gerente) .admin-only {
   display: none !important;
 }
 
