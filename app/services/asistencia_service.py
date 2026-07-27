@@ -15,7 +15,8 @@ from app.schemas.asistencia import (
     AsistenciaCheckIn,
     AsistenciaCheckOut,
     AsistenciaResponse,
-    AsistenciaHorasExtrasUpdate
+    AsistenciaHorasExtrasUpdate,
+    AsistenciaEditarHorarios
 )
 
 
@@ -336,6 +337,55 @@ class AsistenciaService:
             asistencia_id,
             datos_actualizacion
         )
+        return AsistenciaResponse.model_validate(asistencia_actualizada)
+
+    def editar_horarios(
+        self,
+        asistencia_id: int,
+        data: AsistenciaEditarHorarios,
+        gerente_id: int,
+    ) -> AsistenciaResponse:
+        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
+        if not asistencia:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la asistencia con ID {asistencia_id}",
+            )
+
+        if not data.motivo or not data.motivo.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo de la modificación es obligatorio para auditoría",
+            )
+
+        h_entrada_local, m_entrada_local = map(int, data.hora_entrada.split(":"))
+        entrada_utc = datetime.combine(
+            asistencia.fecha,
+            datetime.min.time().replace(hour=h_entrada_local, minute=m_entrada_local),
+        ) - timedelta(hours=6)
+
+        datos: dict = {
+            "hora_entrada_real": entrada_utc.replace(tzinfo=None),
+            "motivo_modificacion": data.motivo.strip(),
+            "modificado_por": gerente_id,
+        }
+
+        if data.hora_salida is not None:
+            h_salida_local, m_salida_local = map(int, data.hora_salida.split(":"))
+            salida_utc = datetime.combine(
+                asistencia.fecha,
+                datetime.min.time().replace(hour=h_salida_local, minute=m_salida_local),
+            ) - timedelta(hours=6)
+            datos["hora_salida_real"] = salida_utc.replace(tzinfo=None)
+
+            horas_reales = (salida_utc - entrada_utc).total_seconds() / 3600
+            turno = self.turno_repo.get_by_id(asistencia.turno_id)
+            horas_extras = Decimal("0.00")
+            if horas_reales > turno.horas_teoricas:
+                horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+            datos["horas_extras"] = horas_extras
+
+        asistencia_actualizada = self.asistencia_repo.update(asistencia_id, datos)
         return AsistenciaResponse.model_validate(asistencia_actualizada)
 
     def asistencias_del_dia(self, fecha: date = None) -> List[AsistenciaResponse]:

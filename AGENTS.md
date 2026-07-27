@@ -171,6 +171,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Stock modal: Two-tab layout — Movimiento tab (adjust stock via `PATCH /insumos/{id}/stock` with unit selector + conversion preview) and Detalles tab (edit category/unit/stock_minimo via `PATCH /insumos/{id}` with packaging fields section); gear subpanels for inline category/unit creation
 - Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
 - Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
+- Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` converts UTC→local via `formatLocalTime()` logic; `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `hora_entrada`, `hora_salida`, `motivo`; backend converts local→UTC by subtracting 6h (Nicaragua CST); recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
 - `formatLocalTime(isoStr)` helper converts UTC datetime strings to Nicaragua local time (`es-NI` locale); all datetime strings from backend are naive UTC — helper appends `'Z'` if missing before parsing
 
@@ -245,6 +246,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/asistencia/check-out                | Yes      | Any                |
 | GET    | /api/v1/asistencia/empleados/{id}/historial | Yes      | Any                |
 | PUT    | /api/v1/asistencia/{id}/horas-extras        | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/asistencia/{id}/editar-horarios     | Yes      | Admin, Gerente     |
 | POST   | /api/v1/menu/items                          | Yes      | Admin, Gerente     |
 | GET    | /api/v1/menu/items                          | Yes      | Any                |
 | PUT    | /api/v1/menu/items/{id}                     | Yes      | Admin, Gerente     |

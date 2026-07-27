@@ -195,3 +195,30 @@ class AsistenciaHorasExtrasUpdate(BaseModel):
         description="Motivo del cambio (obligatorio para auditoría)",
         examples=["Corrección por turno extendido autorizado"]
     )
+
+
+class AsistenciaEditarHorarios(BaseModel):
+    """Esquema para editar hora de entrada y/o salida de una asistencia.
+
+    Las horas se reciben en formato HH:MM (hora local de Nicaragua, UTC-6)
+    y se convierten a UTC naive antes de almacenar en la base de datos.
+    """
+    hora_entrada: str = Field(
+        ...,
+        pattern=r"^\d{2}:\d{2}$",
+        description="Nueva hora de entrada en formato HH:MM (hora local)",
+        examples=["08:30"]
+    )
+    hora_salida: Optional[str] = Field(
+        default=None,
+        pattern=r"^\d{2}:\d{2}$",
+        description="Nueva hora de salida en formato HH:MM (hora local, None si aún no ha salido)",
+        examples=["17:00"]
+    )
+    motivo: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Motivo del cambio (obligatorio para auditoría)",
+        examples=["Corrección manual de horarios por gerente"]
+    )

@@ -2833,6 +2833,7 @@ function renderAsistenciasTable(asistencias, container) {
           const auditInfo = a.horas_extras_originales != null
             ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
             : '<span style="color:#9ca3af;font-size:11px;">—</span>';
+          const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
           return `
             <tr>
               <td>${a.id}</td>
@@ -2843,6 +2844,7 @@ function renderAsistenciasTable(asistencias, container) {
               <td>${auditInfo}</td>
               <td style="font-size:12px;color:#6b7280;">Turno #${a.turno_id}</td>
               <td>
+                <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar horarios">🕐</button>
                 <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar horas extras">🕒</button>
               </td>
             </tr>`;
@@ -2894,6 +2896,62 @@ async function confirmEditOT() {
     });
     showToast('Horas extras actualizadas con auditoría registrada', 'success');
     closeEditOTModal();
+    if (asisEmpleadoId) loadAsistenciasEmpleado(asisEmpleadoId);
+  } catch { /* handled by api() */ }
+}
+
+let editHorariosAsistenciaId = null;
+
+function openEditarHorariosModal(asistenciaId, fecha, empleadoNombre, horaEntradaUTC, horaSalidaUTC) {
+  editHorariosAsistenciaId = asistenciaId;
+  document.getElementById('editar-horarios-fecha').textContent = fecha;
+  document.getElementById('editar-horarios-empleado').textContent = empleadoNombre;
+
+  const utcToLocalInput = (utcStr) => {
+    if (!utcStr) return '';
+    const utcString = utcStr.endsWith('Z') || utcStr.includes('+') ? utcStr : utcStr + 'Z';
+    const d = new Date(utcString);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  document.getElementById('editar-hora-entrada').value = utcToLocalInput(horaEntradaUTC);
+  document.getElementById('editar-hora-salida').value = utcToLocalInput(horaSalidaUTC);
+  document.getElementById('editar-horarios-motivo').value = '';
+  document.getElementById('confirm-editar-horarios').disabled = true;
+  document.getElementById('modal-editar-horarios').classList.add('show');
+
+  const motivoInput = document.getElementById('editar-horarios-motivo');
+  const handler = () => {
+    document.getElementById('confirm-editar-horarios').disabled = !motivoInput.value.trim();
+  };
+  motivoInput.removeEventListener('input', motivoInput._horariosHandler);
+  motivoInput._horariosHandler = handler;
+  motivoInput.addEventListener('input', handler);
+}
+
+function closeEditarHorariosModal() {
+  document.getElementById('modal-editar-horarios').classList.remove('show');
+  editHorariosAsistenciaId = null;
+}
+
+async function confirmEditarHorarios() {
+  const horaEntrada = document.getElementById('editar-hora-entrada').value;
+  const horaSalida = document.getElementById('editar-hora-salida').value || null;
+  const motivo = document.getElementById('editar-horarios-motivo').value.trim();
+
+  if (!horaEntrada) return showToast('La hora de entrada es obligatoria', 'warning');
+  if (!motivo) return showToast('El motivo es obligatorio para auditoría', 'warning');
+  if (!editHorariosAsistenciaId) return showToast('Error: no se identificó la asistencia', 'error');
+
+  try {
+    await api(`/asistencia/${editHorariosAsistenciaId}/editar-horarios`, {
+      method: 'PUT',
+      body: JSON.stringify({ hora_entrada: horaEntrada, hora_salida: horaSalida, motivo }),
+    });
+    showToast('Horarios actualizados con auditoría registrada', 'success');
+    closeEditarHorariosModal();
     if (asisEmpleadoId) loadAsistenciasEmpleado(asisEmpleadoId);
   } catch { /* handled by api() */ }
 }
@@ -3806,6 +3864,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-edit-ot')?.addEventListener('click', closeEditOTModal);
   document.getElementById('cancel-edit-ot')?.addEventListener('click', closeEditOTModal);
   document.getElementById('confirm-edit-ot')?.addEventListener('click', confirmEditOT);
+
+  document.getElementById('close-editar-horarios')?.addEventListener('click', closeEditarHorariosModal);
+  document.getElementById('cancel-editar-horarios')?.addEventListener('click', closeEditarHorariosModal);
+  document.getElementById('confirm-editar-horarios')?.addEventListener('click', confirmEditarHorarios);
 
   // Gastos modal
   document.getElementById('btn-new-gasto')?.addEventListener('click', openGastosModal);

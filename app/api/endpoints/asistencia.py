@@ -17,7 +17,8 @@ from app.schemas.asistencia import (
     AsistenciaCheckIn,
     AsistenciaCheckOut,
     AsistenciaResponse,
-    AsistenciaHorasExtrasUpdate
+    AsistenciaHorasExtrasUpdate,
+    AsistenciaEditarHorarios
 )
 from app.services.asistencia_service import AsistenciaService
 from app.services import turno_service
@@ -279,3 +280,25 @@ def actualizar_horas_extras(
     - El ID del usuario que autorizó el cambio
     """
     return service.actualizar_horas_extras(asistencia_id, data, current_user.id)
+
+
+@router.put(
+    "/{asistencia_id}/editar-horarios",
+    response_model=AsistenciaResponse,
+    summary="Editar hora de entrada y salida manualmente",
+    description=(
+        "Permite a un Administrador o Gerente editar las horas de entrada "
+        "y/o salida de un registro de asistencia. Las horas se reciben en "
+        "hora local (Nicaragua, UTC-6) y se convierten a UTC antes de "
+        "almacenar. Recalcula horas extras si se proporciona hora de salida."
+    ),
+    tags=["Asistencia"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def editar_horarios(
+    asistencia_id: int = Path(..., gt=0, description="ID de la asistencia"),
+    data: AsistenciaEditarHorarios = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: AsistenciaService = Depends(get_asistencia_service)
+) -> AsistenciaResponse:
+    return service.editar_horarios(asistencia_id, data, current_user.id)

@@ -1033,6 +1033,39 @@
     </div>
   </div>
 
+  <!-- Modal: Editar Horarios de Asistencia -->
+  <div id="modal-editar-horarios" class="modal-overlay" aria-label="Editar horarios de asistencia">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕐 Editar Horarios</h3>
+        <button class="modal-close" id="close-editar-horarios" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+          Asistencia del <strong id="editar-horarios-fecha"></strong> — Empleado: <strong id="editar-horarios-empleado"></strong>
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="editar-hora-entrada">Hora de Entrada (Local) <span style="color:#E63946;">*</span></label>
+          <input type="time" id="editar-hora-entrada" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editar-hora-salida">Hora de Salida (Local)</label>
+          <input type="time" id="editar-hora-salida" class="form-input">
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <textarea id="editar-horarios-motivo" class="form-input" rows="3" placeholder="Ej: Corrección de horario por error de registro…" required style="resize:vertical;"></textarea>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-editar-horarios" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-editar-horarios" style="flex:1;" disabled>Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Nómina del Empleado -->
   <div id="modal-nomina" class="modal-overlay" aria-label="Nómina del empleado">
     <div class="modal-sheet" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
