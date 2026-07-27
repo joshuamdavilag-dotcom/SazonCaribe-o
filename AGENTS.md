@@ -46,9 +46,9 @@ app/
 │       └── analitica.py     # Cierre de caja legacy (métricas simples)
 ├── schemas/
 │   ├── personal.py          # RolEnum, Puesto/Empleado/Usuario schemas
-│   ├── asistencia.py        # Asistencia, horas extras schemas
+│   ├── asistencia.py        # TurnoCreate, TurnoUpdate, TurnoResponse, Asistencia, horas extras schemas
 │   ├── nomina.py            # Nomina schemas
-│   ├── inventario.py        # Proveedor, Ingrediente, Insumo schemas
+│   ├── inventario.py        # Proveedor, Ingrediente, Insumo (with packaging), UnidadMedida schemas
 │   ├── menu.py              # MenuItem, Receta, Categoria schemas
 │   ├── salon.py             # Mesa, Zona schemas
 │   ├── orden.py             # Orden, DetalleOrden, AgregarItems schemas
@@ -59,12 +59,12 @@ app/
 │   └── auth.py              # LoginRequest, TokenResponse
 ├── models/
 │   ├── personal.py          # Puesto, Empleado, Usuario
-│   ├── asistencia.py        # Turno, Asistencia (audit columns + ultimo_heartbeat)
+│   ├── asistencia.py        # Turno (Matutino/Nocturno), Asistencia (audit columns + ultimo_heartbeat)
 │   ├── nomina.py            # Nomina
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
 │   ├── menu.py              # CategoriaMenu, MenuItem, Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
-│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden
+│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales)
 │   ├── caja.py              # CierreCaja
 │   ├── gasto.py             # Gasto, CategoriaGasto enum
 │   └── __init__.py          # Registers all models including Gasto
@@ -85,15 +85,16 @@ app/
 │   └── analitica_repository.py
 ├── services/
 │   ├── personal_service.py
-│   ├── asistencia_service.py     # + actualizar_heartbeat(), cerrar_turnos_stale()
+│   ├── asistencia_service.py     # + actualizar_heartbeat(), cerrar_turnos_stale(), crear_turno(), actualizar_turno(), eliminar_turno()
 │   ├── nomina_service.py
-│   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records
+│   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
 │   ├── menu_service.py
 │   ├── salon_service.py
-│   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS state machine
+│   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging
 │   ├── caja_service.py
 │   ├── gasto_service.py          # registrar_gasto(), registrar_gasto_automatico()
 │   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos
+│   ├── conversion_service.py     # convertir_cantidad() — transitive chain resolution via _get_chain()
 │   ├── turno_service.py          # Standalone functions
 │   └── analitica_service.py
 ├── db/
@@ -158,7 +159,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `showToast(message, type)` for notifications
 - Role-based nav: `.nav-locked` class for restricted items
 - IP block modal: `#modal-ip-block` + `blockPOSAccess()` disables all actions
-- Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
+- Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
 - Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal
 - Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
 - KDS (Panel de Cocina): `#screen-comandero` with 3 filter tabs (`data-cocina-tab`: cocina/lista/historial), `#cocina-grid` card grid; `loadCocinaOrdenes()` → `renderCocinaCards()`; `cambiarEstadoKDS(id, estado)` → `PATCH /ordenes/{id}/estado`; cards show zone, mesa, mesero, elapsed time with urgency colors, and item list with `producto_nombre`
@@ -166,6 +167,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Dynamic Carta categories: Fetches from `GET /menu/categorias`
 - C$ currency: All monetary values use `C$` (Córdobas nicaragüenses)
 - Personal module: New employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` in employee body; ⚙️ button next to Puesto select opens `#puesto-panel` (inline subpanel) to create new Puesto inline — `guardarPuesto()` posts `POST /personal/puestos`, reloads select, auto-selects new puesto
+- Unidades de Medida: `#modal-unidades` management modal with table view + create/edit form; `#unidad-derived` toggle shows/hides base unit select + conversion factor; magnitud-filtered base unit select via `populateUnidadBaseSelect()` (falls back to all units for PERSONALIZADO magnitud); live conversion preview text
+- Stock modal: Two-tab layout — Movimiento tab (adjust stock via `PATCH /insumos/{id}/stock` with unit selector + conversion preview) and Detalles tab (edit category/unit/stock_minimo via `PATCH /insumos/{id}` with packaging fields section); gear subpanels for inline category/unit creation
+- Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
+- Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
+- Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
 
 ### Design Tokens (CSS)
 
@@ -185,6 +191,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Ordenes (create, add items)   | Y             | Y       | Y        |
 | Pagar orden (auto-libera mesa)| Y             | Y       | Y        |
 | Iniciar turno (IP validated)  | Y (bypass)    | Y (bypass) | Y (must be 192.168.0.19) |
+| Gestionar turnos (CRUD)       | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
@@ -198,15 +205,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
-- **Orden**: Requires `mesa_id` + array of `detalles` (each with `producto_id`, `cantidad`)
+- **Orden**: Requires `mesa_id` (nullable for retroactive/direct sales) + array of `detalles` (each with `producto_id`, `cantidad`)
 - **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`.
 - **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
 - **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
-- **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements
+- **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements; optional `unidad_empaque_id` FK + `factor_empaque` (1 empaque = X base); conversion in stock/recipes uses per-insumo packaging factor before falling back to global chain
 - **CategoríaInsumo**: Dynamic categories; delete guarded if category has associated insumos
-- **UnidadMedida**: Dynamic units (nombre, abreviatura); delete guarded if unit has associated insumos
+- **UnidadMedida**: Dynamic units (nombre, abreviatura, tipo_magnitud: PESO/VOLUMEN/UNIDAD/PERSONALIZADO, unidad_base_id FK, factor_conversion); delete guarded if unit has associated insumos; startup migration `_fix_unidades_medida()` corrects magnitudes and conversion chains for all 15 standard units
 - **Gastos operativos**: `Gasto` table tracks operational expenses (categoría: OPERATIVO, MANTENIMIENTO, SUMINISTROS, SERVICIOS, IMPUESTOS, OTROS)
 - **Gastos auto-generados**: Every SALIDA de inventario (manual or recipe-based) auto-creates a `Gasto` with `categoria=SUMINISTROS` and `monto=cantidad×costo_unitario`
 - **Reportes financieros**: `utilidad_neta = ingresos_totales - gastos_nomina - costo_insumos - gastos_operativos`
@@ -228,8 +235,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
 | POST   | /api/v1/asistencia/turnos                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/asistencia/turnos                   | Yes      | Any                |
-| POST   | /api/v1/asistencia/turnos/iniciar/{id}      | Yes      | Any (IP validated) |
-| POST   | /api/v1/asistencia/turnos/heartbeat/{id}    | Yes      | Any                |
+| POST   | /api/v1/asistencia/turnos/iniciar/{id} | Yes      | Any (IP validated) |
+| PUT    | /api/v1/asistencia/turnos/{id}         | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/asistencia/turnos/{id}         | Yes      | Admin, Gerente     |
+| POST   | /api/v1/asistencia/turnos/heartbeat/{id} | Yes      | Any                |
 | POST   | /api/v1/asistencia/check-in                 | Yes      | Any                |
 | POST   | /api/v1/asistencia/check-out                | Yes      | Any                |
 | GET    | /api/v1/asistencia/empleados/{id}/historial | Yes      | Any                |
@@ -255,6 +264,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/inventario/unidades-medida           | Yes      | Any                |
 | POST   | /api/v1/inventario/unidades-medida           | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/inventario/unidades-medida/{id}      | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/inventario/unidades-medida/{id}      | Yes      | Admin, Gerente     |
+| GET    | /api/v1/inventario/unidades-medida/convertir | Yes      | Any                |
 | GET    | /api/v1/salon/mapa                          | Yes      | Any                |
 | POST   | /api/v1/salon/mesas                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/salon/mesas/{id}                    | Yes      | Admin, Gerente     |
@@ -264,6 +275,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/salon/zonas                         | Yes      | Any                |
 | DELETE | /api/v1/salon/zonas/{id}                    | Yes      | Admin, Gerente     |
 | POST   | /api/v1/ordenes/                            | Yes      | Any                |
+| POST   | /api/v1/ordenes/retroactiva                  | Yes      | Admin, Gerente     |
 | GET    | /api/v1/ordenes/                            | Yes      | Any                |
 | GET    | /api/v1/ordenes/{id}                        | Yes      | Any                |
 | PATCH  | /api/v1/ordenes/{id}/estado                 | Yes      | Any                |
@@ -310,7 +322,14 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `InventarioService.registrar_movimiento()` — calls `gasto_service.registrar_gasto_automatico()` when `tipo=SALIDA`
 - `ReportesRepository.obtener_gastos_operativos()` — sums all Gasto.monto in a date range
 - `ReportesService.obtener_cierre()` — utilidad_neta now subtracts gastos_operativos
-- **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`; Admin/Gerente only via `.nav-item-admin`
+- **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form (with date picker); `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/` with optional `fecha`; Admin/Gerente only via `.nav-item-admin`
+
+### Venta retroactiva (ventas de días pasados)
+- `POST /ordenes/retroactiva` — creates and pays an order directly with a custom `fecha_creacion`; Admin/Gerente only
+- `VentaRetroactivaCreate` schema: `fecha` (required), `mesa_id` (optional — null for direct sales), `detalles` (list of `producto_id` + `cantidad`)
+- No inventory deduction (historical record); no table state mutation; order created as `PAGADA` immediately
+- `Orden.mesa_id` is nullable (startup migration `_migrate_orden_mesa_nullable()`); NULL = venta directa / para llevar
+- **Frontend**: `#modal-venta-retroactiva` in Cierre de Caja screen; "Venta Pasada" button (admin-only via `.admin-only`); dynamic item rows with product select + quantity; auto-calculated total; mesa select grouped by zone
 
 ### Personal module — salary per employee
 - `Empleado` model has its own `salario_base` column (NOT inherited from `Puesto`)
@@ -331,10 +350,12 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - Configurable via `.env`: `HEARTBEAT_INTERVAL_SECONDS` (BG check interval, default 300s) and `HEARTBEAT_TIMEOUT_SECONDS` (stale threshold, default 900s / 15 min)
 - **Frontend**: `enviarHeartbeat()` fires every 2 min via `setInterval` — only for Vendedor role with active shift (`state.currentAsistencia` set); silently ignored on error; cleared on logout
 
-### Cierre de caja archival flow
-1. `GET /caja/historial-diario` → `Orden` WHERE `PAGADA AND fecha=today AND cierre_caja_id IS NULL`
-2. `POST /caja/cierre` → creates `CierreCaja` + links qualifying orders
-3. Next query returns empty set
+### Gestión de Turnos CRUD
+- `POST /asistencia/turnos` → create shift template (nombre, hora_entrada, horas_teoricas)
+- `PUT /asistencia/turnos/{id}` → update (Admin/Gerente only)
+- `DELETE /asistencia/turnos/{id}` → delete (Admin/Gerente only)
+- `TurnoUpdate` schema for PUT body; `TurnoResponse` for list
+- **Frontend**: `#modal-turnos` with inline CRUD; `calcularHoraSalida()` auto-computes `hora_salida` from `hora_entrada + horas_teoricas` using modulo 1440 for midnight crossover; `hora_salida` field is readonly/calculated
 
 ### KDS (Kitchen Display System)
 - `OrdenRepository.obtener_ordenes_filtradas()` eager-loads `Orden.mesa.zona` and `Orden.mesero` for KDS card display
@@ -354,6 +375,25 @@ ReportesService.obtener_cierre()
   └── repo.obtener_top_platillos()       → GROUP BY producto, ORDER BY qty DESC, LIMIT 5
 utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 ```
+
+### Cierre de caja archival flow
+1. `GET /caja/historial-diario` → `Orden` WHERE `PAGADA AND fecha=today AND cierre_caja_id IS NULL`
+2. `POST /caja/cierre` → creates `CierreCaja` + links qualifying orders
+3. Next query returns empty set
+
+### Unit conversion system (3 phases)
+- **Phase 1 — Backend engine**: `UnidadMedida` model extended with `tipo_magnitud` (PESO/VOLUMEN/UNIDAD/PERSONALIZADO), `unidad_base_id` FK (self-referential), `factor_conversion` Float; `conversion_service.py` with `convertir_cantidad()` using transitive chain resolution; PUT + conversion GET endpoints; seed data with two-pass base_ref resolution
+- **Phase 2 — Frontend management**: `#modal-unidades` modal with table view + create/edit form; `#unidad-derived` toggle shows/hides base unit select + conversion factor; magnitud-filtered `populateUnidadBaseSelect()` (fallback to all units for PERSONALIZADO); live conversion preview text
+- **Phase 3 — Integration**: Stock movements + recipe deductions auto-convert when unit differs from insumo base; `ActualizarStockInsumo` + `MovimientoCreate` schemas accept `unidad_medida_id`; `Receta` model has `unidad_medida_id`; `descontar_stock`/`revertir_stock`/`validar_stock_suficiente` all use `_convertir_si_necesario()`; stock modal has unit selector + conversion preview
+- **15 standard units**: Kilogramo, Gramo, Libra, Onza (PESO); Litro, Mililitro, Botella, Lata (VOLUMEN); Unidad, Docena, Par, Paquete, Bolsa, Porción (UNIDAD); Metro (PERSONALIZADO)
+- **Startup migration `_fix_unidades_medida()`**: corrects magnitudes, links conversion chains, creates missing units; checks both `nombre` and `abreviatura` (case-insensitive) to prevent duplicates; handles list vs dict iteration for NUEVAS seed data
+
+### Per-insumo packaging unit
+- `Insumo` model has optional `unidad_empaque_id` FK + `factor_empaque` Float (1 empaque = X base units)
+- Conversion priority: per-insumo packaging factor → global `UnidadMedida` chain
+- `InventarioService._convertir_cantidad_si_necesaria()` and `OrdenService._convertir_si_necesario()` both check packaging first
+- Startup migration `_migrate_insumos_empaque()` adds `unidad_empaque_id` and `factor_empaque` columns if missing
+- **Frontend**: Insumo modal has packaging section (Unidad de Empaque select + Factor input + preview text); Stock modal Detalles tab shows packaging fields
 
 ## Known Issues / TODO
 

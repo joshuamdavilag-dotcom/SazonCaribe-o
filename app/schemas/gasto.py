@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -31,6 +31,10 @@ class GastoCreate(BaseModel):
         default=None,
         gt=0,
         description="ID del insumo asociado (para gastos generados por SALIDA de inventario)",
+    )
+    fecha: Optional[date] = Field(
+        default=None,
+        description="Fecha del gasto (YYYY-MM-DD). Si no se envía, usa la fecha actual.",
     )
 
 

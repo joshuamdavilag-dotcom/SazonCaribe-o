@@ -13,6 +13,7 @@ from app.schemas.orden import (
     OrdenResponse,
     ActualizarEstadoOrden,
     AgregarItemsOrdenRequest,
+    VentaRetroactivaCreate,
 )
 from app.services.orden_service import OrdenService
 
@@ -21,6 +22,29 @@ router = APIRouter()
 
 def get_orden_service(db: Session = Depends(get_db)) -> OrdenService:
     return OrdenService(db)
+
+
+# =====================================================================
+#  Venta retroactiva (antes de /{orden_id} para evitar conflicto)
+# =====================================================================
+
+@router.post(
+    "/retroactiva",
+    response_model=OrdenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar venta de días pasados",
+    description=(
+        "Crea y paga directamente una orden con fecha específica del pasado. "
+        "No descuenta inventario ni bloquea mesas."
+    ),
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+)
+def crear_venta_retroactiva(
+    venta_in: VentaRetroactivaCreate,
+    current_user: Usuario = Depends(get_current_user),
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    return service.crear_venta_retroactiva(venta_in, current_user.id)
 
 
 # =====================================================================

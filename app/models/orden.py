@@ -35,10 +35,10 @@ class Orden(Base):
         primary_key=True,
         autoincrement=True
     )
-    mesa_id: Mapped[int] = mapped_column(
+    mesa_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("mesas.id", name="fk_ordenes_mesa_id"),
-        nullable=False
+        nullable=True,
     )
     mesero_id: Mapped[int] = mapped_column(
         Integer,

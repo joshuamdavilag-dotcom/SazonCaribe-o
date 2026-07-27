@@ -21,12 +21,16 @@ class GastoService:
         gasto_in: GastoCreate,
         usuario_id: int | None = None,
     ) -> GastoResponse:
+        kwargs = {}
+        if gasto_in.fecha:
+            kwargs["fecha"] = datetime.combine(gasto_in.fecha, datetime.now().time())
         data = Gasto(
             concepto=gasto_in.concepto,
             monto=gasto_in.monto,
             categoria=gasto_in.categoria,
             registrado_por=usuario_id,
             insumo_id=gasto_in.insumo_id,
+            **kwargs,
         )
         self.db.add(data)
         self.db.commit()

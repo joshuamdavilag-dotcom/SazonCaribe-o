@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
 
@@ -11,7 +11,7 @@ from app.models.salon import EstadoMesa
 from app.repositories.orden_repository import OrdenRepository
 from app.repositories.salon_repository import SalonRepository
 from app.repositories.menu_repository import MenuRepository
-from app.schemas.orden import OrdenCreate, DetalleOrdenCreate
+from app.schemas.orden import OrdenCreate, DetalleOrdenCreate, VentaRetroactivaCreate
 from app.services.gasto_service import GastoService
 
 
@@ -415,6 +415,57 @@ class OrdenService:
                 raise
 
         return self.orden_repo.actualizar_estado(orden, nuevo_estado)
+
+    # ================================================================== #
+    #  Venta retroactiva — POST /retroactiva                               #
+    # ================================================================== #
+
+    def crear_venta_retroactiva(
+        self,
+        venta_in: VentaRetroactivaCreate,
+        mesero_id: int,
+    ) -> Orden:
+        try:
+            with self.db.begin_nested():
+                detalles_creados: list[DetalleOrden] = []
+                total = Decimal("0.00")
+
+                for item in venta_in.detalles:
+                    producto = self.menu_repo.obtener_menu_item_por_id(
+                        item.producto_id
+                    )
+                    if not producto:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"El producto con ID {item.producto_id} no existe",
+                        )
+                    precio = Decimal(str(producto.precio))
+                    total += precio * item.cantidad
+                    detalles_creados.append(DetalleOrden(
+                        producto_id=item.producto_id,
+                        cantidad=item.cantidad,
+                        precio_unitario=precio,
+                        notas=item.notas,
+                    ))
+
+                ts = datetime.combine(venta_in.fecha, datetime.now().time())
+                orden_db = Orden(
+                    mesa_id=venta_in.mesa_id,
+                    mesero_id=mesero_id,
+                    total=total,
+                    estado=EstadoOrden.PAGADA,
+                    detalles=detalles_creados,
+                    fecha_creacion=ts,
+                )
+                self.orden_repo.crear_orden(orden_db)
+
+            self.db.commit()
+            self.db.refresh(orden_db)
+            return orden_db
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     # ================================================================== #
     #  Consultas                                                          #

@@ -517,6 +517,11 @@ function renderGastosTable() {
 
 function openGastosModal() {
   document.getElementById('gasto-form')?.reset();
+  const fechaInput = document.getElementById('gasto-fecha');
+  if (fechaInput) {
+    const today = new Date();
+    fechaInput.value = today.toISOString().slice(0, 10);
+  }
   document.getElementById('modal-registrar-gasto')?.classList.add('show');
 }
 
@@ -525,10 +530,12 @@ function closeGastosModal() {
 }
 
 async function guardarGasto() {
+  const fecha = document.getElementById('gasto-fecha')?.value;
   const categoria = document.getElementById('gasto-categoria')?.value;
   const monto = parseFloat(document.getElementById('gasto-monto')?.value);
   const concepto = document.getElementById('gasto-descripcion')?.value.trim();
 
+  if (!fecha) return showToast('Selecciona una fecha', 'warning');
   if (!categoria) return showToast('Selecciona una categoría', 'warning');
   if (!monto || monto <= 0) return showToast('Ingresa un monto válido', 'warning');
   if (!concepto) return showToast('Ingresa una descripción', 'warning');
@@ -539,7 +546,7 @@ async function guardarGasto() {
   try {
     await api('/gastos/', {
       method: 'POST',
-      body: JSON.stringify({ categoria, monto, concepto }),
+      body: JSON.stringify({ categoria, monto, concepto, fecha }),
     });
     closeGastosModal();
     showToast('Gasto registrado con éxito', 'success');
@@ -902,7 +909,7 @@ function renderCocinaCards() {
 
   grid.innerHTML = filtered.map(o => {
     const zona = o.mesa?.zona?.nombre || '—';
-    const mesaNum = o.mesa?.numero || o.mesa_id;
+    const mesaNum = o.mesa?.numero || (o.mesa_id ? o.mesa_id : 'Directa');
     const mesero = o.mesero?.username || `Usuario #${o.mesero_id}`;
     const tiempo = getTiempoTranscurrido(o.fecha_creacion);
     const minutos = getMinutosTranscurrido(o.fecha_creacion);
@@ -3136,11 +3143,12 @@ function renderHistorialOrdenesDia(ordenes) {
         </thead>
         <tbody>
           ${sorted.map(o => {
-            const mesa = state.tables.find(t => t.id === o.mesa_id);
+            const mesa = o.mesa_id ? state.tables.find(t => t.id === o.mesa_id) : null;
+            const mesaLabel = mesa ? `Mesa ${mesa.numero}` : 'Directa';
             return `
               <tr style="border-bottom:1px solid #f3f4f6;">
                 <td style="padding:6px 8px;font-weight:600;">#${o.id}</td>
-                <td style="padding:6px 8px;">Mesa ${mesa?.numero || o.mesa_id}</td>
+                <td style="padding:6px 8px;">${mesaLabel}</td>
                 <td style="padding:6px 8px;">
                   <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;
                     ${o.estado === 'PAGADA' ? 'background:#d1fae5;color:#065f46;' : 'background:#fee2e2;color:#991b1b;'}">
@@ -3158,6 +3166,149 @@ function renderHistorialOrdenesDia(ordenes) {
 function clearHistorialOrdenesDia() {
   const container = document.getElementById('historial-ordenes-list');
   if (container) container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">Historial limpiado tras cierre de caja.</p>';
+}
+
+/* =========================================================================
+   Venta Retroactiva — Modal + CRUD
+   ========================================================================= */
+let vrItems = [];
+
+function openVentaRetroactivaModal() {
+  const fechaInput = document.getElementById('vr-fecha');
+  if (fechaInput) {
+    const today = new Date();
+    fechaInput.value = today.toISOString().slice(0, 10);
+  }
+  vrItems = [{ producto_id: '', cantidad: 1 }];
+  renderVRItems();
+  loadVRMesaSelect();
+  document.getElementById('modal-venta-retroactiva')?.classList.add('show');
+}
+
+function closeVentaRetroactivaModal() {
+  document.getElementById('modal-venta-retroactiva')?.classList.remove('show');
+}
+
+async function loadVRMesaSelect() {
+  const select = document.getElementById('vr-mesa');
+  if (!select) return;
+  try {
+    const zonas = await api('/salon/zonas');
+    let html = '<option value="">Venta directa / Para llevar</option>';
+    for (const z of zonas) {
+      const mesas = z.mesas || [];
+      if (!mesas.length) continue;
+      html += `<optgroup label="${z.nombre}">`;
+      for (const m of mesas) {
+        html += `<option value="${m.id}">Mesa ${m.numero}</option>`;
+      }
+      html += '</optgroup>';
+    }
+    select.innerHTML = html;
+  } catch { /* keep default option */ }
+}
+
+async function loadVRMenuItems() {
+  if (!state.menuItems?.length) {
+    try {
+      state.menuItems = await api('/menu/items');
+    } catch { return []; }
+  }
+  return state.menuItems.filter(m => m.disponible !== false);
+}
+
+async function renderVRItems() {
+  const container = document.getElementById('vr-items-list');
+  if (!container) return;
+  const items = await loadVRMenuItems();
+  const optionsHtml = items.map(m =>
+    `<option value="${m.id}">${m.nombre} — C$${parseFloat(m.precio).toFixed(2)}</option>`
+  ).join('');
+
+  container.innerHTML = vrItems.map((item, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <select class="form-input vr-item-producto" data-idx="${i}" style="flex:2;">
+        <option value="">Seleccionar plato…</option>
+        ${optionsHtml}
+      </select>
+      <input type="number" class="form-input vr-item-cantidad" data-idx="${i}" value="${item.cantidad}" min="1" style="width:60px;flex:0;">
+      <button type="button" class="btn" onclick="removeVRItem(${i})" style="color:var(--rojo-cangrejo);background:none;border:none;font-size:18px;padding:0 6px;" title="Eliminar">✕</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.vr-item-producto').forEach(sel => {
+    sel.value = vrItems[sel.dataset.idx]?.producto_id || '';
+    sel.addEventListener('change', () => {
+      vrItems[sel.dataset.idx].producto_id = sel.value;
+      updateVRTotal();
+    });
+  });
+  container.querySelectorAll('.vr-item-cantidad').forEach(inp => {
+    inp.addEventListener('input', () => {
+      vrItems[inp.dataset.idx].cantidad = parseInt(inp.value) || 1;
+      updateVRTotal();
+    });
+  });
+  updateVRTotal();
+}
+
+function addVRItem() {
+  vrItems.push({ producto_id: '', cantidad: 1 });
+  renderVRItems();
+}
+
+function removeVRItem(idx) {
+  vrItems.splice(idx, 1);
+  if (!vrItems.length) vrItems.push({ producto_id: '', cantidad: 1 });
+  renderVRItems();
+}
+
+function updateVRTotal() {
+  let total = 0;
+  const items = state.menuItems || [];
+  for (const item of vrItems) {
+    const prod = items.find(p => String(p.id) === String(item.producto_id));
+    if (prod) total += parseFloat(prod.precio) * item.cantidad;
+  }
+  const el = document.getElementById('vr-total-preview');
+  if (el) el.textContent = `Total: C$${total.toFixed(2)}`;
+}
+
+async function guardarVentaRetroactiva() {
+  const fecha = document.getElementById('vr-fecha')?.value;
+  const mesaId = document.getElementById('vr-mesa')?.value;
+
+  if (!fecha) return showToast('Selecciona una fecha', 'warning');
+
+  const detalles = vrItems
+    .filter(item => item.producto_id)
+    .map(item => ({
+      producto_id: parseInt(item.producto_id),
+      cantidad: item.cantidad,
+    }));
+
+  if (!detalles.length) return showToast('Agrega al menos un plato', 'warning');
+
+  const body = { fecha, detalles };
+  if (mesaId) body.mesa_id = parseInt(mesaId);
+
+  const btn = document.getElementById('save-venta-retroactiva');
+  btn.disabled = true;
+  btn.textContent = 'Registrando…';
+  try {
+    await api('/ordenes/retroactiva', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    closeVentaRetroactivaModal();
+    showToast('Venta pasada registrada con éxito', 'success');
+    loadCierreReportes('diario');
+    loadHistorialOrdenesDia();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Registrar Venta';
+  }
 }
 
 /* =========================================================================
@@ -3305,6 +3456,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Cierre de Caja — Botón cerrar
   document.getElementById('btn-cerrar-caja')?.addEventListener('click', ejecutarCierreCaja);
+
+  // Venta retroactiva
+  document.getElementById('btn-venta-retroactiva')?.addEventListener('click', openVentaRetroactivaModal);
+  document.getElementById('close-venta-retroactiva')?.addEventListener('click', closeVentaRetroactivaModal);
+  document.getElementById('cancel-venta-retroactiva')?.addEventListener('click', closeVentaRetroactivaModal);
+  document.getElementById('vr-add-item')?.addEventListener('click', addVRItem);
+  document.getElementById('venta-retroactiva-form')?.addEventListener('submit', (e) => { e.preventDefault(); guardarVentaRetroactiva(); });
 
   // Menu Management
   document.getElementById('btn-new-dish')?.addEventListener('click', async () => {

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
 
@@ -110,9 +110,9 @@ class OrdenResponse(BaseModel):
         ...,
         description="ID único de la orden"
     )
-    mesa_id: int = Field(
-        ...,
-        description="ID de la mesa"
+    mesa_id: Optional[int] = Field(
+        default=None,
+        description="ID de la mesa (null para venta directa / para llevar)",
     )
     mesero_id: int = Field(
         ...,
@@ -161,4 +161,22 @@ class AgregarItemsOrdenRequest(BaseModel):
         ...,
         min_length=1,
         description="Lista de nuevos ítems a agregar a la orden",
+    )
+
+
+class VentaRetroactivaCreate(BaseModel):
+    """Esquema para registrar una venta de días pasados."""
+    fecha: date = Field(
+        ...,
+        description="Fecha de la venta (YYYY-MM-DD)",
+    )
+    mesa_id: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="ID de la mesa (null para venta directa / para llevar)",
+    )
+    detalles: List[DetalleOrdenCreate] = Field(
+        ...,
+        min_length=1,
+        description="Lista de ítems vendidos (al menos uno)",
     )

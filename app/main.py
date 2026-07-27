@@ -131,6 +131,7 @@ async def startup_event():
     _migrate_unidades_medida()
     _migrate_recetas_unidad()
     _migrate_insumos_empaque()
+    _migrate_orden_mesa_nullable()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -211,6 +212,21 @@ def _migrate_insumos_empaque():
                 print(f"  [~] Columna '{col}' agregada a insumos")
             except Exception:
                 db.rollback()
+
+
+def _migrate_orden_mesa_nullable():
+    """Hace nullable la columna mesa_id en ordenes para ventas directas."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE ordenes MODIFY COLUMN mesa_id INT NULL"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def _fix_unidades_medida():
