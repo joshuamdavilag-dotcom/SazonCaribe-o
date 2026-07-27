@@ -343,6 +343,17 @@ async function loadTurnos() {
 }
 
 /* --- Turnos CRUD (Gestión de Turnos modal) --- */
+function calcularHoraSalida() {
+  const entrada = document.getElementById('turno-entrada').value;
+  const horas = parseInt(document.getElementById('turno-horas').value) || 0;
+  if (!entrada || horas <= 0) return;
+  const [h, m] = entrada.split(':').map(Number);
+  const totalMin = ((h * 60 + m) + horas * 60) % (24 * 60);
+  const sh = String(Math.floor(totalMin / 60)).padStart(2, '0');
+  const sm = String(totalMin % 60).padStart(2, '0');
+  document.getElementById('turno-salida').value = `${sh}:${sm}`;
+}
+
 function openTurnosModal() {
   document.getElementById('turno-edit-id').value = '';
   document.getElementById('turno-form-title').textContent = 'Nuevo Turno';
@@ -352,6 +363,7 @@ function openTurnosModal() {
   document.getElementById('turno-entrada').value = '08:00';
   document.getElementById('turno-salida').value = '16:00';
   document.getElementById('turno-horas').value = '8';
+  calcularHoraSalida();
   renderTurnosTable();
   document.getElementById('modal-turnos').classList.add('show');
 }
@@ -385,8 +397,8 @@ function editTurno(id) {
   document.getElementById('turno-cancel-edit').style.display = '';
   document.getElementById('turno-nombre').value = t.nombre;
   document.getElementById('turno-entrada').value = t.hora_entrada;
-  document.getElementById('turno-salida').value = t.hora_salida;
   document.getElementById('turno-horas').value = t.horas_teoricas;
+  calcularHoraSalida();
 }
 
 async function deleteTurno(id, nombre) {
@@ -424,8 +436,8 @@ async function saveTurno() {
     document.getElementById('turno-cancel-edit').style.display = 'none';
     document.getElementById('turno-nombre').value = '';
     document.getElementById('turno-entrada').value = '08:00';
-    document.getElementById('turno-salida').value = '16:00';
     document.getElementById('turno-horas').value = '8';
+    calcularHoraSalida();
   } catch { /* handled */ }
 }
 
@@ -3405,6 +3417,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-gestion-turnos')?.addEventListener('click', openTurnosModal);
   document.getElementById('close-turnos-modal')?.addEventListener('click', () => document.getElementById('modal-turnos').classList.remove('show'));
   document.getElementById('turno-save-btn')?.addEventListener('click', saveTurno);
+  document.getElementById('turno-entrada')?.addEventListener('input', calcularHoraSalida);
+  document.getElementById('turno-horas')?.addEventListener('input', calcularHoraSalida);
   document.getElementById('turno-cancel-edit')?.addEventListener('click', () => {
     document.getElementById('turno-edit-id').value = '';
     document.getElementById('turno-form-title').textContent = 'Nuevo Turno';
@@ -3412,8 +3426,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('turno-cancel-edit').style.display = 'none';
     document.getElementById('turno-nombre').value = '';
     document.getElementById('turno-entrada').value = '08:00';
-    document.getElementById('turno-salida').value = '16:00';
     document.getElementById('turno-horas').value = '8';
+    calcularHoraSalida();
   });
 
   // Zonas panel toggle + CRUD
