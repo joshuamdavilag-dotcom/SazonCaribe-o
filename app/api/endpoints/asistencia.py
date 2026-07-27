@@ -12,6 +12,7 @@ from app.repositories.asistencia_repository import AsistenciaRepository
 from app.schemas.personal import RolEnum
 from app.schemas.asistencia import (
     TurnoCreate,
+    TurnoUpdate,
     TurnoResponse,
     AsistenciaCheckIn,
     AsistenciaCheckOut,
@@ -72,6 +73,37 @@ def listar_turnos(
     Retorna la lista de todos los turnos laborales registrados.
     """
     return service.listar_turnos()
+
+
+@router.put(
+    "/turnos/{turno_id}",
+    response_model=TurnoResponse,
+    summary="Actualizar turno",
+    description="Actualiza nombre, horas o estado de un turno.",
+    tags=["Turnos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def actualizar_turno(
+    turno_id: int = Path(..., gt=0, description="ID del turno"),
+    turno_in: TurnoUpdate = ...,
+    service: AsistenciaService = Depends(get_asistencia_service)
+) -> TurnoResponse:
+    return service.actualizar_turno(turno_id, turno_in)
+
+
+@router.delete(
+    "/turnos/{turno_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar turno",
+    description="Elimina un turno que no tenga asistencias registradas.",
+    tags=["Turnos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def eliminar_turno(
+    turno_id: int = Path(..., gt=0, description="ID del turno"),
+    service: AsistenciaService = Depends(get_asistencia_service)
+) -> None:
+    service.eliminar_turno(turno_id)
 
 
 @router.post(

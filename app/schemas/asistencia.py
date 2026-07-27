@@ -41,6 +41,14 @@ class TurnoCreate(TurnoBase):
     pass
 
 
+class TurnoUpdate(BaseModel):
+    """Esquema para actualizar un Turno (parcial)."""
+    nombre: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    hora_entrada: Optional[time] = None
+    hora_salida: Optional[time] = None
+    horas_teoricas: Optional[int] = Field(default=None, gt=0)
+
+
 class TurnoResponse(TurnoBase):
     """Esquema de respuesta para Turno."""
     model_config = ConfigDict(from_attributes=True)

@@ -10,6 +10,7 @@ from app.repositories.turno_repository import TurnoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.asistencia import (
     TurnoCreate,
+    TurnoUpdate,
     TurnoResponse,
     AsistenciaCheckIn,
     AsistenciaCheckOut,
@@ -95,6 +96,39 @@ class AsistenciaService:
         """
         turnos = self.turno_repo.get_all()
         return [TurnoResponse.model_validate(t) for t in turnos]
+
+    def actualizar_turno(self, turno_id: int, datos: TurnoUpdate) -> TurnoResponse:
+        turno = self.turno_repo.get_by_id(turno_id)
+        if not turno:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el turno con ID {turno_id}"
+            )
+        update_data = datos.model_dump(exclude_unset=True)
+        if "nombre" in update_data and update_data["nombre"].lower() != turno.nombre.lower():
+            if self.turno_repo.exists_by_nombre(update_data["nombre"]):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Ya existe un turno con el nombre '{update_data['nombre']}'"
+                )
+        if update_data:
+            self.turno_repo.update(turno_id, update_data)
+            turno = self.turno_repo.get_by_id(turno_id)
+        return TurnoResponse.model_validate(turno)
+
+    def eliminar_turno(self, turno_id: int) -> None:
+        turno = self.turno_repo.get_by_id(turno_id)
+        if not turno:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el turno con ID {turno_id}"
+            )
+        if turno.asistencias:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar '{turno.nombre}': tiene asistencias registradas."
+            )
+        self.turno_repo.delete(turno_id)
 
     # =========================================================================
     # Asistencia - Check In / Check Out

@@ -210,6 +210,7 @@
         <header class="screen-header">
           <h2 class="title">👥 Personal y Nóminas</h2>
           <div class="header-actions">
+            <button class="btn btn-secondary admin-only" id="btn-gestion-turnos" style="height:40px;padding:0 16px;font-size:14px;">⏱️ Gestión de Turnos</button>
             <button class="btn btn-turquoise" id="btn-new-empleado" style="height:40px;padding:0 16px;font-size:14px;">➕ Agregar Empleado</button>
           </div>
         </header>
@@ -920,6 +921,47 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-reset-password" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="confirm-reset-password" style="flex:1;">Guardar Contraseña</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestión de Turnos -->
+  <div id="modal-turnos" class="modal-overlay" aria-label="Gestión de turnos">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⏱️ Gestión de Turnos</h3>
+        <button class="modal-close" id="close-turnos-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:0 20px 20px;">
+        <div id="turnos-table-container" style="margin-bottom:16px;"></div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--text-secondary);" id="turno-form-title">Nuevo Turno</div>
+          <input type="hidden" id="turno-edit-id" value="">
+          <div class="form-row">
+            <div class="form-group" style="flex:2;">
+              <label class="form-label" for="turno-nombre">Nombre</label>
+              <input type="text" id="turno-nombre" class="form-input" placeholder="Ej: Vespertino" required>
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label" for="turno-horas">Horas</label>
+              <input type="number" id="turno-horas" class="form-input" value="8" min="1" step="1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="turno-entrada">Hora Entrada</label>
+              <input type="time" id="turno-entrada" class="form-input" value="08:00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="turno-salida">Hora Salida</label>
+              <input type="time" id="turno-salida" class="form-input" value="16:00" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="turno-cancel-edit" style="flex:1;display:none;">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="turno-save-btn" style="flex:1;">Crear Turno</button>
+          </div>
         </div>
       </div>
     </div>

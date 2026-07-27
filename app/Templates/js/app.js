@@ -342,6 +342,93 @@ async function loadTurnos() {
   }
 }
 
+/* --- Turnos CRUD (Gestión de Turnos modal) --- */
+function openTurnosModal() {
+  document.getElementById('turno-edit-id').value = '';
+  document.getElementById('turno-form-title').textContent = 'Nuevo Turno';
+  document.getElementById('turno-save-btn').textContent = 'Crear Turno';
+  document.getElementById('turno-cancel-edit').style.display = 'none';
+  document.getElementById('turno-nombre').value = '';
+  document.getElementById('turno-entrada').value = '08:00';
+  document.getElementById('turno-salida').value = '16:00';
+  document.getElementById('turno-horas').value = '8';
+  renderTurnosTable();
+  document.getElementById('modal-turnos').classList.add('show');
+}
+
+function renderTurnosTable() {
+  const container = document.getElementById('turnos-table-container');
+  if (!state.turnos.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:16px 0;">No hay turnos registrados</div>';
+    return;
+  }
+  container.innerHTML = `<table class="data-table"><thead><tr>
+    <th>Nombre</th><th>Entrada</th><th>Salida</th><th>Horas</th><th style="width:80px;"></th>
+  </tr></thead><tbody>${state.turnos.map(t => `<tr>
+    <td style="font-weight:600;">${t.nombre}</td>
+    <td>${t.hora_entrada}</td>
+    <td>${t.hora_salida}</td>
+    <td>${t.horas_teoricas}h</td>
+    <td style="text-align:right;">
+      <button class="btn-icon-sm" onclick="editTurno(${t.id})" title="Editar">✏️</button>
+      <button class="btn-icon-sm" onclick="deleteTurno(${t.id}, '${t.nombre}')" title="Eliminar">🗑️</button>
+    </td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
+function editTurno(id) {
+  const t = state.turnos.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('turno-edit-id').value = t.id;
+  document.getElementById('turno-form-title').textContent = `Editar: ${t.nombre}`;
+  document.getElementById('turno-save-btn').textContent = 'Guardar Cambios';
+  document.getElementById('turno-cancel-edit').style.display = '';
+  document.getElementById('turno-nombre').value = t.nombre;
+  document.getElementById('turno-entrada').value = t.hora_entrada;
+  document.getElementById('turno-salida').value = t.hora_salida;
+  document.getElementById('turno-horas').value = t.horas_teoricas;
+}
+
+async function deleteTurno(id, nombre) {
+  if (!confirm(`¿Eliminar el turno "${nombre}"?`)) return;
+  try {
+    await api(`/asistencia/turnos/${id}`, { method: 'DELETE' });
+    showToast('Turno eliminado');
+    await loadTurnos();
+    renderTurnosTable();
+  } catch { /* handled */ }
+}
+
+async function saveTurno() {
+  const editId = document.getElementById('turno-edit-id').value;
+  const payload = {
+    nombre: document.getElementById('turno-nombre').value.trim(),
+    hora_entrada: document.getElementById('turno-entrada').value + ':00',
+    hora_salida: document.getElementById('turno-salida').value + ':00',
+    horas_teoricas: parseInt(document.getElementById('turno-horas').value) || 8,
+  };
+  if (!payload.nombre) return showToast('Ingresa el nombre del turno', 'warning');
+  try {
+    if (editId) {
+      await api(`/asistencia/turnos/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      showToast('Turno actualizado');
+    } else {
+      await api('/asistencia/turnos', { method: 'POST', body: JSON.stringify(payload) });
+      showToast('Turno creado');
+    }
+    await loadTurnos();
+    renderTurnosTable();
+    document.getElementById('turno-edit-id').value = '';
+    document.getElementById('turno-form-title').textContent = 'Nuevo Turno';
+    document.getElementById('turno-save-btn').textContent = 'Crear Turno';
+    document.getElementById('turno-cancel-edit').style.display = 'none';
+    document.getElementById('turno-nombre').value = '';
+    document.getElementById('turno-entrada').value = '08:00';
+    document.getElementById('turno-salida').value = '16:00';
+    document.getElementById('turno-horas').value = '8';
+  } catch { /* handled */ }
+}
+
 /* --- Heartbeat (keepalive cada 2 min, solo Vendedor con turno activo) --- */
 async function enviarHeartbeat() {
   if (!state.token || !state.user) return;
@@ -3313,6 +3400,21 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-gestion-mesas')?.addEventListener('click', openGestionMesas);
   document.getElementById('close-gestion-mesas')?.addEventListener('click', closeGestionMesas);
   document.getElementById('gestion-guardar-mesa')?.addEventListener('click', guardarMesa);
+
+  // Gestión de Turnos modal
+  document.getElementById('btn-gestion-turnos')?.addEventListener('click', openTurnosModal);
+  document.getElementById('close-turnos-modal')?.addEventListener('click', () => document.getElementById('modal-turnos').classList.remove('show'));
+  document.getElementById('turno-save-btn')?.addEventListener('click', saveTurno);
+  document.getElementById('turno-cancel-edit')?.addEventListener('click', () => {
+    document.getElementById('turno-edit-id').value = '';
+    document.getElementById('turno-form-title').textContent = 'Nuevo Turno';
+    document.getElementById('turno-save-btn').textContent = 'Crear Turno';
+    document.getElementById('turno-cancel-edit').style.display = 'none';
+    document.getElementById('turno-nombre').value = '';
+    document.getElementById('turno-entrada').value = '08:00';
+    document.getElementById('turno-salida').value = '16:00';
+    document.getElementById('turno-horas').value = '8';
+  });
 
   // Zonas panel toggle + CRUD
   document.getElementById('btn-toggle-zonas-panel')?.addEventListener('click', toggleZonasPanel);
