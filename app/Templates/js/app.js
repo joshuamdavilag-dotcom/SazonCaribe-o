@@ -1437,21 +1437,49 @@ function clearRecipeRows() {
   document.getElementById('dish-recipe-rows').innerHTML = '';
 }
 
+function _buildInsumoOptions(categoriaId, selectedId) {
+  const filtered = categoriaId
+    ? state.insumos.filter(i => i.categoria_id === parseInt(categoriaId, 10))
+    : state.insumos;
+  return filtered.map(i =>
+    `<option value="${i.id}" ${i.id === selectedId ? 'selected' : ''}>${i.nombre} (${i.unidad_medida})</option>`
+  ).join('');
+}
+
+function _buildCatInsumoOptions(selectedCatId) {
+  let html = '<option value="">Todas</option>';
+  (state.categoriasInsumo || []).forEach(c => {
+    html += `<option value="${c.id}" ${c.id === selectedCatId ? 'selected' : ''}>${c.nombre}</option>`;
+  });
+  return html;
+}
+
 function addRecipeRow(ingredienteId, cantidad) {
   const container = document.getElementById('dish-recipe-rows');
   const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;';
   row.className = 'recipe-row';
 
-  const options = state.insumos.map(i =>
-    `<option value="${i.id}" ${i.id === ingredienteId ? 'selected' : ''}>${i.nombre} (${i.unidad_medida})</option>`
-  ).join('');
+  let catId = '';
+  if (ingredienteId) {
+    const insumo = state.insumos.find(i => i.id === ingredienteId);
+    if (insumo) catId = insumo.categoria_id || '';
+  }
 
   row.innerHTML = `
-    <select class="form-input recipe-ingrediente" style="flex:2;height:36px;font-size:13px;">${options}</select>
+    <select class="form-input recipe-cat-filter" style="flex:1;height:36px;font-size:12px;">${_buildCatInsumoOptions(catId)}</select>
+    <select class="form-input recipe-ingrediente" style="flex:2;height:36px;font-size:13px;">${_buildInsumoOptions(catId, ingredienteId)}</select>
     <input type="number" class="form-input recipe-cantidad" style="flex:1;height:36px;font-size:13px;" step="0.001" min="0.001" placeholder="Cant." value="${cantidad || ''}">
     <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:#E63946;font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
   `;
+
+  const catSelect = row.querySelector('.recipe-cat-filter');
+  const ingSelect = row.querySelector('.recipe-ingrediente');
+  catSelect.addEventListener('change', () => {
+    const prev = ingSelect.value;
+    ingSelect.innerHTML = _buildInsumoOptions(catSelect.value, null);
+    if (ingSelect.querySelector(`option[value="${prev}"]`)) ingSelect.value = prev;
+  });
 
   row.querySelector('.btn-remove-recipe').addEventListener('click', () => row.remove());
   container.appendChild(row);
@@ -1473,8 +1501,18 @@ function buildRecetaPayload() {
 }
 
 async function loadInsumosForRecipe() {
-  if (state.insumos.length > 0) return;
-  try { state.insumos = await api('/inventario/insumos'); } catch { state.insumos = []; }
+  const tasks = [];
+  if (state.insumos.length === 0) {
+    tasks.push(
+      api('/inventario/insumos').then(d => { state.insumos = d; }).catch(() => { state.insumos = []; })
+    );
+  }
+  if (!state.categoriasInsumo || state.categoriasInsumo.length === 0) {
+    tasks.push(
+      api('/inventario/categorias-insumo').then(d => { state.categoriasInsumo = d; }).catch(() => { state.categoriasInsumo = []; })
+    );
+  }
+  if (tasks.length) await Promise.all(tasks);
 }
 
 function closeDishModal() {
