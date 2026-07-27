@@ -1725,6 +1725,7 @@ function openStockModal(insumoId) {
   document.getElementById('stock-insumo-unidad-base-id').value = insumo.unidad_medida_id;
   document.getElementById('stock-insumo-empaque-id').value = insumo.unidad_empaque_id || '';
   document.getElementById('stock-insumo-factor-empaque').value = insumo.factor_empaque || '';
+  state._stockOriginalUnidadId = insumo.unidad_medida_id;
   document.getElementById('stock-info').innerHTML = `
     <div class="stock-info-name">${insumo.nombre}</div>
     <div class="stock-info-qty">${insumo.cantidad_actual} ${insumo.unidad_medida}</div>
@@ -1870,6 +1871,18 @@ async function saveStockDetails(e) {
     return showToast('No hay cambios para guardar', 'warning');
   }
 
+  const origId = state._stockOriginalUnidadId;
+  if (payload.unidad_medida_id && origId && payload.unidad_medida_id !== origId) {
+    state._pendingStockPayload = payload;
+    openUnitEquivModal(origId, payload.unidad_medida_id);
+    return;
+  }
+
+  await _submitStockDetails(payload);
+}
+
+async function _submitStockDetails(payload) {
+  const insumoId = document.getElementById('stock-detalles-insumo-id').value;
   try {
     await api(`/inventario/insumos/${insumoId}`, {
       method: 'PATCH', body: JSON.stringify(payload),
@@ -1878,6 +1891,49 @@ async function saveStockDetails(e) {
     closeStockModal();
     loadInventory();
   } catch { /* handled */ }
+}
+
+function openUnitEquivModal(oldUnitId, newUnitId) {
+  const oldUnit = state.unidadesMedida.find(u => u.id === oldUnitId);
+  const newUnit = state.unidadesMedida.find(u => u.id === newUnitId);
+  if (!oldUnit || !newUnit) {
+    _submitStockDetails(state._pendingStockPayload);
+    return;
+  }
+  document.getElementById('unit-equiv-question').textContent =
+    `¿Cuántas ${newUnit.nombre} hay en 1 ${oldUnit.nombre}?`;
+  document.getElementById('unit-equiv-hint').textContent =
+    `Ejemplo: si 1 ${oldUnit.nombre} = 5 ${newUnit.nombre}, escriba 5`;
+  document.getElementById('unit-equiv-factor').value = '';
+  document.getElementById('modal-unit-equiv').classList.add('show');
+  document.getElementById('unit-equiv-factor').focus();
+}
+
+function closeUnitEquivModal() {
+  document.getElementById('modal-unit-equiv').classList.remove('show');
+  state._pendingStockPayload = null;
+}
+
+function cancelUnitEquiv() {
+  const payload = state._pendingStockPayload;
+  closeUnitEquivModal();
+  if (payload && payload.unidad_medida_id) {
+    const origId = state._stockOriginalUnidadId;
+    const sel = document.getElementById('stock-unidad-select');
+    if (sel && origId) sel.value = origId;
+  }
+}
+
+async function confirmUnitEquiv() {
+  const factor = parseFloat(document.getElementById('unit-equiv-factor').value);
+  if (!factor || factor <= 0) {
+    return showToast('Ingrese un factor de conversión válido', 'warning');
+  }
+  const payload = state._pendingStockPayload;
+  closeUnitEquivModal();
+  if (!payload) return;
+  payload.factor_conversion_unidad = factor;
+  await _submitStockDetails(payload);
 }
 
 function updateStockDetailsEmpaquePreview() {

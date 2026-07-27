@@ -212,6 +212,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
 - **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements; optional `unidad_empaque_id` FK + `factor_empaque` (1 empaque = X base); conversion in stock/recipes uses per-insumo packaging factor before falling back to global chain
+- **Unidad base change migration**: When editing insumo's `unidad_medida_id`, backend requires `factor_conversion_unidad` (how many new units in 1 old unit); auto-converts `cantidad_actual`, `costo_unitario`, and all linked `Receta.cantidad_necesaria` rows using the old unit; frontend shows equivalence modal with old/new unit names
 - **CategoríaInsumo**: Dynamic categories; delete guarded if category has associated insumos
 - **UnidadMedida**: Dynamic units (nombre, abreviatura, tipo_magnitud: PESO/VOLUMEN/UNIDAD/PERSONALIZADO, unidad_base_id FK, factor_conversion); delete guarded if unit has associated insumos; startup migration `_fix_unidades_medida()` corrects magnitudes and conversion chains for all 15 standard units
 - **Gastos operativos**: `Gasto` table tracks operational expenses (categoría: OPERATIVO, MANTENIMIENTO, SUMINISTROS, SERVICIOS, IMPUESTOS, OTROS)

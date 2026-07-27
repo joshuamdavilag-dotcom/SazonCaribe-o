@@ -414,3 +414,8 @@ class InsumoUpdate(BaseModel):
         default=None, gt=0,
         description="Factor de empaque (1 empaque = X unidades base)"
     )
+    factor_conversion_unidad: Optional[float] = Field(
+        default=None, gt=0,
+        description="Cuántas unidades nuevas caben en 1 unidad anterior. "
+                    "Requerido cuando unidad_medida_id cambia."
+    )

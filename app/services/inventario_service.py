@@ -421,29 +421,62 @@ class InventarioService:
     def actualizar_insumo(
         self, insumo_id: int, datos: InsumoUpdate
     ) -> InsumoResponse:
-        """
-        Actualiza detalles de un insumo (categoría, unidad, stock_mínimo).
-
-        Args:
-            insumo_id: ID del insumo.
-            datos: Campos a actualizar (parcial).
-
-        Returns:
-            InsumoResponse con el insumo actualizado.
-
-        Raises:
-            HTTPException 404: Si el insumo no existe.
-        """
         insumo = self.insumo_repo.get_by_id(insumo_id)
         if not insumo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No se encontró el insumo con ID {insumo_id}"
             )
+
         update_data = datos.model_dump(exclude_unset=True)
+        nuevo_unidad_id = update_data.get("unidad_medida_id")
+        factor_conv = update_data.pop("factor_conversion_unidad", None)
+        unit_changed = False
+
+        if nuevo_unidad_id and nuevo_unidad_id != insumo.unidad_medida_id:
+            if factor_conv is None or factor_conv <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Al cambiar la unidad de medida base, "
+                        "debe proporcionar factor_conversion_unidad "
+                        "(cuántas unidades nuevas en 1 unidad anterior)."
+                    )
+                )
+
+            antiguo_unidad_id = insumo.unidad_medida_id
+            unit_changed = True
+
+            insumo.cantidad_actual = Decimal(str(round(
+                float(insumo.cantidad_actual) * float(factor_conv), 4
+            )))
+            if float(insumo.costo_unitario) > 0:
+                insumo.costo_unitario = Decimal(str(round(
+                    float(insumo.costo_unitario) / float(factor_conv), 4
+                )))
+
+            from app.models.menu import Receta
+            recetas = self.db.query(Receta).filter(
+                Receta.insumo_id == insumo_id,
+                Receta.unidad_medida_id == antiguo_unidad_id,
+            ).all()
+            for r in recetas:
+                r.cantidad_necesaria = Decimal(str(round(
+                    float(r.cantidad_necesaria) * float(factor_conv), 4
+                )))
+
+            update_data["unidad_medida_id"] = nuevo_unidad_id
+
+        if "factor_conversion_unidad" in update_data:
+            del update_data["factor_conversion_unidad"]
+
         if update_data:
             self.insumo_repo.update(insumo_id, update_data)
             insumo = self.insumo_repo.get_by_id(insumo_id)
+        elif unit_changed:
+            self.db.commit()
+            insumo = self.insumo_repo.get_by_id(insumo_id)
+
         return InsumoResponse.model_validate(insumo)
 
     # =========================================================================
