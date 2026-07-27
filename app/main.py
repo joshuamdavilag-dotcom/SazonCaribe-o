@@ -132,6 +132,7 @@ async def startup_event():
     _migrate_recetas_unidad()
     _migrate_insumos_empaque()
     _migrate_orden_mesa_nullable()
+    _migrate_recetas_descuento_lote()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -226,6 +227,22 @@ def _migrate_orden_mesa_nullable():
                 "ALTER TABLE ordenes MODIFY COLUMN mesa_id INT NULL"
             ))
             db.commit()
+        except Exception:
+            db.rollback()
+
+
+def _migrate_recetas_descuento_lote():
+    """Agrega columna descuento_por_lote a recetas si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE recetas ADD COLUMN descuento_por_lote BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            db.commit()
+            print("  [~] Columna 'descuento_por_lote' agregada a recetas")
         except Exception:
             db.rollback()
 
