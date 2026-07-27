@@ -2844,8 +2844,8 @@ function renderAsistenciasTable(asistencias, container) {
               <td>${auditInfo}</td>
               <td style="font-size:12px;color:#6b7280;">Turno #${a.turno_id}</td>
               <td>
-                <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar horarios">🕐</button>
-                <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar horas extras">🕒</button>
+                <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
+                <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
               </td>
             </tr>`;
         }).join('')}
