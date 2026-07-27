@@ -106,7 +106,8 @@ class MenuRepository:
                 db_receta = Receta(
                     menu_item_id=db_item.id,
                     insumo_id=receta_in.insumo_id,
-                    cantidad_necesaria=receta_in.cantidad_necesaria
+                    cantidad_necesaria=receta_in.cantidad_necesaria,
+                    descuento_por_lote=receta_in.descuento_por_lote
                 )
                 self.db.add(db_receta)
 
@@ -221,7 +222,8 @@ class MenuRepository:
                 db_receta = Receta(
                     menu_item_id=item.id,
                     insumo_id=receta_in.insumo_id,
-                    cantidad_necesaria=receta_in.cantidad_necesaria
+                    cantidad_necesaria=receta_in.cantidad_necesaria,
+                    descuento_por_lote=receta_in.descuento_por_lote
                 )
                 self.db.add(db_receta)
 

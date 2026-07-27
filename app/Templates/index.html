@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=3.0">
+  <link rel="stylesheet" href="css/style.css?v=3.1">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
@@ -1004,6 +1004,13 @@
         <p style="font-size:13px;color:#6b7280;margin-bottom:14px;">
           Selecciona los insumos y cantidades consumidos en la producción de hoy. El stock se descontará automáticamente.
         </p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px;">
+          <label class="toggle-switch" style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;">
+            <input type="checkbox" id="prep-lote-toggle" style="opacity:0;width:0;height:0;">
+            <span class="slider" style="position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:20px;transition:.3s;"></span>
+          </label>
+          <span style="font-size:13px;color:#374151;">Solo ingredientes de Lote</span>
+        </div>
         <div id="preparacion-rows"></div>
         <button type="button" class="btn btn-secondary" id="btn-add-prep-row" style="margin-top:8px;font-size:13px;padding:6px 12px;">➕ Agregar Insumo</button>
         <div class="form-group" style="margin-top:14px;">

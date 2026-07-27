@@ -2969,11 +2969,18 @@ async function confirmEditarHorarios() {
    Preparación de Cocina (Producción por Lote)
    ========================================================================= */
 let prepRowCount = 0;
+let loteInsumoIds = [];
 
-function openPreparacionModal() {
+async function openPreparacionModal() {
   prepRowCount = 0;
   document.getElementById('preparacion-rows').innerHTML = '';
   document.getElementById('prep-notas').value = '';
+  document.getElementById('prep-lote-toggle').checked = false;
+  try {
+    loteInsumoIds = await api('/inventario/insumos/lote-ids');
+  } catch {
+    loteInsumoIds = [];
+  }
   updatePrepSummary();
   addPreparacionRow();
   document.getElementById('modal-preparacion').classList.add('show');
@@ -2988,9 +2995,26 @@ function addPreparacionRow() {
   const id = prepRowCount;
   const container = document.getElementById('preparacion-rows');
   const insumos = state.insumos || [];
-  const options = insumos.map(i =>
-    `<option value="${i.id}" data-stock="${i.cantidad_actual}" data-unit="${i.unidad_medida}">${i.nombre} (Stock: ${i.cantidad_actual} ${i.unidad_medida})</option>`
-  ).join('');
+  const loteOnly = document.getElementById('prep-lote-toggle')?.checked;
+
+  let filtered = insumos;
+  if (loteOnly) {
+    filtered = insumos.filter(i => loteInsumoIds.includes(i.id));
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    const aLote = loteInsumoIds.includes(a.id);
+    const bLote = loteInsumoIds.includes(b.id);
+    if (aLote && !bLote) return -1;
+    if (!aLote && bLote) return 1;
+    return a.nombre.localeCompare(b.nombre);
+  });
+
+  const options = sorted.map(i => {
+    const isLote = loteInsumoIds.includes(i.id);
+    const badge = isLote ? ' <span class="toggle-lote-badge">LOTE</span>' : '';
+    return `<option value="${i.id}" data-stock="${i.cantidad_actual}" data-unit="${i.unidad_medida}">${i.nombre} (Stock: ${i.cantidad_actual} ${i.unidad_medida})${badge}</option>`;
+  }).join('');
 
   const row = document.createElement('div');
   row.className = 'prep-row';
@@ -3807,6 +3831,27 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancel-preparacion')?.addEventListener('click', closePreparacionModal);
   document.getElementById('confirm-preparacion')?.addEventListener('click', submitPreparacion);
   document.getElementById('btn-add-prep-row')?.addEventListener('click', addPreparacionRow);
+  document.getElementById('prep-lote-toggle')?.addEventListener('change', () => {
+    const rows = document.querySelectorAll('#preparacion-rows .prep-row');
+    rows.forEach(row => {
+      const sel = row.querySelector('.prep-insumo');
+      const prev = sel.value;
+      const loteOnly = document.getElementById('prep-lote-toggle')?.checked;
+      const insumos = state.insumos || [];
+      let filtered = loteOnly ? insumos.filter(i => loteInsumoIds.includes(i.id)) : insumos;
+      const sorted = [...filtered].sort((a, b) => {
+        const aL = loteInsumoIds.includes(a.id), bL = loteInsumoIds.includes(b.id);
+        if (aL && !bL) return -1; if (!aL && bL) return 1;
+        return a.nombre.localeCompare(b.nombre);
+      });
+      const opts = sorted.map(i => {
+        const badge = loteInsumoIds.includes(i.id) ? ' <span class="toggle-lote-badge">LOTE</span>' : '';
+        return `<option value="${i.id}">${i.nombre} (Stock: ${i.cantidad_actual} ${i.unidad_medida})${badge}</option>`;
+      }).join('');
+      sel.innerHTML = `<option value="">Seleccionar…</option>${opts}`;
+      if (sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
+    });
+  });
 
   document.getElementById('btn-new-dish')?.addEventListener('click', async () => {
     await loadCategories();

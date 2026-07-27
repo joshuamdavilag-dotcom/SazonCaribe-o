@@ -529,3 +529,21 @@ def listar_preparaciones(
 ) -> List[PreparacionCocinaResponse]:
     from datetime import date
     return service.listar_por_fecha(date.today())
+
+
+@router.get(
+    "/insumos/lote-ids",
+    response_model=List[int],
+    summary="IDs de insumos marcados como lote en recetas",
+    tags=["Inventario"],
+)
+def obtener_insumos_lote(
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[int]:
+    from sqlalchemy import select, distinct
+    from app.models.menu import Receta
+    stmt = select(distinct(Receta.insumo_id)).where(
+        Receta.descuento_por_lote == True
+    )
+    return list(db.execute(stmt).scalars().all())
