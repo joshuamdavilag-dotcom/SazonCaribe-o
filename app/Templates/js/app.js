@@ -1023,6 +1023,25 @@ function renderMenuItems(items, containerId) {
 let orderModalCategory = 'all';
 let orderModalSearch = '';
 
+async function renderOrderModalCategories() {
+  const container = document.getElementById('order-modal-categories');
+  if (!container) return;
+
+  if (!state.categories || !state.categories.length) {
+    try { state.categories = await api('/menu/categorias'); } catch { state.categories = []; }
+  }
+
+  let html = `<button class="category-tab active" data-om-cat="all">Todo</button>`;
+  state.categories.forEach(cat => {
+    html += `<button class="category-tab" data-om-cat="${cat.id}">${cat.nombre}</button>`;
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.category-tab').forEach(tab => {
+    tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
+  });
+}
+
 function openOrderModal(mesaId, mesaNumero) {
   state.currentOrder = { mesaId, items: [] };
   state.selectedMesa = mesaId;
@@ -1037,16 +1056,13 @@ function openOrderModal(mesaId, mesaNumero) {
   const searchInput = document.getElementById('order-modal-search');
   if (searchInput) searchInput.value = '';
 
-  document.querySelectorAll('#order-modal-categories .category-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.omCat === 'all');
-  });
-
   document.getElementById('order-modal-cart').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
     '<p class="text-center text-muted" style="grid-column:1/-1;padding:24px;">Cargando menú…</p>';
 
   document.getElementById('modal-order').classList.add('show');
+  renderOrderModalCategories();
   loadOrderModalMenu();
 }
 
@@ -1070,10 +1086,8 @@ function renderOrderModalMenu(items) {
   let filtered = items || [];
 
   if (orderModalCategory !== 'all') {
-    filtered = filtered.filter(i => {
-      const cat = (i.categoria?.nombre || '').toLowerCase();
-      return cat.includes(orderModalCategory);
-    });
+    const catId = parseInt(orderModalCategory, 10);
+    filtered = filtered.filter(i => i.categoria_id === catId);
   }
 
   if (orderModalSearch) {
@@ -1086,14 +1100,13 @@ function renderOrderModalMenu(items) {
     return;
   }
 
-  const emojis = { bebidas: '🥤', ceviches: '🐟', fuertes: '🍛', postres: '🍰', default: '🍽️' };
   grid.innerHTML = filtered.map(item => {
     const cat = (item.categoria?.nombre || '').toLowerCase();
-    let emoji = emojis.default;
-    if (cat.includes('bebida')) emoji = emojis.bebidas;
-    else if (cat.includes('ceviche')) emoji = emojis.bebidas;
-    else if (cat.includes('fuerte') || cat.includes('plato')) emoji = emojis.fuertes;
-    else if (cat.includes('postre')) emoji = emojis.postres;
+    let emoji = '🍽️';
+    if (cat.includes('bebida')) emoji = '🥤';
+    else if (cat.includes('ceviche')) emoji = '🐟';
+    else if (cat.includes('fuerte') || cat.includes('plato')) emoji = '🍛';
+    else if (cat.includes('postre')) emoji = '🍰';
 
     const inOrder = state.currentOrder.items.find(i => i.producto_id === item.id);
     const qty = inOrder ? inOrder.cantidad : 0;
@@ -3604,13 +3617,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Order modal search
   document.getElementById('order-modal-search')?.addEventListener('input', (e) => {
     filterOrderModalBySearch(e.target.value);
-  });
-
-  // Order modal category tabs
-  document.querySelectorAll('#order-modal-categories .category-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      filterOrderModalByCategory(tab.dataset.omCat);
-    });
   });
 
   // Gestionar Mesas modal
