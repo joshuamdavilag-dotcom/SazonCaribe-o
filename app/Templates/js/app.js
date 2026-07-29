@@ -1279,7 +1279,7 @@ async function submitOrder() {
       const clienteInput = document.getElementById('order-modal-cliente');
       const nombreCliente = clienteInput ? clienteInput.value.trim() || null : null;
 
-      await api('/ordenes/', {
+      const orden = await api('/ordenes/', {
         method: 'POST',
         body: JSON.stringify({
           mesa_id: mesaId,
@@ -1291,7 +1291,12 @@ async function submitOrder() {
           }),
         }),
       });
-      showToast(mesaId ? '¡Comanda enviada a cocina con éxito!' : '¡Orden para llevar creada con éxito!', 'success');
+
+      if (!mesaId && orden && orden.id) {
+        await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+      }
+
+      showToast(mesaId ? '¡Comanda enviada a cocina con éxito!' : '¡Orden para llevar pagada con éxito!', 'success');
     }
 
     const mesaId = state.currentOrder.mesaId;
