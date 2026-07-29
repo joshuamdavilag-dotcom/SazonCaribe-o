@@ -39,7 +39,7 @@ app/
 │       ├── inventario.py    # Proveedores, insumos, movimientos, catálogos de insumo
 │       ├── menu.py          # Categorías, items, recetas
 │       ├── salon.py         # Zonas, mesas, mapa
-│       ├── orden.py         # Órdenes, agregar items, facturación, pagar
+│   ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
 │       ├── caja.py          # Historial diario, cierre de caja (archivado)
 │       ├── gasto.py         # Gastos operativos CRUD
 │       ├── reportes.py      # Reportes financieros por periodo
@@ -51,7 +51,7 @@ app/
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo (with packaging), UnidadMedida schemas
 │   ├── menu.py              # MenuItem, Receta, Categoria schemas
 │   ├── salon.py             # Mesa, Zona schemas
-│   ├── orden.py             # Orden, DetalleOrden, AgregarItems schemas
+│   ├── orden.py             # Orden, DetalleOrden, AgregarItems, AplicarDescuentoItemRequest, AplicarDescuentoGlobalRequest schemas
 │   ├── caja.py              # CierreCajaResponse, HistorialDiarioResponse
 │   ├── gasto.py             # GastoCreate, GastoResponse
 │   ├── reportes.py          # PeriodoEnum, CierreCajaPeriodoResponse (includes gastos_operativos)
@@ -64,7 +64,7 @@ app/
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
 │   ├── menu.py              # CategoriaMenu, MenuItem, Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
-│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales)
+│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales/para llevar; subtotal, descuento_total, nombre_cliente fields; descuento_porcentaje, descuento_monto, motivo_descuento on DetalleOrden)
 │   ├── caja.py              # CierreCaja
 │   ├── gasto.py             # Gasto, CategoriaGasto enum
 │   └── __init__.py          # Registers all models including Gasto
@@ -81,7 +81,7 @@ app/
 │   ├── orden_repository.py
 │   ├── caja_repository.py
 │   ├── gasto_repository.py       # obtener_por_rango(), sumar_por_rango()
-│   ├── reportes_repository.py    # + obtener_gastos_operativos()
+│   ├── reportes_repository.py    # + obtener_gastos_operativos(), obtener_descuentos_totales()
 │   └── analitica_repository.py
 ├── services/
 │   ├── personal_service.py
@@ -90,10 +90,10 @@ app/
 │   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
 │   ├── menu_service.py
 │   ├── salon_service.py
-│   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging
+│   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
 │   ├── caja_service.py
 │   ├── gasto_service.py          # registrar_gasto(), registrar_gasto_automatico()
-│   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos
+│   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos; incluye descuentos en response
 │   ├── conversion_service.py     # convertir_cantidad() — transitive chain resolution via _get_chain()
 │   ├── turno_service.py          # Standalone functions
 │   └── analitica_service.py
@@ -102,7 +102,7 @@ app/
 ├── Templates/
 │   ├── index.html
 │   ├── css/style.css
-│   └── js/app.js                 # Uses POST /ordenes/{id}/items for adding items (legacy PATCH removed)
+│   └── js/app.js                 # Uses POST /ordenes/{id}/items for adding items (legacy PATCH removed); descuentos via POST /ordenes/{id}/descuento-{item,global}
 └── tests/
 ```
 
@@ -207,10 +207,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
-- **Orden**: Requires `mesa_id` (nullable for retroactive/direct sales) + array of `detalles` (each with `producto_id`, `cantidad`)
-- **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`.
-- **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction.
+- **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`)
+- **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`. Does NOT apply to para llevar (mesa_id null).
+- **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction. If mesa_id is null (para llevar), only sets PAGADA.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
+- **Descuentos**: Per-item (`descuento_porcentaje` / `descuento_monto` + `motivo_descuento` on `DetalleOrden`) or global (distributed proportionally). `Orden.subtotal` is sum of line totals before discount; `descuento_total` is total discount; `Orden.total = subtotal - descuento_total`. Discounts applied via `POST /ordenes/{id}/descuento-item` and `POST /ordenes/{id}/descuento-global`. Removed via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`.
 - **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
 - **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements; optional `unidad_empaque_id` FK + `factor_empaque` (1 empaque = X base); conversion in stock/recipes uses per-insumo packaging factor before falling back to global chain
@@ -286,6 +287,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/ordenes/{id}                        | Yes      | Any                |
 | PATCH  | /api/v1/ordenes/{id}/estado                 | Yes      | Any                |
 | POST   | /api/v1/ordenes/{id}/items                  | Yes      | Any                |
+| POST   | /api/v1/ordenes/{id}/descuento-item         | Yes      | Any                |
+| POST   | /api/v1/ordenes/{id}/descuento-global       | Yes      | Any                |
+| DELETE | /api/v1/ordenes/{id}/descuento-item/{detalle_id} | Yes  | Any                |
 | PUT    | /api/v1/ordenes/{id}/pagar                  | Yes      | Any                |
 | GET    | /api/v1/caja/historial-diario               | Yes      | Any                |
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
@@ -395,6 +399,7 @@ ReportesService.obtener_cierre()
   ├── repo.obtener_gastos_nomina()       → SUM(Nomina.pago_neto) WHERE PAGADO
   ├── repo.obtener_costo_insumos()       → JOIN Orden→DetalleOrden→Receta→Ingrediente → SUM(cost)
   ├── repo.obtener_gastos_operativos()   → SUM(Gasto.monto) in range
+  ├── repo.obtener_descuentos_totales()  → SUM(Orden.descuento_total) WHERE PAGADA
   └── repo.obtener_top_platillos()       → GROUP BY producto, ORDER BY qty DESC, LIMIT 5
 utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 ```
@@ -410,6 +415,25 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 - **Phase 3 — Integration**: Stock movements + recipe deductions auto-convert when unit differs from insumo base; `ActualizarStockInsumo` + `MovimientoCreate` schemas accept `unidad_medida_id`; `Receta` model has `unidad_medida_id`; `descontar_stock`/`revertir_stock`/`validar_stock_suficiente` all use `_convertir_si_necesario()`; stock modal has unit selector + conversion preview
 - **15 standard units**: Kilogramo, Gramo, Libra, Onza (PESO); Litro, Mililitro, Botella, Lata (VOLUMEN); Unidad, Docena, Par, Paquete, Bolsa, Porción (UNIDAD); Metro (PERSONALIZADO)
 - **Startup migration `_fix_unidades_medida()`**: corrects magnitudes, links conversion chains, creates missing units; checks both `nombre` and `abreviatura` (case-insensitive) to prevent duplicates; handles list vs dict iteration for NUEVAS seed data
+
+### Orden Para Llevar (takeaway)
+- `Orden.mesa_id` nullable — no table assignment, no state mutation on mesa
+- `crear_orden()` skips mesa validation/OCUPADA when `mesa_id=None`
+- `pagar_orden()` skips mesa→LIBRE when `mesa_id=None`; only sets PAGADA
+- `nombre_cliente` field on `Orden` for client name on takeaway orders
+- Startup migration `_migrate_orden_mesa_nullable()` enables nullable mesa_id; `_migrate_orden_nombre_cliente()` adds the column
+- **Frontend**: "🛍️ Para Llevar" button in salon header → `openParaLlevarModal()` → `openOrderModal(null, null)`; KDS cards show "🛍️ Para Llevar" instead of mesa number; pre-cuenta shows client name; mesa_id=null prevents the table from being marked OCUPADA
+
+### Descuentos (discounts)
+- Per-item discount via `POST /ordenes/{id}/descuento-item` with `detalle_id`, `tipo` (PORCENTAJE/MONTO), `valor`, `motivo`
+- Global discount via `POST /ordenes/{id}/descuento-global` with same fields (distributes proportionally across all items)
+- Remove discount via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`
+- `Orden.subtotal` = sum of `(cantidad × precio_unitario)` for all items; `descuento_total` = sum of all discounts; `total = subtotal - descuento_total`
+- `_recalcular_totales()` recalculates after any discount change — re-reads all detalles from DB, applies per-item discounts (porcentaje first, then monto), sums global contributions, updates Orden record
+- `AplicarDescuentoGlobalRequest.tipo` defaults to `PORCENTAJE`; distributes proportionally by line total weight; fixed per-detalle store with `descuento_monto` / `descuento_porcentaje`
+- Reportes: `CierreCajaPeriodoResponse.total_descuentos` and `ingresos_brutos`; `ReportesRepository.obtener_descuentos_totales()` sums `orden.descuento_total` in range
+- **Frontend**: `#oc-discount-section` in occupied table detail modal with tipo select, target select (items + global), valor input, motivo textarea, aplicar button; `aplicarDescuentoOrder()` function; historial table shows subtotal, descuento, and total columns; cierre de caja shows `total_descuentos` card
+- Startup migration `_migrate_orden_descuentos()` adds subtotal, descuento_total (ordenes), and descuento_porcentaje, descuento_monto, motivo_descuento (detalles_orden) columns; migrates existing data
 
 ### Per-insumo packaging unit
 - `Insumo` model has optional `unidad_empaque_id` FK + `factor_empaque` Float (1 empaque = X base units)

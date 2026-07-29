@@ -1089,8 +1089,11 @@ function openOrderModal(mesaId, mesaNumero) {
   loadOrderModalMenu();
 }
 
-function openParaLlevarModal() {
+function abrirOrdenParaLlevar() {
   openOrderModal(null, null);
+}
+function openParaLlevarModal() {
+  abrirOrdenParaLlevar();
 }
 
 function closeOrderModal() {
