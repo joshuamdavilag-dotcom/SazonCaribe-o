@@ -937,7 +937,8 @@ function renderCocinaCards() {
     const minutos = getMinutosTranscurrido(o.fecha_creacion);
     const tiempoClass = minutos > 15 ? 'kc-tiempo-urgente' : minutos > 8 ? 'kc-tiempo-ok' : 'kc-tiempo-calmado';
     const borderClass = ESTADO_BORDER_KDS[o.estado] || '';
-    const showActions = o.estado === 'PENDIENTE' || o.estado === 'PREPARANDO';
+    const showActions = o.estado !== 'PAGADA' && o.estado !== 'CANCELADA';
+    const puedeCobrar = o.estado === 'ENTREGADA' || o.estado === 'PREPARANDO' || o.estado === 'PENDIENTE';
 
     const itemsHtml = (o.detalles || []).map(d => {
       const nombre = d.producto_nombre || `Producto #${d.producto_id}`;
@@ -946,16 +947,22 @@ function renderCocinaCards() {
     }).join('');
 
     const actionsHtml = showActions ? (() => {
+      const cobrarBtn = puedeCobrar ? `<button class="kc-btn-cobrar" onclick="cobrarOrden(${o.id})">💵 Cobrar Orden</button>` : '';
       if (o.estado === 'PENDIENTE') {
         return `<div class="kc-actions">
           <button class="kc-btn-entregar" onclick="cambiarEstadoKDS(${o.id}, 'PREPARANDO')" title="Empezar a preparar">🍳 Empezar a Preparar</button>
+          ${cobrarBtn}
           <button class="kc-btn-cancelar" onclick="cambiarEstadoKDS(${o.id}, 'CANCELADA')" title="Cancelar orden">✕ Cancelar</button>
         </div>`;
       }
-      return `<div class="kc-actions">
-        <button class="kc-btn-entregar" onclick="cambiarEstadoKDS(${o.id}, 'ENTREGADA')" title="Marcar como entregada">✔ Entregar / Listo</button>
-        <button class="kc-btn-cancelar" onclick="cambiarEstadoKDS(${o.id}, 'CANCELADA')" title="Cancelar orden">✕ Cancelar</button>
-      </div>`;
+      if (o.estado === 'PREPARANDO') {
+        return `<div class="kc-actions">
+          <button class="kc-btn-entregar" onclick="cambiarEstadoKDS(${o.id}, 'ENTREGADA')" title="Marcar como entregada">✔ Entregar / Listo</button>
+          ${cobrarBtn}
+          <button class="kc-btn-cancelar" onclick="cambiarEstadoKDS(${o.id}, 'CANCELADA')" title="Cancelar orden">✕ Cancelar</button>
+        </div>`;
+      }
+      return `<div class="kc-actions">${cobrarBtn}</div>`;
     })() : '';
 
     return `
@@ -1000,6 +1007,16 @@ async function cambiarEstadoKDS(ordenId, nuevoEstado) {
     await loadCocinaOrdenes();
   } catch { /* handled by api() */ }
 }
+
+async function cobrarOrden(ordenId) {
+  if (!confirm(`¿Confirmar pago de la Orden #${ordenId}?`)) return;
+  try {
+    await api(`/ordenes/${ordenId}/pagar`, { method: 'PUT' });
+    showToast(`Orden #${ordenId} pagada con éxito`, 'success');
+    await loadCocinaOrdenes();
+  } catch { /* handled by api() */ }
+}
+window.cobrarOrden = cobrarOrden;
 
 function getCategoryEmoji(nombre) {
   const n = (nombre || '').toLowerCase();
@@ -1061,12 +1078,15 @@ function openOrderModal(mesaId, mesaNumero) {
 
   const titleEl = document.getElementById('order-modal-mesa');
   const clienteRow = document.getElementById('order-modal-cliente-row');
+  const cobrarRow = document.getElementById('order-modal-cobrar-row');
   if (mesaId) {
     titleEl.textContent = `Mesa ${mesaNumero}`;
     if (clienteRow) clienteRow.style.display = 'none';
+    if (cobrarRow) cobrarRow.style.display = 'none';
   } else {
     titleEl.textContent = '🛍️ Para Llevar';
     if (clienteRow) clienteRow.style.display = '';
+    if (cobrarRow) cobrarRow.style.display = 'flex';
   }
 
   document.getElementById('order-modal-count').textContent = '0';
@@ -1293,10 +1313,16 @@ async function submitOrder() {
       });
 
       if (!mesaId && orden && orden.id) {
-        await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+        const cobrarNow = document.getElementById('order-modal-cobrar-now')?.checked;
+        if (cobrarNow) {
+          await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+          showToast('¡Orden para llevar cobrada con éxito!', 'success');
+        } else {
+          showToast('¡Comanda para llevar guardada!', 'success');
+        }
+      } else {
+        showToast('¡Comanda enviada a cocina con éxito!', 'success');
       }
-
-      showToast(mesaId ? '¡Comanda enviada a cocina con éxito!' : '¡Orden para llevar pagada con éxito!', 'success');
     }
 
     const mesaId = state.currentOrder.mesaId;

@@ -668,6 +668,7 @@ input, select, textarea { font: inherit; }
 
 .kc-btn-entregar { background: #dcfce7; color: #166534; }
 .kc-btn-cancelar { background: #fee2e2; color: #991b1b; }
+.kc-btn-cobrar { background: #dbeafe; color: #1e40af; }
 
 .kc-border-pendiente  { border-left: 4px solid var(--amarillo-solar); }
 .kc-border-preparando { border-left: 4px solid #f97316; }
