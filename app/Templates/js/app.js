@@ -1196,12 +1196,13 @@ function renderOrderModalCart() {
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nombre}</div>
-        <div style="font-size:12px;color:#6b7280;">C$${item.precio_unitario.toFixed(2)}</div>
+        <div style="font-size:12px;color:#6b7280;">C$${item.precio_unitario.toFixed(2)}${item._precioAjustado ? ' <span style="color:var(--amarillo-solar);font-size:10px;">✏️</span>' : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
         <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, -1)" style="width:26px;height:26px;font-size:14px;">−</button>
         <span style="min-width:20px;text-align:center;font-weight:600;font-size:13px;">${item.cantidad}</span>
         <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, 1)" style="width:26px;height:26px;font-size:14px;">+</button>
+        <button onclick="ajustarPrecioItem(${idx})" style="background:none;border:none;color:var(--amarillo-solar);font-size:14px;cursor:pointer;padding:2px 4px;" title="Ajustar precio">✏️</button>
         <button onclick="deleteOrderItem(${idx})" style="background:none;border:none;color:#E63946;font-size:14px;cursor:pointer;padding:2px 4px;" title="Eliminar">🗑</button>
       </div>
     </div>`).join('');
@@ -1213,6 +1214,22 @@ function deleteOrderItem(idx) {
   renderOrderModalCart();
   updateOrderModalTotals();
 }
+
+function ajustarPrecioItem(idx) {
+  const items = state.currentOrder.items;
+  const item = items[idx];
+  if (!item) return;
+  const input = prompt(`Ajustar precio unitario para "${item.nombre}"\n(Precio actual: C$${item.precio_unitario.toFixed(2)})`, item.precio_unitario.toFixed(2));
+  if (input === null) return;
+  const nuevo = parseFloat(input);
+  if (isNaN(nuevo) || nuevo <= 0) return showToast('Ingresa un precio válido mayor a 0', 'warning');
+  item.precio_unitario = nuevo;
+  item._precioAjustado = true;
+  renderOrderModalCart();
+  updateOrderModalTotals();
+  showToast(`Precio de "${item.nombre}" ajustado a C$${nuevo.toFixed(2)}`, 'success');
+}
+window.ajustarPrecioItem = ajustarPrecioItem;
 
 function updateOrderModalTotals() {
   const items = state.currentOrder.items;
@@ -1249,7 +1266,11 @@ async function submitOrder() {
       await api(`/ordenes/${state.currentOrder._ordenId}/items`, {
         method: 'POST',
         body: JSON.stringify({
-          items: items.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas })),
+          items: items.map(i => {
+            const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas };
+            if (i._precioAjustado) obj.precio_unitario = i.precio_unitario;
+            return obj;
+          }),
         }),
       });
       showToast('Ítems agregados a la orden existente', 'success');
@@ -1263,7 +1284,11 @@ async function submitOrder() {
         body: JSON.stringify({
           mesa_id: mesaId,
           nombre_cliente: nombreCliente,
-          detalles: items.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas })),
+          detalles: items.map(i => {
+            const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas };
+            if (i._precioAjustado) obj.precio_unitario = i.precio_unitario;
+            return obj;
+          }),
         }),
       });
       showToast(mesaId ? '¡Comanda enviada a cocina con éxito!' : '¡Orden para llevar creada con éxito!', 'success');

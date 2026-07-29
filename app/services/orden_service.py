@@ -188,7 +188,11 @@ class OrdenService:
             producto = self.menu_repo.obtener_menu_item_por_id(
                 item.producto_id
             )
-            precio_unitario = Decimal(str(producto.precio))
+            precio_unitario = (
+                Decimal(str(item.precio_unitario))
+                if item.precio_unitario is not None
+                else Decimal(str(producto.precio))
+            )
             total_acumulado += precio_unitario * item.cantidad
 
             detalles_creados.append(DetalleOrden(
@@ -629,7 +633,11 @@ class OrdenService:
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"El producto con ID {item.producto_id} no existe",
                         )
-                    precio = Decimal(str(producto.precio))
+                    precio = (
+                        Decimal(str(item.precio_unitario))
+                        if item.precio_unitario is not None
+                        else Decimal(str(producto.precio))
+                    )
                     total += precio * item.cantidad
                     detalles_creados.append(DetalleOrden(
                         producto_id=item.producto_id,

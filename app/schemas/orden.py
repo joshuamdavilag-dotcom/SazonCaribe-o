@@ -25,6 +25,12 @@ class DetalleOrdenCreate(BaseModel):
         description="Cantidad del producto (debe ser mayor que 0)",
         examples=[2]
     )
+    precio_unitario: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+        description="Precio unitario personalizado (opcional; si no se envía, se usa el precio del catálogo)",
+    )
     notas: Optional[str] = Field(
         default=None,
         max_length=255,
