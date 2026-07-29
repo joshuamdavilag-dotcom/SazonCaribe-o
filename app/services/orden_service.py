@@ -236,40 +236,49 @@ class OrdenService:
         orden_in: OrdenCreate,
         mesero_id: int,
     ) -> Orden:
-        mesa = self.salon_repo.obtener_mesa_por_id(orden_in.mesa_id)
-        if not mesa:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="La mesa especificada no existe",
-            )
+        if orden_in.mesa_id:
+            mesa = self.salon_repo.obtener_mesa_por_id(orden_in.mesa_id)
+            if not mesa:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="La mesa especificada no existe",
+                )
 
-        if mesa.estado != EstadoMesa.LIBRE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"La mesa {mesa.numero} no está disponible. "
-                    f"Estado actual: {mesa.estado.value}"
-                ),
-            )
+            if mesa.estado != EstadoMesa.LIBRE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"La mesa {mesa.numero} no está disponible. "
+                        f"Estado actual: {mesa.estado.value}"
+                    ),
+                )
 
-        self._validar_orden_activa_por_mesa(orden_in.mesa_id)
+            self._validar_orden_activa_por_mesa(orden_in.mesa_id)
 
         try:
             with self.db.begin_nested():
                 detalles_creados, total = self._procesar_detalles(
                     orden_in.detalles,
-                    contexto=f"Descuento por Orden Mesa {orden_in.mesa_id}",
+                    contexto=(
+                        f"Descuento por Orden Mesa {orden_in.mesa_id}"
+                        if orden_in.mesa_id
+                        else "Descuento por Orden Para Llevar"
+                    ),
                 )
 
                 orden_db = Orden(
                     mesa_id=orden_in.mesa_id,
                     mesero_id=mesero_id,
                     total=total,
+                    subtotal=total,
+                    descuento_total=Decimal("0.00"),
+                    nombre_cliente=orden_in.nombre_cliente,
                     estado=EstadoOrden.PENDIENTE,
                     detalles=detalles_creados,
                 )
                 self.orden_repo.crear_orden(orden_db)
-                mesa.estado = EstadoMesa.OCUPADA
+                if orden_in.mesa_id:
+                    mesa.estado = EstadoMesa.OCUPADA
 
             self.db.commit()
             self.db.refresh(orden_db)
@@ -309,7 +318,8 @@ class OrdenService:
                     nuevos_detalles,
                     contexto=f"Agregado a Orden #{orden_id}",
                 )
-                orden.total += subtotal_nuevos
+                orden.subtotal += subtotal_nuevos
+                orden.total = orden.subtotal - (orden.descuento_total or Decimal("0.00"))
 
                 for detalle in detalles_creados:
                     detalle.orden_id = orden_id
@@ -359,9 +369,10 @@ class OrdenService:
             with self.db.begin_nested():
                 orden.estado = EstadoOrden.PAGADA
 
-                mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)
-                if mesa:
-                    mesa.estado = EstadoMesa.LIBRE
+                if orden.mesa_id:
+                    mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)
+                    if mesa:
+                        mesa.estado = EstadoMesa.LIBRE
 
             self.db.commit()
             self.db.refresh(orden)
@@ -426,6 +437,179 @@ class OrdenService:
     #  Venta retroactiva — POST /retroactiva                               #
     # ================================================================== #
 
+    # ================================================================== #
+    #  Descuentos                                                         #
+    # ================================================================== #
+
+    def aplicar_descuento_item(
+        self,
+        orden_id: int,
+        detalle_id: int,
+        tipo: str,
+        valor: float,
+        motivo: Optional[str] = None,
+    ) -> Orden:
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+        if orden.estado in (EstadoOrden.PAGADA, EstadoOrden.CANCELADA):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede aplicar descuento a una orden pagada o cancelada.",
+            )
+
+        detalle = next((d for d in orden.detalles if d.id == detalle_id), None)
+        if not detalle:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el detalle con ID {detalle_id} en la orden {orden_id}",
+            )
+
+        try:
+            with self.db.begin_nested():
+                base_line_total = Decimal(str(detalle.precio_unitario)) * detalle.cantidad
+
+                if tipo == "porcentaje":
+                    pct = Decimal(str(valor))
+                    detalle.descuento_porcentaje = pct
+                    desc_monto = (base_line_total * pct / Decimal("100")).quantize(Decimal("0.01"))
+                    detalle.descuento_monto = desc_monto
+                else:
+                    desc_monto = Decimal(str(valor)).quantize(Decimal("0.01"))
+                    detalle.descuento_monto = desc_monto
+                    if base_line_total > 0:
+                        pct = (desc_monto / base_line_total * Decimal("100")).quantize(Decimal("0.01"))
+                    else:
+                        pct = Decimal("0.00")
+                    detalle.descuento_porcentaje = pct
+
+                detalle.motivo_descuento = motivo
+
+                self._recalcular_totales(orden)
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def aplicar_descuento_global(
+        self,
+        orden_id: int,
+        tipo: str,
+        valor: float,
+        motivo: Optional[str] = None,
+    ) -> Orden:
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+        if orden.estado in (EstadoOrden.PAGADA, EstadoOrden.CANCELADA):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede aplicar descuento a una orden pagada o cancelada.",
+            )
+
+        try:
+            with self.db.begin_nested():
+                current_subtotal = sum(
+                    Decimal(str(d.precio_unitario)) * d.cantidad
+                    for d in orden.detalles
+                )
+
+                if tipo == "porcentaje":
+                    pct = Decimal(str(valor))
+                    desc_total = (current_subtotal * pct / Decimal("100")).quantize(Decimal("0.01"))
+                else:
+                    desc_total = Decimal(str(valor)).quantize(Decimal("0.01"))
+
+                pct_item = Decimal("0.00")
+                if current_subtotal > 0:
+                    pct_item = (desc_total / current_subtotal * Decimal("100")).quantize(Decimal("0.01"))
+
+                remaining = desc_total
+                for d in orden.detalles:
+                    base_line = Decimal(str(d.precio_unitario)) * d.cantidad
+                    if remaining > 0 and current_subtotal > 0:
+                        item_desc = (base_line * pct_item / Decimal("100")).quantize(Decimal("0.01"))
+                        if item_desc > remaining:
+                            item_desc = remaining
+                        d.descuento_monto = (d.descuento_monto or Decimal("0.00")) + item_desc
+                        d.descuento_porcentaje = pct_item
+                        if motivo:
+                            d.motivo_descuento = (
+                                f"{d.motivo_descuento}; " if d.motivo_descuento else ""
+                            ) + f"Global: {motivo}"
+                        remaining -= item_desc
+                    else:
+                        if not d.descuento_monto or d.descuento_monto == 0:
+                            d.descuento_monto = Decimal("0.00")
+                            d.descuento_porcentaje = Decimal("0.00")
+
+                self._recalcular_totales(orden)
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _recalcular_totales(self, orden: Orden) -> None:
+        subtotal = Decimal("0.00")
+        descuento_total = Decimal("0.00")
+
+        for d in orden.detalles:
+            base = Decimal(str(d.precio_unitario)) * d.cantidad
+            subtotal += base
+            descuento_total += d.descuento_monto or Decimal("0.00")
+
+        orden.subtotal = subtotal
+        orden.descuento_total = descuento_total
+        orden.total = max(subtotal - descuento_total, Decimal("0.00"))
+
+    def quitar_descuento_item(
+        self,
+        orden_id: int,
+        detalle_id: int,
+    ) -> Orden:
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+
+        detalle = next((d for d in orden.detalles if d.id == detalle_id), None)
+        if not detalle:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el detalle con ID {detalle_id}",
+            )
+
+        try:
+            with self.db.begin_nested():
+                detalle.descuento_porcentaje = None
+                detalle.descuento_monto = None
+                detalle.motivo_descuento = None
+                self._recalcular_totales(orden)
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
     def crear_venta_retroactiva(
         self,
         venta_in: VentaRetroactivaCreate,
@@ -459,6 +643,9 @@ class OrdenService:
                     mesa_id=venta_in.mesa_id,
                     mesero_id=mesero_id,
                     total=total,
+                    subtotal=total,
+                    descuento_total=Decimal("0.00"),
+                    nombre_cliente=venta_in.nombre_cliente,
                     estado=EstadoOrden.PAGADA,
                     detalles=detalles_creados,
                     fecha_creacion=ts,

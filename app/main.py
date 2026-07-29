@@ -133,6 +133,8 @@ async def startup_event():
     _migrate_insumos_empaque()
     _migrate_orden_mesa_nullable()
     _migrate_recetas_descuento_lote()
+    _migrate_orden_descuentos()
+    _migrate_orden_nombre_cliente()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -243,6 +245,50 @@ def _migrate_recetas_descuento_lote():
             ))
             db.commit()
             print("  [~] Columna 'descuento_por_lote' agregada a recetas")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_orden_descuentos():
+    """Agrega columnas de descuento a ordenes y detalles_orden si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    orden_cols = [
+        ("subtotal", "ALTER TABLE ordenes ADD COLUMN subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
+        ("descuento_total", "ALTER TABLE ordenes ADD COLUMN descuento_total DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
+    ]
+    detalle_cols = [
+        ("descuento_porcentaje", "ALTER TABLE detalles_orden ADD COLUMN descuento_porcentaje DECIMAL(5,2) NULL"),
+        ("descuento_monto", "ALTER TABLE detalles_orden ADD COLUMN descuento_monto DECIMAL(10,2) NULL"),
+        ("motivo_descuento", "ALTER TABLE detalles_orden ADD COLUMN motivo_descuento VARCHAR(255) NULL"),
+    ]
+    with Session(engine) as db:
+        for col_name, ddl in orden_cols + detalle_cols:
+            try:
+                db.execute(text(ddl))
+                db.commit()
+                print(f"  [~] Columna '{col_name}' agregada")
+            except Exception:
+                db.rollback()
+
+        db.execute(text("UPDATE ordenes SET subtotal = total WHERE subtotal = 0 AND total > 0"))
+        db.execute(text("UPDATE ordenes SET descuento_total = 0 WHERE descuento_total IS NULL"))
+        db.commit()
+
+
+def _migrate_orden_nombre_cliente():
+    """Agrega columna nombre_cliente a ordenes si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL"
+            ))
+            db.commit()
+            print("  [~] Columna 'nombre_cliente' agregada a ordenes")
         except Exception:
             db.rollback()
 

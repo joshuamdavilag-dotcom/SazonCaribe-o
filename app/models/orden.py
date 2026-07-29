@@ -28,6 +28,10 @@ class Orden(Base):
             "total >= 0",
             name="ck_ordenes_total_no_negativo"
         ),
+        CheckConstraint(
+            "subtotal >= 0",
+            name="ck_ordenes_subtotal_no_negativo"
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -54,6 +58,20 @@ class Orden(Base):
         Numeric(10, 2),
         nullable=False,
         default=Decimal("0.00")
+    )
+    subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=Decimal("0.00")
+    )
+    descuento_total: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=Decimal("0.00")
+    )
+    nombre_cliente: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
     )
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime,
@@ -137,6 +155,18 @@ class DetalleOrden(Base):
     precio_unitario: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False
+    )
+    descuento_porcentaje: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(5, 2),
+        nullable=True,
+    )
+    descuento_monto: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+    )
+    motivo_descuento: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True
     )
     notas: Mapped[Optional[str]] = mapped_column(
         String(255),

@@ -170,6 +170,23 @@ class ReportesRepository:
             for row in rows
         ]
 
+    def obtener_descuentos_totales(
+        self,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> Decimal:
+        """Suma de todos los descuentos aplicados en órdenes PAGADA del periodo."""
+        stmt = select(
+            func.coalesce(func.sum(Orden.descuento_total), Decimal("0.00"))
+        ).where(
+            and_(
+                Orden.estado == EstadoOrden.PAGADA,
+                func.date(Orden.fecha_creacion) >= fecha_inicio,
+                func.date(Orden.fecha_creacion) <= fecha_fin,
+            )
+        )
+        return self.db.execute(stmt).scalar_one()
+
     def obtener_gastos_operativos(
         self,
         fecha_inicio: date,

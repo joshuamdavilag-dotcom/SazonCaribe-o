@@ -929,8 +929,9 @@ function renderCocinaCards() {
   }
 
   grid.innerHTML = filtered.map(o => {
-    const zona = o.mesa?.zona?.nombre || '—';
-    const mesaNum = o.mesa?.numero || (o.mesa_id ? o.mesa_id : 'Directa');
+    const esParaLlevar = !o.mesa_id;
+    const zona = esParaLlevar ? '—' : (o.mesa?.zona?.nombre || '—');
+    const mesaLabel = esParaLlevar ? '🛍️ Para Llevar' : (`Mesa ${o.mesa?.numero || o.mesa_id}`);
     const mesero = o.mesero?.username || `Usuario #${o.mesero_id}`;
     const tiempo = getTiempoTranscurrido(o.fecha_creacion);
     const minutos = getMinutosTranscurrido(o.fecha_creacion);
@@ -964,7 +965,7 @@ function renderCocinaCards() {
           <span class="kc-tiempo ${tiempoClass}">⏱ ${tiempo}</span>
         </div>
         <div class="kc-meta">
-          <span>🪑 Mesa ${mesaNum}</span>
+          <span>🪑 ${mesaLabel}</span>
           <span>📍 ${zona}</span>
           <span>🧑‍🍳 ${mesero}</span>
           <span>💰 C$${parseFloat(o.total).toFixed(2)}</span>
@@ -1058,13 +1059,25 @@ function openOrderModal(mesaId, mesaNumero) {
   orderModalCategory = 'all';
   orderModalSearch = '';
 
-  document.getElementById('order-modal-mesa').textContent = mesaNumero;
+  const titleEl = document.getElementById('order-modal-mesa');
+  const clienteRow = document.getElementById('order-modal-cliente-row');
+  if (mesaId) {
+    titleEl.textContent = `Mesa ${mesaNumero}`;
+    if (clienteRow) clienteRow.style.display = 'none';
+  } else {
+    titleEl.textContent = '🛍️ Para Llevar';
+    if (clienteRow) clienteRow.style.display = '';
+  }
+
   document.getElementById('order-modal-count').textContent = '0';
   document.getElementById('order-modal-subtotal').textContent = 'C$0.00';
+  document.getElementById('order-modal-descuento-row').style.display = 'none';
   document.getElementById('order-modal-total').textContent = 'C$0.00';
 
   const searchInput = document.getElementById('order-modal-search');
   if (searchInput) searchInput.value = '';
+  const clienteInput = document.getElementById('order-modal-cliente');
+  if (clienteInput) clienteInput.value = '';
 
   document.getElementById('order-modal-cart').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
@@ -1074,6 +1087,10 @@ function openOrderModal(mesaId, mesaNumero) {
   document.getElementById('modal-order').classList.add('show');
   renderOrderModalCategories();
   loadOrderModalMenu();
+}
+
+function openParaLlevarModal() {
+  openOrderModal(null, null);
 }
 
 function closeOrderModal() {
@@ -1215,7 +1232,6 @@ function filterOrderModalBySearch(query) {
 async function submitOrder() {
   const items = state.currentOrder.items;
   if (!items.length) return showToast('Agrega al menos un producto', 'warning');
-  if (!state.currentOrder.mesaId) return showToast('Selecciona una mesa primero', 'error');
 
   const btn = document.getElementById('confirm-order-modal');
   btn.disabled = true;
@@ -1231,34 +1247,41 @@ async function submitOrder() {
       });
       showToast('Ítems agregados a la orden existente', 'success');
     } else {
+      const mesaId = state.currentOrder.mesaId;
+      const clienteInput = document.getElementById('order-modal-cliente');
+      const nombreCliente = clienteInput ? clienteInput.value.trim() || null : null;
+
       await api('/ordenes/', {
         method: 'POST',
         body: JSON.stringify({
-          mesa_id: state.currentOrder.mesaId,
+          mesa_id: mesaId,
+          nombre_cliente: nombreCliente,
           detalles: items.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas })),
         }),
       });
-      showToast('¡Comanda enviada a cocina con éxito!', 'success');
+      showToast(mesaId ? '¡Comanda enviada a cocina con éxito!' : '¡Orden para llevar creada con éxito!', 'success');
     }
 
     const mesaId = state.currentOrder.mesaId;
     closeOrderModal();
 
-    const mesa = state.tables.find(t => t.id === mesaId);
-    if (mesa) {
-      mesa.estado = 'OCUPADA';
-      const card = document.querySelector(`.table-card[data-mesa-id="${mesaId}"]`);
-      if (card) {
-        card.dataset.estado = 'OCUPADA';
-        card.classList.remove('border-libre');
-        card.classList.add('border-ocupada');
-        const dot = card.querySelector('.status-dot');
-        if (dot) {
-          dot.classList.remove('status-libre');
-          dot.classList.add('status-ocupada');
+    if (mesaId) {
+      const mesa = state.tables.find(t => t.id === mesaId);
+      if (mesa) {
+        mesa.estado = 'OCUPADA';
+        const card = document.querySelector(`.table-card[data-mesa-id="${mesaId}"]`);
+        if (card) {
+          card.dataset.estado = 'OCUPADA';
+          card.classList.remove('border-libre');
+          card.classList.add('border-ocupada');
+          const dot = card.querySelector('.status-dot');
+          if (dot) {
+            dot.classList.remove('status-libre');
+            dot.classList.add('status-ocupada');
+          }
+          const label = card.querySelector('.table-capacity');
+          if (label) label.innerHTML = '🔴 Ocupada';
         }
-        const label = card.querySelector('.table-capacity');
-        if (label) label.innerHTML = '🔴 Ocupada';
       }
     }
   } catch { /* api() already shows the specific error toast */ }
@@ -3103,7 +3126,7 @@ async function loadCierreReportes(periodo) {
 
 function renderCierreReportes(data) {
   if (!data) {
-    ['cc-ingresos', 'cc-nomina', 'cc-insumos', 'cc-gastos-op', 'cc-utilidad'].forEach(id => {
+    ['cc-ingresos', 'cc-nomina', 'cc-insumos', 'cc-gastos-op', 'cc-utilidad', 'cc-descuentos'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = 'C$0.00';
     });
@@ -3121,6 +3144,11 @@ function renderCierreReportes(data) {
   document.getElementById('cc-nomina').textContent = fmt(data.gastos_nomina);
   document.getElementById('cc-insumos').textContent = fmt(data.costo_insumos);
   document.getElementById('cc-gastos-op').textContent = fmt(data.gastos_operativos);
+
+  const descEl = document.getElementById('cc-descuentos');
+  if (descEl) {
+    descEl.textContent = `-${fmt(Math.abs(data.total_descuentos || 0))}`.replace('C$-', '-C$');
+  }
 
   const utilEl = document.getElementById('cc-utilidad');
   utilEl.textContent = fmt(data.utilidad_neta);
@@ -3364,21 +3392,59 @@ function renderOcItems(orden) {
     list.innerHTML = detalles.map(d => {
       const producto = state.menuItems.find(mi => mi.id === d.producto_id);
       const nombre = producto ? producto.nombre : `#${d.producto_id}`;
-      const subtotal = parseFloat(d.precio_unitario) * d.cantidad;
+      const precioBase = parseFloat(d.precio_unitario);
+      const subtotalBase = precioBase * d.cantidad;
+      const descMonto = parseFloat(d.descuento_monto || 0);
+      const subtotalFinal = subtotalBase - descMonto;
+      const hasDesc = d.descuento_porcentaje || d.descuento_monto;
+
+      const descLabel = hasDesc
+        ? `<span style="font-size:11px;color:#E63946;">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
+        : '';
+
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:13px;">${nombre}</div>
-            <div style="font-size:12px;color:#6b7280;">${d.cantidad} × C$${parseFloat(d.precio_unitario).toFixed(2)}</div>
+            <div style="font-weight:600;font-size:13px;">${nombre} ${descLabel}</div>
+            <div style="font-size:12px;color:#6b7280;">${d.cantidad} × C$${precioBase.toFixed(2)}</div>
           </div>
-          <div style="font-weight:600;font-size:14px;color:var(--azul-marino);">C$${subtotal.toFixed(2)}</div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;">
+            ${hasDesc ? `<span style="font-size:11px;color:#9ca3af;text-decoration:line-through;">C$${subtotalBase.toFixed(2)}</span>` : ''}
+            <span style="font-weight:600;font-size:14px;color:${hasDesc ? 'var(--rojo-cangrejo)' : 'var(--azul-marino)'};">C$${subtotalFinal.toFixed(2)}</span>
+          </div>
         </div>`;
     }).join('');
   }
 
+  const subtotal = parseFloat(orden.subtotal || orden.total || 0);
+  const descuento = parseFloat(orden.descuento_total || 0);
   const total = parseFloat(orden.total || 0);
-  document.getElementById('oc-subtotal').textContent = `C$${total.toFixed(2)}`;
+
+  document.getElementById('oc-subtotal').textContent = `C$${subtotal.toFixed(2)}`;
+
+  const descRow = document.getElementById('oc-descuento-row');
+  if (descuento > 0) {
+    descRow.style.display = '';
+    document.getElementById('oc-descuento').textContent = `-C$${descuento.toFixed(2)}`;
+  } else {
+    descRow.style.display = 'none';
+  }
+
   document.getElementById('oc-total').textContent = `C$${total.toFixed(2)}`;
+
+  // Populate discount target select with items
+  const targetSelect = document.getElementById('oc-discount-target');
+  if (targetSelect) {
+    let opts = '<option value="global">🌐 Toda la orden</option>';
+    if (detalles.length) {
+      detalles.forEach(d => {
+        const producto = state.menuItems.find(mi => mi.id === d.producto_id);
+        const nombre = producto ? producto.nombre : `#${d.producto_id}`;
+        opts += `<option value="item-${d.id}">📦 ${nombre}</option>`;
+      });
+    }
+    targetSelect.innerHTML = opts;
+  }
 }
 
 async function agregarAlPedido() {
@@ -3409,7 +3475,8 @@ function openPreCuenta() {
   lines.push('    🍽️  SAZÓN CARIBEÑO');
   lines.push('════════════════════════════════');
   lines.push(`Fecha: ${fecha}  Hora: ${hora}`);
-  lines.push(`Mesa: ${mesa?.numero || '—'}   Orden: #${orden.id}`);
+  const mesaTexto = mesa ? `Mesa: ${mesa.numero}` : (orden.nombre_cliente ? `Cliente: ${orden.nombre_cliente}` : 'Para Llevar');
+  lines.push(`${mesaTexto}   Orden: #${orden.id}`);
   lines.push('────────────────────────────────');
 
   detalles.forEach(d => {
@@ -3463,6 +3530,47 @@ async function cerrarCuenta() {
 }
 
 /* =========================================================================
+   Discount Application — Occupied Table
+   ========================================================================= */
+async function aplicarDescuentoOrder() {
+  const oc = state.currentOcupada;
+  if (!oc || !oc.orden) return showToast('No hay orden activa', 'error');
+
+  const tipo = document.getElementById('oc-discount-type')?.value;
+  const valor = parseFloat(document.getElementById('oc-discount-value')?.value);
+  const target = document.getElementById('oc-discount-target')?.value;
+  const motivo = document.getElementById('oc-discount-motivo')?.value.trim() || null;
+
+  if (!valor || valor <= 0) return showToast('Ingresa un valor de descuento válido', 'warning');
+
+  const ordenId = oc.orden.id;
+
+  try {
+    let orden;
+    if (target === 'global') {
+      orden = await api(`/ordenes/${ordenId}/descuento-global`, {
+        method: 'POST',
+        body: JSON.stringify({ tipo, valor, motivo }),
+      });
+    } else if (target && target.startsWith('item-')) {
+      const detalleId = parseInt(target.replace('item-', ''));
+      orden = await api(`/ordenes/${ordenId}/descuento-item`, {
+        method: 'POST',
+        body: JSON.stringify({ detalle_id: detalleId, tipo, valor, motivo }),
+      });
+    } else {
+      return showToast('Selecciona un objetivo para el descuento', 'warning');
+    }
+
+    oc.orden = orden;
+    renderOcItems(orden);
+    document.getElementById('oc-discount-value').value = '';
+    document.getElementById('oc-discount-motivo').value = '';
+    showToast('Descuento aplicado correctamente', 'success');
+  } catch { /* api() handles error */ }
+}
+
+/* =========================================================================
    Daily Orders History — Caja Screen
    ========================================================================= */
 async function loadHistorialOrdenesDia() {
@@ -3494,15 +3602,18 @@ function renderHistorialOrdenesDia(ordenes) {
         <thead>
           <tr style="border-bottom:2px solid #e5e7eb;">
             <th style="text-align:left;padding:6px 8px;color:#6b7280;"># Orden</th>
-            <th style="text-align:left;padding:6px 8px;color:#6b7280;">Mesa</th>
+            <th style="text-align:left;padding:6px 8px;color:#6b7280;">Mesa / Cliente</th>
             <th style="text-align:left;padding:6px 8px;color:#6b7280;">Estado</th>
+            <th style="text-align:right;padding:6px 8px;color:#6b7280;">Subtotal</th>
+            <th style="text-align:right;padding:6px 8px;color:#6b7280;">Desc.</th>
             <th style="text-align:right;padding:6px 8px;color:#6b7280;">Total</th>
           </tr>
         </thead>
         <tbody>
           ${sorted.map(o => {
             const mesa = o.mesa_id ? state.tables.find(t => t.id === o.mesa_id) : null;
-            const mesaLabel = mesa ? `Mesa ${mesa.numero}` : 'Directa';
+            const mesaLabel = mesa ? `Mesa ${mesa.numero}` : (o.nombre_cliente ? `🛍️ ${o.nombre_cliente}` : '🛍️ Para Llevar');
+            const desc = parseFloat(o.descuento_total || 0);
             return `
               <tr style="border-bottom:1px solid #f3f4f6;">
                 <td style="padding:6px 8px;font-weight:600;">#${o.id}</td>
@@ -3513,6 +3624,8 @@ function renderHistorialOrdenesDia(ordenes) {
                     ${o.estado}
                   </span>
                 </td>
+                <td style="padding:6px 8px;text-align:right;font-weight:500;color:var(--azul-marino);">C$${parseFloat(o.subtotal || o.total).toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:right;font-weight:500;color:#E63946;">${desc > 0 ? '-C$' + desc.toFixed(2) : '—'}</td>
                 <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--azul-marino);">C$${parseFloat(o.total).toFixed(2)}</td>
               </tr>`;
           }).join('')}
@@ -4020,6 +4133,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('cancel-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('gasto-form')?.addEventListener('submit', (e) => { e.preventDefault(); guardarGasto(); });
+
+  // Para Llevar
+  document.getElementById('btn-para-llevar')?.addEventListener('click', openParaLlevarModal);
+
+  // Descuentos
+  document.getElementById('btn-aplicar-descuento')?.addEventListener('click', aplicarDescuentoOrder);
+  document.getElementById('oc-discount-value')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); aplicarDescuentoOrder(); }
+  });
 
   // Detalle Mesa Ocupada modal
   document.getElementById('close-detalle-mesa-ocupada')?.addEventListener('click', closeDetalleMesaOcupada);

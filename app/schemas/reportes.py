@@ -54,7 +54,15 @@ class CierreCajaPeriodoResponse(BaseModel):
     )
     ingresos_totales: float = Field(
         ...,
-        description="Suma de todas las ventas pagadas y cerradas en el periodo"
+        description="Suma neta de ventas pagadas en el periodo (ingresos_brutos - descuentos)"
+    )
+    total_descuentos: float = Field(
+        default=0.0,
+        description="Suma total de descuentos otorgados en el periodo"
+    )
+    ingresos_brutos: float = Field(
+        default=0.0,
+        description="Suma bruta de ventas antes de descuentos"
     )
     gastos_nomina: float = Field(
         ...,

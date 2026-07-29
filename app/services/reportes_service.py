@@ -85,18 +85,23 @@ class ReportesService:
         gastos_nomina = self.repo.obtener_gastos_nomina(fecha_inicio, fecha_fin)
         costos = self.repo.obtener_costo_insumos(fecha_inicio, fecha_fin)
         gastos_operativos = self.repo.obtener_gastos_operativos(fecha_inicio, fecha_fin)
+        descuentos = self.repo.obtener_descuentos_totales(fecha_inicio, fecha_fin)
         top_platillos = self.repo.obtener_top_platillos(fecha_inicio, fecha_fin)
 
         ingresos_f = float(ingresos)
         gastos_nomina_f = float(gastos_nomina)
         costos_f = float(costos)
         gastos_operativos_f = float(gastos_operativos)
+        descuentos_f = float(descuentos)
+        ingresos_brutos = ingresos_f + descuentos_f
 
         return CierreCajaPeriodoResponse(
             periodo=periodo.value,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             ingresos_totales=ingresos_f,
+            total_descuentos=descuentos_f,
+            ingresos_brutos=ingresos_brutos,
             gastos_nomina=gastos_nomina_f,
             costo_insumos=costos_f,
             gastos_operativos=gastos_operativos_f,

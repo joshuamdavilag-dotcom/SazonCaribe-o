@@ -120,6 +120,7 @@
         <header class="screen-header">
           <h2 class="title">🍽️ Mapa de Mesas</h2>
           <div class="header-actions">
+            <button class="btn btn-turquoise" id="btn-para-llevar" style="font-size:13px;height:36px;padding:0 14px;">🛍️ Para Llevar</button>
             <button class="btn btn-secondary admin-only" id="btn-gestion-mesas" style="font-size:13px;">⚙️ Gestionar Mesas</button>
             <span class="caption" id="salon-clock"></span>
           </div>
@@ -268,6 +269,13 @@
               <div class="cc-body">
                 <div class="cc-label">Gastos Operativos</div>
                 <div class="cc-value" id="cc-gastos-op">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card" style="border-left:4px solid #E63946;">
+              <div class="cc-icon">🏷️</div>
+              <div class="cc-body">
+                <div class="cc-label">Descuentos</div>
+                <div class="cc-value" id="cc-descuentos" style="color:#E63946;">C$0.00</div>
               </div>
             </div>
             <div class="cierre-card cierre-card--utilidad">
@@ -718,8 +726,11 @@
   <div id="modal-order" class="modal-overlay" aria-label="Tomar comanda">
     <div class="modal-sheet" style="max-width:920px;max-height:90vh;display:flex;flex-direction:column;">
       <div class="modal-header">
-        <h3 class="modal-title">Nueva Comanda — Mesa <span id="order-modal-mesa"></span></h3>
+        <h3 class="modal-title">Nueva Comanda — <span id="order-modal-mesa"></span></h3>
         <button class="modal-close" id="close-order-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="display:none;padding:0 16px 8px;" id="order-modal-cliente-row">
+        <input type="text" id="order-modal-cliente" class="form-input" placeholder="Nombre del cliente (opcional)" style="height:36px;font-size:13px;">
       </div>
       <div style="flex:1;display:flex;gap:0;overflow:hidden;">
         <!-- Left: Menú + buscador -->
@@ -740,6 +751,10 @@
             <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
               <span class="caption">Subtotal</span>
               <span class="price" id="order-modal-subtotal">C$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:var(--rojo-cangrejo);display:none;" id="order-modal-descuento-row">
+              <span class="caption">Descuento</span>
+              <span class="price" id="order-modal-descuento" style="color:var(--rojo-cangrejo);">-C$0.00</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
               <span style="font-weight:700;color:var(--azul-marino);">Total</span>
@@ -769,9 +784,33 @@
             <span class="caption">Subtotal</span>
             <span class="price" id="oc-subtotal">C$0.00</span>
           </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;display:none;" id="oc-descuento-row">
+            <span class="caption">Descuento</span>
+            <span class="price" style="color:var(--rojo-cangrejo);" id="oc-descuento">-C$0.00</span>
+          </div>
           <div style="display:flex;justify-content:space-between;">
             <span style="font-weight:700;color:var(--azul-marino);">Total</span>
             <span class="price-lg" style="color:var(--azul-marino);" id="oc-total">C$0.00</span>
+          </div>
+        </div>
+        <!-- Discount Controls -->
+        <div style="margin-bottom:12px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#f8fafc;">
+          <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--azul-marino);">🏷️ Aplicar Descuento</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="oc-discount-type" class="form-input" style="flex:1;height:34px;font-size:12px;">
+              <option value="porcentaje">% Porcentaje</option>
+              <option value="monto">C$ Monto Fijo</option>
+            </select>
+            <input type="number" id="oc-discount-value" class="form-input" style="width:80px;height:34px;font-size:12px;" step="0.01" min="0.01" placeholder="10">
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="oc-discount-target" class="form-input" style="flex:1;height:34px;font-size:12px;">
+              <option value="global">🌐 Toda la orden</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="oc-discount-motivo" class="form-input" style="flex:1;height:34px;font-size:12px;" placeholder="Motivo (opcional)">
+            <button class="btn btn-turquoise" id="btn-aplicar-descuento" style="height:34px;padding:0 12px;font-size:12px;white-space:nowrap;">Aplicar</button>
           </div>
         </div>
         <div style="display:flex;gap:8px;">

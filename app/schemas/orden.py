@@ -60,7 +60,21 @@ class DetalleOrdenResponse(BaseModel):
     precio_unitario: Decimal = Field(
         ...,
         decimal_places=2,
-        description="Precio unitario al momento de la venta (congelado)"
+        description="Precio unitario base al momento de la venta (congelado)"
+    )
+    descuento_porcentaje: Optional[Decimal] = Field(
+        default=None,
+        decimal_places=2,
+        description="Porcentaje de descuento aplicado (ej: 15.00 = 15%)"
+    )
+    descuento_monto: Optional[Decimal] = Field(
+        default=None,
+        decimal_places=2,
+        description="Monto fijo de descuento aplicado"
+    )
+    motivo_descuento: Optional[str] = Field(
+        default=None,
+        description="Motivo del descuento (ej: Cliente frecuente, Promoción)"
     )
     notas: Optional[str] = Field(
         default=None,
@@ -85,11 +99,16 @@ class DetalleOrdenResponse(BaseModel):
 
 class OrdenCreate(BaseModel):
     """Esquema para crear una nueva orden/pedido."""
-    mesa_id: int = Field(
-        ...,
+    mesa_id: Optional[int] = Field(
+        default=None,
         gt=0,
-        description="ID de la mesa del pedido",
+        description="ID de la mesa del pedido (null para llevar / venta directa)",
         examples=[1]
+    )
+    nombre_cliente: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Nombre del cliente (para llevar)",
     )
     detalles: List[DetalleOrdenCreate] = Field(
         ...,
@@ -125,7 +144,21 @@ class OrdenResponse(BaseModel):
     total: Decimal = Field(
         ...,
         decimal_places=2,
-        description="Total de la orden"
+        description="Total final de la orden (subtotal - descuentos)"
+    )
+    subtotal: Decimal = Field(
+        default=Decimal("0.00"),
+        decimal_places=2,
+        description="Suma de precios antes de descuentos"
+    )
+    descuento_total: Decimal = Field(
+        default=Decimal("0.00"),
+        decimal_places=2,
+        description="Monto total descontado"
+    )
+    nombre_cliente: Optional[str] = Field(
+        default=None,
+        description="Nombre del cliente (para llevar)"
     )
     fecha_creacion: datetime = Field(
         ...,
@@ -175,8 +208,58 @@ class VentaRetroactivaCreate(BaseModel):
         gt=0,
         description="ID de la mesa (null para venta directa / para llevar)",
     )
+    nombre_cliente: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Nombre del cliente (para llevar)",
+    )
     detalles: List[DetalleOrdenCreate] = Field(
         ...,
         min_length=1,
         description="Lista de ítems vendidos (al menos uno)",
+    )
+
+
+class AplicarDescuentoItemRequest(BaseModel):
+    """Esquema para aplicar descuento a un ítem específico de la orden."""
+    detalle_id: int = Field(
+        ...,
+        gt=0,
+        description="ID del DetalleOrden a descontar",
+    )
+    tipo: str = Field(
+        ...,
+        pattern="^(porcentaje|monto)$",
+        description="Tipo de descuento: 'porcentaje' o 'monto'",
+        examples=["porcentaje"],
+    )
+    valor: float = Field(
+        ...,
+        gt=0,
+        description="Valor del descuento (ej: 15 para 15% o 50.00 para C$50)",
+    )
+    motivo: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Motivo del descuento (ej: Cliente frecuente, Promoción)",
+    )
+
+
+class AplicarDescuentoGlobalRequest(BaseModel):
+    """Esquema para aplicar descuento global a toda la orden."""
+    tipo: str = Field(
+        ...,
+        pattern="^(porcentaje|monto)$",
+        description="Tipo de descuento: 'porcentaje' o 'monto'",
+        examples=["porcentaje"],
+    )
+    valor: float = Field(
+        ...,
+        gt=0,
+        description="Valor del descuento global (ej: 10 para 10% o 100.00 para C$100)",
+    )
+    motivo: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Motivo del descuento global",
     )

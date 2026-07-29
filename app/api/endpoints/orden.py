@@ -14,6 +14,8 @@ from app.schemas.orden import (
     ActualizarEstadoOrden,
     AgregarItemsOrdenRequest,
     VentaRetroactivaCreate,
+    AplicarDescuentoItemRequest,
+    AplicarDescuentoGlobalRequest,
 )
 from app.services.orden_service import OrdenService
 
@@ -165,3 +167,56 @@ def pagar_orden(
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     return service.pagar_orden(orden_id)
+
+
+# =====================================================================
+#  Descuentos
+# =====================================================================
+
+@router.post(
+    "/{orden_id}/descuento-item",
+    response_model=OrdenResponse,
+    summary="Aplicar descuento a un ítem de la orden",
+    description="Aplica descuento porcentual o monto fijo a un DetalleOrden específico.",
+    dependencies=[Depends(get_current_user)],
+)
+def aplicar_descuento_item(
+    orden_id: int = Path(..., gt=0),
+    body: AplicarDescuentoItemRequest = ...,
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    return service.aplicar_descuento_item(
+        orden_id, body.detalle_id, body.tipo, body.valor, body.motivo
+    )
+
+
+@router.post(
+    "/{orden_id}/descuento-global",
+    response_model=OrdenResponse,
+    summary="Aplicar descuento global a la orden",
+    description="Aplica descuento porcentual o monto fijo al total de la orden, repartido entre todos los ítems.",
+    dependencies=[Depends(get_current_user)],
+)
+def aplicar_descuento_global(
+    orden_id: int = Path(..., gt=0),
+    body: AplicarDescuentoGlobalRequest = ...,
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    return service.aplicar_descuento_global(
+        orden_id, body.tipo, body.valor, body.motivo
+    )
+
+
+@router.delete(
+    "/{orden_id}/descuento-item/{detalle_id}",
+    response_model=OrdenResponse,
+    summary="Quitar descuento de un ítem",
+    description="Elimina el descuento aplicado a un DetalleOrden específico.",
+    dependencies=[Depends(get_current_user)],
+)
+def quitar_descuento_item(
+    orden_id: int = Path(..., gt=0),
+    detalle_id: int = Path(..., gt=0),
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    return service.quitar_descuento_item(orden_id, detalle_id)
