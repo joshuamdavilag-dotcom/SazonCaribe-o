@@ -1077,7 +1077,10 @@ function openOrderModal(mesaId, mesaNumero) {
   const searchInput = document.getElementById('order-modal-search');
   if (searchInput) searchInput.value = '';
   const clienteInput = document.getElementById('order-modal-cliente');
-  if (clienteInput) clienteInput.value = '';
+  if (clienteInput) {
+    clienteInput.value = '';
+    if (!mesaId) setTimeout(() => clienteInput.focus(), 300);
+  }
 
   document.getElementById('order-modal-cart').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
@@ -1092,6 +1095,7 @@ function openOrderModal(mesaId, mesaNumero) {
 function abrirOrdenParaLlevar() {
   openOrderModal(null, null);
 }
+window.abrirOrdenParaLlevar = abrirOrdenParaLlevar;
 function openParaLlevarModal() {
   abrirOrdenParaLlevar();
 }
