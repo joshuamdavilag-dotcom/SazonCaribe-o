@@ -66,15 +66,15 @@ class CierreCajaPeriodoResponse(BaseModel):
     )
     gastos_nomina: float = Field(
         ...,
-        description="Suma proporcional de salarios y horas extras devengados en el periodo"
+        description="Salidas de efectivo por nómina: salarios pagados (pago_neto) + adelantos de salario"
     )
     costo_insumos: float = Field(
         ...,
-        description="Costo total de ingredientes utilizados en recetas vendidas"
+        description="Salidas de efectivo por insumos (gastos de la tabla `gastos` con categoría SUMINISTROS)"
     )
     gastos_operativos: float = Field(
         ...,
-        description="Gastos operativos registrados en el periodo (suministros, mantenimiento, etc.)"
+        description="Gastos operativos de la tabla `gastos` (OPERATIVO, SERVICIOS, IMPUESTOS, MANTENIMIENTO, OTROS)"
     )
     utilidad_neta: float = Field(
         ...,

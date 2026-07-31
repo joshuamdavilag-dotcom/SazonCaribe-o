@@ -45,9 +45,10 @@ def cierre_caja(
 
     Métricas retornadas:
     - **ingresos_totales**: Suma de órdenes pagadas en el periodo
-    - **gastos_nomina**: Nóminas pagadas en el periodo (salario + horas extras)
-    - **costo_insumos**: Costo de ingredientes usados en recetas vendidas
-    - **utilidad_neta**: Ingresos - (Gastos Nómina + Costo Insumos)
+    - **gastos_nomina**: Nóminas pagadas en el periodo (salario + horas extras) + adelantos de salario registrados
+    - **costo_insumos**: Salidas de efectivo por insumos (gastos categoría SUMINISTROS)
+    - **gastos_operativos**: Resto de gastos (OPERATIVO, SERVICIOS, IMPUESTOS, MANTENIMIENTO, OTROS)
+    - **utilidad_neta**: Ingresos - (Gastos Nómina + Costo Insumos + Gastos Operativos) — flujo de efectivo, sin costo teórico de recetas
     - **ordenes_pagadas** / **ordenes_canceladas**: Conteo por estado
     - **top_platillos**: Los 5 platos más vendidos con sus ingresos
 

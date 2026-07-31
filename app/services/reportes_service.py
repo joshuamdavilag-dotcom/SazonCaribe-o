@@ -89,10 +89,7 @@ class ReportesService:
                 self.repo.obtener_gastos_nomina(hoy, hoy)
                 + gastos_clasificados["gastos_nomina"]
             )
-            costos = (
-                self.repo.obtener_costo_insumos_sin_archivar()
-                + gastos_clasificados["costo_insumos"]
-            )
+            costos = gastos_clasificados["costo_insumos"]
             gastos_operativos = gastos_clasificados["gastos_operativos"]
             descuentos = self.repo.obtener_descuentos_totales_sin_archivar()
             top_platillos = self.repo.obtener_top_platillos_sin_archivar()
@@ -106,10 +103,7 @@ class ReportesService:
                 self.repo.obtener_gastos_nomina(fecha_inicio, fecha_fin)
                 + gastos_clasificados["gastos_nomina"]
             )
-            costos = (
-                self.repo.obtener_costo_insumos(fecha_inicio, fecha_fin)
-                + gastos_clasificados["costo_insumos"]
-            )
+            costos = gastos_clasificados["costo_insumos"]
             gastos_operativos = gastos_clasificados["gastos_operativos"]
             descuentos = self.repo.obtener_descuentos_totales(fecha_inicio, fecha_fin)
             top_platillos = self.repo.obtener_top_platillos(fecha_inicio, fecha_fin)

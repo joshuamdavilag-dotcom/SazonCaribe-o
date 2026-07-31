@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.nomina import Nomina, AdelantoSalario
-from app.models.menu import MenuItem, Receta
-from app.models.inventario import Insumo
+from app.models.menu import MenuItem
 from app.models.gasto import Gasto, CategoriaGasto
 
 
@@ -81,46 +80,6 @@ class ReportesRepository:
                 Nomina.fecha_pago.isnot(None),
                 func.date(Nomina.fecha_pago) >= fecha_inicio,
                 func.date(Nomina.fecha_pago) <= fecha_fin,
-            )
-        )
-        return self.db.execute(stmt).scalar_one()
-
-    def obtener_costo_insumos(
-        self,
-        fecha_inicio: date,
-        fecha_fin: date,
-    ) -> Decimal:
-        """
-        Calcula el costo total de ingredientes utilizados en las recetas
-        vendidas durante el periodo.
-
-        Lógica:
-        1. Filtra DetalleOrden de órdenes PAGADA en el rango de fechas.
-        2. Para cada detalle, navega: DetalleOrden -> Receta -> Insumo.
-        3. Costo por detalle = SUM(cantidad_necesaria * insumo.costo_unitario) * cantidad_vendida
-        4. Suma el total de todos los detalles.
-        """
-        stmt = (
-            select(
-                func.coalesce(
-                    func.sum(
-                        Receta.cantidad_necesaria
-                        * Insumo.costo_unitario
-                        * DetalleOrden.cantidad
-                    ),
-                    Decimal("0.00"),
-                )
-            )
-            .select_from(Orden)
-            .join(DetalleOrden, DetalleOrden.orden_id == Orden.id)
-            .join(Receta, Receta.menu_item_id == DetalleOrden.producto_id)
-            .join(Insumo, Insumo.id == Receta.insumo_id)
-            .where(
-                and_(
-                    Orden.estado == EstadoOrden.PAGADA,
-                    func.date(Orden.fecha_creacion) >= fecha_inicio,
-                    func.date(Orden.fecha_creacion) <= fecha_fin,
-                )
             )
         )
         return self.db.execute(stmt).scalar_one()
@@ -274,31 +233,6 @@ class ReportesRepository:
             "pagadas": self.db.execute(pagadas).scalar_one() or 0,
             "canceladas": self.db.execute(canceladas).scalar_one() or 0,
         }
-
-    def obtener_costo_insumos_sin_archivar(self) -> Decimal:
-        stmt = (
-            select(
-                func.coalesce(
-                    func.sum(
-                        Receta.cantidad_necesaria
-                        * Insumo.costo_unitario
-                        * DetalleOrden.cantidad
-                    ),
-                    Decimal("0.00"),
-                )
-            )
-            .select_from(Orden)
-            .join(DetalleOrden, DetalleOrden.orden_id == Orden.id)
-            .join(Receta, Receta.menu_item_id == DetalleOrden.producto_id)
-            .join(Insumo, Insumo.id == Receta.insumo_id)
-            .where(
-                and_(
-                    Orden.estado == EstadoOrden.PAGADA,
-                    Orden.cierre_caja_id.is_(None),
-                )
-            )
-        )
-        return self.db.execute(stmt).scalar_one()
 
     def obtener_descuentos_totales_sin_archivar(self) -> Decimal:
         stmt = select(

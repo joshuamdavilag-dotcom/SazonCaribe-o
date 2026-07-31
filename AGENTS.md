@@ -221,7 +221,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **UnidadMedida**: Dynamic units (nombre, abreviatura, tipo_magnitud: PESO/VOLUMEN/UNIDAD/PERSONALIZADO, unidad_base_id FK, factor_conversion); delete guarded if unit has associated insumos; startup migration `_fix_unidades_medida()` corrects magnitudes and conversion chains for all 15 standard units
 - **Gastos operativos**: `Gasto` table tracks operational expenses (categoría: OPERATIVO, MANTENIMIENTO, SUMINISTROS, SERVICIOS, IMPUESTOS, OTROS)
 - **Gastos auto-generados**: Every SALIDA de inventario (manual or recipe-based) auto-creates a `Gasto` with `categoria=SUMINISTROS` and `monto=cantidad×costo_unitario`
-- **Reportes financieros**: `utilidad_neta = ingresos_totales - gastos_nomina - costo_insumos - gastos_operativos`
+- **Reportes financieros**: `utilidad_neta = ingresos_totales - gastos_nomina - costo_insumos - gastos_operativos` — flujo de caja real: `costo_insumos` = gastos SUMINISTROS únicamente (NO costo teórico de recetas, para evitar doble contabilidad)
 - **Archivado**: `Orden.cierre_caja_id` FK links orders to cierre session; `historial-diario` filters `cierre_caja_id IS NULL`
 - **Dynamic zones**: `Zona` model with FK from Mesa; delete guarded if zone has mesas
 - **Dynamic menu categories**: `CategoriaMenu` model, backend CRUD, delete guarded
@@ -333,7 +333,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `InventarioService.registrar_movimiento()` — calls `gasto_service.registrar_gasto_automatico()` when `tipo=SALIDA`
 - `ReportesRepository.obtener_gastos_clasificados()` — classifies gastos-table records in a date range into 3 buckets: `costo_insumos` (categoría SUMINISTROS), `gastos_nomina` (gastos ligados a `adelantos_salario`), `gastos_operativos` (OPERATIVO/MANTENIMIENTO/SERVICIOS/IMPUESTOS/OTROS)
 - `ReportesRepository.obtener_gastos_clasificados_sin_archivar()` — same classification for unarchived gastos (`cierre_caja_id IS NULL`); used by the DIARIO caja dashboard
-- `ReportesService.obtener_cierre()` — utilidad_neta subtracts gastos_nomina + costo_insumos + gastos_operativos; gastos-table buckets are ADDED on top of the Nomina-table (pago_neto) and receta-based costo_insumos sources
+- `ReportesService.obtener_cierre()` — utilidad_neta subtracts gastos_nomina + costo_insumos + gastos_operativos; `gastos_nomina` suma los adelantos de la tabla gastos sobre el `pago_neto` de la tabla Nominas, y `costo_insumos` es SOLO el bucket SUMINISTROS de la tabla gastos (el costo teórico de recetas NO se usa para evitar doble contabilidad)
 - **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form (with date picker); `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/` with optional `fecha`; Admin/Gerente only via `.nav-item-admin`
 
 ### Kitchen production (batch preparation)
@@ -399,12 +399,11 @@ ReportesService.obtener_cierre()
   ├── repo.obtener_ingresos_totales()    → SUM(Orden.total) WHERE PAGADA
   ├── repo.contar_ordenes()              → COUNT pagadas + canceladas
   ├── repo.obtener_gastos_nomina()       → SUM(Nomina.pago_neto) WHERE PAGADO
-  ├── repo.obtener_costo_insumos()       → JOIN Orden→DetalleOrden→Receta→Ingrediente → SUM(cost)
   ├── repo.obtener_gastos_clasificados() → gastos table split: SUMINISTROS→insumos, adelantos→nómina, resto→operativos
   ├── repo.obtener_descuentos_totales()  → SUM(Orden.descuento_total) WHERE PAGADA
   └── repo.obtener_top_platillos()       → GROUP BY producto, ORDER BY qty DESC, LIMIT 5
 utilidad_neta = ingresos - nómina - insumos - gastos_operativos
-(gastos_nomina y costo_insumos suman los buckets de la tabla gastos sobre las fuentes de Nomina/recetas)
+(costo_insumos usa SOLO el bucket SUMINISTROS de la tabla gastos — NO el costo teórico de recetas — para evitar doble contabilidad)
 ```
 
 ### Cierre de caja archival flow
