@@ -1190,6 +1190,9 @@ function changeOrderModalQty(itemId, delta) {
     existing.cantidad += delta;
     if (existing.cantidad <= 0) {
       state.currentOrder.items = state.currentOrder.items.filter(i => i.producto_id !== itemId);
+    } else if (existing._descuentoMonto) {
+      const linea = existing.precio_unitario * existing.cantidad;
+      if (existing._descuentoMonto > linea) existing._descuentoMonto = linea;
     }
   } else if (delta > 0) {
     state.currentOrder.items.push({
@@ -1212,20 +1215,23 @@ function renderOrderModalCart() {
     return;
   }
 
-  cart.innerHTML = items.map((item, idx) => `
+  cart.innerHTML = items.map((item, idx) => {
+    const desc = item._descuentoMonto || 0;
+    return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nombre}</div>
-        <div style="font-size:12px;color:#6b7280;">C$${item.precio_unitario.toFixed(2)}${item._precioAjustado ? ' <span style="color:var(--amarillo-solar);font-size:10px;">✏️</span>' : ''}</div>
+        <div style="font-size:12px;color:#6b7280;">C$${item.precio_unitario.toFixed(2)}${item._precioAjustado ? ' <span style="color:var(--amarillo-solar);font-size:10px;">✏️</span>' : ''}${desc > 0 ? ` <span style="color:var(--rojo-cangrejo);font-weight:600;">· -C$${desc.toFixed(2)}</span>` : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
         <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, -1)" style="width:26px;height:26px;font-size:14px;">−</button>
         <span style="min-width:20px;text-align:center;font-weight:600;font-size:13px;">${item.cantidad}</span>
         <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, 1)" style="width:26px;height:26px;font-size:14px;">+</button>
-        <button onclick="ajustarPrecioItem(${idx})" style="background:none;border:none;color:var(--amarillo-solar);font-size:14px;cursor:pointer;padding:2px 4px;" title="Ajustar precio">✏️</button>
+        <button onclick="aplicarDescuentoItemModal(${idx})" style="background:none;border:none;color:${desc > 0 ? 'var(--rojo-cangrejo)' : 'var(--amarillo-solar)'};font-size:14px;cursor:pointer;padding:2px 4px;" title="Descuento en C$">✏️</button>
         <button onclick="deleteOrderItem(${idx})" style="background:none;border:none;color:#E63946;font-size:14px;cursor:pointer;padding:2px 4px;" title="Eliminar">🗑</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function deleteOrderItem(idx) {
@@ -1235,29 +1241,61 @@ function deleteOrderItem(idx) {
   updateOrderModalTotals();
 }
 
-function ajustarPrecioItem(idx) {
+function aplicarDescuentoItemModal(idx) {
   const items = state.currentOrder.items;
   const item = items[idx];
   if (!item) return;
-  const input = prompt(`Ajustar precio unitario para "${item.nombre}"\n(Precio actual: C$${item.precio_unitario.toFixed(2)})`, item.precio_unitario.toFixed(2));
+  const linea = item.precio_unitario * item.cantidad;
+  const actual = item._descuentoMonto || 0;
+  const input = prompt(
+    `Descuento en Córdobas (C$) para "${item.nombre}"\n\n` +
+    `Subtotal del ítem: C$${linea.toFixed(2)}\n` +
+    `Descuento actual: C$${actual.toFixed(2)}\n\n` +
+    `Ingresa 0 o deja vacío para quitar el descuento.`,
+    actual > 0 ? actual.toFixed(2) : ''
+  );
   if (input === null) return;
-  const nuevo = parseFloat(input);
-  if (isNaN(nuevo) || nuevo <= 0) return showToast('Ingresa un precio válido mayor a 0', 'warning');
-  item.precio_unitario = nuevo;
-  item._precioAjustado = true;
+  const texto = input.trim();
+  if (texto === '') {
+    delete item._descuentoMonto;
+    renderOrderModalCart();
+    updateOrderModalTotals();
+    showToast(`Descuento de "${item.nombre}" eliminado`, 'success');
+    return;
+  }
+  const monto = parseFloat(texto);
+  if (isNaN(monto) || monto < 0) return showToast('Ingresa un monto de descuento válido', 'warning');
+  if (monto > linea) return showToast(`El descuento no puede exceder C$${linea.toFixed(2)} (total del ítem)`, 'warning');
+  if (monto === 0) {
+    delete item._descuentoMonto;
+    renderOrderModalCart();
+    updateOrderModalTotals();
+    showToast(`Descuento de "${item.nombre}" eliminado`, 'success');
+    return;
+  }
+  item._descuentoMonto = monto;
   renderOrderModalCart();
   updateOrderModalTotals();
-  showToast(`Precio de "${item.nombre}" ajustado a C$${nuevo.toFixed(2)}`, 'success');
+  showToast(`Descuento de C$${monto.toFixed(2)} aplicado a "${item.nombre}"`, 'success');
 }
-window.ajustarPrecioItem = ajustarPrecioItem;
+window.aplicarDescuentoItemModal = aplicarDescuentoItemModal;
 
 function updateOrderModalTotals() {
   const items = state.currentOrder.items;
   const count = items.reduce((s, i) => s + i.cantidad, 0);
   const subtotal = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0);
+  const descuento = items.reduce((s, i) => s + (i._descuentoMonto || 0), 0);
+  const total = Math.max(subtotal - descuento, 0);
   document.getElementById('order-modal-count').textContent = count;
   document.getElementById('order-modal-subtotal').textContent = `C$${subtotal.toFixed(2)}`;
-  document.getElementById('order-modal-total').textContent = `C$${subtotal.toFixed(2)}`;
+  const descRow = document.getElementById('order-modal-descuento-row');
+  if (descuento > 0) {
+    descRow.style.display = '';
+    document.getElementById('order-modal-descuento').textContent = `-C$${descuento.toFixed(2)}`;
+  } else {
+    descRow.style.display = 'none';
+  }
+  document.getElementById('order-modal-total').textContent = `C$${total.toFixed(2)}`;
 }
 
 function filterOrderModalByCategory(cat) {
@@ -1289,6 +1327,7 @@ async function submitOrder() {
           items: items.map(i => {
             const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas };
             if (i._precioAjustado) obj.precio_unitario = i.precio_unitario;
+            if (i._descuentoMonto) obj.descuento_monto = i._descuentoMonto;
             return obj;
           }),
         }),
@@ -1307,6 +1346,7 @@ async function submitOrder() {
           detalles: items.map(i => {
             const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas };
             if (i._precioAjustado) obj.precio_unitario = i.precio_unitario;
+            if (i._descuentoMonto) obj.descuento_monto = i._descuentoMonto;
             return obj;
           }),
         }),

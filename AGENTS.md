@@ -212,7 +212,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction. If mesa_id is null (para llevar), only sets PAGADA.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
 - **Adelantos de Salario**: `AdelantoSalario` model linked to Empleado + Nomina (via `total_adelantos`); auto-creates a `Gasto` (OPERATIVO) on registration; deducted from `pago_neto` in nomina calculations; API at `POST /nomina/adelantos`, `GET /nomina/empleados/{id}/adelantos`
-- **Descuentos**: Per-item (`descuento_porcentaje` / `descuento_monto` + `motivo_descuento` on `DetalleOrden`) or global (distributed proportionally). `Orden.subtotal` is sum of line totals before discount; `descuento_total` is total discount; `Orden.total = subtotal - descuento_total`. Discounts applied via `POST /ordenes/{id}/descuento-item` and `POST /ordenes/{id}/descuento-global`. Removed via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`.
+- **Descuentos**: Per-item (`descuento_porcentaje` / `descuento_monto` + `motivo_descuento` on `DetalleOrden`) or global (distributed proportionally). `Orden.subtotal` is sum of line totals before discount; `descuento_total` is total discount; `Orden.total = subtotal - descuento_total`. Discounts applied via `POST /ordenes/{id}/descuento-item` and `POST /ordenes/{id}/descuento-global`. Removed via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`. **Al crear/editar comanda**: el botón ✏️ de cada ítem del modal solicita un Descuento en C$ (`aplicarDescuentoItemModal()`), se envía como `descuento_monto` en `DetalleOrdenCreate` (create + `POST /ordenes/{id}/items`), y el backend lo aplica en `_procesar_detalles()` (valida que no exceda el total de la línea, 400 en caso contrario).
 - **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
 - **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements; optional `unidad_empaque_id` FK + `factor_empaque` (1 empaque = X base); conversion in stock/recipes uses per-insumo packaging factor before falling back to global chain
@@ -324,7 +324,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `validar_stock_suficiente()` — validates all recipe ingredients have enough stock before any order operations
 - `descontar_stock()` — deducts stock, creates `MovimientoInventario` (SALIDA), auto-generates `Gasto` (SUMINISTROS)
 - `revertir_stock()` — reverses all ingredient stock on cancellation, creates ENTRADA audit trail
-- `_procesar_detalles()` — delegates to the three named functions; used by both `crear_orden()` and `agregar_items_canonico()`
+- `_procesar_detalles()` — delegates to the three named functions; applies per-item C$ discount (`DetalleOrdenCreate.descuento_monto`/`motivo_descuento`), validates discount ≤ line total (400 otherwise), computes `descuento_porcentaje`, and returns `(detalles, subtotal, descuento_total)`; used by both `crear_orden()` and `agregar_items_canonico()`
 - `cambiar_estado()` — calls `revertir_stock()` inside `begin_nested()` when transitioning to CANCELADA
 
 ### Gastos module

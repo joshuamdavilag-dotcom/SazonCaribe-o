@@ -173,16 +173,20 @@ class OrdenService:
         self,
         detalles: list[DetalleOrdenCreate],
         contexto: str,
-    ) -> tuple[list[DetalleOrden], Decimal]:
+    ) -> tuple[list[DetalleOrden], Decimal, Decimal]:
         """Valida stock, descuenta inventario y crea DetalleOrden en memoria.
 
-        Retorna (detalles_creados, total_acumulado).
+        Aplica el descuento en C$ del ítem (si lo trae) validando que no
+        exceda el total de la línea.
+
+        Retorna (detalles_creados, subtotal_acumulado, descuento_acumulado).
         """
         self.validar_stock_suficiente(detalles)
         self.descontar_stock(detalles, contexto)
 
         detalles_creados: list[DetalleOrden] = []
-        total_acumulado = Decimal("0.00")
+        subtotal_acumulado = Decimal("0.00")
+        descuento_acumulado = Decimal("0.00")
 
         for item in detalles:
             producto = self.menu_repo.obtener_menu_item_por_id(
@@ -193,16 +197,40 @@ class OrdenService:
                 if item.precio_unitario is not None
                 else Decimal(str(producto.precio))
             )
-            total_acumulado += precio_unitario * item.cantidad
+            base_linea = precio_unitario * item.cantidad
+            subtotal_acumulado += base_linea
+
+            descuento_monto = item.descuento_monto
+            if descuento_monto is not None:
+                descuento_monto = Decimal(str(descuento_monto)).quantize(Decimal("0.01"))
+                if descuento_monto > base_linea:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"El descuento de C${descuento_monto} excede el total "
+                            f"del ítem '{producto.nombre}' (C${base_linea})."
+                        ),
+                    )
+                if descuento_monto > 0:
+                    descuento_acumulado += descuento_monto
+
+            descuento_porcentaje = None
+            if descuento_monto and base_linea > 0:
+                descuento_porcentaje = (
+                    descuento_monto / base_linea * Decimal("100")
+                ).quantize(Decimal("0.01"))
 
             detalles_creados.append(DetalleOrden(
                 producto_id=item.producto_id,
                 cantidad=item.cantidad,
                 precio_unitario=precio_unitario,
                 notas=item.notas,
+                descuento_monto=descuento_monto,
+                descuento_porcentaje=descuento_porcentaje,
+                motivo_descuento=item.motivo_descuento,
             ))
 
-        return detalles_creados, total_acumulado
+        return detalles_creados, subtotal_acumulado, descuento_acumulado
 
     # ================================================================== #
     #  One-active-order-per-mesa validation                               #
@@ -261,7 +289,7 @@ class OrdenService:
 
         try:
             with self.db.begin_nested():
-                detalles_creados, total = self._procesar_detalles(
+                detalles_creados, subtotal, descuento_total = self._procesar_detalles(
                     orden_in.detalles,
                     contexto=(
                         f"Descuento por Orden Mesa {orden_in.mesa_id}"
@@ -273,9 +301,9 @@ class OrdenService:
                 orden_db = Orden(
                     mesa_id=orden_in.mesa_id,
                     mesero_id=mesero_id,
-                    total=total,
-                    subtotal=total,
-                    descuento_total=Decimal("0.00"),
+                    total=max(subtotal - descuento_total, Decimal("0.00")),
+                    subtotal=subtotal,
+                    descuento_total=descuento_total,
                     nombre_cliente=orden_in.nombre_cliente,
                     estado=EstadoOrden.PENDIENTE,
                     detalles=detalles_creados,
@@ -318,12 +346,18 @@ class OrdenService:
 
         try:
             with self.db.begin_nested():
-                detalles_creados, subtotal_nuevos = self._procesar_detalles(
+                detalles_creados, subtotal_nuevos, descuento_nuevos = self._procesar_detalles(
                     nuevos_detalles,
                     contexto=f"Agregado a Orden #{orden_id}",
                 )
                 orden.subtotal += subtotal_nuevos
-                orden.total = orden.subtotal - (orden.descuento_total or Decimal("0.00"))
+                orden.descuento_total = (
+                    (orden.descuento_total or Decimal("0.00")) + descuento_nuevos
+                )
+                orden.total = max(
+                    orden.subtotal - (orden.descuento_total or Decimal("0.00")),
+                    Decimal("0.00"),
+                )
 
                 for detalle in detalles_creados:
                     detalle.orden_id = orden_id

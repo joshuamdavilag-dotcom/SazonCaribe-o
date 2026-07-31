@@ -37,6 +37,17 @@ class DetalleOrdenCreate(BaseModel):
         description="Notas especiales (ej: sin cebolla, poco cocido)",
         examples=["Sin cebolla, té frío sin hielo"]
     )
+    descuento_monto: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+        description="Descuento fijo en Córdobas (C$) a aplicar al ítem al crearlo",
+    )
+    motivo_descuento: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Motivo del descuento (ej: Cliente frecuente, Promoción)",
+    )
 
 
 class DetalleOrdenResponse(BaseModel):
