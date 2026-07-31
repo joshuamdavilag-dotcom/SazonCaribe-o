@@ -6,10 +6,10 @@ from sqlalchemy import select, func, case, and_, literal_column
 from sqlalchemy.orm import Session
 
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
-from app.models.nomina import Nomina
+from app.models.nomina import Nomina, AdelantoSalario
 from app.models.menu import MenuItem, Receta
 from app.models.inventario import Insumo
-from app.models.gasto import Gasto
+from app.models.gasto import Gasto, CategoriaGasto
 
 
 class ReportesRepository:
@@ -187,20 +187,66 @@ class ReportesRepository:
         )
         return self.db.execute(stmt).scalar_one()
 
-    def obtener_gastos_operativos(
+    def _stmt_gastos_clasificados(self, *filtros):
+        """Consulta que clasifica los gastos de la tabla `gastos` en 3 buckets.
+
+        - costo_insumos:    categoría SUMINISTROS (consumo de inventario)
+        - gastos_nomina:    adelantos de salario (gastos ligados a adelantos_salario)
+        - gastos_operativos: el resto (OPERATIVO, MANTENIMIENTO, SERVICIOS,
+                            IMPUESTOS, OTROS)
+        """
+        adelanto_subq = select(AdelantoSalario.gasto_id).where(
+            AdelantoSalario.gasto_id.isnot(None)
+        ).scalar_subquery()
+        stmt = select(
+            func.coalesce(
+                func.sum(case(
+                    (Gasto.categoria == CategoriaGasto.SUMINISTROS, Gasto.monto),
+                    else_=0,
+                )),
+                Decimal("0.00"),
+            ).label("costo_insumos"),
+            func.coalesce(
+                func.sum(case(
+                    (Gasto.id.in_(adelanto_subq), Gasto.monto),
+                    else_=0,
+                )),
+                Decimal("0.00"),
+            ).label("gastos_nomina"),
+            func.coalesce(
+                func.sum(case(
+                    (
+                        and_(
+                            Gasto.categoria != CategoriaGasto.SUMINISTROS,
+                            Gasto.id.notin_(adelanto_subq),
+                        ),
+                        Gasto.monto,
+                    ),
+                    else_=0,
+                )),
+                Decimal("0.00"),
+            ).label("gastos_operativos"),
+        )
+        if filtros:
+            stmt = stmt.where(*filtros)
+        return stmt
+
+    def obtener_gastos_clasificados(
         self,
         fecha_inicio: date,
         fecha_fin: date,
-    ) -> Decimal:
-        stmt = select(
-            func.coalesce(func.sum(Gasto.monto), Decimal("0.00"))
-        ).where(
-            and_(
-                func.date(Gasto.fecha) >= fecha_inicio,
-                func.date(Gasto.fecha) <= fecha_fin,
-            )
+    ) -> Dict[str, Decimal]:
+        """Clasifica los gastos de la tabla `gastos` dentro del rango de fechas."""
+        stmt = self._stmt_gastos_clasificados(
+            func.date(Gasto.fecha) >= fecha_inicio,
+            func.date(Gasto.fecha) <= fecha_fin,
         )
-        return self.db.execute(stmt).scalar_one()
+        row = self.db.execute(stmt).one()
+        return {
+            "costo_insumos": row.costo_insumos,
+            "gastos_nomina": row.gastos_nomina,
+            "gastos_operativos": row.gastos_operativos,
+        }
 
     # ─── Métodos para caja actual (sin archivar) ───────────────────────
 
@@ -303,8 +349,12 @@ class ReportesRepository:
             for row in rows
         ]
 
-    def obtener_gastos_operativos_sin_archivar(self) -> Decimal:
-        stmt = select(
-            func.coalesce(func.sum(Gasto.monto), Decimal("0.00"))
-        ).where(Gasto.cierre_caja_id.is_(None))
-        return self.db.execute(stmt).scalar_one()
+    def obtener_gastos_clasificados_sin_archivar(self) -> Dict[str, Decimal]:
+        """Clasifica los gastos sin archivar (caja actual, cierre_caja_id IS NULL)."""
+        stmt = self._stmt_gastos_clasificados(Gasto.cierre_caja_id.is_(None))
+        row = self.db.execute(stmt).one()
+        return {
+            "costo_insumos": row.costo_insumos,
+            "gastos_nomina": row.gastos_nomina,
+            "gastos_operativos": row.gastos_operativos,
+        }

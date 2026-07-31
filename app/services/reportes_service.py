@@ -84,9 +84,16 @@ class ReportesService:
         if fecha_inicio is None:
             ingresos = self.repo.obtener_ingresos_totales_sin_archivar()
             conteo = self.repo.contar_ordenes_sin_archivar()
-            gastos_nomina = self.repo.obtener_gastos_nomina(hoy, hoy)
-            costos = self.repo.obtener_costo_insumos_sin_archivar()
-            gastos_operativos = self.repo.obtener_gastos_operativos_sin_archivar()
+            gastos_clasificados = self.repo.obtener_gastos_clasificados_sin_archivar()
+            gastos_nomina = (
+                self.repo.obtener_gastos_nomina(hoy, hoy)
+                + gastos_clasificados["gastos_nomina"]
+            )
+            costos = (
+                self.repo.obtener_costo_insumos_sin_archivar()
+                + gastos_clasificados["costo_insumos"]
+            )
+            gastos_operativos = gastos_clasificados["gastos_operativos"]
             descuentos = self.repo.obtener_descuentos_totales_sin_archivar()
             top_platillos = self.repo.obtener_top_platillos_sin_archivar()
             fecha_inicio = hoy
@@ -94,9 +101,16 @@ class ReportesService:
         else:
             ingresos = self.repo.obtener_ingresos_totales(fecha_inicio, fecha_fin)
             conteo = self.repo.contar_ordenes(fecha_inicio, fecha_fin)
-            gastos_nomina = self.repo.obtener_gastos_nomina(fecha_inicio, fecha_fin)
-            costos = self.repo.obtener_costo_insumos(fecha_inicio, fecha_fin)
-            gastos_operativos = self.repo.obtener_gastos_operativos(fecha_inicio, fecha_fin)
+            gastos_clasificados = self.repo.obtener_gastos_clasificados(fecha_inicio, fecha_fin)
+            gastos_nomina = (
+                self.repo.obtener_gastos_nomina(fecha_inicio, fecha_fin)
+                + gastos_clasificados["gastos_nomina"]
+            )
+            costos = (
+                self.repo.obtener_costo_insumos(fecha_inicio, fecha_fin)
+                + gastos_clasificados["costo_insumos"]
+            )
+            gastos_operativos = gastos_clasificados["gastos_operativos"]
             descuentos = self.repo.obtener_descuentos_totales(fecha_inicio, fecha_fin)
             top_platillos = self.repo.obtener_top_platillos(fecha_inicio, fecha_fin)
 

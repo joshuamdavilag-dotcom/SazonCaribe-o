@@ -81,7 +81,7 @@ app/
 │   ├── orden_repository.py
 │   ├── caja_repository.py
 │   ├── gasto_repository.py       # obtener_por_rango(), sumar_por_rango()
-│   ├── reportes_repository.py    # + obtener_gastos_operativos(), obtener_descuentos_totales()
+│   ├── reportes_repository.py    # + obtener_gastos_clasificados(), obtener_descuentos_totales()
 │   └── analitica_repository.py
 ├── services/
 │   ├── personal_service.py
@@ -331,8 +331,9 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `Gasto` model with `CategoriaGasto` enum (OPERATIVO, MANTENIMIENTO, SUMINISTROS, SERVICIOS, IMPUESTOS, OTROS)
 - `GastoService.registrar_gasto_automatico()` — creates SUMINISTROS gastos from SALIDA inventory movements
 - `InventarioService.registrar_movimiento()` — calls `gasto_service.registrar_gasto_automatico()` when `tipo=SALIDA`
-- `ReportesRepository.obtener_gastos_operativos()` — sums all Gasto.monto in a date range
-- `ReportesService.obtener_cierre()` — utilidad_neta now subtracts gastos_operativos
+- `ReportesRepository.obtener_gastos_clasificados()` — classifies gastos-table records in a date range into 3 buckets: `costo_insumos` (categoría SUMINISTROS), `gastos_nomina` (gastos ligados a `adelantos_salario`), `gastos_operativos` (OPERATIVO/MANTENIMIENTO/SERVICIOS/IMPUESTOS/OTROS)
+- `ReportesRepository.obtener_gastos_clasificados_sin_archivar()` — same classification for unarchived gastos (`cierre_caja_id IS NULL`); used by the DIARIO caja dashboard
+- `ReportesService.obtener_cierre()` — utilidad_neta subtracts gastos_nomina + costo_insumos + gastos_operativos; gastos-table buckets are ADDED on top of the Nomina-table (pago_neto) and receta-based costo_insumos sources
 - **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form (with date picker); `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/` with optional `fecha`; Admin/Gerente only via `.nav-item-admin`
 
 ### Kitchen production (batch preparation)
@@ -399,10 +400,11 @@ ReportesService.obtener_cierre()
   ├── repo.contar_ordenes()              → COUNT pagadas + canceladas
   ├── repo.obtener_gastos_nomina()       → SUM(Nomina.pago_neto) WHERE PAGADO
   ├── repo.obtener_costo_insumos()       → JOIN Orden→DetalleOrden→Receta→Ingrediente → SUM(cost)
-  ├── repo.obtener_gastos_operativos()   → SUM(Gasto.monto) in range
+  ├── repo.obtener_gastos_clasificados() → gastos table split: SUMINISTROS→insumos, adelantos→nómina, resto→operativos
   ├── repo.obtener_descuentos_totales()  → SUM(Orden.descuento_total) WHERE PAGADA
   └── repo.obtener_top_platillos()       → GROUP BY producto, ORDER BY qty DESC, LIMIT 5
 utilidad_neta = ingresos - nómina - insumos - gastos_operativos
+(gastos_nomina y costo_insumos suman los buckets de la tabla gastos sobre las fuentes de Nomina/recetas)
 ```
 
 ### Cierre de caja archival flow
