@@ -1,7 +1,8 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional, List
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models.nomina import Nomina, AdelantoSalario
@@ -153,8 +154,6 @@ class AdelantoSalarioRepository(BaseRepository[AdelantoSalario]):
         fecha_inicio: date,
         fecha_fin: date,
     ) -> Decimal:
-        from decimal import Decimal
-        from sqlalchemy import func
         stmt = select(
             func.coalesce(func.sum(AdelantoSalario.monto), Decimal("0.00"))
         ).where(
