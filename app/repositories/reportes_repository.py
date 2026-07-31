@@ -201,3 +201,110 @@ class ReportesRepository:
             )
         )
         return self.db.execute(stmt).scalar_one()
+
+    # ─── Métodos para caja actual (sin archivar) ───────────────────────
+
+    def obtener_ingresos_totales_sin_archivar(self) -> Decimal:
+        stmt = select(
+            func.coalesce(func.sum(Orden.total), Decimal("0.00"))
+        ).where(
+            and_(
+                Orden.estado == EstadoOrden.PAGADA,
+                Orden.cierre_caja_id.is_(None),
+            )
+        )
+        return self.db.execute(stmt).scalar_one()
+
+    def contar_ordenes_sin_archivar(self) -> Dict[str, int]:
+        pagadas = select(func.count(Orden.id)).where(
+            Orden.estado == EstadoOrden.PAGADA,
+            Orden.cierre_caja_id.is_(None),
+        )
+        canceladas = select(func.count(Orden.id)).where(
+            Orden.estado == EstadoOrden.CANCELADA,
+            Orden.cierre_caja_id.is_(None),
+        )
+        return {
+            "pagadas": self.db.execute(pagadas).scalar_one() or 0,
+            "canceladas": self.db.execute(canceladas).scalar_one() or 0,
+        }
+
+    def obtener_costo_insumos_sin_archivar(self) -> Decimal:
+        stmt = (
+            select(
+                func.coalesce(
+                    func.sum(
+                        Receta.cantidad_necesaria
+                        * Insumo.costo_unitario
+                        * DetalleOrden.cantidad
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+            .select_from(Orden)
+            .join(DetalleOrden, DetalleOrden.orden_id == Orden.id)
+            .join(Receta, Receta.menu_item_id == DetalleOrden.producto_id)
+            .join(Insumo, Insumo.id == Receta.insumo_id)
+            .where(
+                and_(
+                    Orden.estado == EstadoOrden.PAGADA,
+                    Orden.cierre_caja_id.is_(None),
+                )
+            )
+        )
+        return self.db.execute(stmt).scalar_one()
+
+    def obtener_descuentos_totales_sin_archivar(self) -> Decimal:
+        stmt = select(
+            func.coalesce(func.sum(Orden.descuento_total), Decimal("0.00"))
+        ).where(
+            and_(
+                Orden.estado == EstadoOrden.PAGADA,
+                Orden.cierre_caja_id.is_(None),
+            )
+        )
+        return self.db.execute(stmt).scalar_one()
+
+    def obtener_top_platillos_sin_archivar(
+        self,
+        limite: int = 5,
+    ) -> List[Dict]:
+        stmt = select(
+            DetalleOrden.producto_id,
+            MenuItem.nombre,
+            func.sum(DetalleOrden.cantidad).label("cantidad_vendida"),
+            func.sum(
+                DetalleOrden.precio_unitario * DetalleOrden.cantidad
+            ).label("ingresos_generados"),
+        ).join(
+            Orden, Orden.id == DetalleOrden.orden_id
+        ).join(
+            MenuItem, MenuItem.id == DetalleOrden.producto_id
+        ).where(
+            and_(
+                Orden.estado == EstadoOrden.PAGADA,
+                Orden.cierre_caja_id.is_(None),
+            )
+        ).group_by(
+            DetalleOrden.producto_id,
+            MenuItem.nombre,
+        ).order_by(
+            func.sum(DetalleOrden.cantidad).desc()
+        ).limit(limite)
+
+        rows = self.db.execute(stmt).all()
+        return [
+            {
+                "producto_id": row.producto_id,
+                "nombre": row.nombre,
+                "cantidad_vendida": int(row.cantidad_vendida),
+                "ingresos_generados": float(row.ingresos_generados),
+            }
+            for row in rows
+        ]
+
+    def obtener_gastos_operativos_sin_archivar(self) -> Decimal:
+        stmt = select(
+            func.coalesce(func.sum(Gasto.monto), Decimal("0.00"))
+        ).where(Gasto.cierre_caja_id.is_(None))
+        return self.db.execute(stmt).scalar_one()

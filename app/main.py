@@ -8,7 +8,7 @@ from typing import Dict
 from app.core.config import get_settings
 from app.core.database import engine, Base, get_db
 from app.models import (
-    Puesto, Empleado, Usuario, Turno, Asistencia, Nomina,
+    Puesto, Empleado, Usuario, Turno, Asistencia, Nomina, AdelantoSalario,
     Proveedor, Ingrediente, Insumo, MovimientoInventario,
     CategoriaMenu, MenuItem, Receta,
     Zona, Mesa, EstadoMesa,
@@ -135,6 +135,8 @@ async def startup_event():
     _migrate_recetas_descuento_lote()
     _migrate_orden_descuentos()
     _migrate_orden_nombre_cliente()
+    _migrate_gastos_cierre_caja_id()
+    _migrate_adelantos_salario()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -289,6 +291,91 @@ def _migrate_orden_nombre_cliente():
             ))
             db.commit()
             print("  [~] Columna 'nombre_cliente' agregada a ordenes")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_gastos_cierre_caja_id():
+    """Agrega la columna cierre_caja_id a gastos y su FK si no existen.
+
+    Idempotente: verifica contra information_schema antes de cada ALTER para
+    evitar errores silenciosos y garantizar que la columna exista siempre.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists_col = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
+                "AND COLUMN_NAME = 'cierre_caja_id'"
+            )).scalar()
+            if not exists_col:
+                db.execute(text(
+                    "ALTER TABLE gastos ADD COLUMN cierre_caja_id INT NULL"
+                ))
+                db.commit()
+                print("  [~] Columna 'cierre_caja_id' agregada a gastos")
+            else:
+                print("  [~] Columna 'cierre_caja_id' ya existe en gastos")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'cierre_caja_id' a gastos: {e}")
+
+        try:
+            exists_fk = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
+                "AND CONSTRAINT_TYPE = 'FOREIGN KEY' "
+                "AND CONSTRAINT_NAME = 'fk_gastos_cierre_caja_id'"
+            )).scalar()
+            if not exists_fk:
+                db.execute(text(
+                    "ALTER TABLE gastos ADD CONSTRAINT fk_gastos_cierre_caja_id "
+                    "FOREIGN KEY (cierre_caja_id) REFERENCES cierres_caja(id)"
+                ))
+                db.commit()
+                print("  [~] FK 'fk_gastos_cierre_caja_id' agregada a gastos")
+            else:
+                print("  [~] FK 'fk_gastos_cierre_caja_id' ya existe")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar FK 'fk_gastos_cierre_caja_id': {e}")
+
+
+def _migrate_adelantos_salario():
+    """Crea la tabla adelantos_salario y agrega columna total_adelantos a nominas si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS adelantos_salario (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    empleado_id INT NOT NULL,
+                    monto DECIMAL(10,2) NOT NULL,
+                    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    observacion VARCHAR(255) NULL,
+                    registrado_por_id INT NULL,
+                    gasto_id INT NULL,
+                    CONSTRAINT fk_adelantos_empleado_id FOREIGN KEY (empleado_id) REFERENCES empleados(id),
+                    CONSTRAINT fk_adelantos_registrado_por FOREIGN KEY (registrado_por_id) REFERENCES usuarios(id),
+                    CONSTRAINT fk_adelantos_gasto_id FOREIGN KEY (gasto_id) REFERENCES gastos(id)
+                )
+            """))
+            db.commit()
+            print("  [~] Tabla 'adelantos_salario' creada")
+        except Exception:
+            db.rollback()
+
+        try:
+            db.execute(text(
+                "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00"
+            ))
+            db.commit()
+            print("  [~] Columna 'total_adelantos' agregada a nominas")
         except Exception:
             db.rollback()
 

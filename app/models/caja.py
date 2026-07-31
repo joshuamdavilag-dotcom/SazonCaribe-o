@@ -26,3 +26,8 @@ class CierreCaja(Base):
         back_populates="cierre_caja",
         lazy="selectin",
     )
+    gastos: Mapped[list["Gasto"]] = relationship(
+        "Gasto",
+        back_populates="cierre_caja",
+        lazy="selectin",
+    )

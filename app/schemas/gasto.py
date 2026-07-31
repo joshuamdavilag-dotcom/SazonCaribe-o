@@ -71,3 +71,7 @@ class GastoResponse(BaseModel):
         default=None,
         description="ID del insumo asociado",
     )
+    cierre_caja_id: Optional[int] = Field(
+        default=None,
+        description="ID del cierre de caja que archivó este gasto",
+    )

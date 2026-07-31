@@ -4,7 +4,7 @@ from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.nomina import Nomina
+from app.models.nomina import Nomina, AdelantoSalario
 from app.repositories.base_repository import BaseRepository
 
 
@@ -117,3 +117,49 @@ class NominaRepository(BaseRepository[Nomina]):
         return self.get_by_periodo_y_empleado(
             empleado_id, fecha_inicio, fecha_fin
         ) is not None
+
+
+# =============================================================================
+# AdelantoSalario Repository
+# =============================================================================
+
+
+class AdelantoSalarioRepository(BaseRepository[AdelantoSalario]):
+
+    def __init__(self, db: Session) -> None:
+        super().__init__(AdelantoSalario, db)
+
+    def get_by_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+    ) -> List[AdelantoSalario]:
+        stmt = (
+            select(AdelantoSalario)
+            .where(AdelantoSalario.empleado_id == empleado_id)
+            .order_by(AdelantoSalario.fecha.desc())
+        )
+        if fecha_inicio:
+            stmt = stmt.where(AdelantoSalario.fecha >= fecha_inicio)
+        if fecha_fin:
+            stmt = stmt.where(AdelantoSalario.fecha <= fecha_fin)
+        result = self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    def sum_por_empleado_y_periodo(
+        self,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> Decimal:
+        from decimal import Decimal
+        from sqlalchemy import func
+        stmt = select(
+            func.coalesce(func.sum(AdelantoSalario.monto), Decimal("0.00"))
+        ).where(
+            AdelantoSalario.empleado_id == empleado_id,
+            AdelantoSalario.fecha >= fecha_inicio,
+            AdelantoSalario.fecha <= fecha_fin,
+        )
+        return self.db.execute(stmt).scalar_one()

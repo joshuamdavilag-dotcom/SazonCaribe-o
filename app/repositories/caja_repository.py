@@ -1,11 +1,11 @@
-from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.orden import Orden, EstadoOrden
+from app.models.gasto import Gasto
 from app.models.caja import CierreCaja
 
 
@@ -14,25 +14,27 @@ class CajaRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def obtener_ordenes_pagadas_sin_archivar(
-        self,
-        fecha_consulta: date,
-    ) -> List[Orden]:
-        inicio = datetime.combine(fecha_consulta, time.min)
-        fin = datetime.combine(fecha_consulta, time.max)
-
+    def obtener_ordenes_pagadas_sin_archivar(self) -> List[Orden]:
         statement = (
             select(Orden)
             .options(joinedload(Orden.detalles))
             .where(
                 Orden.estado == EstadoOrden.PAGADA,
-                Orden.fecha_creacion.between(inicio, fin),
                 Orden.cierre_caja_id.is_(None),
             )
             .order_by(Orden.fecha_creacion.desc())
         )
         result = self.db.execute(statement)
         return list(result.unique().scalars().all())
+
+    def obtener_gastos_sin_archivar(self) -> List[Gasto]:
+        statement = (
+            select(Gasto)
+            .where(Gasto.cierre_caja_id.is_(None))
+            .order_by(Gasto.fecha.desc())
+        )
+        result = self.db.execute(statement)
+        return list(result.scalars().all())
 
     def calcular_totales(
         self,
@@ -66,4 +68,13 @@ class CajaRepository:
     ) -> None:
         for orden in ordenes:
             orden.cierre_caja_id = cierre.id
+        self.db.flush()
+
+    def archivar_gastos(
+        self,
+        gastos: List[Gasto],
+        cierre: CierreCaja,
+    ) -> None:
+        for gasto in gastos:
+            gasto.cierre_caja_id = cierre.id
         self.db.flush()

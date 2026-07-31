@@ -30,6 +30,10 @@ class Nomina(Base):
             name="ck_nominas_pago_horas_extras_positivo"
         ),
         CheckConstraint(
+            "total_adelantos >= 0",
+            name="ck_nominas_adelantos_positivos"
+        ),
+        CheckConstraint(
             "pago_neto >= 0",
             name="ck_nominas_pago_neto_positivo"
         ),
@@ -90,6 +94,12 @@ class Nomina(Base):
         default=None
     )
 
+    total_adelantos: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=Decimal("0.00")
+    )
+
     # Relación muchos-a-uno con Empleado
     empleado: Mapped["Empleado"] = relationship(
         "Empleado",
@@ -102,4 +112,56 @@ class Nomina(Base):
             f"<Nomina(id={self.id}, empleado_id={self.empleado_id}, "
             f"periodo={self.fecha_inicio} al {self.fecha_fin}, "
             f"pago_neto={self.pago_neto}, estado='{self.estado}')>"
+        )
+
+
+class AdelantoSalario(Base):
+    """Adelanto de salario otorgado a un empleado."""
+
+    __tablename__ = "adelantos_salario"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
+    empleado_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("empleados.id", name="fk_adelantos_empleado_id"),
+        nullable=False
+    )
+    monto: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+    fecha: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now
+    )
+    observacion: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True
+    )
+    registrado_por_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("usuarios.id", name="fk_adelantos_registrado_por"),
+        nullable=True
+    )
+    gasto_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("gastos.id", name="fk_adelantos_gasto_id"),
+        nullable=True
+    )
+
+    empleado: Mapped["Empleado"] = relationship(
+        "Empleado",
+        back_populates="adelantos",
+        lazy="selectin"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AdelantoSalario(id={self.id}, empleado_id={self.empleado_id}, "
+            f"monto={self.monto})>"
         )

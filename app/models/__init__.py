@@ -1,6 +1,6 @@
 from app.models.personal import Puesto, Empleado, Usuario
 from app.models.asistencia import Turno, Asistencia
-from app.models.nomina import Nomina
+from app.models.nomina import Nomina, AdelantoSalario
 from app.models.inventario import Proveedor, Ingrediente, Insumo, MovimientoInventario, CategoriaInsumo, UnidadMedida, PreparacionCocina, DetallePreparacionCocina
 from app.models.menu import CategoriaMenu, MenuItem, Receta
 from app.models.salon import Zona, Mesa, EstadoMesa
@@ -14,7 +14,7 @@ __all__ = [
     "Usuario",
     "Turno",
     "Asistencia",
-    "Nomina",
+    "Nomina", "AdelantoSalario",
     "Proveedor",
     "Ingrediente",
     "Insumo",

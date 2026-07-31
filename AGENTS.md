@@ -211,6 +211,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`. Does NOT apply to para llevar (mesa_id null).
 - **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction. If mesa_id is null (para llevar), only sets PAGADA.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
+- **Adelantos de Salario**: `AdelantoSalario` model linked to Empleado + Nomina (via `total_adelantos`); auto-creates a `Gasto` (OPERATIVO) on registration; deducted from `pago_neto` in nomina calculations; API at `POST /nomina/adelantos`, `GET /nomina/empleados/{id}/adelantos`
 - **Descuentos**: Per-item (`descuento_porcentaje` / `descuento_monto` + `motivo_descuento` on `DetalleOrden`) or global (distributed proportionally). `Orden.subtotal` is sum of line totals before discount; `descuento_total` is total discount; `Orden.total = subtotal - descuento_total`. Discounts applied via `POST /ordenes/{id}/descuento-item` and `POST /ordenes/{id}/descuento-global`. Removed via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`.
 - **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
@@ -225,7 +226,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Dynamic zones**: `Zona` model with FK from Mesa; delete guarded if zone has mesas
 - **Dynamic menu categories**: `CategoriaMenu` model, backend CRUD, delete guarded
 - **Dynamic inventory categories & units**: `CategoriaInsumo` + `UnidadMedida` models; `Insumo` uses `unidad_medida_id` FK + `categoria_id` FK
-- **Nómina calculations**: Horas extras at 1.0x, no deducciones; `pago_neto = bruto`
+- **Nómina calculations**: Horas extras at 1.0x, no deducciones; `pago_neto = bruto + pago_horas_extras - total_adelantos`
 
 ## API Endpoints Summary
 

@@ -2615,6 +2615,16 @@ function renderNominaResult(data) {
   document.getElementById('nomina-pago-extras').textContent =
     `C$${parseFloat(data.pago_horas_extras).toFixed(2)}`;
 
+  const adelantosRow = document.getElementById('nomina-adelantos-row');
+  const adelantosDisplay = document.getElementById('nomina-adelantos-display');
+  const totalAdelantos = parseFloat(data.total_adelantos || 0);
+  if (totalAdelantos > 0) {
+    adelantosRow.style.display = 'flex';
+    adelantosDisplay.textContent = `-C$${totalAdelantos.toFixed(2)}`;
+  } else {
+    adelantosRow.style.display = 'none';
+  }
+
   document.getElementById('nomina-neto-display').textContent =
     `C$${parseFloat(data.pago_neto).toFixed(2)}`;
 
@@ -2709,6 +2719,51 @@ async function pagarNomina() {
   }
 }
 
+let adelantoEmpleadoId = null;
+
+function openRegistrarAdelantoModal(empleadoId) {
+  adelantoEmpleadoId = empleadoId;
+  document.getElementById('adelanto-monto').value = '';
+  document.getElementById('adelanto-observacion').value = '';
+  document.getElementById('modal-registrar-adelanto').classList.add('show');
+}
+
+function closeRegistrarAdelantoModal() {
+  document.getElementById('modal-registrar-adelanto').classList.remove('show');
+  adelantoEmpleadoId = null;
+}
+
+async function guardarAdelanto(e) {
+  e.preventDefault();
+  const monto = parseFloat(document.getElementById('adelanto-monto').value);
+  if (!monto || monto <= 0) {
+    return showToast('Ingrese un monto válido mayor a cero.', 'error');
+  }
+  const observacion = document.getElementById('adelanto-observacion').value.trim();
+
+  const btn = document.getElementById('btn-guardar-adelanto');
+  btn.disabled = true;
+  btn.textContent = '⏳ Guardando…';
+
+  try {
+    await api(`/nomina/adelantos`, {
+      method: 'POST',
+      body: JSON.stringify({
+        empleado_id: adelantoEmpleadoId,
+        monto,
+        observacion: observacion || undefined,
+      }),
+    });
+    showToast('Adelanto registrado con éxito', 'success');
+    closeRegistrarAdelantoModal();
+  } catch {
+    /* handled by api() */
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ Guardar Adelanto';
+  }
+}
+
 async function loadNominaHistorial(empleadoId) {
   const container = document.getElementById('nomina-history-list');
   container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;">Cargando historial…</p>';
@@ -2737,11 +2792,16 @@ function renderNominaHistorial(nominas) {
       ? `Pagado: ${new Date(n.fecha_pago).toLocaleDateString('es-NI')}`
       : '';
 
+    const adel = parseFloat(n.total_adelantos || 0);
+    const adelLine = adel > 0
+      ? `<div class="nh-adelantos" style="font-size:11px;color:var(--rojo-cangrejo);">Adelantos: -C$${adel.toFixed(2)}</div>`
+      : '';
     return `
       <div class="nomina-history-item">
         <div class="nh-period">
           <div class="nh-dates">📅 ${n.fecha_inicio} — ${n.fecha_fin}</div>
           ${paidDate ? `<div class="nh-paid">${paidDate}</div>` : ''}
+          ${adelLine}
         </div>
         <div class="nh-amount">C$${parseFloat(n.pago_neto).toFixed(2)}</div>
         <span class="nh-status ${statusClass}">${statusText}</span>
@@ -3654,7 +3714,7 @@ function renderHistorialOrdenesDia(ordenes) {
   if (!container) return;
 
   if (ordenes.length === 0) {
-    container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">No hay órdenes pagadas hoy.</p>';
+    container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">No hay órdenes pagadas en la caja actual.</p>';
     return;
   }
 
@@ -3849,7 +3909,7 @@ async function guardarVentaRetroactiva() {
    Ejecutar Cierre de Caja
    ========================================================================= */
 async function ejecutarCierreCaja() {
-  if (!confirm('¿Estás seguro de cerrar la caja? Se archivarán todas las órdenes pagadas del día.')) return;
+  if (!confirm('¿Estás seguro de cerrar la caja? Se archivarán todas las órdenes pagadas y gastos de la caja actual.')) return;
 
   const btn = document.getElementById('btn-cerrar-caja');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Cerrando…'; }
@@ -3859,8 +3919,9 @@ async function ejecutarCierreCaja() {
     showToast(`Caja cerrada: ${data.total_ordenes} órdenes archivadas, C$${parseFloat(data.total_ventas).toFixed(2)} en ventas`, 'success');
     clearHistorialOrdenesDia();
     loadCierreReportes('diario');
-  } catch {
-    showToast('Error al cerrar la caja', 'error');
+  } catch (err) {
+    console.error('Error al cerrar la caja:', err);
+    showToast(`Error al cerrar la caja: ${err.message}`, 'error', 5000);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔒 Cerrar Caja'; }
   }
@@ -4161,6 +4222,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-nomina-modal')?.addEventListener('click', closeNominaModal);
   document.getElementById('btn-calcular-nomina')?.addEventListener('click', calcularNomina);
   document.getElementById('btn-pagar-nomina')?.addEventListener('click', pagarNomina);
+  document.getElementById('btn-registrar-adelanto')?.addEventListener('click', () => {
+    if (nominaModalEmpleadoId) openRegistrarAdelantoModal(nominaModalEmpleadoId);
+  });
+  document.getElementById('close-adelanto-modal')?.addEventListener('click', closeRegistrarAdelantoModal);
+  document.getElementById('cancel-adelanto-btn')?.addEventListener('click', closeRegistrarAdelantoModal);
+  document.getElementById('adelanto-form')?.addEventListener('submit', guardarAdelanto);
 
   // Nuevo Empleado modal
   document.getElementById('btn-new-empleado')?.addEventListener('click', async () => {

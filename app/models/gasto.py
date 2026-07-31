@@ -7,7 +7,7 @@ from sqlalchemy import (
     String, Integer, DateTime, Numeric, ForeignKey, Text,
     Enum as SAEnum,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -59,6 +59,15 @@ class Gasto(Base):
         ForeignKey("insumos.id", name="fk_gastos_insumo_id"),
         nullable=True,
         comment="ID del insumo si el gasto fue generado por una SALIDA de inventario",
+    )
+    cierre_caja_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("cierres_caja.id", name="fk_gastos_cierre_caja_id"),
+        nullable=True,
+    )
+    cierre_caja: Mapped[Optional["CierreCaja"]] = relationship(
+        "CierreCaja",
+        back_populates="gastos",
     )
 
     def __repr__(self) -> str:

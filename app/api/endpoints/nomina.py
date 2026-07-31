@@ -1,6 +1,7 @@
-from typing import List
+from datetime import date
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, requerir_rol
@@ -8,7 +9,8 @@ from app.core.database import get_db
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.nomina import (
-    NominaGenerarRequest, NominaCalcularRequest, NominaResponse
+    NominaGenerarRequest, NominaCalcularRequest, NominaResponse,
+    AdelantoSalarioCreate, AdelantoSalarioResponse,
 )
 from app.services.nomina_service import NominaService
 
@@ -203,3 +205,48 @@ def obtener_historial_empleado(
     (más reciente primero).
     """
     return service.historial_empleado(empleado_id)
+
+
+# =============================================================================
+# Adelantos de Salario
+# =============================================================================
+
+
+@router.post(
+    "/adelantos",
+    response_model=AdelantoSalarioResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar adelanto de salario",
+    description=(
+        "Registra un adelanto de salario para un empleado. "
+        "Crea automáticamente un gasto operativo por el monto del adelanto."
+    ),
+    tags=["Nóminas & Pagos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+)
+def registrar_adelanto(
+    data: AdelantoSalarioCreate,
+    current_user: Usuario = Depends(get_current_user),
+    service: NominaService = Depends(get_nomina_service),
+) -> AdelantoSalarioResponse:
+    return service.registrar_adelanto(data, current_user.id)
+
+
+@router.get(
+    "/empleados/{empleado_id}/adelantos",
+    response_model=List[AdelantoSalarioResponse],
+    summary="Historial de adelantos del empleado",
+    description=(
+        "Obtiene el historial de adelantos de salario de un empleado, "
+        "con filtro opcional por rango de fechas."
+    ),
+    tags=["Nóminas & Pagos"],
+)
+def listar_adelantos_empleado(
+    empleado_id: int = Path(..., gt=0, description="ID del empleado"),
+    fecha_inicio: Optional[date] = Query(default=None, description="Filtro fecha inicio"),
+    fecha_fin: Optional[date] = Query(default=None, description="Filtro fecha fin"),
+    current_user: Usuario = Depends(get_current_user),
+    service: NominaService = Depends(get_nomina_service),
+) -> List[AdelantoSalarioResponse]:
+    return service.listar_adelantos_empleado(empleado_id, fecha_inicio, fecha_fin)

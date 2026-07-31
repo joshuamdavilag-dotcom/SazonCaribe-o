@@ -222,7 +222,7 @@
       </section>
 
       <!-- SCREEN: CUENTA / DASHBOARD -->
-      <section id="screen-cuenta" class="screen" aria-label="Cuenta y cierre de caja">
+      <section id="screen-cuenta" class="screen" aria-label="Caja actual y cierre">
         <header class="screen-header">
           <h2 class="title">💰 Cierre de Caja</h2>
           <div class="header-actions"><span class="caption" id="cuenta-role-badge"></span></div>
@@ -1195,6 +1195,10 @@
               <span class="nomina-label">💰 Importe Horas Extras (1.0x)</span>
               <span class="nomina-value" id="nomina-pago-extras">—</span>
             </div>
+            <div class="nomina-row nomina-row--deduction" id="nomina-adelantos-row" style="display:none;">
+              <span class="nomina-label">💸 Adelantos / Deducciones</span>
+              <span class="nomina-value" id="nomina-adelantos-display" style="color:var(--rojo-cangrejo);">—</span>
+            </div>
             <div class="nomina-divider" style="border-top:2px solid var(--azul-marino);"></div>
             <div class="nomina-row nomina-total">
               <span>💵 Total a Pagar</span>
@@ -1206,6 +1210,11 @@
               💵 Registrar Pago
             </button>
           </div>
+          <div style="text-align:center;margin-top:8px;">
+            <button class="btn" id="btn-registrar-adelanto" style="background:var(--amarillo-solar);color:#1f2937;height:40px;padding:0 20px;font-weight:600;border-radius:8px;">
+              💸 Registrar Adelanto
+            </button>
+          </div>
         </div>
 
         <!-- History -->
@@ -1215,6 +1224,30 @@
         </div>
 
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar Adelanto -->
+  <div id="modal-registrar-adelanto" class="modal-overlay" aria-label="Registrar adelanto de salario">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💸 Registrar Adelanto de Salario</h3>
+        <button class="modal-close" id="close-adelanto-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="adelanto-form" style="padding:20px;">
+        <div style="margin-bottom:16px;">
+          <label class="form-label" for="adelanto-monto">Monto (C$)</label>
+          <input type="number" id="adelanto-monto" class="form-input" step="0.01" min="0.01" placeholder="500.00" required>
+        </div>
+        <div style="margin-bottom:20px;">
+          <label class="form-label" for="adelanto-observacion">Observación / Motivo</label>
+          <textarea id="adelanto-observacion" class="form-input" style="resize:vertical;min-height:60px;" placeholder="Opcional: motivo del adelanto" rows="2"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:end;">
+          <button type="button" class="btn" id="cancel-adelanto-btn" style="background:#e5e7eb;color:#374151;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-guardar-adelanto" style="font-weight:700;">✅ Guardar Adelanto</button>
+        </div>
+      </form>
     </div>
   </div>
 

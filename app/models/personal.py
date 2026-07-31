@@ -122,6 +122,11 @@ class Empleado(Base):
         back_populates="empleado",
         lazy="selectin"
     )
+    adelantos: Mapped[List["AdelantoSalario"]] = relationship(
+        "AdelantoSalario",
+        back_populates="empleado",
+        lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<Empleado(id={self.id}, nombre='{self.nombre} {self.apellido}')>"

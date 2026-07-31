@@ -1,21 +1,26 @@
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date
+from datetime import date, datetime
 from typing import List
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.models.gasto import Gasto, CategoriaGasto
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.asistencia_repository import AsistenciaRepository
-from app.repositories.nomina_repository import NominaRepository
-from app.schemas.nomina import NominaGenerarRequest, NominaResponse
+from app.repositories.nomina_repository import NominaRepository, AdelantoSalarioRepository
+from app.schemas.nomina import (
+    NominaGenerarRequest, NominaResponse,
+    AdelantoSalarioCreate, AdelantoSalarioResponse,
+)
 
 
 class NominaService:
     """
     Servicio de lógica de negocio para el módulo de nómina.
 
-    Coordina el cálculo quincenal de salarios, horas extras
-    y la generación de registros de nómina.
+    Coordina el cálculo quincenal de salarios, horas extras,
+    adelantos de salario y la generación de registros de nómina.
     """
 
     DIAS_MENSUALES = Decimal("30")
@@ -32,6 +37,60 @@ class NominaService:
         self.empleado_repo = EmpleadoRepository(db)
         self.asistencia_repo = AsistenciaRepository(db)
         self.nomina_repo = NominaRepository(db)
+        self.adelanto_repo = AdelantoSalarioRepository(db)
+
+    def registrar_adelanto(
+        self,
+        data: AdelantoSalarioCreate,
+        usuario_id: int,
+    ) -> AdelantoSalarioResponse:
+        empleado = self.empleado_repo.get_by_id(data.empleado_id)
+        if not empleado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el empleado con ID {data.empleado_id}"
+            )
+
+        gasto = Gasto(
+            concepto=f"Adelanto de salario - {empleado.nombre} {empleado.apellido}",
+            monto=data.monto,
+            categoria=CategoriaGasto.OPERATIVO,
+            registrado_por=usuario_id,
+        )
+        self.db.add(gasto)
+        self.db.flush()
+
+        adelanto = self.adelanto_repo.create({
+            "empleado_id": data.empleado_id,
+            "monto": data.monto,
+            "observacion": data.observacion,
+            "registrado_por_id": usuario_id,
+            "gasto_id": gasto.id,
+        })
+
+        return AdelantoSalarioResponse.model_validate(adelanto)
+
+    def listar_adelantos_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+    ) -> List[AdelantoSalarioResponse]:
+        empleado = self.empleado_repo.get_by_id(empleado_id)
+        if not empleado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el empleado con ID {empleado_id}"
+            )
+        adelantos = self.adelanto_repo.get_by_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
+        return [AdelantoSalarioResponse.model_validate(a) for a in adelantos]
+
+    def _obtener_total_adelantos(self, empleado_id: int, fecha_inicio: date, fecha_fin: date) -> Decimal:
+        return self.adelanto_repo.sum_por_empleado_y_periodo(
+            empleado_id, fecha_inicio, fecha_fin
+        )
 
     def generar_nomina_quincenal(
         self,
@@ -87,7 +146,15 @@ class NominaService:
                 total_horas_extras * valor_hora_ordinaria
             ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            pago_neto = salario_quincenal_teorico + pago_horas_extras
+            total_adelantos = self._obtener_total_adelantos(
+                empleado.id, periodo.fecha_inicio, periodo.fecha_fin
+            )
+
+            pago_neto = (
+                salario_quincenal_teorico + pago_horas_extras - total_adelantos
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if pago_neto < 0:
+                pago_neto = Decimal("0.00")
 
             nomina_data = {
                 "empleado_id": empleado.id,
@@ -97,6 +164,7 @@ class NominaService:
                 "salario_quincenal_teorico": salario_quincenal_teorico,
                 "total_horas_extras": total_horas_extras,
                 "pago_horas_extras": pago_horas_extras,
+                "total_adelantos": total_adelantos,
                 "pago_neto": pago_neto,
                 "estado": "PENDIENTE"
             }
@@ -306,7 +374,15 @@ class NominaService:
 
         bruto = pago_horas_normales + pago_horas_extras
 
-        pago_neto = bruto
+        total_adelantos = self._obtener_total_adelantos(
+            empleado_id, fecha_inicio, fecha_fin
+        )
+
+        pago_neto = (bruto - total_adelantos).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        if pago_neto < 0:
+            pago_neto = Decimal("0.00")
 
         nomina_data = {
             "empleado_id": empleado_id,
@@ -316,6 +392,7 @@ class NominaService:
             "salario_quincenal_teorico": bruto,
             "total_horas_extras": total_horas_extras,
             "pago_horas_extras": pago_horas_extras,
+            "total_adelantos": total_adelantos,
             "pago_neto": pago_neto,
             "estado": "PENDIENTE"
         }
