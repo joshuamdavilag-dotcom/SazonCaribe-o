@@ -116,11 +116,25 @@ class MenuRepository:
         return db_item
 
     def eliminar_menu_item(self, item_id: int) -> bool:
+        """
+        Borrado lógico (soft delete) de un plato.
+
+        En lugar de eliminar físicamente el registro (lo que rompería el
+        historial de ventas referenciado en ``detalle_orden``), marca el
+        plato como ``disponible = False`` para ocultarlo de comandas y de
+        la carta pública, conservando su receta y su historial.
+
+        Args:
+            item_id: ID del plato a desactivar.
+
+        Returns:
+            True si el plato existía y se desactivó; False si no existe.
+        """
         statement = select(MenuItem).where(MenuItem.id == item_id)
         db_item = self.db.execute(statement).scalar_one_or_none()
         if db_item is None:
             return False
-        self.db.delete(db_item)
+        db_item.disponible = False
         self.db.commit()
         return True
 
@@ -148,10 +162,16 @@ class MenuRepository:
 
     def obtener_items(
         self,
-        categoria_id: Optional[int] = None
+        categoria_id: Optional[int] = None,
+        incluir_inactivos: bool = False
     ) -> List[MenuItem]:
         """
         Obtiene los platos del menú con sus relaciones (uso administrativo).
+
+        Por defecto solo devuelve platos activos (``disponible = True``),
+        que es lo que necesitan comandas y carta. La pestaña de Gestión de
+        Menú pasa ``incluir_inactivos = True`` para ver también los platos
+        desactivados por borrado lógico.
 
         Usa joinedload para traer de forma eficiente:
         - La categoría asociada
@@ -160,11 +180,17 @@ class MenuRepository:
 
         Args:
             categoria_id: Si se proporciona, filtra por esta categoría.
+            incluir_inactivos: Si True, incluye los platos desactivados.
 
         Returns:
             Lista de platos con sus relaciones cargadas.
         """
         statement = self._query_items_base(incluir_insumos=True)
+
+        if not incluir_inactivos:
+            statement = statement.where(
+                MenuItem.disponible.is_(True)
+            )
 
         if categoria_id is not None:
             statement = statement.where(

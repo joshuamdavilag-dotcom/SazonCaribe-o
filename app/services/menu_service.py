@@ -150,7 +150,9 @@ class MenuService:
                         )
                     )
 
-        items_existentes = self.menu_repo.obtener_items()
+        items_existentes = self.menu_repo.obtener_items(
+            incluir_inactivos=True
+        )
         for item in items_existentes:
             if item.nombre.lower() == item_in.nombre.lower():
                 raise HTTPException(
@@ -163,18 +165,23 @@ class MenuService:
 
     def obtener_items(
         self,
-        categoria_id: Optional[int] = None
+        categoria_id: Optional[int] = None,
+        incluir_inactivos: bool = False
     ) -> List[MenuItemResponse]:
         """
         Obtiene los platos del menú.
 
         Args:
             categoria_id: Si se proporciona, filtra por esta categoría.
+            incluir_inactivos: Si True, incluye platos desactivados (borrado lógico).
 
         Returns:
             Lista de MenuItemResponse con sus recetas e ingredientes.
         """
-        items = self.menu_repo.obtener_items(categoria_id)
+        items = self.menu_repo.obtener_items(
+            categoria_id,
+            incluir_inactivos=incluir_inactivos
+        )
         return [MenuItemResponse.model_validate(i) for i in items]
 
     def obtener_item_por_id(self, item_id: int) -> MenuItemResponse:
@@ -258,7 +265,9 @@ class MenuService:
                     )
 
         if item_in.nombre is not None and item_in.nombre.lower() != existing.nombre.lower():
-            items_existentes = self.menu_repo.obtener_items()
+            items_existentes = self.menu_repo.obtener_items(
+                incluir_inactivos=True
+            )
             for item in items_existentes:
                 if item.id != item_id and item.nombre.lower() == item_in.nombre.lower():
                     raise HTTPException(
@@ -270,6 +279,23 @@ class MenuService:
         return MenuItemResponse.model_validate(item_actualizado)
 
     def eliminar_platillo(self, item_id: int) -> None:
+        """
+        Borrado lógico (soft delete) de un plato.
+
+        Marca el plato como ``disponible = False`` para ocultarlo de
+        comandas y de la carta pública, sin eliminarlo físicamente. De esta
+        forma el historial de ventas (``detalle_orden``) y la receta se
+        conservan y el plato puede reactivarse desde Gestión de Menú.
+
+        Args:
+            item_id: ID del plato a desactivar.
+
+        Raises:
+            HTTPException 404: Si el plato no existe.
+            HTTPException 400: Si ocurre una violación de integridad al desactivar.
+        """
+        from sqlalchemy.exc import IntegrityError
+
         existing = self.menu_repo.obtener_menu_item_por_id(item_id)
         if not existing:
             raise HTTPException(
@@ -277,15 +303,18 @@ class MenuService:
                 detail=f"No se encontró el plato con ID {item_id}"
             )
 
-        from app.models.menu import Receta
-        from sqlalchemy import delete
-
-        self.db.execute(
-            delete(Receta).where(Receta.menu_item_id == item_id)
-        )
-        self.db.flush()
-
-        self.menu_repo.eliminar_menu_item(item_id)
+        try:
+            self.menu_repo.eliminar_menu_item(item_id)
+        except IntegrityError:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"No se pudo desactivar el plato '{existing.nombre}': "
+                    f"existen referencias asociadas (historial de ventas u "
+                    f"otros registros)."
+                )
+            )
 
     def subir_imagen(self, item_id: int, archivo) -> MenuItemResponse:
         """

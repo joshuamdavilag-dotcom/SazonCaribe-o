@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Path, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -143,7 +143,12 @@ def crear_menu_item(
     "/items",
     response_model=List[MenuItemResponse],
     summary="Listar platos del menú",
-    description="Obtiene todos los platos del menú, opcionalmente filtrados por categoría.",
+    description=(
+        "Obtiene los platos del menú, opcionalmente filtrados por categoría. "
+        "Por defecto solo devuelve los platos activos (comandas y carta). "
+        "La Gestión de Menú puede pedir los desactivados (borrado lógico) "
+        "con incluir_inactivos=true (solo Admin/Gerente)."
+    ),
     tags=["Menú y Recetas"]
 )
 def listar_menu_items(
@@ -152,6 +157,10 @@ def listar_menu_items(
         gt=0,
         description="Filtrar por ID de categoría (opcional)"
     ),
+    incluir_inactivos: bool = Query(
+        default=False,
+        description="Incluir platos desactivados por borrado lógico (solo Admin/Gerente)"
+    ),
     current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> List[MenuItemResponse]:
@@ -159,13 +168,24 @@ def listar_menu_items(
     Retorna la lista de platos del menú.
 
     - **categoria_id**: Si se proporciona, filtra por esta categoría
+    - **incluir_inactivos**: Si True, incluye platos desactivados (borrado lógico)
 
     Cada plato incluye:
     - Datos básicos (nombre, precio, disponibilidad)
     - Categoría asociada
     - Lista de ingredientes de su receta
     """
-    return service.obtener_items(categoria_id)
+    if incluir_inactivos:
+        try:
+            rol_usuario = RolEnum(current_user.rol)
+        except ValueError:
+            rol_usuario = None
+        if rol_usuario not in (RolEnum.ADMINISTRADOR, RolEnum.GERENTE):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo administradores y gerentes pueden ver platos desactivados"
+            )
+    return service.obtener_items(categoria_id, incluir_inactivos)
 
 
 @router.get(
@@ -235,8 +255,12 @@ def actualizar_menu_item(
 @router.delete(
     "/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Eliminar plato del menú",
-    description="Elimina un plato y sus recetas asociadas. Solo administradores.",
+    summary="Desactivar plato del menú (borrado lógico)",
+    description=(
+        "Desactiva un plato (borrado lógico) marcándolo como no disponible. "
+        "Queda oculto en comandas y carta pública, pero su receta e historial "
+        "de ventas se conservan. Solo administradores."
+    ),
     tags=["Menú y Recetas"],
     dependencies=[_requerir_rol_menu]
 )

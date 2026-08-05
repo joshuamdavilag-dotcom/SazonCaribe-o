@@ -613,6 +613,7 @@ function blockPOSAccess() {
 let activeEstadoFilter = 'all';
 let activeZonaFilter = 'all';
 let activeMgmtCatFilter = 'all';
+let activeMgmtStatusFilter = 'all';
 let activeCartaCatFilter = 'all';
 
 async function loadTables() {
@@ -1418,8 +1419,9 @@ async function loadMenuManagement() {
   await loadCategories();
   populateCategorySelect();
   renderMenuMgmtCatFilters(state.categories);
+  bindMenuMgmtStatusFilters();
   try {
-    state.menuItems = await api('/menu/items');
+    state.menuItems = await api('/menu/items?incluir_inactivos=true');
     applyMenuMgmtFilter();
   } catch { applyMenuMgmtFilter(); }
 }
@@ -1495,15 +1497,34 @@ function applyMenuMgmtFilter() {
   if (activeMgmtCatFilter !== 'all') {
     filtered = filtered.filter(i => String(i.categoria_id) === activeMgmtCatFilter);
   }
+  if (activeMgmtStatusFilter === 'active') {
+    filtered = filtered.filter(i => i.disponible !== false);
+  } else if (activeMgmtStatusFilter === 'inactive') {
+    filtered = filtered.filter(i => i.disponible === false);
+  }
   renderMenuMgmt(filtered);
 }
 
+function bindMenuMgmtStatusFilters() {
+  const container = document.getElementById('menu-mgmt-status-filters');
+  if (!container) return;
+  container.querySelectorAll('.chip[data-status]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      container.querySelectorAll('.chip[data-status]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      activeMgmtStatusFilter = chip.dataset.status;
+      applyMenuMgmtFilter();
+    });
+  });
+}
+
 async function deleteDish(itemId, nombre) {
-  if (!confirm(`¿Eliminar el platillo "${nombre}"?\nSe borrarán también sus recetas asociadas.`)) return;
+  if (!confirm(`¿Desactivar el platillo "${nombre}"?\nQuedará oculto en comandas y en la carta, pero su receta e historial de ventas se conservan.`)) return;
   try {
     await api(`/menu/items/${itemId}`, { method: 'DELETE' });
-    showToast(`"${nombre}" eliminado`);
-    state.menuItems = state.menuItems.filter(i => i.id !== itemId);
+    showToast(`"${nombre}" desactivado`);
+    const item = state.menuItems.find(i => i.id === itemId);
+    if (item) item.disponible = false;
     applyMenuMgmtFilter();
   } catch { /* handled by api() */ }
 }
