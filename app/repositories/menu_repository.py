@@ -124,12 +124,34 @@ class MenuRepository:
         self.db.commit()
         return True
 
+    def _query_items_base(self, incluir_insumos: bool = True):
+        """
+        Construye la consulta base de MenuItem con sus relaciones cargadas.
+
+        Método reutilizable por las consultas administrativas y públicas.
+        Cuando ``incluir_insumos`` es False, NO se cargan recetas ni insumos
+        (información interna del inventario) para evitar exponer costos.
+
+        Args:
+            incluir_insumos: Si True, carga recetas e insumos (uso interno).
+
+        Returns:
+            Sentencia select de MenuItem con las relaciones configuradas.
+        """
+        opciones = [joinedload(MenuItem.categoria)]
+        if incluir_insumos:
+            opciones.append(
+                joinedload(MenuItem.ingredientes_receta)
+                    .joinedload(Receta.insumo)
+            )
+        return select(MenuItem).options(*opciones)
+
     def obtener_items(
         self,
         categoria_id: Optional[int] = None
     ) -> List[MenuItem]:
         """
-        Obtiene los platos del menú con sus relaciones.
+        Obtiene los platos del menú con sus relaciones (uso administrativo).
 
         Usa joinedload para traer de forma eficiente:
         - La categoría asociada
@@ -142,14 +164,7 @@ class MenuRepository:
         Returns:
             Lista de platos con sus relaciones cargadas.
         """
-        statement = (
-            select(MenuItem)
-            .options(
-                joinedload(MenuItem.categoria),
-                joinedload(MenuItem.ingredientes_receta)
-                    .joinedload(Receta.insumo)
-            )
-        )
+        statement = self._query_items_base(incluir_insumos=True)
 
         if categoria_id is not None:
             statement = statement.where(
@@ -162,7 +177,8 @@ class MenuRepository:
 
     def obtener_menu_item_por_id(self, item_id: int) -> Optional[MenuItem]:
         """
-        Obtiene un plato por su ID con sus relaciones cargadas.
+        Obtiene un plato por su ID con sus relaciones cargadas
+        (uso administrativo).
 
         Args:
             item_id: ID del plato.
@@ -171,13 +187,66 @@ class MenuRepository:
             El plato encontrado o None si no existe.
         """
         statement = (
-            select(MenuItem)
-            .options(
-                joinedload(MenuItem.categoria),
-                joinedload(MenuItem.ingredientes_receta)
-                    .joinedload(Receta.insumo)
-            )
+            self._query_items_base(incluir_insumos=True)
             .where(MenuItem.id == item_id)
+        )
+        result = self.db.execute(statement)
+        return result.unique().scalar_one_or_none()
+
+    # =========================================================================
+    # Consultas públicas (futura Carta Digital) — solo lectura
+    # =========================================================================
+
+    def obtener_items_publicos(
+        self,
+        categoria_id: Optional[int] = None
+    ) -> List[MenuItem]:
+        """
+        Obtiene únicamente los platos disponibles para la carta pública.
+
+        Reutilizable por la futura Carta Digital. NO carga recetas ni insumos
+        (información interna del inventario). Solo devuelve platos con
+        ``disponible = True``.
+
+        Args:
+            categoria_id: Si se proporciona, filtra por esta categoría.
+
+        Returns:
+            Lista de platos disponibles con su categoría cargada.
+        """
+        statement = self._query_items_base(incluir_insumos=False).where(
+            MenuItem.disponible.is_(True)
+        )
+
+        if categoria_id is not None:
+            statement = statement.where(
+                MenuItem.categoria_id == categoria_id
+            )
+
+        statement = statement.order_by(MenuItem.nombre)
+        result = self.db.execute(statement)
+        return list(result.unique().scalars().all())
+
+    def obtener_item_publico_por_id(self, item_id: int) -> Optional[MenuItem]:
+        """
+        Obtiene un plato disponible por su ID para la carta pública.
+
+        Reutilizable por la futura Carta Digital. NO carga recetas ni insumos
+        (información interna del inventario). Solo devuelve el plato si está
+        disponible.
+
+        Args:
+            item_id: ID del plato.
+
+        Returns:
+            El plato disponible encontrado o None si no existe o no está disponible.
+        """
+        statement = (
+            self._query_items_base(incluir_insumos=False)
+            .where(
+                MenuItem.id == item_id,
+                MenuItem.disponible.is_(True)
+            )
         )
         result = self.db.execute(statement)
         return result.unique().scalar_one_or_none()
@@ -227,6 +296,32 @@ class MenuRepository:
                 )
                 self.db.add(db_receta)
 
+        self.db.commit()
+        self.db.refresh(item)
+        return item
+
+    def actualizar_imagen_url(
+        self,
+        item_id: int,
+        imagen_url: Optional[str]
+    ) -> Optional[MenuItem]:
+        """
+        Asigna la ruta de imagen de un plato.
+
+        Solo el servidor invoca este método (al procesar un archivo subido);
+        los clientes nunca envían rutas manualmente.
+
+        Args:
+            item_id: ID del plato a actualizar.
+            imagen_url: Ruta del archivo de imagen, o None para limpiarla.
+
+        Returns:
+            El plato actualizado o None si no existe.
+        """
+        item = self.obtener_menu_item_por_id(item_id)
+        if item is None:
+            return None
+        item.imagen_url = imagen_url
         self.db.commit()
         self.db.refresh(item)
         return item

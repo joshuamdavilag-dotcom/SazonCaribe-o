@@ -1,3 +1,6 @@
+import os
+import uuid
+from pathlib import Path
 from typing import Optional, List
 
 from fastapi import HTTPException, status
@@ -11,6 +14,10 @@ from app.schemas.menu import (
     MenuItemCreate,
     MenuItemResponse,
     MenuItemUpdate
+)
+from app.schemas.menu_publico import (
+    CategoriaMenuPublicaResponse,
+    MenuItemPublicoResponse,
 )
 
 
@@ -279,3 +286,157 @@ class MenuService:
         self.db.flush()
 
         self.menu_repo.eliminar_menu_item(item_id)
+
+    def subir_imagen(self, item_id: int, archivo) -> MenuItemResponse:
+        """
+        Sube y asigna la imagen de un plato.
+
+        El gerente selecciona un archivo desde el ERP; el servidor lo almacena
+        localmente y genera la ruta. El cliente nunca escribe rutas a mano.
+
+        Flujo:
+        1. Verifica que el plato exista.
+        2. Valida tipo MIME y extensión (PNG, JPEG, WebP o GIF) y tamaño <= 5 MB.
+        3. Escribe el archivo con nombre único en app/Templates/carta/img/platos/.
+        4. Elimina la imagen anterior (sin romper si ya no existe).
+        5. Persiste imagen_url y retorna el plato actualizado.
+
+        Args:
+            item_id: ID del plato.
+            archivo: UploadFile con la imagen a almacenar.
+
+        Returns:
+            MenuItemResponse con la imagen asignada.
+
+        Raises:
+            HTTPException 404: Si el plato no existe.
+            HTTPException 400: Si el archivo no es una imagen válida o excede 5 MB.
+        """
+        item = self.menu_repo.obtener_menu_item_por_id(item_id)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el plato con ID {item_id}"
+            )
+
+        if not archivo or not getattr(archivo, "filename", None):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se recibió ningún archivo de imagen"
+            )
+
+        mime = (archivo.content_type or "").lower()
+        extension = os.path.splitext(archivo.filename or "")[1].lower()
+
+        mimes_permitidos = {
+            "image/png", "image/jpeg", "image/webp", "image/gif",
+        }
+        extensiones = {
+            ".png": ".png",
+            ".jpg": ".jpg",
+            ".jpeg": ".jpg",
+            ".webp": ".webp",
+            ".gif": ".gif",
+        }
+        if mime not in mimes_permitidos or extension not in extensiones:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se permiten imágenes PNG, JPEG, WebP o GIF"
+            )
+
+        contenido = archivo.file.read()
+        max_bytes = 5 * 1024 * 1024
+        if len(contenido) > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La imagen supera el tamaño máximo de 5 MB"
+            )
+
+        directorio = (
+            Path(__file__).resolve().parent.parent
+            / "Templates" / "carta" / "img" / "platos"
+        )
+        directorio.mkdir(parents=True, exist_ok=True)
+
+        nombre = f"item_{item_id}_{uuid.uuid4().hex}{extensiones[extension]}"
+        ruta = directorio / nombre
+
+        anterior = item.imagen_url or ""
+        if anterior.startswith("/carta/img/platos/"):
+            ruta_anterior = directorio / Path(anterior).name
+            if ruta_anterior != ruta:
+                try:
+                    if ruta_anterior.exists():
+                        ruta_anterior.unlink()
+                except OSError:
+                    pass
+
+        with open(ruta, "wb") as f:
+            f.write(contenido)
+
+        item_actualizado = self.menu_repo.actualizar_imagen_url(
+            item_id,
+            f"/carta/img/platos/{nombre}"
+        )
+        return MenuItemResponse.model_validate(item_actualizado)
+
+    # =========================================================================
+    # Consultas públicas (futura Carta Digital) — solo lectura
+    # =========================================================================
+
+    def obtener_categorias_publicas(self) -> List[CategoriaMenuPublicaResponse]:
+        """
+        Lista las categorías del menú para consumo público.
+
+        Reutiliza la consulta existente del repositorio. Solo expone datos de
+        exhibición (id, nombre, descripción), sin información administrativa.
+
+        Returns:
+            Lista de CategoriaMenuPublicaResponse.
+        """
+        categorias = self.menu_repo.obtener_categorias()
+        return [
+            CategoriaMenuPublicaResponse.model_validate(c)
+            for c in categorias
+        ]
+
+    def obtener_menu_publico(
+        self,
+        categoria_id: Optional[int] = None
+    ) -> List[MenuItemPublicoResponse]:
+        """
+        Lista los platos disponibles para la carta pública.
+
+        Reutiliza la consulta pública del repositorio, que no carga recetas ni
+        insumos (información interna del inventario). Solo devuelve platos con
+        ``disponible = True``.
+
+        Args:
+            categoria_id: Si se proporciona, filtra por esta categoría.
+
+        Returns:
+            Lista de MenuItemPublicoResponse.
+        """
+        items = self.menu_repo.obtener_items_publicos(categoria_id)
+        return [MenuItemPublicoResponse.model_validate(i) for i in items]
+
+    def obtener_item_publico_por_id(self, item_id: int) -> MenuItemPublicoResponse:
+        """
+        Obtiene un plato disponible por su ID para la carta pública.
+
+        Args:
+            item_id: ID del plato.
+
+        Returns:
+            MenuItemPublicoResponse con los datos de exhibición del plato.
+
+        Raises:
+            HTTPException 404: Si el plato no existe o no está disponible.
+        """
+        item = self.menu_repo.obtener_item_publico_por_id(item_id)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el plato disponible con ID {item_id}"
+            )
+        return MenuItemPublicoResponse.model_validate(item)

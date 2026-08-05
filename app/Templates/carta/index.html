@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sazón Caribeño - Carta Digital</title>
+<meta name="description" content="Carta digital de Sazón Caribeño: mariscos frescos y recetas tradicionales en el corazón de Diriamba.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ================================================================
+     TOP APP BAR (fija, backdrop blur)
+================================================================= -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="icon-btn mobile-only" id="btn-menu" aria-label="Abrir menú">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+
+    <a href="#" class="brand" id="brand-top">Sazón Caribeño</a>
+
+    <ul class="nav-links" id="nav-links"><!-- generado por JS --></ul>
+
+    <div class="topbar-actions">
+      <button class="icon-btn mobile-only" id="btn-search" aria-label="Buscar">
+        <span class="material-symbols-outlined">search</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================================================
+       HERO DESKTOP (>= 768px)
+  ============================================================= -->
+  <section class="hero hero-desktop" id="hero-desktop">
+    <div class="hero-bg" id="hero-desktop-bg"></div>
+    <div class="hero-shade"></div>
+    <div class="hero-content">
+      <img class="hero-logo" id="hero-logo" alt="Sazón Caribeño Logo">
+      <h1 class="t-display-lg hero-title">El auténtico sabor del Caribe en el corazón de Diriamba</h1>
+      <p class="t-body-lg hero-subtitle">Descubre nuestra selección de mariscos frescos y recetas tradicionales llenas de sabor y color.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BIENVENIDA MÓVIL (< 768px): hero + CTA + bento categorías
+  ============================================================= -->
+  <section class="welcome mobile-only" id="welcome">
+    <div class="welcome-hero">
+      <div class="welcome-hero-bg" id="welcome-hero-bg"></div>
+      <div class="welcome-hero-shade"></div>
+      <div class="welcome-hero-content">
+        <h1 class="t-display-lg welcome-title">Sazón Caribeño</h1>
+        <p class="t-body-lg welcome-tagline">El auténtico sabor del Caribe en el corazón de Diriamba.</p>
+      </div>
+    </div>
+
+    <a class="btn-primary btn-ver-menu" href="#chips-wrap">
+      Ver Menú
+      <span class="material-symbols-outlined">arrow_downward</span>
+    </a>
+
+    <div class="bento-grid" id="bento"><!-- generado por JS --></div>
+  </section>
+
+  <!-- ============================================================
+       CHIPS DE CATEGORÍAS (sticky en móvil)
+  ============================================================= -->
+  <div class="chips-wrap" id="chips-wrap">
+    <div class="chips hide-scrollbar" id="chips"><!-- generado por JS --></div>
+  </div>
+
+  <!-- ============================================================
+       SECCIONES DEL MENÚ
+  ============================================================= -->
+  <section class="menu-sections" id="menu-sections">
+    <div class="state-msg t-body-lg">Cargando carta…</div>
+  </section>
+
+</main>
+
+<!-- ================================================================
+     FOOTER
+================================================================= -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img class="footer-logo" id="footer-logo" alt="Sazón Caribeño">
+      <span class="t-headline-md">Sazón Caribeño</span>
+    </div>
+    <div class="footer-copy t-label">© 2024 Sazón Caribeño. Sabor auténtico del mar.</div>
+    <ul class="footer-links t-label">
+      <li><a href="#" id="link-ubicacion">Ubicación</a></li>
+      <li><a href="#" id="link-telefono">Teléfono</a></li>
+      <li><a href="#" id="link-instagram">Instagram</a></li>
+      <li><a href="#" id="link-facebook">Facebook</a></li>
+    </ul>
+  </div>
+</footer>
+
+<!-- ================================================================
+     BOTTOM NAV (solo móvil)
+================================================================= -->
+<nav class="bottomnav mobile-only" aria-label="Navegación inferior">
+  <button class="bn-btn active" data-nav="menu" aria-label="Menú">
+    <span class="material-symbols-outlined fill">restaurant_menu</span>
+  </button>
+  <button class="bn-btn" data-nav="favoritos" aria-label="Populares">
+    <span class="material-symbols-outlined">local_fire_department</span>
+  </button>
+  <button class="bn-btn" data-nav="postres" aria-label="Postres">
+    <span class="material-symbols-outlined">icecream</span>
+  </button>
+  <button class="bn-btn" data-nav="info" aria-label="Información">
+    <span class="material-symbols-outlined">info</span>
+  </button>
+</nav>
+
+<!-- ================================================================
+     MODAL DETALLE DE PLATILLO (bottom sheet móvil / centrado desktop)
+================================================================= -->
+<div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+  <div class="dish-modal" id="dish-modal" role="dialog" aria-modal="true" aria-label="Detalle del platillo">
+    <button class="modal-close" id="modal-close" aria-label="Cerrar modal">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+    <div class="modal-media" id="modal-media"><!-- generado por JS --></div>
+    <div class="modal-body" id="modal-body"><!-- generado por JS --></div>
+    <div class="modal-action mobile-only">
+      <button class="btn-close-detail" id="btn-close-detail">Cerrar Detalle</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, File, Path, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -245,3 +245,35 @@ def eliminar_menu_item(
     service: MenuService = Depends(get_menu_service)
 ) -> None:
     service.eliminar_platillo(item_id)
+
+
+@router.post(
+    "/items/{item_id}/imagen",
+    response_model=MenuItemResponse,
+    summary="Subir imagen de un plato",
+    description=(
+        "Sube y asigna la imagen de un plato desde el ERP. "
+        "Solo el servidor genera y guarda la ruta en imagen_url."
+    ),
+    tags=["Menú y Recetas"],
+    dependencies=[_requerir_rol_menu]
+)
+def subir_imagen_menu_item(
+    item_id: int = Path(..., gt=0, description="ID del plato"),
+    archivo: UploadFile = File(
+        ...,
+        description="Archivo de imagen (PNG, JPEG, WebP o GIF, máx. 5 MB)"
+    ),
+    service: MenuService = Depends(get_menu_service)
+) -> MenuItemResponse:
+    """
+    Sube una imagen para el plato indicado.
+
+    - **archivo**: Archivo de imagen a almacenar (multipart/form-data)
+
+    Validaciones del servidor:
+    - Tipo de archivo permitido (PNG, JPEG, WebP o GIF)
+    - Tamaño máximo de 5 MB
+    - El campo `imagen_url` lo asigna el servidor, nunca el cliente
+    """
+    return service.subir_imagen(item_id, archivo)

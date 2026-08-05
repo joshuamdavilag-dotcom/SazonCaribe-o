@@ -66,6 +66,18 @@ class MenuItem(Base):
         nullable=False,
         default=True
     )
+    # Ruta del archivo de imagen del plato. Solo el servidor la asigna (upload).
+    imagen_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Ruta de la imagen del plato, asignada por el servidor al subir archivo"
+    )
+    # Tiempo estimado de preparación en minutos, mostrado en la Carta Digital.
+    tiempo_preparacion: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Tiempo estimado de preparación en minutos (Carta Digital)"
+    )
     categoria_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("categorias_menu.id", name="fk_menu_items_categoria_id"),

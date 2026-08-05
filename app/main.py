@@ -21,6 +21,7 @@ from app.api.endpoints.asistencia import router as asistencia_router
 from app.api.endpoints.nomina import router as nomina_router
 from app.api.endpoints.inventario import router as inventario_router
 from app.api.endpoints.menu import router as menu_router
+from app.api.endpoints.menu_publico import router as menu_publico_router
 from app.api.endpoints.salon import router as salon_router
 from app.api.endpoints.orden import router as orden_router
 from app.api.endpoints.analitica import router as analitica_router
@@ -120,7 +121,21 @@ app.include_router(
     tags=["Gastos"]
 )
 
+app.include_router(
+    menu_publico_router,
+    prefix="/api/public",
+    tags=["Carta Pública (Menú Digital)"]
+)
+
 app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates")
+
+# Carta Digital pública (menú para clientes). Se sirve en /carta/ y consume
+# la API pública /api/public (sin autenticación).
+app.mount(
+    "/carta",
+    StaticFiles(directory="app/Templates/carta", html=True),
+    name="carta",
+)
 
 
 @app.on_event("startup")
@@ -137,6 +152,7 @@ async def startup_event():
     _migrate_orden_nombre_cliente()
     _migrate_gastos_cierre_caja_id()
     _migrate_adelantos_salario()
+    _migrate_menu_item_imagen_tiempo()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -378,6 +394,33 @@ def _migrate_adelantos_salario():
             print("  [~] Columna 'total_adelantos' agregada a nominas")
         except Exception:
             db.rollback()
+
+
+def _migrate_menu_item_imagen_tiempo():
+    """Agrega columnas imagen_url y tiempo_preparacion a menu_items si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        for col, ddl in [
+            ("imagen_url", "ALTER TABLE menu_items ADD COLUMN imagen_url VARCHAR(500) NULL"),
+            ("tiempo_preparacion", "ALTER TABLE menu_items ADD COLUMN tiempo_preparacion INT NULL"),
+        ]:
+            try:
+                exists = db.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_items' "
+                    "AND COLUMN_NAME = :c"
+                ), {"c": col}).scalar()
+                if not exists:
+                    db.execute(text(ddl))
+                    db.commit()
+                    print(f"  [~] Columna '{col}' agregada a menu_items")
+                else:
+                    print(f"  [~] Columna '{col}' ya existe en menu_items")
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Error al agregar '{col}' a menu_items: {e}")
 
 
 def _fix_unidades_medida():

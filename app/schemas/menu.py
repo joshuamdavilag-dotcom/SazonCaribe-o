@@ -122,6 +122,13 @@ class MenuItemBase(BaseModel):
         default=True,
         description="Disponibilidad del plato en el menú"
     )
+    tiempo_preparacion: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=600,
+        description="Tiempo estimado de preparación en minutos (opcional)",
+        examples=[15]
+    )
 
 
 class MenuItemCreate(MenuItemBase):
@@ -146,6 +153,10 @@ class MenuItemResponse(MenuItemBase):
     id: int = Field(
         ...,
         description="ID único del plato"
+    )
+    imagen_url: Optional[str] = Field(
+        default=None,
+        description="Ruta de la imagen del plato. Asignada por el servidor al subir archivo."
     )
     categoria_id: int = Field(
         ...,
@@ -185,6 +196,13 @@ class MenuItemUpdate(BaseModel):
     disponible: Optional[bool] = Field(
         default=None,
         description="Disponibilidad del plato en el menú"
+    )
+    tiempo_preparacion: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=600,
+        description="Tiempo estimado de preparación en minutos (opcional)",
+        examples=[20]
     )
     categoria_id: Optional[int] = Field(
         default=None,

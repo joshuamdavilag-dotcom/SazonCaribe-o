@@ -1445,8 +1445,15 @@ function renderMenuMgmt(items) {
     const cat = item.categoria?.nombre || 'Sin categoría';
     const available = item.disponible !== false;
     const recipeCount = item.ingredientes_receta?.length || 0;
+    const thumb = item.imagen_url
+      ? `<img src="${item.imagen_url}" alt="" style="width:100%;height:130px;object-fit:cover;border-radius:8px;margin-bottom:8px;">`
+      : '';
+    const prepTime = item.tiempo_preparacion
+      ? `<div class="card-subtitle" style="margin-top:2px;">⏱️ ~${item.tiempo_preparacion} min</div>`
+      : '';
     return `
       <div class="data-card animate-in" data-dish-id="${item.id}">
+        ${thumb}
         <div class="card-header">
           <div>
             <div class="card-title">${item.nombre}</div>
@@ -1456,6 +1463,7 @@ function renderMenuMgmt(items) {
         </div>
         <div class="card-price">C$${parseFloat(item.precio).toFixed(2)}</div>
         ${item.descripcion ? `<div class="card-subtitle">${item.descripcion}</div>` : ''}
+        ${prepTime}
         ${recipeCount > 0 ? `<div class="card-subtitle" style="margin-top:2px;">🧾 ${recipeCount} ingrediente${recipeCount > 1 ? 's' : ''}</div>` : ''}
         <div class="card-actions">
           <button class="btn btn-secondary btn-sm" onclick="openEditDish(${item.id})">✏️ Editar</button>
@@ -1533,6 +1541,7 @@ async function openNewDishModal() {
   document.getElementById('dish-id').value = '';
   setDishToggle(true);
   clearRecipeRows();
+  resetDishImage();
   const catPanel = document.getElementById('cat-panel');
   if (catPanel) catPanel.style.display = 'none';
   await loadInsumosForRecipe();
@@ -1551,7 +1560,21 @@ async function openEditDish(itemId) {
   document.getElementById('dish-price').value = item.precio;
   document.getElementById('dish-category').value = item.categoria_id || '';
   document.getElementById('dish-desc').value = item.descripcion || '';
+  document.getElementById('dish-prep-time').value = item.tiempo_preparacion || '';
   setDishToggle(item.disponible !== false);
+
+  const preview = document.getElementById('dish-image-preview');
+  const hint = document.getElementById('dish-image-hint');
+  if (preview) {
+    if (item.imagen_url) {
+      preview.src = item.imagen_url;
+      preview.style.display = 'block';
+    } else {
+      preview.style.display = 'none';
+      preview.removeAttribute('src');
+    }
+  }
+  if (hint) hint.textContent = item.imagen_url ? 'Imagen actual. Puedes reemplazarla seleccionando un archivo nuevo.' : 'Sin imagen. Puedes subir una ahora.';
 
   clearRecipeRows();
   if (item.ingredientes_receta && item.ingredientes_receta.length > 0) {
@@ -1731,6 +1754,9 @@ async function saveDish(e) {
     disponible,
   };
 
+  const prepRaw = Number(document.getElementById('dish-prep-time').value);
+  payload.tiempo_preparacion = (Number.isFinite(prepRaw) && prepRaw > 0) ? Math.round(prepRaw) : null;
+
   if (!payload.nombre || !payload.precio || !payload.categoria_id) {
     return showToast('Completa nombre, precio y categoría', 'warning');
   }
@@ -1739,16 +1765,66 @@ async function saveDish(e) {
   if (receta.length > 0) payload.receta = receta;
 
   try {
+    let savedId = id ? parseInt(id, 10) : null;
     if (id) {
       await api(`/menu/items/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       showToast('Platillo actualizado');
     } else {
-      await api('/menu/items', { method: 'POST', body: JSON.stringify(payload) });
+      const created = await api('/menu/items', { method: 'POST', body: JSON.stringify(payload) });
+      savedId = created.id;
       showToast('Platillo creado');
+    }
+    const fileInput = document.getElementById('dish-image');
+    if (savedId && fileInput && fileInput.files && fileInput.files.length > 0) {
+      await uploadDishImage(savedId, fileInput.files[0]);
+      showToast('Imagen subida');
     }
     closeDishModal();
     loadMenuManagement();
   } catch { /* handled */ }
+}
+
+async function uploadDishImage(itemId, file) {
+  const formData = new FormData();
+  formData.append('archivo', file);
+  const updated = await api(`/menu/items/${itemId}/imagen`, {
+    method: 'POST',
+    headers: { 'Content-Type': undefined },
+    body: formData,
+  });
+  const idx = state.menuItems.findIndex(i => i.id === itemId);
+  if (idx !== -1) state.menuItems[idx] = { ...state.menuItems[idx], ...updated };
+  return updated;
+}
+
+function previewDishImage() {
+  const input = document.getElementById('dish-image');
+  const preview = document.getElementById('dish-image-preview');
+  const hint = document.getElementById('dish-image-hint');
+  if (!input || !preview) return;
+  const file = input.files && input.files[0];
+  if (!file) {
+    preview.style.display = 'none';
+    preview.removeAttribute('src');
+    if (hint) hint.textContent = 'PNG, JPEG, WebP o GIF · máx. 5 MB. Si no eliges imagen se usará el placeholder.';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    preview.src = ev.target.result;
+    preview.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  if (hint) hint.textContent = file.name;
+}
+
+function resetDishImage() {
+  const input = document.getElementById('dish-image');
+  const preview = document.getElementById('dish-image-preview');
+  const hint = document.getElementById('dish-image-hint');
+  if (input) input.value = '';
+  if (preview) { preview.style.display = 'none'; preview.removeAttribute('src'); }
+  if (hint) hint.textContent = 'PNG, JPEG, WebP o GIF · máx. 5 MB. Si no eliges imagen se usará el placeholder.';
 }
 
 /* =========================================================================
@@ -4138,6 +4214,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-dish-modal')?.addEventListener('click', closeDishModal);
   document.getElementById('cancel-dish-modal')?.addEventListener('click', closeDishModal);
   document.getElementById('dish-form')?.addEventListener('submit', saveDish);
+  document.getElementById('dish-image')?.addEventListener('change', previewDishImage);
 
   // Dish toggle
   document.getElementById('dish-active-btn')?.addEventListener('click', () => setDishToggle(true));

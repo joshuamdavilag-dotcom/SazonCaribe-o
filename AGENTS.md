@@ -5,6 +5,34 @@
 Restaurant management POS system built with FastAPI + SQLAlchemy 2.x + Pydantic v2 + MySQL.
 Frontend is a Vanilla JS SPA served by FastAPI from `app/Templates/`.
 
+## UI Design System (Stitch)
+
+The UI designs for the POS are hosted in a Stitch project (Google design tool). Any UI/UX work should keep these designs in sync with the real app.
+
+- **Stitch project**: `Sazón Caribeño POS` — id `projects/5811892442693590109`, visibility PRIVATE, type PROJECT_DESIGN
+- **Design system asset**: `assets/7885020225276488721` — displayName `Sazón Caribeño`, colorMode LIGHT, fonts Manrope (headline) + Inter (body/label), roundness ROUND_EIGHT, custom color `#003366`
+- Design tokens mirror the CSS variables below (Azul Marino `#003366`, Turquesa Ola `#2A9D8F`, Amarillo Solar `#FFB703`, Rojo Cangrejo `#E63946`, fondo `#F8FAFC`)
+- The `designMd` of the design system documents the full brand spec (palette, layout, typography, components, screen-by-screen guide)
+
+Screens generated (all DESKTOP, Spanish UI, C$ currency):
+
+| # | Screen | Screen id |
+|---|--------|-----------|
+| 1 | Login | `e68d80da195d498083037d771545a824` |
+| 2 | Salón — Mapa de Mesas | `8adeb99b2d064cbe98e443b646c5bb0e` |
+| 3 | Comandas KDS — Panel de Cocina | `7051083a0a0d4aa7b9cca82469477676` |
+| 4 | Carta | `6b59b551d2054705ab3b6421f76e8c5b` |
+| 5 | Gestión de Menú | `d3e3d6af2b9a4429b24dd7bea8e0f788` |
+| 6 | Almacén Digital / Inventario | `f5c9e40bdb814dd699375394d354ff29` |
+| 7 | Personal y Nóminas | `d556ca736bc444d89a6ef08e04558c4e` |
+| 8 | Cierre de Caja | `d52769260e9d48ca92c18b0f4c427771` |
+| 9 | Gestión de Gastos | `475c06441add40deb17769e60d7a4f26` |
+| 10 | Modal Nueva Comanda | `85a0cc9a1c6a47e9b47c71049dc18e50` |
+| 11 | Modal Detalle Mesa Ocupada | `4ff34507ef3346af8d7da85ea7c73379` |
+| 12 | Modal Pre-Cuenta | `e9a8d16f8dca40159b84761bcb62d3a9` |
+
+Notes: `stitch_list_screens` may return an empty `{}` (unreliable for verification — use `stitch_get_project`); new screens inherit the design system automatically when generated with `designSystem: assets/7885020225276488721`.
+
 ## Tech Stack
 
 | Layer        | Technology                                  |
@@ -38,6 +66,7 @@ app/
 │       ├── nomina.py        # Nómina y pagos
 │       ├── inventario.py    # Proveedores, insumos, movimientos, catálogos de insumo
 │       ├── menu.py          # Categorías, items, recetas
+│       ├── menu_publico.py  # API pública Carta Digital (solo lectura, sin auth)
 │       ├── salon.py         # Zonas, mesas, mapa
 │   ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
 │       ├── caja.py          # Historial diario, cierre de caja (archivado)
@@ -49,7 +78,8 @@ app/
 │   ├── asistencia.py        # TurnoCreate, TurnoUpdate, TurnoResponse, Asistencia, horas extras schemas
 │   ├── nomina.py            # Nomina schemas
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo (with packaging), UnidadMedida schemas
-│   ├── menu.py              # MenuItem, Receta, Categoria schemas
+│   ├── menu.py              # MenuItem (imagen_url, tiempo_preparacion), Receta, Categoria schemas
+│   ├── menu_publico.py      # Schemas públicos Carta Digital (sin costos/recetas/inventario)
 │   ├── salon.py             # Mesa, Zona schemas
 │   ├── orden.py             # Orden, DetalleOrden, AgregarItems, AplicarDescuentoItemRequest, AplicarDescuentoGlobalRequest schemas
 │   ├── caja.py              # CierreCajaResponse, HistorialDiarioResponse
@@ -62,7 +92,7 @@ app/
 │   ├── asistencia.py        # Turno (Matutino/Nocturno), Asistencia (audit columns + ultimo_heartbeat)
 │   ├── nomina.py            # Nomina
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
-│   ├── menu.py              # CategoriaMenu, MenuItem, Receta
+│   ├── menu.py              # CategoriaMenu, MenuItem (imagen_url, tiempo_preparacion), Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
 │   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales/para llevar; subtotal, descuento_total, nombre_cliente fields; descuento_porcentaje, descuento_monto, motivo_descuento on DetalleOrden)
 │   ├── caja.py              # CierreCaja
@@ -76,7 +106,7 @@ app/
 │   ├── asistencia_repository.py  # + actualizar_heartbeat(), get_activas_sin_heartbeat()
 │   ├── nomina_repository.py
 │   ├── inventario_repository.py
-│   ├── menu_repository.py
+│   ├── menu_repository.py       # _query_items_base() compartida; obtener_items_publicos(), obtener_item_publico_por_id() (Carta Digital); actualizar_imagen_url()
 │   ├── salon_repository.py
 │   ├── orden_repository.py
 │   ├── caja_repository.py
@@ -88,7 +118,7 @@ app/
 │   ├── asistencia_service.py     # + actualizar_heartbeat(), cerrar_turnos_stale(), crear_turno(), actualizar_turno(), eliminar_turno()
 │   ├── nomina_service.py
 │   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
-│   ├── menu_service.py
+│   ├── menu_service.py          # + consultas públicas reutilizables: obtener_menu_publico(), obtener_categorias_publicas(), obtener_item_publico_por_id(); subir_imagen() (upload multipart)
 │   ├── salon_service.py
 │   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
 │   ├── caja_service.py
@@ -253,6 +283,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/menu/items                          | Yes      | Any                |
 | PUT    | /api/v1/menu/items/{id}                     | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/menu/items/{id}                     | Yes      | Admin, Gerente     |
+| POST   | /api/v1/menu/items/{id}/imagen              | Yes      | Admin, Gerente     |
 | GET    | /api/v1/menu/categorias                     | Yes      | Any                |
 | POST   | /api/v1/menu/categorias                     | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/menu/categorias/{id}                | Yes      | Admin, Gerente     |
@@ -304,7 +335,27 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/nomina/empleado/{id}                | Yes      | Any                |
 | GET    | /api/v1/nomina/empleados/{id}/historial     | Yes      | Any                |
 | GET    | /api/v1/analitica/cierre-caja               | Yes      | Admin, Gerente     |
+| GET    | /api/public/menu                            | No       | Pública (solo lectura) |
+| GET    | /api/public/categories                      | No       | Pública (solo lectura) |
+| GET    | /api/public/menu/{categoria_id}             | No       | Pública (solo lectura) |
+| GET    | /api/public/item/{item_id}                  | No       | Pública (solo lectura) |
 | GET    | /healthcheck                                | No       | —                  |
+
+## API Pública (Carta Digital)
+
+Endpoints de solo lectura preparados para la futura Carta Digital. **No requieren autenticación** y reutilizan exactamente los modelos actuales (`CategoriaMenu`, `MenuItem`) sin duplicar información.
+
+- `GET /api/public/menu` → todos los platos con `disponible=True`
+- `GET /api/public/categories` → todas las categorías
+- `GET /api/public/menu/{categoria_id}` → platos disponibles filtrados por categoría (id, `gt=0`)
+- `GET /api/public/item/{item_id}` → plato disponible por id (404 si no existe o no está disponible)
+
+**Seguridad**: los endpoints públicos NUNCA exponen costos, recetas/insumos, inventario interno, usuarios ni roles. `MenuItemPublicoResponse` y `CategoriaMenuPublicaResponse` (en `app/schemas/menu_publico.py`) solo serializan `id`, `nombre`, `descripcion`, `precio`, `disponible`, `imagen_url`, `tiempo_preparacion`, `categoria`. La lógica reutilizable vive en `MenuService`/`MenuRepository`:
+
+- `MenuRepository._query_items_base(incluir_insumos)` — consulta base compartida; `incluir_insumos=False` NO carga recetas/insumos (uso público)
+- `MenuRepository.obtener_items_publicos(categoria_id=None)` / `obtener_item_publico_por_id(item_id)` — solo platos `disponible=True`
+- `MenuService.obtener_menu_publico()` / `obtener_categorias_publicas()` / `obtener_item_publico_por_id()` — reutilizan los repos públicos
+- Router `app/api/endpoints/menu_publico.py` registrado en `main.py` bajo prefijo `/api/public`
 
 ## Key Backend Patterns
 
@@ -363,6 +414,16 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `CategoriaMenu` model (id, nombre, descripcion) with `MenuItem.categoria_id` FK
 - `GET /menu/categorias` → all categories; `POST /menu/categorias` → create; `DELETE /menu/categorias/{id}` → delete (guarded: 400 if category has platillos)
 - **Frontend**: `#screen-menu-mgmt` has `#menu-mgmt-cat-filters` chip row dynamically populated from `GET /menu/categorias`; `#modal-dish` has ⚙️ toggle button → `#cat-panel` (collapsible) with input + save + list with delete buttons; `loadCategorias()` fetches categories, `guardarCategoriaMenu()` posts, `eliminarCategoriaMenu()` deletes; filter logic via `activeMgmtCatFilter` + `applyMenuMgmtFilter()`
+
+### Subida de imágenes y tiempo de preparación (Carta Digital)
+- `MenuItem` model has `imagen_url` (String 500, nullable) and `tiempo_preparacion` (Integer nullable, minutos) — documented in the model comments
+- **`imagen_url` is server-managed ONLY**: it is NOT accepted in `MenuItemCreate`/`MenuItemUpdate`; clients can never write paths/URLs manually
+- `POST /menu/items/{id}/imagen` (Admin/Gerente) receives multipart field `archivo`; `MenuService.subir_imagen()` validates MIME + extension (PNG/JPEG/WebP/GIF), size ≤ 5 MB, writes to `app/Templates/carta/img/platos/` with unique name `item_{id}_{uuid4().hex}.{ext}`, deletes the previous managed image safely (ignores missing file), and persists `imagen_url = /carta/img/platos/<file>`
+- Storage dir is served by the existing `/carta` StaticFiles mount (no new routes); `os.makedirs(exist_ok=True)` on upload; the mount path is derived from `Path(__file__).resolve().parent.parent / "Templates" / "carta" / "img" / "platos"`
+- `MenuItemResponse` and `MenuItemPublicoResponse` expose `imagen_url` + `tiempo_preparacion`; `MenuItemCreate`/`MenuItemUpdate` accept `tiempo_preparacion` only
+- Startup migration `_migrate_menu_item_imagen_tiempo()` (idempotent via `information_schema`) adds both columns
+- **Frontend POS**: `#modal-dish` has file input `#dish-image` (accept png/jpeg/webp/gif) + `#dish-prep-time` (minutes) + live preview (`previewDishImage()`); `saveDish()` sends `tiempo_preparacion` in the JSON body and, if a file was chosen, uploads it after save via `uploadDishImage()` (`FormData` + `Content-Type: undefined` so fetch sets the multipart boundary); `renderMenuMgmt()` shows thumbnail + "⏱️ ~N min"
+- **Carta Digital**: `imgFor(item)` returns `item.imagen_url` or the local placeholder `img/placeholder-dish.svg`; `openModal()` shows "Preparación: ~N min" in the timer pill (falls back to category); hero/logos are local assets in `app/Templates/carta/img/` — no remote images, no Stitch dependencies
 
 ### UTC timezone handling
 - All `datetime.now()` calls in asistencia-related code use `datetime.now(timezone.utc).replace(tzinfo=None)` to store naive UTC
