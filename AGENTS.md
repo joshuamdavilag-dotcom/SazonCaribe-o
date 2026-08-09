@@ -2,8 +2,9 @@
 
 ## Project Overview
 
-Restaurant management POS system built with FastAPI + SQLAlchemy 2.x + Pydantic v2 + MySQL.
-Frontend is a Vanilla JS SPA served by FastAPI from `app/Templates/`.
+Restaurant management POS system (ERP) built with FastAPI + SQLAlchemy 2.x + Pydantic v2 + MySQL.
+The ERP frontend is a Vanilla JS SPA served by FastAPI from `app/Templates/`.
+A public **Carta Digital** (menú para clientes vía QR, sin autenticación) is served from `app/Templates/carta/` and consumes the public API `/api/public`.
 
 ## UI Design System (Stitch)
 
@@ -52,7 +53,7 @@ Multi-layer pattern: **API → Service → Repository → Model**
 
 ```
 app/
-├── main.py                  # FastAPI app, CORS, router registration, startup, heartbeat watcher BG task, orphaned mesa fix
+├── main.py                  # FastAPI app, CORS, router registration, static mounts (/Templates + /carta), startup migrations, heartbeat watcher BG task, orphaned mesa fix
 ├── core/
 │   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS
 │   ├── database.py          # Engine, SessionLocal, Base, get_db()
@@ -68,7 +69,7 @@ app/
 │       ├── menu.py          # Categorías, items, recetas
 │       ├── menu_publico.py  # API pública Carta Digital (solo lectura, sin auth)
 │       ├── salon.py         # Zonas, mesas, mapa
-│   ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
+│       ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
 │       ├── caja.py          # Historial diario, cierre de caja (archivado)
 │       ├── gasto.py         # Gastos operativos CRUD
 │       ├── reportes.py      # Reportes financieros por periodo
@@ -99,7 +100,7 @@ app/
 │   ├── gasto.py             # Gasto, CategoriaGasto enum
 │   └── __init__.py          # Registers all models including Gasto
 ├── repositories/
-│   ├── base.py              # Generic base repository
+│   ├── base_repository.py   # Generic base repository
 │   ├── usuario_repository.py
 │   ├── empleado_repository.py
 │   ├── turno_repository.py
@@ -119,6 +120,7 @@ app/
 │   ├── nomina_service.py
 │   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
 │   ├── menu_service.py          # + consultas públicas reutilizables: obtener_menu_publico(), obtener_categorias_publicas(), obtener_item_publico_por_id(); subir_imagen() (upload multipart)
+│   ├── preparacion_service.py   # Producción por lote: registrar_preparacion() valida stock, descuenta insumos (SALIDA + Gasto SUMINISTROS), crea DetallePreparacionCocina
 │   ├── salon_service.py
 │   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
 │   ├── caja_service.py
@@ -132,7 +134,8 @@ app/
 ├── Templates/
 │   ├── index.html
 │   ├── css/style.css
-│   └── js/app.js                 # Uses POST /ordenes/{id}/items for adding items (legacy PATCH removed); descuentos via POST /ordenes/{id}/descuento-{item,global}
+│   ├── js/app.js                 # Uses POST /ordenes/{id}/items for adding items (legacy PATCH removed); descuentos via POST /ordenes/{id}/descuento-{item,global}
+│   └── carta/                    # Carta Digital pública (sin auth): index.html, css/style.css, js/app.js, img/ (hero, logos, placeholder) + img/platos/ (imágenes subidas por el ERP)
 └── tests/
 ```
 
@@ -267,7 +270,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/personal/puestos                    | Yes      | Any                |
 | POST   | /api/v1/personal/puestos                    | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/empleados                  | Yes      | Admin, Gerente     |
+| GET    | /api/v1/personal/empleados                  | Yes      | Any                |
+| PUT    | /api/v1/personal/empleados/{id}             | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/usuarios                   | Yes      | Admin, Gerente     |
+| GET    | /api/v1/personal/usuarios                   | Yes      | Any                |
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
 | POST   | /api/v1/asistencia/turnos                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/asistencia/turnos                   | Yes      | Any                |
@@ -282,6 +288,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/asistencia/{id}/editar-horarios     | Yes      | Admin, Gerente     |
 | POST   | /api/v1/menu/items                          | Yes      | Admin, Gerente     |
 | GET    | /api/v1/menu/items                          | Yes      | Any                |
+| GET    | /api/v1/menu/items/{id}                     | Yes      | Any                |
 | PUT    | /api/v1/menu/items/{id}                     | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/menu/items/{id}                     | Yes      | Admin, Gerente     |
 | POST   | /api/v1/menu/items/{id}/imagen              | Yes      | Admin, Gerente     |
@@ -290,10 +297,16 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | DELETE | /api/v1/menu/categorias/{id}                | Yes      | Admin, Gerente     |
 | POST   | /api/v1/inventario/insumos                  | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/insumos                  | Yes      | Any                |
+| GET    | /api/v1/inventario/insumos/{id}             | Yes      | Any                |
 | PATCH  | /api/v1/inventario/insumos/{id}/stock       | Yes      | Admin, Gerente     |
 | PATCH  | /api/v1/inventario/insumos/{id}             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/insumos/alertas          | Yes      | Any                |
-| POST   | /api/v1/inventario/movimientos              | Yes      | Any                |
+| GET    | /api/v1/inventario/insumos/lote-ids         | Yes      | Any                |
+| POST   | /api/v1/inventario/movimientos              | Yes      | Admin, Gerente     |
+| GET    | /api/v1/inventario/ingredientes             | Yes      | Any                |
+| POST   | /api/v1/inventario/ingredientes             | Yes      | Admin, Gerente     |
+| GET    | /api/v1/inventario/ingredientes/alertas     | Yes      | Any                |
+| GET    | /api/v1/inventario/ingredientes/{id}/historial | Yes    | Any                |
 | GET    | /api/v1/inventario/proveedores              | Yes      | Any                |
 | POST   | /api/v1/inventario/proveedores              | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/categorias-insumo         | Yes      | Any                |
@@ -307,6 +320,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/inventario/preparaciones             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/preparaciones             | Yes      | Any                |
 | GET    | /api/v1/salon/mapa                          | Yes      | Any                |
+| GET    | /api/v1/salon/mesas                         | Yes      | Any                |
 | POST   | /api/v1/salon/mesas                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/salon/mesas/{id}                    | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/salon/mesas/{id}                    | Yes      | Admin, Gerente     |
@@ -335,6 +349,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/nomina/{id}/pagar                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/nomina/empleado/{id}                | Yes      | Any                |
 | GET    | /api/v1/nomina/empleados/{id}/historial     | Yes      | Any                |
+| POST   | /api/v1/nomina/adelantos                    | Yes      | Admin, Gerente     |
+| GET    | /api/v1/nomina/empleados/{id}/adelantos     | Yes      | Any                |
 | GET    | /api/v1/analitica/cierre-caja               | Yes      | Admin, Gerente     |
 | GET    | /api/public/menu                            | No       | Pública (solo lectura) |
 | GET    | /api/public/categories                      | No       | Pública (solo lectura) |
@@ -344,7 +360,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## API Pública (Carta Digital)
 
-Endpoints de solo lectura preparados para la futura Carta Digital. **No requieren autenticación** y reutilizan exactamente los modelos actuales (`CategoriaMenu`, `MenuItem`) sin duplicar información.
+Endpoints de solo lectura **consumidos por la Carta Digital** (menú público para clientes vía QR). **No requieren autenticación** y reutilizan exactamente los modelos actuales (`CategoriaMenu`, `MenuItem`) sin duplicar información.
 
 - `GET /api/public/menu` → todos los platos con `disponible=True`
 - `GET /api/public/categories` → todas las categorías
@@ -357,6 +373,35 @@ Endpoints de solo lectura preparados para la futura Carta Digital. **No requiere
 - `MenuRepository.obtener_items_publicos(categoria_id=None)` / `obtener_item_publico_por_id(item_id)` — solo platos `disponible=True`
 - `MenuService.obtener_menu_publico()` / `obtener_categorias_publicas()` / `obtener_item_publico_por_id()` — reutilizan los repos públicos
 - Router `app/api/endpoints/menu_publico.py` registrado en `main.py` bajo prefijo `/api/public`
+
+### Carta Digital — Frontend público y separación ERP/Pública
+
+La Carta Digital es un frontend **completamente separado del POS** (sin autenticación, sin acceso al ERP) servido por FastAPI como archivos estáticos:
+
+- `app/Templates/carta/index.html` — página pública (mobile-first, UI en español, C$)
+- `app/Templates/carta/css/style.css` — estilos propios de la carta (design tokens idénticos al POS)
+- `app/Templates/carta/js/app.js` — consumidor de la API pública; `API_BASE` detecta local (`http://127.0.0.1:8000/api/public`) vs remoto (`${location.origin}/api/public`); `PLACEHOLDER_IMG = 'img/placeholder-dish.svg'`
+- `app/Templates/carta/img/` — assets locales únicos de la carta: `hero-desktop.jpg`, `hero-mobile.jpg`, `logo.png`, `logo-small.png`, `placeholder-dish.svg`. **No hay imágenes remotas ni dependencias de Stitch.**
+- `app/Templates/carta/img/platos/` — directorio gestionado por el ERP vía subida de imágenes (creado con `os.makedirs(exist_ok=True)` al subir)
+
+Montado en `app/main.py` con `app.mount("/carta", StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` (index.html por defecto). El mount `/carta` es el que sirve también las imágenes de platos (`/carta/img/platos/<file>`).
+
+**Flujo completo (de punta a punta):**
+
+```
+ERP (POS)                     API Pública                    Carta Digital              Cliente
+─────────                     ───────────                    ─────────────              ───────
+Gestión de Menú        →      GET /api/public/menu     →      js/app.js fetch()   →     escanea QR
+│  · Admin/Gerente            GET /api/public/categories      renderChips()/renderBento()   abre /carta/
+│  · CRUD platillos           GET /api/public/menu/{cat}      renderSections()          explora
+│  · disponible toggle        GET /api/public/item/{id}       openModal() detalle        · foto · precio
+│  · tiempo_preparacion                                       · descripción · disponib.  · descripción
+│  · imagen (multipart)                                       · "Preparación: ~N min"    · disponibilidad
+└──→ POST /menu/items/{id}/imagen                                (placeholder si imagen null)
+        escribe app/Templates/carta/img/platos/ ──servido por /carta──►
+```
+
+La Carta Digital **solo lee** a través de `/api/public`; nunca toca el ERP ni sus endpoints `/api/v1`. La única vía de escritura es la del Administrador/Gerente en Gestión de Menú (datos + imágenes), que alimenta la misma base de datos. `disponible=False` (incluido el borrado lógico) oculta el plato de la carta inmediatamente.
 
 ## Key Backend Patterns
 
