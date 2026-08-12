@@ -52,8 +52,13 @@ function formatLocalTime(isoStr) {
    API Helpers
    ========================================================================= */
 async function api(endpoint, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const isFormData = options.body instanceof FormData;
+  const headers = { ...options.headers };
   if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+  if (!isFormData && headers['Content-Type'] === undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  Object.keys(headers).forEach(k => { if (headers[k] === undefined) delete headers[k]; });
 
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
@@ -1810,7 +1815,6 @@ async function uploadDishImage(itemId, file) {
   formData.append('archivo', file);
   const updated = await api(`/menu/items/${itemId}/imagen`, {
     method: 'POST',
-    headers: { 'Content-Type': undefined },
     body: formData,
   });
   const idx = state.menuItems.findIndex(i => i.id === itemId);
