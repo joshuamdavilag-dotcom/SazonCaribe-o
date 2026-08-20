@@ -44,6 +44,8 @@ Notes: `stitch_list_screens` may return an empty `{}` (unreliable for verificati
 | Database     | MySQL via PyMySQL                            |
 | Auth         | python-jose (JWT HS256) + bcrypt (direct)   |
 | Migrations   | Alembic                                     |
+| Image Storage| ImgBB API (via httpx) — permanent URLs       |
+| HTTP Client  | httpx 0.28.1                                |
 | Frontend     | Vanilla JS SPA + Custom CSS (style.css)      |
 | Testing      | requests (standalone E2E scripts)            |
 
@@ -53,9 +55,9 @@ Multi-layer pattern: **API → Service → Repository → Model**
 
 ```
 app/
-├── main.py                  # FastAPI app, CORS, router registration, static mounts (/Templates + /carta), startup migrations, heartbeat watcher BG task, orphaned mesa fix
+├── main.py                  # FastAPI app, CORS, router registration, static mounts (/Templates + /carta), startup migrations, heartbeat watcher BG task, orphaned mesa fix, joshi password fix, constraint fix
 ├── core/
-│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS
+│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS, IMGBB_API_KEY
 │   ├── database.py          # Engine, SessionLocal, Base, get_db()
 │   └── security.py          # bcrypt (direct) + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
 ├── api/
@@ -207,6 +209,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` converts UTC→local via `formatLocalTime()` logic; `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `hora_entrada`, `hora_salida`, `motivo`; backend converts local→UTC by subtracting 6h (Nicaragua CST); recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
 - `formatLocalTime(isoStr)` helper converts UTC datetime strings to Nicaragua local time (`es-NI` locale); all datetime strings from backend are naive UTC — helper appends `'Z'` if missing before parsing
+- Reloj en vivo: `updateClock()` muestra hora actual en KDS (`#comandero-clock`) y Salón (`#salon-clock`), actualiza cada 30s via `setInterval`
+- `cobrarOrden(ordenId)` — pago rápido desde KDS: PATCH estado a PAGADA + PUT mesa a LIBRE (si tiene mesa_id); alternativa al flujo de detalle de mesa ocupada
+- `blockPOSAccess()` — al fallar validación de IP (403), deshabilita todos los elementos interactivos (botones, inputs, selects, formularios, navegación) con `pointer-events: none` + `opacity: 0.4`
 
 ### Design Tokens (CSS)
 
@@ -241,22 +246,22 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
 - **Borrado lógico de platillos**: `DELETE /menu/items/{id}` does a SOFT DELETE — sets `disponible=False` (never `db.delete`). Receta e historial de ventas (`detalle_orden`) se conservan; el plato puede reactivarse editándolo. `IntegrityError` se captura y devuelve 400 con mensaje claro. `GET /menu/items` devuelve solo activos por defecto; `?incluir_inactivos=true` (solo Admin/Gerente) los incluye para Gestión de Menú. La unicidad de nombre verifica también inactivos.
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
-- **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`)
+- **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`, optional `notas` for special instructions like "Sin cebolla", "poco cocido")
 - **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`. Does NOT apply to para llevar (mesa_id null).
 - **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction. If mesa_id is null (para llevar), only sets PAGADA.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
 - **Adelantos de Salario**: `AdelantoSalario` model linked to Empleado + Nomina (via `total_adelantos`); auto-creates a `Gasto` (OPERATIVO) on registration; deducted from `pago_neto` in nomina calculations; API at `POST /nomina/adelantos`, `GET /nomina/empleados/{id}/adelantos`
 - **Descuentos**: Per-item (`descuento_porcentaje` / `descuento_monto` + `motivo_descuento` on `DetalleOrden`) or global (distributed proportionally). `Orden.subtotal` is sum of line totals before discount; `descuento_total` is total discount; `Orden.total = subtotal - descuento_total`. Discounts applied via `POST /ordenes/{id}/descuento-item` and `POST /ordenes/{id}/descuento-global`. Removed via `DELETE /ordenes/{id}/descuento-item/{detalle_id}`. **Al crear/editar comanda**: el botón ✏️ de cada ítem del modal solicita un Descuento en C$ (`aplicarDescuentoItemModal()`), se envía como `descuento_monto` en `DetalleOrdenCreate` (create + `POST /ordenes/{id}/items`), y el backend lo aplica en `_procesar_detalles()` (valida que no exceda el total de la línea, 400 en caso contrario).
-- **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders via `cierre_caja_id` FK.
+- **Cierre de caja**: `POST /caja/cierre` creates `CierreCaja` + links PAGADA orders AND all unarchived gastos via `cierre_caja_id` FK.
 - **Mesa states**: LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO
 - **Insumo**: `cantidad_actual` adjusted via `tipo: ENTRADA|SALIDA` movements; optional `unidad_empaque_id` FK + `factor_empaque` (1 empaque = X base); conversion in stock/recipes uses per-insumo packaging factor before falling back to global chain
 - **Unidad base change migration**: When editing insumo's `unidad_medida_id`, backend requires `factor_conversion_unidad` (how many new units in 1 old unit); auto-converts `cantidad_actual`, `costo_unitario`, and all linked `Receta.cantidad_necesaria` rows using the old unit; frontend shows equivalence modal with old/new unit names
 - **CategoríaInsumo**: Dynamic categories; delete guarded if category has associated insumos
 - **UnidadMedida**: Dynamic units (nombre, abreviatura, tipo_magnitud: PESO/VOLUMEN/UNIDAD/PERSONALIZADO, unidad_base_id FK, factor_conversion); delete guarded if unit has associated insumos; startup migration `_fix_unidades_medida()` corrects magnitudes and conversion chains for all 15 standard units
 - **Gastos operativos**: `Gasto` table tracks operational expenses (categoría: OPERATIVO, MANTENIMIENTO, SUMINISTROS, SERVICIOS, IMPUESTOS, OTROS)
-- **Gastos auto-generados**: Every SALIDA de inventario (manual or recipe-based) auto-creates a `Gasto` with `categoria=SUMINISTROS` and `monto=cantidad×costo_unitario`
+- **Gastos auto-generados**: Every SALIDA de inventario (manual or recipe-based) auto-creates a `Gasto` with `categoria=SUMINISTROS` and `monto=cantidad×costo_unitario`. No setea `registrado_por` (queda `None`).
 - **Reportes financieros**: `utilidad_neta = ingresos_totales - gastos_nomina - costo_insumos - gastos_operativos` — flujo de caja real: `costo_insumos` = gastos SUMINISTROS únicamente (NO costo teórico de recetas, para evitar doble contabilidad)
-- **Archivado**: `Orden.cierre_caja_id` FK links orders to cierre session; `historial-diario` filters `cierre_caja_id IS NULL`
+- **Archivado**: `Orden.cierre_caja_id` FK links orders to cierre session; `Gasto.cierre_caja_id` FK links gastos to cierre session; `historial-diario` filters `cierre_caja_id IS NULL` for both orders and gastos.
 - **Dynamic zones**: `Zona` model with FK from Mesa; delete guarded if zone has mesas
 - **Dynamic menu categories**: `CategoriaMenu` model, backend CRUD, delete guarded
 - **Dynamic inventory categories & units**: `CategoriaInsumo` + `UnidadMedida` models; `Insumo` uses `unidad_medida_id` FK + `categoria_id` FK
@@ -357,6 +362,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/public/menu/{categoria_id}             | No       | Pública (solo lectura) |
 | GET    | /api/public/item/{item_id}                  | No       | Pública (solo lectura) |
 | GET    | /healthcheck                                | No       | —                  |
+
+### Query Parameters
+
+| Endpoint | Params | Descripción |
+|----------|--------|-------------|
+| `GET /ordenes/` | `?estado=&mesa_id=` | Filtrar por estado de orden y/o mesa específica |
+| `GET /gastos/` | `?fecha_inicio=&fecha_fin=` | Filtrar gastos por rango de fechas |
+| `GET /nomina/empleados/{id}/adelantos` | `?fecha_inicio=&fecha_fin=` | Filtrar adelantos por rango de fechas |
+| `GET /menu/items` | `?incluir_inactivos=true` | Incluir platillos deshabilitados (solo Admin/Gerente) |
 
 ## API Pública (Carta Digital)
 
@@ -464,8 +478,9 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 ### Subida de imágenes y tiempo de preparación (Carta Digital)
 - `MenuItem` model has `imagen_url` (String 500, nullable) and `tiempo_preparacion` (Integer nullable, minutos) — documented in the model comments
 - **`imagen_url` is server-managed ONLY**: it is NOT accepted in `MenuItemCreate`/`MenuItemUpdate`; clients can never write paths/URLs manually
-- `POST /menu/items/{id}/imagen` (Admin/Gerente) receives multipart field `archivo`; `MenuService.subir_imagen()` validates MIME + extension (PNG/JPEG/WebP/GIF), size ≤ 5 MB, writes to `app/Templates/carta/img/platos/` with unique name `item_{id}_{uuid4().hex}.{ext}`, deletes the previous managed image safely (ignores missing file), and persists `imagen_url = /carta/img/platos/<file>`
-- Storage dir is served by the existing `/carta` StaticFiles mount (no new routes); `os.makedirs(exist_ok=True)` on upload; the mount path is derived from `Path(__file__).resolve().parent.parent / "Templates" / "carta" / "img" / "platos"`
+- `POST /menu/items/{id}/imagen` (Admin/Gerente) receives multipart field `archivo`; `MenuService.subir_imagen()` validates MIME + extension (PNG/JPEG/WebP/GIF), size ≤ 5 MB, encodes the file to Base64, uploads it to ImgBB API (`POST https://api.imgbb.com/1/upload` with `IMGBB_API_KEY`), extracts the permanent URL from the response (`data.url`), and persists it in `imagen_url`
+- **ImgBB integration**: Uses `httpx` to POST to ImgBB with `key` + Base64 `image` param; no `expiration` param = permanent storage; timeout 30s; errors raise HTTPException 502 with descriptive messages; missing `IMGBB_API_KEY` raises 500
+- **Backward compatibility**: Existing images stored locally at `/carta/img/platos/` still work — `imagen_url` accepts any URL format; Carta Digital's `imgFor(item)` handles both local and external URLs
 - `MenuItemResponse` and `MenuItemPublicoResponse` expose `imagen_url` + `tiempo_preparacion`; `MenuItemCreate`/`MenuItemUpdate` accept `tiempo_preparacion` only
 - Startup migration `_migrate_menu_item_imagen_tiempo()` (idempotent via `information_schema`) adds both columns
 - **Frontend POS**: `#modal-dish` has file input `#dish-image` (accept png/jpeg/webp/gif) + `#dish-prep-time` (minutes) + live preview (`previewDishImage()`); `saveDish()` sends `tiempo_preparacion` in the JSON body and, if a file was chosen, uploads it after save via `uploadDishImage()` (`FormData` + `Content-Type: undefined` so fetch sets the multipart boundary); `renderMenuMgmt()` shows thumbnail + "⏱️ ~N min"
@@ -513,6 +528,8 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 (costo_insumos usa SOLO el bucket SUMINISTROS de la tabla gastos — NO el costo teórico de recetas — para evitar doble contabilidad)
 ```
 
+**DIARIO vs date-range**: El modo DIARIO usa `cierre_caja_id IS NULL` (registros NO archivados, es decir la sesión de caja abierta actual) en lugar de un filtro de fecha. Los modos SEMANAL/QUINCENAL/MENSUAL/ANUAL usan rangos de fecha sobre datos archivados e históricos. Cada modo tiene su propio conjunto de métodos en `ReportesRepository` (ej: `obtener_ingresos_totales()` vs `obtener_ingresos_totales_sin_archivar()`).
+
 ### Cierre de caja archival flow
 1. `GET /caja/historial-diario` → `Orden` WHERE `PAGADA AND fecha=today AND cierre_caja_id IS NULL`
 2. `POST /caja/cierre` → creates `CierreCaja` + links qualifying orders
@@ -559,3 +576,7 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 - No refresh token flow — single 8h access token
 - `turno_service.py`: three standalone functions (not a class) — inconsistent with other services
 - E2E test scripts (`test_ordenes.py` etc.) require auth tokens for most endpoints but don't implement login flow — run `init_db.py` seed data first
+- 7 empty placeholder files exist for planned modules: `venta_service.py`, `auditoria_service.py`, `empleado_service.py`, `receta_service.py`, `reporte_service.py` (singular), `producto_repository.py`, `venta_repository.py`
+- `repositories/__init__.py` only exports 6 of 16+ repositories (the rest work via direct imports by services)
+- Duplicate nomina endpoint: `GET /nomina/empleado/{id}` and `GET /nomina/empleados/{id}/historial` return identical results
+- `Settings.ENVIRONMENT` (default: "development") exists in config but is unused in the codebase

@@ -1,10 +1,12 @@
 import os
-import uuid
-from pathlib import Path
+import base64
 from typing import Optional, List
 
+import httpx
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
 
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.inventario_repository import InsumoRepository
@@ -318,16 +320,17 @@ class MenuService:
 
     def subir_imagen(self, item_id: int, archivo) -> MenuItemResponse:
         """
-        Sube y asigna la imagen de un plato.
+        Sube y asigna la imagen de un plato a ImgBB (almacenamiento permanente).
 
-        El gerente selecciona un archivo desde el ERP; el servidor lo almacena
-        localmente y genera la ruta. El cliente nunca escribe rutas a mano.
+        El gerente selecciona un archivo desde el ERP; el servidor lo envía
+        a ImgBB y almacena la URL pública en la base de datos. Las imágenes
+        son permanentes y sobreviven redeployes.
 
         Flujo:
         1. Verifica que el plato exista.
         2. Valida tipo MIME y extensión (PNG, JPEG, WebP o GIF) y tamaño <= 5 MB.
-        3. Escribe el archivo con nombre único en app/Templates/carta/img/platos/.
-        4. Elimina la imagen anterior (sin romper si ya no existe).
+        3. Convierte el archivo a Base64 y lo envía a ImgBB.
+        4. Extrae la URL de la respuesta exitosa.
         5. Persiste imagen_url y retorna el plato actualizado.
 
         Args:
@@ -340,7 +343,11 @@ class MenuService:
         Raises:
             HTTPException 404: Si el plato no existe.
             HTTPException 400: Si el archivo no es una imagen válida o excede 5 MB.
+            HTTPException 502: Si ImgBB retorna un error o no responde.
+            HTTPException 500: Si IMGBB_API_KEY no está configurada.
         """
+        settings = get_settings()
+
         item = self.menu_repo.obtener_menu_item_por_id(item_id)
         if not item:
             raise HTTPException(
@@ -381,31 +388,48 @@ class MenuService:
                 detail="La imagen supera el tamaño máximo de 5 MB"
             )
 
-        directorio = (
-            Path(__file__).resolve().parent.parent
-            / "Templates" / "carta" / "img" / "platos"
-        )
-        directorio.mkdir(parents=True, exist_ok=True)
+        if not settings.IMGBB_API_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="IMGBB_API_KEY no configurada en el servidor"
+            )
 
-        nombre = f"item_{item_id}_{uuid.uuid4().hex}{extensiones[extension]}"
-        ruta = directorio / nombre
+        b64_image = base64.b64encode(contenido).decode("utf-8")
 
-        anterior = item.imagen_url or ""
-        if anterior.startswith("/carta/img/platos/"):
-            ruta_anterior = directorio / Path(anterior).name
-            if ruta_anterior != ruta:
-                try:
-                    if ruta_anterior.exists():
-                        ruta_anterior.unlink()
-                except OSError:
-                    pass
+        try:
+            response = httpx.post(
+                "https://api.imgbb.com/1/upload",
+                data={
+                    "key": settings.IMGBB_API_KEY,
+                    "image": b64_image,
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Error de ImgBB: {e.response.status_code}"
+            )
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="No se pudo conectar con ImgBB"
+            )
 
-        with open(ruta, "wb") as f:
-            f.write(contenido)
+        result = response.json()
+        if not result.get("success"):
+            error_msg = result.get("error", {}).get("message", "Error desconocido de ImgBB")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"ImgBB rechazó la imagen: {error_msg}"
+            )
+
+        imagen_url = result["data"]["url"]
 
         item_actualizado = self.menu_repo.actualizar_imagen_url(
             item_id,
-            f"/carta/img/platos/{nombre}"
+            imagen_url
         )
         return MenuItemResponse.model_validate(item_actualizado)
 

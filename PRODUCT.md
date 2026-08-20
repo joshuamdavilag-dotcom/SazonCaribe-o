@@ -74,6 +74,12 @@ Gestiona toda la información desde el ERP.
 - Subir fotografías.
 - Cambiar disponibilidad.
 - Organizar el orden del menú.
+- Gestionar tiempo de preparación de platillos.
+- Gestionar unidades de medida y conversiones.
+- Gestionar categorías de insumos.
+- Registrar gastos operativos.
+- Generar reportes financieros por periodo.
+- Gestionar adelantos de salario.
 
 ---
 
@@ -137,6 +143,15 @@ No existirá un segundo panel administrativo.
 - ✅ API pública
 - ✅ Gestión de imágenes
 - ✅ Preparación para fotografías reales
+- ✅ Asistencia y Gestión de Turnos (check-in/out, heartbeat, turnos CRUD)
+- ✅ Nómina y Adelantos de Salario
+- ✅ Órdenes (state machine, descuentos por ítem/global, para llevar, venta retroactiva)
+- ✅ KDS — Panel de Cocina (estados, tiempos, cobro rápido)
+- ✅ Producción por lote (Preparación de Cocina)
+- ✅ Sistema de Unidades de Medida y Conversiones
+- ✅ Categorías de Insumo dinámicas
+- ✅ Reportes financieros por periodo (diario, semanal, quincenal, mensual, anual)
+- ✅ Unidad de empaque por insumo (factor de conversión por producto)
 
 ---
 
@@ -146,10 +161,10 @@ No existirá un segundo panel administrativo.
 - SEO
 - Caché de la API pública
 - Compartir en redes
-- Promociones
-- Destacados
+- Promociones (catálogo en Carta Digital — diferente al sistema de descuentos por orden ya implementado)
+- Destacados (platos destacados en la Carta Digital)
 - Menú bilingüe
 - Analytics QR
 - Panel de estadísticas
-- Horarios automáticos
+- Horarios automáticos de la carta (mostrar/ocultar menú por horario del día — diferente a la Gestión de Turnos de personal)
 - Banner de eventos

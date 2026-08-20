@@ -17,3 +17,6 @@ python-multipart==0.0.32
 
 # Utilidades
 python-dotenv==1.1.0
+
+# HTTP client (ImgBB image uploads)
+httpx==0.28.1

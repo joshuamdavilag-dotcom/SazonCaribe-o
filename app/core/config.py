@@ -89,6 +89,12 @@ class Settings(BaseSettings):
         description="Orígenes permitidos para CORS (separados por coma)"
     )
 
+    # ImgBB — API key para almacenamiento permanente de imágenes del menú
+    IMGBB_API_KEY: str = Field(
+        default="",
+        description="API key de ImgBB para subir imágenes de platos"
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
