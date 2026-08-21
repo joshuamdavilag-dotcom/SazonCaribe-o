@@ -17,6 +17,46 @@ const IMG_LOGO = 'img/logo.png';
 const IMG_LOGO_SMALL = 'img/logo-small.png';
 
 /* =========================================================================
+   Curaduría pública de categorías (solo afecta la Carta Digital;
+   el ERP administrativo conserva todas las categorías intactas)
+   ========================================================================= */
+const CATEGORIAS_OCULTAS = [
+  'Especialidades de la Casa',
+  'Algo para Picar',
+];
+
+const ORDEN_CATEGORIAS = [
+  'Platos Ejecutivos',
+  'Platos Fuertes',
+  'Mariscos',
+  'Zona Caribeña',
+  'Para Compartir',
+  'Bebidas',
+  'Extras',
+];
+
+function normNombre(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function curarCategorias(categories) {
+  const visibles = categories.filter((c) => {
+    const norm = normNombre(c.nombre);
+    if (CATEGORIAS_OCULTAS.some((h) => normNombre(h) === norm)) return false;
+    return itemsOfCategory(c.id).length > 0;
+  });
+  const rango = (c) => {
+    const idx = ORDEN_CATEGORIAS.findIndex((n) => normNombre(n) === normNombre(c.nombre));
+    return idx === -1 ? ORDEN_CATEGORIAS.length : idx;
+  };
+  return [...visibles].sort((a, b) => rango(a) - rango(b));
+}
+
+/* =========================================================================
    Estado
    ========================================================================= */
 const state = {
@@ -71,14 +111,14 @@ async function api(path) {
 }
 
 /* =========================================================================
-   Render: chips, nav, bento, secciones
+   Render: chips, nav, tarjetas de categoría, secciones
    ========================================================================= */
 function renderChips() {
-  const all = `<button class="chip${state.activeCatId === null ? ' active' : ''}" data-cat="all">Todos</button>`;
+  const home = `<button class="chip${state.activeCatId === null ? ' active' : ''}" data-cat="all">Categorías</button>`;
   const cats = state.categories.map((c) => (
     `<button class="chip${state.activeCatId === c.id ? ' active' : ''}" data-cat="${c.id}">${esc(c.nombre)}</button>`
   )).join('');
-  document.getElementById('chips').innerHTML = all + cats;
+  document.getElementById('chips').innerHTML = home + cats;
 }
 
 function renderNav() {
@@ -88,47 +128,46 @@ function renderNav() {
   document.getElementById('nav-links').innerHTML = links;
 }
 
-function renderBento() {
-  const wrap = document.getElementById('bento');
-  if (!state.categories.length) {
+function categoryCover(catId) {
+  const withImg = itemsOfCategory(catId).find((i) => i.imagen_url);
+  return (withImg && withImg.imagen_url) || PLACEHOLDER_IMG;
+}
+
+function renderCategoryCards() {
+  const section = document.getElementById('cat-cards-section');
+  const wrap = document.getElementById('cat-cards');
+  const overview = state.activeCatId === null;
+
+  section.style.display = overview ? '' : 'none';
+  document.getElementById('menu-sections').style.display = overview ? 'none' : '';
+  document.getElementById('chips-wrap').style.display = overview ? 'none' : '';
+
+  if (!overview) {
     wrap.innerHTML = '';
     return;
   }
 
-  const [first, ...rest] = state.categories;
-  let html = '';
-
-  html += `
-    <a href="#chips-wrap" class="bento-tile bento-img" data-cat="${first.id}">
-      <img src="${IMG_HERO_MOBILE}" alt="${esc(first.nombre)}" loading="lazy">
-      <div class="bento-shade"></div>
-      <h3 class="t-headline-md">${esc(first.nombre)}</h3>
-    </a>`;
-
-  const icons = rest.slice(0, 2);
-  icons.forEach((c, i) => {
-    const icon = i % 2 === 0 ? 'local_dining' : 'icecream';
-    const cls = i % 2 === 0 ? 'bento-tile bento-icon bento-low' : 'bento-tile bento-icon bento-yellow';
-    html += `
-      <a href="#chips-wrap" class="${cls}" data-cat="${c.id}">
-        <span class="material-symbols-outlined ms-48">${icon}</span>
-        <span class="t-label">${esc(c.nombre)}</span>
-      </a>`;
-  });
-
-  const wide = rest[2];
-  if (wide) {
-    html += `
-      <a href="#chips-wrap" class="bento-tile bento-wide" data-cat="${wide.id}">
-        <div>
-          <h3 class="t-headline-md">${esc(wide.nombre)}</h3>
-          <p class="t-body-md">${esc(wide.descripcion || 'Explora nuestra selección')}</p>
-        </div>
-        <span class="material-symbols-outlined">local_bar</span>
-      </a>`;
+  if (!state.categories.length) {
+    wrap.innerHTML = `<div class="state-msg t-body-lg">Aún no hay categorías en la carta. Próximamente.</div>`;
+    return;
   }
 
-  wrap.innerHTML = html;
+  wrap.innerHTML = state.categories.map((c) => {
+    const count = itemsOfCategory(c.id).length;
+    const countLabel = count === 1 ? 'platillo' : 'platillos';
+    const desc = c.descripcion || 'Descubre los sabores de esta selección';
+    return `
+      <article class="cat-card" data-cat="${c.id}" role="button" tabindex="0" aria-label="${esc(c.nombre)}">
+        <img src="${categoryCover(c.id)}" alt="${esc(c.nombre)}" loading="lazy" decoding="async">
+        <div class="cat-card-shade"></div>
+        <span class="material-symbols-outlined cat-card-arrow">arrow_forward</span>
+        <div class="cat-card-content">
+          <span class="cat-card-count t-label">${count} ${countLabel}</span>
+          <h3 class="t-headline-md">${esc(c.nombre)}</h3>
+          <p class="t-body-md">${esc(desc)}</p>
+        </div>
+      </article>`;
+  }).join('');
 }
 
 function cardHTML(item) {
@@ -138,7 +177,7 @@ function cardHTML(item) {
   return `
     <article class="card${disp ? '' : ' card-off'}" data-id="${item.id}" role="button" tabindex="0" aria-label="${title}">
       <div class="card-media">
-        <img src="${imgFor(item)}" alt="${title}" loading="lazy">
+        <img src="${imgFor(item)}" alt="${title}" loading="lazy" decoding="async">
         <span class="badge badge-fresco"><span class="material-symbols-outlined ms-16 fill">eco</span>100% Fresco</span>
         <span class="badge badge-avail${disp ? '' : ' off'}">${disp ? 'Disponible' : 'Agotado'}</span>
         <div class="agotado-overlay"><span>Agotado hoy</span></div>
@@ -174,23 +213,19 @@ function sectionHTML(category) {
 
 function renderSections() {
   const wrap = document.getElementById('menu-sections');
-  let html;
-  if (!state.items.length && !state.categories.length) {
-    html = `<div class="state-msg t-body-lg">Aún no hay platillos en la carta. Próximamente.</div>`;
-  } else {
-    const visible = state.activeCatId === null
-      ? state.categories
-      : state.categories.filter((c) => c.id === state.activeCatId);
-    const sections = visible.map(sectionHTML).filter(Boolean).join('');
-    html = sections || `<div class="state-msg t-body-lg">No hay platillos disponibles en esta categoría.</div>`;
+  if (state.activeCatId === null) {
+    wrap.innerHTML = '';
+    return;
   }
-  wrap.innerHTML = html;
+  const visible = state.categories.filter((c) => c.id === state.activeCatId);
+  const sections = visible.map(sectionHTML).filter(Boolean).join('');
+  wrap.innerHTML = sections || `<div class="state-msg t-body-lg">No hay platillos disponibles en esta categoría.</div>`;
 }
 
 function renderAll() {
   renderChips();
   renderNav();
-  renderBento();
+  renderCategoryCards();
   renderSections();
 }
 
@@ -205,7 +240,7 @@ function openModal(item) {
     : `Categoría: ${catName}`;
 
   document.getElementById('modal-media').innerHTML = `
-    <img src="${imgFor(item)}" alt="${esc(item.nombre)}">
+    <img src="${imgFor(item)}" alt="${esc(item.nombre)}" loading="lazy" decoding="async">
     <div class="modal-img-badges">
       <span class="badge-img"><span class="material-symbols-outlined ms-18">local_fire_department</span>Popular</span>
       <span class="badge-img"><span class="material-symbols-outlined ms-18">set_meal</span>${esc(catName)}</span>
@@ -256,6 +291,10 @@ function closeModal() {
 function selectCategory(catId) {
   state.activeCatId = catId;
   renderAll();
+  if (catId === null) {
+    document.getElementById('cat-cards-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   const wrap = document.getElementById('menu-sections');
   if (wrap.firstElementChild && wrap.firstElementChild.id) {
     wrap.firstElementChild.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -276,9 +315,7 @@ function onBottomNav(e) {
   btn.classList.add('active');
   const nav = btn.dataset.nav;
   if (nav === 'menu') {
-    state.activeCatId = null;
-    renderAll();
-    scrollToTop();
+    selectCategory(null);
   } else if (nav === 'favoritos') {
     if (state.categories.length) {
       selectCategory(state.categories[0].id);
@@ -296,6 +333,20 @@ function onBottomNav(e) {
    Eventos
    ========================================================================= */
 function bindEvents() {
+  document.addEventListener('load', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    const holder = img.closest('.card-media, .cat-card, .modal-media');
+    if (holder) holder.classList.add('img-loaded');
+  }, true);
+
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    const holder = img.closest('.card-media, .cat-card, .modal-media');
+    if (holder) holder.classList.add('img-loaded');
+  }, true);
+
   document.getElementById('chips').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
@@ -310,11 +361,18 @@ function bindEvents() {
     selectCategory(Number(link.dataset.cat));
   });
 
-  document.getElementById('bento').addEventListener('click', (e) => {
-    const tile = e.target.closest('[data-cat]');
-    if (!tile) return;
+  document.getElementById('cat-cards').addEventListener('click', (e) => {
+    const cardEl = e.target.closest('.cat-card');
+    if (!cardEl) return;
+    selectCategory(Number(cardEl.dataset.cat));
+  });
+
+  document.getElementById('cat-cards').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const cardEl = e.target.closest('.cat-card');
+    if (!cardEl) return;
     e.preventDefault();
-    selectCategory(Number(tile.dataset.cat));
+    selectCategory(Number(cardEl.dataset.cat));
   });
 
   document.getElementById('menu-sections').addEventListener('click', (e) => {
@@ -348,11 +406,12 @@ function bindEvents() {
 
   document.getElementById('btn-menu').addEventListener('click', scrollToTop);
   document.getElementById('btn-search').addEventListener('click', () => {
-    document.getElementById('chips-wrap').scrollIntoView({ behavior: 'smooth' });
+    const target = state.activeCatId === null ? 'cat-cards-section' : 'chips-wrap';
+    document.getElementById(target).scrollIntoView({ behavior: 'smooth' });
   });
   document.getElementById('brand-top').addEventListener('click', (e) => {
     e.preventDefault();
-    scrollToTop();
+    selectCategory(null);
   });
 }
 
@@ -363,10 +422,9 @@ async function loadCarta() {
   const wrap = document.getElementById('menu-sections');
   try {
     const [categories, items] = await Promise.all([api('/categories'), api('/menu')]);
-    state.categories = categories;
     state.items = items;
+    state.categories = curarCategorias(categories);
     renderAll();
-    bindEvents();
   } catch (err) {
     console.error('Error cargando la carta:', err);
     wrap.innerHTML = `

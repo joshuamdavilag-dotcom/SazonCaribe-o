@@ -1,8 +1,10 @@
 import os
 import base64
+from io import BytesIO
 from typing import Optional, List
 
 import httpx
+from PIL import Image, ImageOps
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,10 @@ from app.schemas.menu_publico import (
     CategoriaMenuPublicaResponse,
     MenuItemPublicoResponse,
 )
+
+
+IMAGEN_ANCHO_MAX = 1080
+IMAGEN_WEBP_CALIDAD = 80
 
 
 class MenuService:
@@ -318,20 +324,67 @@ class MenuService:
                 )
             )
 
+    def _procesar_imagen_webp(self, contenido: bytes) -> bytes:
+        """
+        Optimiza la imagen antes de enviarla a ImgBB.
+
+        Pipeline:
+        1. Corrige la orientación EXIF (fotos de celular).
+        2. Redimensiona a un ancho máximo de 1080px manteniendo el aspect ratio.
+        3. Convierte a WebP con calidad 80%.
+
+        Args:
+            contenido: Bytes de la imagen original.
+
+        Returns:
+            Bytes de la imagen optimizada en formato WebP.
+
+        Raises:
+            HTTPException 400: Si el archivo no es una imagen válida.
+        """
+        try:
+            img = Image.open(BytesIO(contenido))
+            img = ImageOps.exif_transpose(img) or img
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo no contiene una imagen válida"
+            )
+
+        if img.width > IMAGEN_ANCHO_MAX:
+            alto = round(img.height * IMAGEN_ANCHO_MAX / img.width)
+            img = img.resize(
+                (IMAGEN_ANCHO_MAX, alto),
+                Image.Resampling.LANCZOS
+            )
+
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA")
+
+        buffer = BytesIO()
+        img.save(
+            buffer,
+            format="WEBP",
+            quality=IMAGEN_WEBP_CALIDAD,
+            method=6
+        )
+        return buffer.getvalue()
+
     def subir_imagen(self, item_id: int, archivo) -> MenuItemResponse:
         """
         Sube y asigna la imagen de un plato a ImgBB (almacenamiento permanente).
 
-        El gerente selecciona un archivo desde el ERP; el servidor lo envía
-        a ImgBB y almacena la URL pública en la base de datos. Las imágenes
-        son permanentes y sobreviven redeployes.
+        El gerente selecciona un archivo desde el ERP; el servidor lo optimiza
+        (resize + WebP) y lo envía a ImgBB, almacenando la URL pública en la
+        base de datos. Las imágenes son permanentes y sobreviven redeployes.
 
         Flujo:
         1. Verifica que el plato exista.
         2. Valida tipo MIME y extensión (PNG, JPEG, WebP o GIF) y tamaño <= 5 MB.
-        3. Convierte el archivo a Base64 y lo envía a ImgBB.
-        4. Extrae la URL de la respuesta exitosa.
-        5. Persiste imagen_url y retorna el plato actualizado.
+        3. Optimiza la imagen: ancho máximo 1080px + WebP calidad 80%.
+        4. Codifica a Base64 y envía a ImgBB.
+        5. Extrae la URL de la respuesta exitosa.
+        6. Persiste imagen_url y retorna el plato actualizado.
 
         Args:
             item_id: ID del plato.
@@ -394,7 +447,8 @@ class MenuService:
                 detail="IMGBB_API_KEY no configurada en el servidor"
             )
 
-        b64_image = base64.b64encode(contenido).decode("utf-8")
+        contenido_optimizado = self._procesar_imagen_webp(contenido)
+        b64_image = base64.b64encode(contenido_optimizado).decode("utf-8")
 
         try:
             response = httpx.post(

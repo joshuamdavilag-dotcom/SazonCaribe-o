@@ -329,72 +329,82 @@ main { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 
 }
 
 /* =========================================================================
-   Bento de categorías (bienvenida móvil)
+   Tarjetas de categorías (vista principal)
    ========================================================================= */
-.bento-grid {
+.cat-cards-section { margin-bottom: var(--sp-xl); }
+.cat-cards-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-sm);
-  width: 100%;
-  padding: 0 var(--sp-mobile);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-md);
 }
-.bento-tile {
+.cat-card {
   position: relative;
+  height: 220px;
   border-radius: var(--radius-xl);
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(53, 94, 141, 0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 6px 20px rgba(53, 94, 141, 0.12);
+  outline: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-.bento-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(53, 94, 141, 0.1); }
-.bento-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
-.bento-tile:hover img { transform: scale(1.08); }
-.bento-img { grid-column: span 2; height: 192px; }
-.bento-shade {
+.cat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(53, 94, 141, 0.18); }
+.cat-card:focus-visible { box-shadow: 0 0 0 3px var(--tertiary); }
+.cat-card > img {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(49, 49, 43, 0.8) 0%, rgba(49, 49, 43, 0) 60%);
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
 }
-.bento-img h3 { position: absolute; bottom: var(--sp-md); left: var(--sp-md); right: var(--sp-md); color: var(--surface-container-lowest); }
-.bento-icon {
-  grid-column: span 1;
-  height: 192px;
-  display: flex;
-  flex-direction: column;
+.cat-card:hover > img { transform: scale(1.06); }
+.cat-card-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(28, 28, 23, 0.85) 0%, rgba(28, 28, 23, 0.35) 55%, rgba(28, 28, 23, 0.05) 100%);
+}
+.cat-card-arrow {
+  position: absolute;
+  top: var(--sp-md);
+  right: var(--sp-md);
+  z-index: 2;
+  color: var(--surface-container-lowest);
+  background: rgba(28, 28, 23, 0.35);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-radius: 50%;
+  padding: var(--sp-xs);
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+.cat-card:hover .cat-card-arrow { transform: translateX(4px); background: rgba(178, 35, 0, 0.85); }
+.cat-card-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: var(--sp-md);
+  color: var(--surface-container-lowest);
+}
+.cat-card-content h3 { color: inherit; margin-bottom: 2px; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.cat-card-content p {
+  color: rgba(253, 249, 240, 0.85);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cat-card-count {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--sp-base);
-  border-radius: var(--radius-xl);
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(53, 94, 141, 0.05);
-  transition: transform 0.2s ease;
-  text-align: center;
-  padding: var(--sp-base);
+  padding: 2px var(--sp-sm);
+  margin-bottom: var(--sp-xs);
+  border-radius: 9999px;
+  background: rgba(254, 183, 0, 0.92);
+  color: var(--on-secondary-container);
+  font-size: 12px;
+  line-height: 18px;
 }
-.bento-icon:hover { transform: translateY(-2px); }
-.bento-low { background: var(--surface-container-low); }
-.bento-low .material-symbols-outlined { color: var(--tertiary); }
-.bento-low .t-label { color: var(--on-surface); }
-.bento-yellow { background: var(--secondary-container); }
-.bento-yellow .material-symbols-outlined { color: var(--on-secondary-container); }
-.bento-yellow .t-label { color: var(--on-secondary-container); }
-.bento-wide {
-  grid-column: span 2;
-  height: 128px;
-  background: var(--surface-container-high);
-  border-radius: var(--radius-xl);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--sp-lg);
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(53, 94, 141, 0.05);
-  transition: transform 0.2s ease;
-}
-.bento-wide:hover { transform: translateY(-2px); }
-.bento-wide .material-symbols-outlined { color: var(--primary); font-size: 40px; }
-.bento-wide p { color: var(--on-surface-variant); }
 
 /* =========================================================================
    Chips de categorías
@@ -425,6 +435,36 @@ main { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 
 }
 .chip:hover { background: var(--surface-variant); }
 .chip.active { background: var(--secondary); color: var(--on-secondary); }
+
+/* =========================================================================
+   Skeleton shimmer (placeholder mientras carga la imagen)
+   ========================================================================= */
+.card-media,
+.cat-card,
+.modal-media {
+  background-color: var(--surface-container-high);
+}
+.card-media:not(.img-loaded),
+.cat-card:not(.img-loaded),
+.modal-media:not(.img-loaded) {
+  background-image: linear-gradient(
+    100deg,
+    var(--surface-container-high) 40%,
+    var(--surface-container-lowest) 50%,
+    var(--surface-container-high) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -80% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-media:not(.img-loaded),
+  .cat-card:not(.img-loaded),
+  .modal-media:not(.img-loaded) { animation: none; }
+}
 
 /* =========================================================================
    Secciones del menú
@@ -759,6 +799,11 @@ main { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 
   /* Héroes */
   .hero { display: none; }
   .welcome { display: block; }
+
+  /* Tarjetas de categorías */
+  .cat-cards-section { padding: 0 var(--sp-mobile); }
+  .cat-cards-grid { grid-template-columns: 1fr; gap: var(--sp-sm); }
+  .cat-card { height: 180px; }
 
   .chips-wrap {
     position: sticky;
