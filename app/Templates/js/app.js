@@ -45,7 +45,10 @@ function formatLocalTime(isoStr) {
   if (!isoStr) return '';
   const utcString = isoStr.endsWith('Z') ? isoStr : isoStr + 'Z';
   const fecha = new Date(utcString);
-  return fecha.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return fecha
+    .toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Managua' })
+    .replace(/a\.?\s?m\./i, 'AM')
+    .replace(/p\.?\s?m\./i, 'PM');
 }
 
 /* =========================================================================
