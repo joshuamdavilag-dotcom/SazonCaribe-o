@@ -285,12 +285,14 @@ def actualizar_horas_extras(
 @router.put(
     "/{asistencia_id}/editar-horarios",
     response_model=AsistenciaResponse,
-    summary="Editar hora de entrada y salida manualmente",
+    summary="Editar fecha y hora de entrada y salida manualmente",
     description=(
-        "Permite a un Administrador o Gerente editar las horas de entrada "
-        "y/o salida de un registro de asistencia. Las horas se reciben en "
-        "hora local (Nicaragua, UTC-6) y se convierten a UTC antes de "
-        "almacenar. Recalcula horas extras si se proporciona hora de salida."
+        "Permite a un Administrador o Gerente editar las fechas/horas de entrada "
+        "y/o salida de un registro de asistencia. Los valores se reciben como "
+        "datetime completo en hora local (Nicaragua, UTC-6), formato "
+        "YYYY-MM-DDTHH:MM, y se convierten a UTC antes de almacenar. Soporta "
+        "turnos que cruzan la medianoche. Recalcula horas extras si se "
+        "proporciona fecha/hora de salida."
     ),
     tags=["Asistencia"],
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]

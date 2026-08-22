@@ -198,22 +198,23 @@ class AsistenciaHorasExtrasUpdate(BaseModel):
 
 
 class AsistenciaEditarHorarios(BaseModel):
-    """Esquema para editar hora de entrada y/o salida de una asistencia.
+    """Esquema para editar fecha y hora de entrada y/o salida de una asistencia.
 
-    Las horas se reciben en formato HH:MM (hora local de Nicaragua, UTC-6)
-    y se convierten a UTC naive antes de almacenar en la base de datos.
+    Los valores se reciben como datetime completo en hora local de Nicaragua
+    (UTC-6), formato YYYY-MM-DDTHH:MM, y se convierten a UTC naive antes de
+    almacenar en la base de datos. Soporta turnos que cruzan la medianoche.
     """
-    hora_entrada: str = Field(
+    fecha_hora_entrada: str = Field(
         ...,
-        pattern=r"^\d{2}:\d{2}$",
-        description="Nueva hora de entrada en formato HH:MM (hora local)",
-        examples=["08:30"]
+        pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$",
+        description="Nueva fecha y hora de entrada en formato YYYY-MM-DDTHH:MM (hora local)",
+        examples=["2026-08-22T22:00"]
     )
-    hora_salida: Optional[str] = Field(
+    fecha_hora_salida: Optional[str] = Field(
         default=None,
-        pattern=r"^\d{2}:\d{2}$",
-        description="Nueva hora de salida en formato HH:MM (hora local, None si aún no ha salido)",
-        examples=["17:00"]
+        pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$",
+        description="Nueva fecha y hora de salida en formato YYYY-MM-DDTHH:MM (hora local, None si aún no ha salido)",
+        examples=["2026-08-23T03:00"]
     )
     motivo: str = Field(
         ...,

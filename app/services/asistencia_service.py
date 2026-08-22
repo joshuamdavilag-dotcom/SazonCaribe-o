@@ -358,11 +358,11 @@ class AsistenciaService:
                 detail="El motivo de la modificación es obligatorio para auditoría",
             )
 
-        h_entrada_local, m_entrada_local = map(int, data.hora_entrada.split(":"))
-        entrada_utc = datetime.combine(
-            asistencia.fecha,
-            datetime.min.time().replace(hour=h_entrada_local, minute=m_entrada_local),
-        ) - timedelta(hours=6)
+        def _local_a_utc(valor: str) -> datetime:
+            dt_local = datetime.strptime(valor, "%Y-%m-%dT%H:%M")
+            return dt_local - timedelta(hours=6)
+
+        entrada_utc = _local_a_utc(data.fecha_hora_entrada)
 
         datos: dict = {
             "hora_entrada_real": entrada_utc.replace(tzinfo=None),
@@ -370,12 +370,13 @@ class AsistenciaService:
             "modificado_por": gerente_id,
         }
 
-        if data.hora_salida is not None:
-            h_salida_local, m_salida_local = map(int, data.hora_salida.split(":"))
-            salida_utc = datetime.combine(
-                asistencia.fecha,
-                datetime.min.time().replace(hour=h_salida_local, minute=m_salida_local),
-            ) - timedelta(hours=6)
+        if data.fecha_hora_salida is not None:
+            salida_utc = _local_a_utc(data.fecha_hora_salida)
+            if salida_utc <= entrada_utc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La fecha/hora de salida debe ser posterior a la fecha/hora de entrada",
+                )
             datos["hora_salida_real"] = salida_utc.replace(tzinfo=None)
 
             horas_reales = (salida_utc - entrada_utc).total_seconds() / 3600

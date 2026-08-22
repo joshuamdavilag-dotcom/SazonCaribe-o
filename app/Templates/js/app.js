@@ -3207,13 +3207,17 @@ function openEditarHorariosModal(asistenciaId, fecha, empleadoNombre, horaEntrad
     if (!utcStr) return '';
     const utcString = utcStr.endsWith('Z') || utcStr.includes('+') ? utcStr : utcStr + 'Z';
     const d = new Date(utcString);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
   };
 
   document.getElementById('editar-hora-entrada').value = utcToLocalInput(horaEntradaUTC);
   document.getElementById('editar-hora-salida').value = utcToLocalInput(horaSalidaUTC);
+  updateHorariosPreviews();
   document.getElementById('editar-horarios-motivo').value = '';
   document.getElementById('confirm-editar-horarios').disabled = true;
   document.getElementById('modal-editar-horarios').classList.add('show');
@@ -3225,6 +3229,30 @@ function openEditarHorariosModal(asistenciaId, fecha, empleadoNombre, horaEntrad
   motivoInput.removeEventListener('input', motivoInput._horariosHandler);
   motivoInput._horariosHandler = handler;
   motivoInput.addEventListener('input', handler);
+
+  ['editar-hora-entrada', 'editar-hora-salida'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.removeEventListener('input', el._horariosPreviewHandler);
+    el._horariosPreviewHandler = updateHorariosPreviews;
+    el.addEventListener('input', el._horariosPreviewHandler);
+  });
+}
+
+function format12hPreview(value) {
+  if (!value) return '—';
+  const [datePart, timePart] = value.split('T');
+  let [h, m] = timePart.split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const [y, mo, d] = datePart.split('-');
+  return `${d}/${mo}/${y} · ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`;
+}
+
+function updateHorariosPreviews() {
+  const entrada = document.getElementById('editar-hora-entrada').value;
+  const salida = document.getElementById('editar-hora-salida').value;
+  document.getElementById('editar-hora-entrada-preview').textContent = format12hPreview(entrada);
+  document.getElementById('editar-hora-salida-preview').textContent = salida ? format12hPreview(salida) : 'Sin salida registrada';
 }
 
 function closeEditarHorariosModal() {
@@ -3233,18 +3261,21 @@ function closeEditarHorariosModal() {
 }
 
 async function confirmEditarHorarios() {
-  const horaEntrada = document.getElementById('editar-hora-entrada').value;
-  const horaSalida = document.getElementById('editar-hora-salida').value || null;
+  const fechaHoraEntrada = document.getElementById('editar-hora-entrada').value;
+  const fechaHoraSalida = document.getElementById('editar-hora-salida').value || null;
   const motivo = document.getElementById('editar-horarios-motivo').value.trim();
 
-  if (!horaEntrada) return showToast('La hora de entrada es obligatoria', 'warning');
+  if (!fechaHoraEntrada) return showToast('La fecha y hora de entrada es obligatoria', 'warning');
+  if (fechaHoraSalida && fechaHoraSalida <= fechaHoraEntrada) {
+    return showToast('La salida debe ser posterior a la entrada (usa la fecha del día siguiente en turnos nocturnos)', 'warning');
+  }
   if (!motivo) return showToast('El motivo es obligatorio para auditoría', 'warning');
   if (!editHorariosAsistenciaId) return showToast('Error: no se identificó la asistencia', 'error');
 
   try {
     await api(`/asistencia/${editHorariosAsistenciaId}/editar-horarios`, {
       method: 'PUT',
-      body: JSON.stringify({ hora_entrada: horaEntrada, hora_salida: horaSalida, motivo }),
+      body: JSON.stringify({ fecha_hora_entrada: fechaHoraEntrada, fecha_hora_salida: fechaHoraSalida, motivo }),
     });
     showToast('Horarios actualizados con auditoría registrada', 'success');
     closeEditarHorariosModal();

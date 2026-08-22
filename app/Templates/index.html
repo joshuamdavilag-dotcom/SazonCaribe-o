@@ -1139,13 +1139,15 @@
           Asistencia del <strong id="editar-horarios-fecha"></strong> — Empleado: <strong id="editar-horarios-empleado"></strong>
         </p>
         <div class="form-group">
-          <label class="form-label" for="editar-hora-entrada">Hora de Entrada (Local) <span style="color:#E63946;">*</span></label>
-          <input type="time" id="editar-hora-entrada" class="form-input" required>
+          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:#E63946;">*</span></label>
+          <input type="datetime-local" id="editar-hora-entrada" class="form-input" required>
+          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="editar-hora-salida">Hora de Salida (Local)</label>
-          <input type="time" id="editar-hora-salida" class="form-input">
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado</div>
+          <label class="form-label" for="editar-hora-salida">Fecha y Hora de Salida (Local)</label>
+          <input type="datetime-local" id="editar-hora-salida" class="form-input">
+          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado. Para turnos nocturnos, elige la fecha del día siguiente (ej. salida a las 3:00 AM → día siguiente).</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
