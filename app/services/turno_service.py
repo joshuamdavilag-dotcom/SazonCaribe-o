@@ -1,5 +1,6 @@
 from datetime import datetime, date, timezone
 from decimal import Decimal
+import ipaddress
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -23,8 +24,27 @@ def _get_ip_cliente(request) -> str:
 
 def _ip_allowed(ip: str) -> bool:
     settings = get_settings()
-    allowed = {addr.strip() for addr in settings.ALLOWED_IPS.split(",") if addr.strip()}
-    return ip in allowed
+    try:
+        addr = ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return False
+    for entry in settings.ALLOWED_IPS.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "/" in entry:
+            try:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            except ValueError:
+                continue
+        else:
+            try:
+                if addr == ipaddress.ip_address(entry):
+                    return True
+            except ValueError:
+                continue
+    return False
 
 
 def iniciar_turno(
