@@ -153,6 +153,7 @@ async def startup_event():
     _migrate_gastos_cierre_caja_id()
     _migrate_adelantos_salario()
     _migrate_menu_item_imagen_tiempo()
+    _migrate_asistencia_utc_a_local()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -421,6 +422,48 @@ def _migrate_menu_item_imagen_tiempo():
             except Exception as e:
                 db.rollback()
                 print(f"  [X] Error al agregar '{col}' a menu_items: {e}")
+
+
+def _migrate_asistencia_utc_a_local():
+    """Migración one-time: convierte timestamps de asistencia de UTC naive a hora local Managua (+6h).
+
+    Los registros previos al fix se guardaban restando 6h (UTC). Se suman 6h para
+    dejarlos en hora local fija de Nicaragua. Excluye los datos sembrados de julio
+    (fecha <= 2026-07-13), que ya estaban en hora local. La tabla _data_migrations
+    garantiza que solo se ejecute una vez por base de datos.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    MARCA = "asistencia_utc_a_local"
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "CREATE TABLE IF NOT EXISTS _data_migrations ("
+                "nombre VARCHAR(100) PRIMARY KEY, "
+                "aplicado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+            ))
+            db.commit()
+            ya_aplicada = db.execute(
+                text("SELECT 1 FROM _data_migrations WHERE nombre = :n"),
+                {"n": MARCA},
+            ).scalar()
+            if ya_aplicada:
+                return
+            resultado = db.execute(text(
+                "UPDATE asistencias SET "
+                "hora_entrada_real = DATE_ADD(hora_entrada_real, INTERVAL 6 HOUR), "
+                "hora_salida_real = DATE_ADD(hora_salida_real, INTERVAL 6 HOUR), "
+                "ultimo_heartbeat = DATE_ADD(ultimo_heartbeat, INTERVAL 6 HOUR), "
+                "fecha = DATE(hora_entrada_real) "
+                "WHERE fecha > '2026-07-13'"
+            ))
+            db.execute(text("INSERT IGNORE INTO _data_migrations (nombre) VALUES (:n)"), {"n": MARCA})
+            db.commit()
+            print(f"  [~] Asistencias UTC→local: {resultado.rowcount} registros corregidos (+6h)")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error en migración de asistencias UTC→local: {e}")
 
 
 def _fix_unidades_medida():

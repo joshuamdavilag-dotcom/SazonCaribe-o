@@ -200,9 +200,10 @@ class AsistenciaHorasExtrasUpdate(BaseModel):
 class AsistenciaEditarHorarios(BaseModel):
     """Esquema para editar fecha y hora de entrada y/o salida de una asistencia.
 
-    Los valores se reciben como datetime completo en hora local de Nicaragua
-    (UTC-6), formato YYYY-MM-DDTHH:MM, y se convierten a UTC naive antes de
-    almacenar en la base de datos. Soporta turnos que cruzan la medianoche.
+    Los valores se reciben como datetime completo en hora local fija de
+    Nicaragua (America/Managua), formato YYYY-MM-DDTHH:MM, y se almacenan
+    tal cual en la base de datos sin conversión de zona horaria.
+    Soporta turnos que cruzan la medianoche.
     """
     fecha_hora_entrada: str = Field(
         ...,

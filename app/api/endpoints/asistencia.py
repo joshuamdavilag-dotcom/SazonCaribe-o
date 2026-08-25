@@ -289,10 +289,10 @@ def actualizar_horas_extras(
     description=(
         "Permite a un Administrador o Gerente editar las fechas/horas de entrada "
         "y/o salida de un registro de asistencia. Los valores se reciben como "
-        "datetime completo en hora local (Nicaragua, UTC-6), formato "
-        "YYYY-MM-DDTHH:MM, y se convierten a UTC antes de almacenar. Soporta "
-        "turnos que cruzan la medianoche. Recalcula horas extras si se "
-        "proporciona fecha/hora de salida."
+        "datetime completo en hora local fija (America/Managua), formato "
+        "YYYY-MM-DDTHH:MM, y se almacenan tal cual sin conversión de zona "
+        "horaria. Soporta turnos que cruzan la medianoche. Recalcula horas "
+        "extras si se proporciona fecha/hora de salida."
     ),
     tags=["Asistencia"],
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]

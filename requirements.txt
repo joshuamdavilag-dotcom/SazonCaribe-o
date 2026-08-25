@@ -18,6 +18,9 @@ python-multipart==0.0.32
 # Utilidades
 python-dotenv==1.1.0
 
+# Zona horaria America/Managua (zoneinfo en Windows/contenedores sin tzdata del sistema)
+tzdata>=2024.1
+
 # HTTP client (ImgBB image uploads)
 httpx==0.28.1
 

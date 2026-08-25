@@ -1,4 +1,3 @@
-from datetime import datetime, date, timezone
 from decimal import Decimal
 import ipaddress
 
@@ -6,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.tiempo import ahora_local
 from app.models.asistencia import Asistencia
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
@@ -71,11 +71,11 @@ def iniciar_turno(
             detail=f"Acceso denegado: IP no autorizada ({ip_cliente})",
         )
 
-    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    ahora = ahora_local()
     datos = {
         "empleado_id": empleado_id,
         "turno_id": turno_id,
-        "fecha": date.today(),
+        "fecha": ahora.date(),
         "hora_entrada_real": ahora,
         "ip_origen": ip_cliente,
     }
@@ -101,7 +101,7 @@ def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
             detail="Esta asistencia ya tiene registrada una salida",
         )
 
-    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    ahora = ahora_local()
     horas_reales = (ahora - asistencia.hora_entrada_real).total_seconds() / 3600
 
     turno = turno_repo.get_by_id(asistencia.turno_id)

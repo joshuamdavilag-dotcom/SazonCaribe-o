@@ -1,9 +1,10 @@
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Optional, List
 
 from sqlalchemy import select, and_, update
 from sqlalchemy.orm import Session
 
+from app.core.tiempo import ahora_local, hoy_local
 from app.models.asistencia import Asistencia
 from app.repositories.base_repository import BaseRepository
 
@@ -124,7 +125,7 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             True si ya tiene registro, False si no.
         """
-        return self.get_asistencia_del_dia(empleado_id, date.today()) is not None
+        return self.get_asistencia_del_dia(empleado_id, hoy_local()) is not None
 
     def get_asistencias_por_rango_fechas(
         self,
@@ -207,7 +208,7 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         stmt = (
             update(Asistencia)
             .where(Asistencia.id == asistencia_id)
-            .values(ultimo_heartbeat=datetime.now(timezone.utc).replace(tzinfo=None))
+            .values(ultimo_heartbeat=ahora_local())
         )
         self.db.execute(stmt)
         self.db.commit()

@@ -1,10 +1,11 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.tiempo import ahora_local, hoy_local
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -174,11 +175,11 @@ class AsistenciaService:
                 detail="El empleado ya registró su entrada para el día de hoy"
             )
 
-        ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+        ahora = ahora_local()
         asistencia_data = {
             "empleado_id": checkin_in.empleado_id,
             "turno_id": checkin_in.turno_id,
-            "fecha": date.today(),
+            "fecha": ahora.date(),
             "hora_entrada_real": ahora,
             "observaciones": checkin_in.observaciones,
             "ip_origen": ip_origen
@@ -214,7 +215,7 @@ class AsistenciaService:
                 detail="Esta asistencia ya cuenta con marca de salida"
             )
 
-        ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+        ahora = ahora_local()
         horas_trabajadas = (ahora - asistencia.hora_entrada_real).total_seconds() / 3600
 
         turno = self.turno_repo.get_by_id(asistencia.turno_id)
@@ -358,28 +359,27 @@ class AsistenciaService:
                 detail="El motivo de la modificación es obligatorio para auditoría",
             )
 
-        def _local_a_utc(valor: str) -> datetime:
-            dt_local = datetime.strptime(valor, "%Y-%m-%dT%H:%M")
-            return dt_local - timedelta(hours=6)
+        def _parse_local(valor: str) -> datetime:
+            return datetime.strptime(valor, "%Y-%m-%dT%H:%M")
 
-        entrada_utc = _local_a_utc(data.fecha_hora_entrada)
+        entrada_local = _parse_local(data.fecha_hora_entrada)
 
         datos: dict = {
-            "hora_entrada_real": entrada_utc.replace(tzinfo=None),
+            "hora_entrada_real": entrada_local,
             "motivo_modificacion": data.motivo.strip(),
             "modificado_por": gerente_id,
         }
 
         if data.fecha_hora_salida is not None:
-            salida_utc = _local_a_utc(data.fecha_hora_salida)
-            if salida_utc <= entrada_utc:
+            salida_local = _parse_local(data.fecha_hora_salida)
+            if salida_local <= entrada_local:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="La fecha/hora de salida debe ser posterior a la fecha/hora de entrada",
                 )
-            datos["hora_salida_real"] = salida_utc.replace(tzinfo=None)
+            datos["hora_salida_real"] = salida_local
 
-            horas_reales = (salida_utc - entrada_utc).total_seconds() / 3600
+            horas_reales = (salida_local - entrada_local).total_seconds() / 3600
             turno = self.turno_repo.get_by_id(asistencia.turno_id)
             horas_extras = Decimal("0.00")
             if horas_reales > turno.horas_teoricas:
@@ -400,7 +400,7 @@ class AsistenciaService:
             Lista de AsistenciaResponse.
         """
         if fecha is None:
-            fecha = date.today()
+            fecha = hoy_local()
         asistencias = self.asistencia_repo.get_asistencias_por_fecha(fecha)
         return [AsistenciaResponse.model_validate(a) for a in asistencias]
 
@@ -424,7 +424,7 @@ class AsistenciaService:
         self,
         timeout_seconds: int,
     ) -> int:
-        timeout_desde = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=timeout_seconds)
+        timeout_desde = ahora_local() - timedelta(seconds=timeout_seconds)
         stale = self.asistencia_repo.get_activas_sin_heartbeat(timeout_desde)
         if not stale:
             return 0

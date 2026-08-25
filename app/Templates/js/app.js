@@ -43,12 +43,12 @@ const state = {
    ========================================================================= */
 function formatLocalTime(isoStr) {
   if (!isoStr) return '';
-  const utcString = isoStr.endsWith('Z') ? isoStr : isoStr + 'Z';
-  const fecha = new Date(utcString);
-  return fecha
-    .toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Managua' })
-    .replace(/a\.?\s?m\./i, 'AM')
-    .replace(/p\.?\s?m\./i, 'PM');
+  const timePart = String(isoStr).split('T')[1] || '';
+  const [h, m] = timePart.split(':').map(Number);
+  if (Number.isNaN(h)) return '';
+  const ap = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${String(hh).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${ap}`;
 }
 
 /* =========================================================================
@@ -3201,25 +3201,15 @@ async function confirmEditOT() {
 
 let editHorariosAsistenciaId = null;
 
-function openEditarHorariosModal(asistenciaId, fecha, empleadoNombre, horaEntradaUTC, horaSalidaUTC) {
+function openEditarHorariosModal(asistenciaId, fecha, empleadoNombre, horaEntradaLocal, horaSalidaLocal) {
   editHorariosAsistenciaId = asistenciaId;
   document.getElementById('editar-horarios-fecha').textContent = fecha;
   document.getElementById('editar-horarios-empleado').textContent = empleadoNombre;
 
-  const utcToLocalInput = (utcStr) => {
-    if (!utcStr) return '';
-    const utcString = utcStr.endsWith('Z') || utcStr.includes('+') ? utcStr : utcStr + 'Z';
-    const d = new Date(utcString);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-  };
+  const toInputValue = (localStr) => (localStr ? String(localStr).slice(0, 16) : '');
 
-  document.getElementById('editar-hora-entrada').value = utcToLocalInput(horaEntradaUTC);
-  document.getElementById('editar-hora-salida').value = utcToLocalInput(horaSalidaUTC);
+  document.getElementById('editar-hora-entrada').value = toInputValue(horaEntradaLocal);
+  document.getElementById('editar-hora-salida').value = toInputValue(horaSalidaLocal);
   updateHorariosPreviews();
   document.getElementById('editar-horarios-motivo').value = '';
   document.getElementById('confirm-editar-horarios').disabled = true;

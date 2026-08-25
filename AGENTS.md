@@ -206,9 +206,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Stock modal: Two-tab layout — Movimiento tab (adjust stock via `PATCH /insumos/{id}/stock` with unit selector + conversion preview) and Detalles tab (edit category/unit/stock_minimo via `PATCH /insumos/{id}` with packaging fields section); gear subpanels for inline category/unit creation
 - Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
 - Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
-- Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` converts UTC→local via `formatLocalTime()` logic; `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `hora_entrada`, `hora_salida`, `motivo`; backend converts local→UTC by subtracting 6h (Nicaragua CST); recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
+- Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` prefill con `slice(0,16)` del string crudo (sin conversión); `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `fecha_hora_entrada`, `fecha_hora_salida`, `motivo`; backend guarda la hora local tal cual SIN conversión a UTC; recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
-- `formatLocalTime(isoStr)` helper converts UTC datetime strings to Nicaragua local time (`es-NI` locale); all datetime strings from backend are naive UTC — helper appends `'Z'` if missing before parsing
+- `formatLocalTime(isoStr)` helper formatea de forma literal el string crudo (extrae HH:MM y muestra 12h AM/PM) — sin conversión de zona; los datetimes de asistencia son hora local fija de Managua
 - Reloj en vivo: `updateClock()` muestra hora actual en KDS (`#comandero-clock`) y Salón (`#salon-clock`), actualiza cada 30s via `setInterval`
 - `cobrarOrden(ordenId)` — pago rápido desde KDS: PATCH estado a PAGADA + PUT mesa a LIBRE (si tiene mesa_id); alternativa al flujo de detalle de mesa ocupada
 - `blockPOSAccess()` — al fallar validación de IP (403), deshabilita todos los elementos interactivos (botones, inputs, selects, formularios, navegación) con `pointer-events: none` + `opacity: 0.4`
@@ -488,13 +488,16 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - **Frontend POS**: `#modal-dish` has file input `#dish-image` (accept png/jpeg/webp/gif) + `#dish-prep-time` (minutes) + live preview (`previewDishImage()`); `saveDish()` sends `tiempo_preparacion` in the JSON body and, if a file was chosen, uploads it after save via `uploadDishImage()` (`FormData` + `Content-Type: undefined` so fetch sets the multipart boundary); `renderMenuMgmt()` shows thumbnail + "⏱️ ~N min"
 - **Carta Digital**: `imgFor(item)` returns `item.imagen_url` or the local placeholder `img/placeholder-dish.svg`; `openModal()` shows "Preparación: ~N min" in the timer pill (falls back to category); hero/logos are local assets in `app/Templates/carta/img/` — no remote images, no Stitch dependencies
 
-### UTC timezone handling
-- All `datetime.now()` calls in asistencia-related code use `datetime.now(timezone.utc).replace(tzinfo=None)` to store naive UTC
-- Files: `asistencia_service.py`, `turno_service.py`, `asistencia_repository.py`
-- Frontend helper `formatLocalTime(isoStr)` in `app.js` treats all datetime strings as UTC (appends `'Z'` if missing) and formats with `es-NI` locale
+### Hora local fija Nicaragua (America/Managua) en asistencia
+- Todo timestamp de asistencia se almacena como **hora local fija de Managua sin offset y SIN conversión** (naive `DATETIME`): lo que envía el formulario es exactamente lo que queda en la BD
+- Helper central: `app/core/tiempo.py` — `ahora_local()` / `hoy_local()` via `ZoneInfo("America/Managua")` (requiere `tzdata` en requirements.txt); usado por `asistencia_service.py`, `turno_service.py`, `asistencia_repository.py`
+- `editar_horarios` NO suma/resta horas: parsea `YYYY-MM-DDTHH:MM` y guarda tal cual (antes restaba 6h para UTC)
+- Frontend helper `formatLocalTime(isoStr)` in `app.js` formatea el string de forma literal (extrae HH:MM y muestra 12h AM/PM) — NO usa `Date`, no agrega `'Z'`, no convierte zonas
+- Modal Editar Horarios: prefill con `slice(0,16)` del string crudo; el valor del input se envía tal cual al backend
 - All locale references use `es-NI` (Nicaragua, UTC-6) instead of `es-CO` (Colombia, UTC-5)
-- MySQL `DATETIME` type strips timezone info on read; stored values remain correct UTC
+- MySQL `DATETIME` type strips timezone info on read; stored values remain correct local time
 - `security.py` uses `datetime.now(timezone.utc)` for JWT token expiration (timezone-aware)
+- Registros históricos previos al cambio están en UTC naive (+6h respecto a la hora real local); los nuevos writes ya son hora local
 
 ### Heartbeat auto-close background task
 - `POST /asistencia/turnos/heartbeat/{id}` — updates `Asistencia.ultimo_heartbeat` timestamp
