@@ -2681,6 +2681,7 @@ function renderPersonalTable(empleados, usuarios) {
                 <button class="btn-nomina" onclick="openNominaModal(${e.id}, '${(e.nombre + ' ' + e.apellido).replace(/'/g, "\\'")}')">
                   📊 Nómina
                 </button>
+                <button class="btn-action-action btn-action-danger admin-only" onclick="openEliminarEmpleadoModal(${e.id})" title="Dar de baja">🗑️</button>
               </div>
             </td>
           </tr>`;
@@ -2706,6 +2707,50 @@ function closeNominaModal() {
   document.getElementById('modal-nomina').classList.remove('show');
   nominaModalEmpleadoId = null;
   state.nominaActual = null;
+}
+
+/* =========================================================================
+   Dar de Baja Empleado (borrado lógico con autorización por contraseña)
+   ========================================================================= */
+let eliminarEmpleadoId = null;
+
+function openEliminarEmpleadoModal(empleadoId) {
+  eliminarEmpleadoId = empleadoId;
+  const emp = (state.empleados || []).find(x => x.id === empleadoId);
+  const nombre = emp ? `${emp.nombre} ${emp.apellido}` : `#${empleadoId}`;
+  document.getElementById('baja-empleado-nombre').textContent = nombre;
+  const pw = document.getElementById('baja-empleado-password');
+  pw.value = '';
+  document.getElementById('confirm-eliminar-empleado').disabled = false;
+  document.getElementById('modal-eliminar-empleado').classList.add('show');
+  setTimeout(() => pw.focus(), 80);
+}
+
+function closeEliminarEmpleadoModal() {
+  document.getElementById('modal-eliminar-empleado').classList.remove('show');
+  eliminarEmpleadoId = null;
+}
+
+async function confirmEliminarEmpleado() {
+  if (!eliminarEmpleadoId) return;
+  const pw = document.getElementById('baja-empleado-password');
+  if (!pw.value) return showToast('Ingresa tu contraseña para autorizar', 'warning');
+  const btn = document.getElementById('confirm-eliminar-empleado');
+  btn.disabled = true;
+  try {
+    await api(`/personal/empleados/${eliminarEmpleadoId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ password: pw.value }),
+    });
+    showToast('Empleado dado de baja correctamente');
+    closeEliminarEmpleadoModal();
+    loadPersonal();
+  } catch (e) {
+    pw.focus();
+    pw.select();
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function calcularNomina() {
@@ -4411,6 +4456,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-reset-password')?.addEventListener('click', closeResetPasswordModal);
   document.getElementById('cancel-reset-password')?.addEventListener('click', closeResetPasswordModal);
   document.getElementById('confirm-reset-password')?.addEventListener('click', confirmResetPassword);
+
+  // Dar de Baja Empleado modal
+  document.getElementById('close-eliminar-empleado')?.addEventListener('click', closeEliminarEmpleadoModal);
+  document.getElementById('cancel-eliminar-empleado')?.addEventListener('click', closeEliminarEmpleadoModal);
+  document.getElementById('confirm-eliminar-empleado')?.addEventListener('click', confirmEliminarEmpleado);
+  document.getElementById('baja-empleado-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmEliminarEmpleado(); }
+  });
 
   // Asistencias modal
   document.getElementById('close-asistencias')?.addEventListener('click', closeAsistenciasModal);

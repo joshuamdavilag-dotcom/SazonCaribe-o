@@ -1012,6 +1012,32 @@
     </div>
   </div>
 
+  <!-- Modal: Dar de Baja Empleado -->
+  <div id="modal-eliminar-empleado" class="modal-overlay" aria-label="Dar de baja empleado">
+    <div class="modal-sheet" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Dar de Baja Empleado</h3>
+        <button class="modal-close" id="close-eliminar-empleado" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#374151;margin-bottom:12px;">
+          ¿Estás seguro de que deseas eliminar/desactivar al empleado <strong id="baja-empleado-nombre"></strong>?
+        </p>
+        <div style="padding:10px 12px;background:#fdf2f2;border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:#b91c1c;margin-bottom:14px;">
+          El empleado quedará en estado <strong>Inactivo</strong> y su usuario ya no podrá iniciar sesión. Su historial de asistencias y nóminas se conservará.
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="baja-empleado-password">Contraseña (Autorización)</label>
+          <input type="password" id="baja-empleado-password" class="form-input" placeholder="Tu contraseña actual" required autocomplete="off">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-eliminar-empleado" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-eliminar-empleado" style="flex:1;">Dar de Baja</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Gestión de Turnos -->
   <div id="modal-turnos" class="modal-overlay" aria-label="Gestión de turnos">
     <div class="modal-sheet" style="max-width:560px;">

@@ -395,6 +395,13 @@ input, select, textarea { font: inherit; }
 }
 .btn-primary:hover { box-shadow: 0 6px 20px rgba(230, 57, 70, 0.45); }
 
+.btn-danger {
+  background: var(--rojo-cangrejo);
+  color: var(--text-on-dark);
+  box-shadow: 0 4px 12px rgba(230, 57, 70, 0.35);
+}
+.btn-danger:hover { box-shadow: 0 6px 20px rgba(230, 57, 70, 0.45); }
+
 .btn-secondary {
   background: transparent;
   color: var(--azul-marino);
@@ -1882,6 +1889,15 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   background: #f0f9ff;
   border-color: var(--azul-marino);
   transform: translateY(-1px);
+}
+
+.employee-table .btn-action-danger {
+  color: var(--rojo-cangrejo);
+}
+.employee-table .btn-action-danger:hover {
+  background: #fdf2f2;
+  border-color: var(--rojo-cangrejo);
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.25);
 }
 
 #modal-asistencias .modal-overlay-content {

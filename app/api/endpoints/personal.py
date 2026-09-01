@@ -3,8 +3,9 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import requerir_rol
+from app.api.deps import get_current_user, requerir_rol
 from app.core.database import get_db
+from app.models.personal import Usuario
 from app.schemas.personal import (
     PuestoCreate,
     PuestoResponse,
@@ -14,6 +15,7 @@ from app.schemas.personal import (
     UsuarioCreate,
     UsuarioResponse,
     PasswordResetRequest,
+    EliminarEmpleadoRequest,
     RolEnum
 )
 from app.services.personal_service import PersonalService
@@ -137,6 +139,28 @@ def editar_empleado(
     Actualiza los campos enviados de un empleado.
     """
     return service.editar_empleado(empleado_id, empleado_in)
+
+
+@router.delete(
+    "/empleados/{empleado_id}",
+    response_model=EmpleadoResponse,
+    summary="Dar de baja empleado (borrado lógico)",
+    description="Desactiva un empleado (borrado lógico) conservando su historial de asistencias y nóminas. Requiere la contraseña del usuario autenticado. Solo Administradores y Gerentes.",
+    tags=["Empleados"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def eliminar_empleado(
+    empleado_id: int,
+    request: EliminarEmpleadoRequest,
+    current_user: Usuario = Depends(get_current_user),
+    service: PersonalService = Depends(get_personal_service)
+) -> EmpleadoResponse:
+    """
+    Da de baja a un empleado.
+
+    - **password**: Contraseña del usuario en sesión para autorizar la acción.
+    """
+    return service.dar_de_baja_empleado(empleado_id, request, current_user)
 
 
 # =============================================================================

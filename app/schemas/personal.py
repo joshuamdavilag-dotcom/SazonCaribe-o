@@ -239,3 +239,17 @@ class PasswordResetRequest(BaseModel):
         description="Nueva contraseña temporal",
         examples=["NuevaClave123"]
     )
+
+
+class EliminarEmpleadoRequest(BaseModel):
+    """Esquema para dar de baja a un empleado.
+
+    Requiere la contraseña del usuario autenticado para autorizar la acción.
+    """
+    password: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="Contraseña del usuario en sesión para autorizar la baja",
+        examples=["MiClave123"]
+    )

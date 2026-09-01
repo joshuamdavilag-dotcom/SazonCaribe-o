@@ -232,6 +232,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Pagar orden (auto-libera mesa)| Y             | Y       | Y        |
 | Iniciar turno (IP validated)  | Y (bypass)    | Y (bypass) | Y (must match ALLOWED_IPS) |
 | Gestionar turnos (CRUD)       | Y             | Y       | N        |
+| Dar de baja empleado (lógica) | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
@@ -277,6 +278,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/personal/empleados                  | Yes      | Admin, Gerente     |
 | GET    | /api/v1/personal/empleados                  | Yes      | Any                |
 | PUT    | /api/v1/personal/empleados/{id}             | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/personal/empleados/{id}             | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/usuarios                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/personal/usuarios                   | Yes      | Any                |
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
@@ -470,6 +472,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `NominaService` uses `empleado.salario_base` (not `empleado.puesto.salario_base`) for all payroll calculations
 - `Empleado` also has optional `telefono` column (VARCHAR(20))
 - **Frontend**: Employee table shows `C$` prefix; new employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` directly in employee body
+- **Baja de empleado (borrado lógico con autorización)**: `DELETE /personal/empleados/{id}` (Admin/Gerente) recibe `{password}` en el body; `PersonalService.dar_de_baja_empleado()` valida la contraseña del usuario en sesión vía `verificar_password()` (401 si es incorrecta), bloquea auto-baja (400) y baja ya inactiva (400), desactiva `Empleado.activo` y `Usuario.activo` vinculado (sin tocar asistencias/nóminas históricas). Frontend: botón 🗑️ en columna Acciones (`.admin-only`), `#modal-eliminar-empleado` con advertencia "¿Estás seguro...?" + input de contraseña; `confirmEliminarEmpleado()` hace DELETE y recarga la tabla.
 
 ### Menu categories (dynamic)
 - `CategoriaMenu` model (id, nombre, descripcion) with `MenuItem.categoria_id` FK

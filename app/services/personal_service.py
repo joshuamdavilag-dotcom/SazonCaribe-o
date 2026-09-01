@@ -15,9 +15,10 @@ from app.schemas.personal import (
     EmpleadoResponse,
     UsuarioCreate,
     UsuarioResponse,
-    PasswordResetRequest
+    PasswordResetRequest,
+    EliminarEmpleadoRequest
 )
-from app.core.security import obtener_password_hash
+from app.core.security import obtener_password_hash, verificar_password
 
 
 class PersonalService:
@@ -190,6 +191,65 @@ class PersonalService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No se encontró el empleado con ID {empleado_id}"
             )
+
+        empleado_desactivado = self.empleado_repo.desactivar(empleado_id)
+        return EmpleadoResponse.model_validate(empleado_desactivado)
+
+    def dar_de_baja_empleado(
+        self,
+        empleado_id: int,
+        request: EliminarEmpleadoRequest,
+        current_user: Usuario,
+    ) -> EmpleadoResponse:
+        """
+        Da de baja a un empleado (borrado lógico) con autorización por contraseña.
+
+        Valida la contraseña del usuario autenticado contra su hash antes de
+        desactivar al empleado. También desactiva el usuario del sistema
+        vinculado para impedir que siga iniciando sesión. Los registros
+        históricos de asistencia y nómina se conservan.
+
+        Args:
+            empleado_id: ID del empleado a dar de baja.
+            request: Solicitud con la contraseña del usuario en sesión.
+            current_user: Usuario autenticado (Admin/Gerente).
+
+        Returns:
+            EmpleadoResponse con el empleado desactivado.
+
+        Raises:
+            HTTPException 404: Si el empleado no existe.
+            HTTPException 400: Si ya está inactivo o es el propio usuario.
+            HTTPException 401: Si la contraseña es incorrecta.
+        """
+        empleado = self.empleado_repo.get_by_id(empleado_id)
+        if not empleado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el empleado con ID {empleado_id}"
+            )
+
+        if not empleado.activo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El empleado ya está inactivo"
+            )
+
+        if current_user.empleado_id == empleado_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No puedes dar de baja a tu propio usuario"
+            )
+
+        if not verificar_password(request.password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Contraseña incorrecta"
+            )
+
+        usuario = self.usuario_repo.get_by_empleado_id(empleado_id)
+        if usuario and usuario.activo:
+            self.usuario_repo.update(usuario.id, {"activo": False})
 
         empleado_desactivado = self.empleado_repo.desactivar(empleado_id)
         return EmpleadoResponse.model_validate(empleado_desactivado)
