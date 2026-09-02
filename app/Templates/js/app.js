@@ -3174,10 +3174,18 @@ function renderAsistenciasTable(asistencias, container) {
           const otBadge = ot > 0
             ? `<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
             : '<span style="color:#9ca3af;">0.00h</span>';
-          const auditInfo = a.horas_extras_originales != null
-            ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
-            : '<span style="color:#9ca3af;font-size:11px;">—</span>';
+          const auditInfo = a.anulada
+            ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
+            : (a.horas_extras_originales != null
+              ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
+              : '<span style="color:#9ca3af;font-size:11px;">—</span>');
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
+          const acciones = a.anulada
+            ? '<span style="color:#9ca3af;font-size:11px;">—</span>'
+            : `
+              <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
+              <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
+              <button class="btn-action-action btn-action-danger admin-only" onclick="openAnularAsistenciaModal(${a.id}, '${a.fecha}')" title="Eliminar/Anular registro">🗑️</button>`;
           return `
             <tr>
               <td>${a.id}</td>
@@ -3187,14 +3195,47 @@ function renderAsistenciasTable(asistencias, container) {
               <td>${otBadge}</td>
               <td>${auditInfo}</td>
               <td style="font-size:12px;color:#6b7280;">Turno #${a.turno_id}</td>
-              <td>
-                <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
-                <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
-              </td>
+              <td>${acciones}</td>
             </tr>`;
         }).join('')}
       </tbody>
     </table>`;
+}
+
+/* =========================================================================
+   Anular Asistencia
+   ========================================================================= */
+let anularAsistenciaId = null;
+
+function openAnularAsistenciaModal(asistenciaId, fecha) {
+  anularAsistenciaId = asistenciaId;
+  document.getElementById('anular-asis-id').textContent = asistenciaId;
+  document.getElementById('anular-asis-fecha').textContent = fecha || '—';
+  document.getElementById('anular-asis-motivo').value = '';
+  document.getElementById('modal-anular-asistencia').classList.add('show');
+}
+
+function closeAnularAsistenciaModal() {
+  document.getElementById('modal-anular-asistencia').classList.remove('show');
+  anularAsistenciaId = null;
+}
+
+async function confirmAnularAsistencia() {
+  const motivo = document.getElementById('anular-asis-motivo').value;
+  if (!motivo || !motivo.trim()) {
+    return showToast('El motivo de la anulación es obligatorio', 'warning');
+  }
+  if (!anularAsistenciaId) return showToast('Error: no se identificó el registro', 'error');
+
+  try {
+    const anulada = await api(`/asistencia/${anularAsistenciaId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ motivo: motivo.trim() }),
+    });
+    showToast(`Registro de asistencia #${anulada.id} anulado correctamente`, 'success');
+    closeAnularAsistenciaModal();
+    if (asisEmpleadoId) loadAsistenciasEmpleado(asisEmpleadoId);
+  } catch { /* handled by api() */ }
 }
 
 /* =========================================================================
@@ -4467,6 +4508,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Asistencias modal
   document.getElementById('close-asistencias')?.addEventListener('click', closeAsistenciasModal);
+
+  // Anular Asistencia modal
+  document.getElementById('close-anular-asistencia')?.addEventListener('click', closeAnularAsistenciaModal);
+  document.getElementById('cancel-anular-asistencia')?.addEventListener('click', closeAnularAsistenciaModal);
+  document.getElementById('confirm-anular-asistencia')?.addEventListener('click', confirmAnularAsistencia);
 
   // Editar Horas Extras modal
   document.getElementById('close-edit-ot')?.addEventListener('click', closeEditOTModal);

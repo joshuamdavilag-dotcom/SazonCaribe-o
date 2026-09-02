@@ -177,6 +177,26 @@ class AsistenciaResponse(BaseModel):
         default=None,
         description="ID del usuario que modificó las horas extras"
     )
+    anulada: bool = Field(
+        default=False,
+        description="True si el registro fue anulado y no cuenta para nómina"
+    )
+
+
+class AsistenciaAnularRequest(BaseModel):
+    """Esquema para anular un registro de asistencia.
+
+    El registro NO se borra físicamente (borrado lógico): se marca como
+    anulado para conservar el historial y la auditoría, y deja de contar
+    para el cálculo de nómina (horas normales y horas extras).
+    """
+    motivo: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Motivo de la anulación (obligatorio para auditoría)",
+        examples=["Asistencia duplicada al iniciar turno dos veces"]
+    )
 
 
 class AsistenciaHorasExtrasUpdate(BaseModel):

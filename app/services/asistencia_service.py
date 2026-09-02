@@ -17,7 +17,8 @@ from app.schemas.asistencia import (
     AsistenciaCheckOut,
     AsistenciaResponse,
     AsistenciaHorasExtrasUpdate,
-    AsistenciaEditarHorarios
+    AsistenciaEditarHorarios,
+    AsistenciaAnularRequest
 )
 
 
@@ -387,6 +388,67 @@ class AsistenciaService:
             datos["horas_extras"] = horas_extras
 
         asistencia_actualizada = self.asistencia_repo.update(asistencia_id, datos)
+        return AsistenciaResponse.model_validate(asistencia_actualizada)
+
+    def anular_asistencia(
+        self,
+        asistencia_id: int,
+        data: AsistenciaAnularRequest,
+        administrador_id: int,
+    ) -> AsistenciaResponse:
+        """Anula (borrado lógico) un registro de asistencia finalizado.
+
+        El registro no se borra físicamente: se marca ``anulada=True`` para
+        conservar el historial y la auditoría, y deja de contar para el
+        cálculo de nómina (horas normales y horas extras). Requiere un
+        motivo obligatorio y registra quién anuló.
+
+        Args:
+            asistencia_id: ID de la asistencia a anular.
+            data: Motivo de la anulación (obligatorio).
+            administrador_id: ID del usuario (admin/gerente) que anula.
+
+        Returns:
+            AsistenciaResponse con la asistencia anulada.
+
+        Raises:
+            HTTPException 404: Si la asistencia no existe.
+            HTTPException 400: Si el motivo está vacío, ya está anulada o
+                el turno sigue activo (sin salida registrada).
+        """
+        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
+        if not asistencia:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la asistencia con ID {asistencia_id}",
+            )
+
+        if not data.motivo or not data.motivo.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo de la anulación es obligatorio para auditoría",
+            )
+
+        if asistencia.anulada:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El registro de asistencia {asistencia_id} ya está anulado",
+            )
+
+        if asistencia.hora_salida_real is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede anular un turno que sigue activo: finaliza el turno primero",
+            )
+
+        asistencia_actualizada = self.asistencia_repo.update(
+            asistencia_id,
+            {
+                "anulada": True,
+                "motivo_modificacion": data.motivo.strip(),
+                "modificado_por": administrador_id,
+            },
+        )
         return AsistenciaResponse.model_validate(asistencia_actualizada)
 
     def asistencias_del_dia(self, fecha: date = None) -> List[AsistenciaResponse]:

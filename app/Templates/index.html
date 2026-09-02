@@ -1125,6 +1125,33 @@
     </div>
   </div>
 
+  <!-- Modal: Anular Asistencia -->
+  <div id="modal-anular-asistencia" class="modal-overlay" aria-label="Anular asistencia">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Eliminar/Anular Registro de Asistencia</h3>
+        <button class="modal-close" id="close-anular-asistencia" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:16px;">
+          ¿Estás seguro de que deseas eliminar este registro de asistencia
+          (<strong>#<span id="anular-asis-id"></span></strong> — <span id="anular-asis-fecha"></span>)?
+          Esta acción recalculará o descartará las horas para la nómina.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:#E63946;">*</span></label>
+          <input type="text" id="anular-asis-motivo" class="form-input" maxlength="500"
+                 placeholder="Ej: Asistencia duplicada al iniciar turno dos veces" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El motivo queda registrado para auditoría. El registro se conserva en el historial marcado como anulado.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-anular-asistencia" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-anular-asistencia" style="flex:1;">Eliminar Registro</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Editar Horas Extras -->
   <div id="modal-edit-ot" class="modal-overlay" aria-label="Editar horas extras">
     <div class="modal-sheet" style="max-width:440px;">

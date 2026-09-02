@@ -18,7 +18,8 @@ from app.schemas.asistencia import (
     AsistenciaCheckOut,
     AsistenciaResponse,
     AsistenciaHorasExtrasUpdate,
-    AsistenciaEditarHorarios
+    AsistenciaEditarHorarios,
+    AsistenciaAnularRequest
 )
 from app.services.asistencia_service import AsistenciaService
 from app.services import turno_service
@@ -304,3 +305,26 @@ def editar_horarios(
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
     return service.editar_horarios(asistencia_id, data, current_user.id)
+
+
+@router.delete(
+    "/{asistencia_id}",
+    response_model=AsistenciaResponse,
+    summary="Anular registro de asistencia",
+    description=(
+        "Anula (borrado lógico) un registro de asistencia finalizado. "
+        "El registro se conserva en el historial marcado como anulado y "
+        "deja de contar para el cálculo de nómina (horas normales y "
+        "horas extras). Requiere un motivo obligatorio para auditoría. "
+        "Solo Administradores y Gerentes pueden realizar esta operación."
+    ),
+    tags=["Asistencia"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def anular_asistencia(
+    asistencia_id: int = Path(..., gt=0, description="ID de la asistencia a anular"),
+    data: AsistenciaAnularRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: AsistenciaService = Depends(get_asistencia_service)
+) -> AsistenciaResponse:
+    return service.anular_asistencia(asistencia_id, data, current_user.id)

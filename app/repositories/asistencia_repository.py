@@ -37,7 +37,8 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         """
         statement = select(Asistencia).where(
             Asistencia.empleado_id == empleado_id,
-            Asistencia.fecha == fecha
+            Asistencia.fecha == fecha,
+            Asistencia.anulada == False
         )
         return self.db.execute(statement).scalar_one_or_none()
 
@@ -149,7 +150,8 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
             .where(
                 Asistencia.empleado_id == empleado_id,
                 Asistencia.fecha >= fecha_inicio,
-                Asistencia.fecha <= fecha_fin
+                Asistencia.fecha <= fecha_fin,
+                Asistencia.anulada == False
             )
             .order_by(Asistencia.fecha)
         )
@@ -179,7 +181,8 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
                 Asistencia.empleado_id == empleado_id,
                 Asistencia.fecha >= fecha_inicio,
                 Asistencia.fecha <= fecha_fin,
-                Asistencia.hora_salida_real.isnot(None)
+                Asistencia.hora_salida_real.isnot(None),
+                Asistencia.anulada == False
             )
             .order_by(Asistencia.fecha)
         )

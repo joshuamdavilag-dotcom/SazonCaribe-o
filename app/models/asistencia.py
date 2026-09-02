@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     String, Integer, Date, DateTime, Time,
-    ForeignKey, Numeric, CheckConstraint
+    ForeignKey, Numeric, Boolean, CheckConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -134,6 +134,12 @@ class Asistencia(Base):
         nullable=True,
         default=None,
         comment="Última vez que el cliente envió pulso de heartbeat"
+    )
+    anulada: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Registro anulado por administrador/gerente; no cuenta para nómina"
     )
 
     # Relación muchos-a-uno con Empleado

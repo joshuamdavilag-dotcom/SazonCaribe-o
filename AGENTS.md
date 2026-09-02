@@ -65,7 +65,7 @@ app/
 │   └── endpoints/           # API controllers (one file per domain)
 │       ├── auth.py          # POST /auth/login, /auth/verify
 │       ├── personal.py      # Puestos, empleados, usuarios CRUD
-│       ├── asistencia.py    # Turnos, check-in/out, iniciar turno, heartbeat
+│       ├── asistencia.py    # Turnos, check-in/out, iniciar turno, heartbeat, anular asistencia
 │       ├── nomina.py        # Nómina y pagos
 │       ├── inventario.py    # Proveedores, insumos, movimientos, catálogos de insumo
 │       ├── menu.py          # Categorías, items, recetas
@@ -118,7 +118,7 @@ app/
 │   └── analitica_repository.py
 ├── services/
 │   ├── personal_service.py
-│   ├── asistencia_service.py     # + actualizar_heartbeat(), cerrar_turnos_stale(), crear_turno(), actualizar_turno(), eliminar_turno()
+│   ├── asistencia_service.py     # + actualizar_heartbeat(), cerrar_turnos_stale(), crear_turno(), actualizar_turno(), eliminar_turno(), anular_asistencia()
 │   ├── nomina_service.py
 │   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
 │   ├── menu_service.py          # + consultas públicas reutilizables: obtener_menu_publico(), obtener_categorias_publicas(), obtener_item_publico_por_id(); subir_imagen() (upload multipart)
@@ -212,6 +212,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Reloj en vivo: `updateClock()` muestra hora actual en KDS (`#comandero-clock`) y Salón (`#salon-clock`), actualiza cada 30s via `setInterval`
 - `cobrarOrden(ordenId)` — pago rápido desde KDS: PATCH estado a PAGADA + PUT mesa a LIBRE (si tiene mesa_id); alternativa al flujo de detalle de mesa ocupada
 - `blockPOSAccess()` — al fallar validación de IP (403), deshabilita todos los elementos interactivos (botones, inputs, selects, formularios, navegación) con `pointer-events: none` + `opacity: 0.4`
+- Asistencias — Anular: botón 🗑️ en columna ACCIONES del modal `#modal-asistencias` (`.admin-only` + `.btn-action-danger`), solo para registros no anulados; `openAnularAsistenciaModal(id, fecha)` abre `#modal-anular-asistencia` (texto de advertencia "¿Estás seguro de que deseas eliminar este registro de asistencia (#ID)? Esta acción recalculará o descartará las horas para la nómina." + motivo obligatorio); `confirmAnularAsistencia()` hace `DELETE /asistencia/{id}` con body `{motivo}` y recarga el historial; las filas anuladas muestran badge "🚫 Anulado" (con motivo en tooltip) y ocultan acciones
 
 ### Design Tokens (CSS)
 
@@ -245,6 +246,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **IVA**: Removed — menu prices are tax-inclusive; `IVA_RATE=0.0`
 - **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
+- **Anulación de registro de asistencia**: `DELETE /asistencia/{id}` (Admin/Gerente) marca `Asistencia.anulada=True` (borrado lógico, nunca `db.delete`) con `motivo` obligatorio que se guarda en `motivo_modificacion` + `modificado_por` (auditoría). Bloquea: registro inexistente (404), motivo vacío (400), turno aún activo sin salida (400), registro ya anulado (400). Los registros anulados NO cuentan para nómina: `get_finalizadas_por_rango`, `get_asistencias_por_rango_fechas` y `get_asistencia_del_dia` filtran `Asistencia.anulada == False`, por lo que horas normales y extras se descartan del cálculo y el empleado puede volver a marcar entrada el mismo día. El historial (`get_asistencias_por_empleado`) conserva el registro con badge "🚫 Anulado" (y motivo en tooltip) para trazabilidad.
 - **Borrado lógico de platillos**: `DELETE /menu/items/{id}` does a SOFT DELETE — sets `disponible=False` (never `db.delete`). Receta e historial de ventas (`detalle_orden`) se conservan; el plato puede reactivarse editándolo. `IntegrityError` se captura y devuelve 400 con mensaje claro. `GET /menu/items` devuelve solo activos por defecto; `?incluir_inactivos=true` (solo Admin/Gerente) los incluye para Gestión de Menú. La unicidad de nombre verifica también inactivos.
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
 - **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`, optional `notas` for special instructions like "Sin cebolla", "poco cocido")
@@ -293,6 +295,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/asistencia/empleados/{id}/historial | Yes      | Any                |
 | PUT    | /api/v1/asistencia/{id}/horas-extras        | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/asistencia/{id}/editar-horarios     | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/asistencia/{id}                     | Yes      | Admin, Gerente     |
 | POST   | /api/v1/menu/items                          | Yes      | Admin, Gerente     |
 | GET    | /api/v1/menu/items                          | Yes      | Any                |
 | GET    | /api/v1/menu/items/{id}                     | Yes      | Any                |

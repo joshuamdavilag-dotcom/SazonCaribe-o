@@ -154,6 +154,7 @@ async def startup_event():
     _migrate_adelantos_salario()
     _migrate_menu_item_imagen_tiempo()
     _migrate_asistencia_utc_a_local()
+    _migrate_asistencias_anulada()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -464,6 +465,32 @@ def _migrate_asistencia_utc_a_local():
         except Exception as e:
             db.rollback()
             print(f"  [X] Error en migración de asistencias UTC→local: {e}")
+
+
+def _migrate_asistencias_anulada():
+    """Agrega la columna anulada a asistencias si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asistencias' "
+                "AND COLUMN_NAME = 'anulada'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE asistencias ADD COLUMN anulada TINYINT(1) "
+                    "NOT NULL DEFAULT 0"
+                ))
+                db.commit()
+                print("  [~] Columna 'anulada' agregada a asistencias")
+            else:
+                print("  [~] Columna 'anulada' ya existe en asistencias")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'anulada' a asistencias: {e}")
 
 
 def _fix_unidades_medida():
