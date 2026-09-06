@@ -175,7 +175,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - All API endpoints prefixed with `/api/v1/`
 - Write endpoints protected with `Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))`
 - All orden endpoints protected with `Depends(get_current_user)`
-- IP validation: Vendedor restricted to `ALLOWED_IPS` env var (comma-separated, default `192.168.1.0/24,190.212.126.0/24,127.0.0.1,::1` — LAN local + subred pública ISP del local para empleados vía URL de Render); Admin/Gerente bypass; proxy header support (`CF-Connecting-IP`, `X-Forwarded-For`)
 - No comments in code unless explicitly requested
 - Spanish user-facing strings, English internal identifiers
 - `RolEnum` defined in `app/schemas/personal.py`
@@ -193,7 +192,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - All modals use `.modal-overlay.show` pattern
 - `showToast(message, type)` for notifications
 - Role-based nav: `.nav-locked` class for restricted items
-- IP block modal: `#modal-ip-block` + `blockPOSAccess()` disables all actions
 - Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
 - Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal; startup `_fix_orphaned_mesas()` auto-frees OCUPADA tables with no active orders; table detail modal shows "Forzar Libramiento" button when OCUPADA but no active order found
 - Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
@@ -211,7 +209,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `formatLocalTime(isoStr)` helper formatea de forma literal el string crudo (extrae HH:MM y muestra 12h AM/PM) — sin conversión de zona; los datetimes de asistencia son hora local fija de Managua
 - Reloj en vivo: `updateClock()` muestra hora actual en KDS (`#comandero-clock`) y Salón (`#salon-clock`), actualiza cada 30s via `setInterval`
 - `cobrarOrden(ordenId)` — pago rápido desde KDS: PATCH estado a PAGADA + PUT mesa a LIBRE (si tiene mesa_id); alternativa al flujo de detalle de mesa ocupada
-- `blockPOSAccess()` — al fallar validación de IP (403), deshabilita todos los elementos interactivos (botones, inputs, selects, formularios, navegación) con `pointer-events: none` + `opacity: 0.4`
 - Asistencias — Anular: botón 🗑️ en columna ACCIONES del modal `#modal-asistencias` (`.admin-only` + `.btn-action-danger`), solo para registros no anulados; `openAnularAsistenciaModal(id, fecha)` abre `#modal-anular-asistencia` (texto de advertencia "¿Estás seguro de que deseas eliminar este registro de asistencia (#ID)? Esta acción recalculará o descartará las horas para la nómina." + motivo obligatorio); `confirmAnularAsistencia()` hace `DELETE /asistencia/{id}` con body `{motivo}` y recarga el historial; las filas anuladas muestran badge "🚫 Anulado" (con motivo en tooltip) y ocultan acciones
 
 ### Design Tokens (CSS)
@@ -231,7 +228,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Menu/Inventario write         | Y             | Y       | N        |
 | Ordenes (create, add items)   | Y             | Y       | Y        |
 | Pagar orden (auto-libera mesa)| Y             | Y       | Y        |
-| Iniciar turno (IP validated)  | Y (bypass)    | Y (bypass) | Y (must match ALLOWED_IPS) |
+| Iniciar turno                 | Y             | Y       | Y        |
 | Gestionar turnos (CRUD)       | Y             | Y       | N        |
 | Dar de baja empleado (lógica) | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
@@ -286,7 +283,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
 | POST   | /api/v1/asistencia/turnos                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/asistencia/turnos                   | Yes      | Any                |
-| POST   | /api/v1/asistencia/turnos/iniciar/{id} | Yes      | Any (IP validated) |
+| POST   | /api/v1/asistencia/turnos/iniciar/{id} | Yes      | Any |
 | PUT    | /api/v1/asistencia/turnos/{id}         | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/asistencia/turnos/{id}         | Yes      | Admin, Gerente     |
 | POST   | /api/v1/asistencia/turnos/heartbeat/{id} | Yes      | Any                |

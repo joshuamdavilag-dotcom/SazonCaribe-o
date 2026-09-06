@@ -1,10 +1,8 @@
 from decimal import Decimal
-import ipaddress
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.tiempo import ahora_local
 from app.models.asistencia import Asistencia
 from app.repositories.asistencia_repository import AsistenciaRepository
@@ -22,38 +20,12 @@ def _get_ip_cliente(request) -> str:
     return request.client.host
 
 
-def _ip_allowed(ip: str) -> bool:
-    settings = get_settings()
-    try:
-        addr = ipaddress.ip_address(ip.strip())
-    except ValueError:
-        return False
-    for entry in settings.ALLOWED_IPS.split(","):
-        entry = entry.strip()
-        if not entry:
-            continue
-        if "/" in entry:
-            try:
-                if addr in ipaddress.ip_network(entry, strict=False):
-                    return True
-            except ValueError:
-                continue
-        else:
-            try:
-                if addr == ipaddress.ip_address(entry):
-                    return True
-            except ValueError:
-                continue
-    return False
-
-
 def iniciar_turno(
     db: Session,
     usuario_id: int,
     empleado_id: int,
     turno_id: int,
     ip_cliente: str,
-    rol: str,
 ) -> Asistencia:
     turno_repo = TurnoRepository(db)
     asistencia_repo = AsistenciaRepository(db)
@@ -63,12 +35,6 @@ def iniciar_turno(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No se encontró el turno con ID {turno_id}",
-        )
-
-    if rol == "Vendedor" and not _ip_allowed(ip_cliente):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Acceso denegado: IP no autorizada ({ip_cliente})",
         )
 
     ahora = ahora_local()

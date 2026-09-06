@@ -67,12 +67,6 @@ class Settings(BaseSettings):
         description="Tiempo máximo sin heartbeat antes de finalizar turno (15 min)"
     )
 
-    # Red
-    ALLOWED_IPS: str = Field(
-        default="192.168.1.0/24,190.212.126.0/24,127.0.0.1,::1",
-        description="IPs autorizadas para iniciar turno (separadas por coma)"
-    )
-
     # Nómina
     HOURS_PER_DAY: int = Field(default=8, description="Horas laborales por día")
     OVERTIME_MULTIPLIER: float = Field(

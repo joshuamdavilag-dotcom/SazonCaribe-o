@@ -112,12 +112,11 @@ def eliminar_turno(
     "/turnos/iniciar/{turno_id}",
     response_model=AsistenciaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Iniciar turno (check-in con validación de IP)",
+    summary="Iniciar turno (check-in)",
     description=(
         "Registra la entrada de un empleado a su turno. "
-        "Valida que la IP de origen coincida con la sede del restaurante "
-        "si el usuario tiene rol Vendedor. Administradores y Gerentes "
-        "están exentos de esta restricción."
+        "Cualquier usuario con credenciales válidas puede iniciar turno "
+        "sin restricción por red o IP de origen."
     ),
     tags=["Turnos"]
 )
@@ -136,7 +135,6 @@ def iniciar_turno(
         empleado_id=current_user.empleado_id,
         turno_id=turno_id,
         ip_cliente=ip_origen,
-        rol=current_user.rol,
     )
 
     return AsistenciaResponse.model_validate(asistencia)

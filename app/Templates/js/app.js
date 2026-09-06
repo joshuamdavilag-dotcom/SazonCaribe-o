@@ -69,11 +69,6 @@ async function api(endpoint, options = {}) {
       logout();
       throw new Error('Sesión expirada');
     }
-    if (res.status === 403) {
-      const err = await res.json().catch(() => ({ detail: 'Acceso denegado' }));
-      showIPBlockModal(err.detail || 'Acceso denegado');
-      throw new Error(err.detail || 'Acceso denegado');
-    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Error del servidor' }));
       let msg = err.detail || `Error ${res.status}`;
@@ -230,7 +225,7 @@ function updateUserBadges() {
 }
 
 /* =========================================================================
-   Attendance — IP Validation & Shift Control
+   Attendance — Shift Control
    ========================================================================= */
 async function iniciarTurno(turnoId) {
   try {
@@ -241,12 +236,6 @@ async function iniciarTurno(turnoId) {
       method: 'POST',
       headers,
     });
-
-    if (res.status === 403) {
-      const err = await res.json().catch(() => ({ detail: 'IP no autorizada' }));
-      showIPBlockModal(err.detail || 'IP no autorizada');
-      return null;
-    }
 
     if (res.status === 401) {
       logout();
@@ -279,12 +268,6 @@ async function finalizarTurno() {
       method: 'POST',
       headers,
     });
-
-    if (res.status === 403) {
-      const err = await res.json().catch(() => ({ detail: 'Acceso denegado' }));
-      showIPBlockModal(err.detail || 'Acceso denegado');
-      return null;
-    }
 
     if (res.status === 401) {
       logout();
@@ -574,45 +557,6 @@ async function guardarGasto() {
     btn.disabled = false;
     btn.textContent = 'Guardar Gasto';
   }
-}
-
-function showIPBlockModal(detail) {
-  const modal = document.getElementById('modal-ip-block');
-  const detailEl = document.getElementById('ip-block-detail');
-  if (detailEl && detail) detailEl.textContent = detail;
-
-  const ipEl = document.getElementById('ip-block-detected');
-  const ipValEl = document.getElementById('ip-block-detected-value');
-  const ipMatch = detail && detail.match(/\(([^)]+)\)/);
-  if (ipEl && ipValEl && ipMatch) {
-    ipValEl.textContent = ipMatch[1];
-    ipEl.style.display = '';
-  } else if (ipEl) {
-    ipEl.style.display = 'none';
-  }
-
-  modal.style.display = 'flex';
-  modal.classList.add('show');
-  blockPOSAccess();
-}
-
-function closeIPBlockModal() {
-  const modal = document.getElementById('modal-ip-block');
-  modal.style.display = 'none';
-  modal.classList.remove('show');
-  logout();
-}
-
-function blockPOSAccess() {
-  document.querySelectorAll('.sidebar-nav .nav-item').forEach(btn => {
-    btn.classList.add('nav-locked');
-    btn.title = 'Bloqueado — verifique su conexión a la red';
-    btn.style.pointerEvents = 'none';
-    btn.style.opacity = '0.5';
-  });
-
-  document.querySelectorAll('.btn-add').forEach(b => { b.disabled = true; b.style.opacity = '0.4'; b.style.pointerEvents = 'none'; });
-  document.querySelectorAll('.btn-turquoise, .btn-primary').forEach(b => { b.disabled = true; b.style.opacity = '0.4'; b.style.pointerEvents = 'none'; });
 }
 
 /*    =========================================================================
