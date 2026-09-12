@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional, List
 
 from sqlalchemy import select, and_, update
@@ -216,3 +217,36 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         self.db.execute(stmt)
         self.db.commit()
         return self.get_by_id(asistencia_id)
+
+    def auto_cerrar_stale(
+        self,
+        asistencia_id: int,
+        hora_fin: datetime,
+        horas_extras: Decimal,
+        observaciones: str,
+    ) -> bool:
+        """
+        Cierra automáticamente un turno stale SOLO si sigue abierto.
+
+        El UPDATE condicional (`hora_salida_real IS NULL`) evita que la tarea
+        de heartbeat sobreescriba la hora de salida de un check-out que el
+        empleado acabó de registrar (carrera de condiciones).
+
+        Returns:
+            True si el turno se cerró, False si ya estaba finalizado.
+        """
+        stmt = (
+            update(Asistencia)
+            .where(
+                Asistencia.id == asistencia_id,
+                Asistencia.hora_salida_real.is_(None),
+            )
+            .values(
+                hora_salida_real=hora_fin,
+                horas_extras=horas_extras,
+                observaciones=observaciones,
+            )
+        )
+        result = self.db.execute(stmt)
+        self.db.commit()
+        return result.rowcount > 0

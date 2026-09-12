@@ -201,13 +201,21 @@ def registrar_salida(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AsistenciaResponse:
+    from app.core.tiempo import hoy_local
+
     repo = AsistenciaRepository(db)
     asistencias = repo.get_asistencias_por_empleado(current_user.empleado_id)
     activa = next(
-        (a for a in asistencias if a.hora_salida_real is None),
+        (a for a in asistencias if a.hora_salida_real is None and not a.anulada),
         None,
     )
     if not activa:
+        asistencia_hoy = repo.get_asistencia_del_dia(
+            current_user.empleado_id,
+            hoy_local(),
+        )
+        if asistencia_hoy and asistencia_hoy.hora_salida_real is not None:
+            return AsistenciaResponse.model_validate(asistencia_hoy)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El empleado no tiene un turno activo para finalizar",

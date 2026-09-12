@@ -62,17 +62,15 @@ def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
         )
 
     if asistencia.hora_salida_real is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Esta asistencia ya tiene registrada una salida",
-        )
+        return asistencia
 
     ahora = ahora_local()
-    horas_reales = (ahora - asistencia.hora_entrada_real).total_seconds() / 3600
+    entrada = asistencia.hora_entrada_real or ahora
+    horas_reales = max((ahora - entrada).total_seconds() / 3600, 0)
 
     turno = turno_repo.get_by_id(asistencia.turno_id)
     horas_extras = Decimal("0.00")
-    if horas_reales > turno.horas_teoricas:
+    if turno and horas_reales > turno.horas_teoricas:
         horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
 
     datos = {

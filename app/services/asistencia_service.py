@@ -490,19 +490,23 @@ class AsistenciaService:
         stale = self.asistencia_repo.get_activas_sin_heartbeat(timeout_desde)
         if not stale:
             return 0
+        cerrados = 0
         for asistencia in stale:
             fecha_fin = asistencia.ultimo_heartbeat or asistencia.hora_entrada_real
-            horas_reales = (fecha_fin - asistencia.hora_entrada_real).total_seconds() / 3600
+            entrada = asistencia.hora_entrada_real or fecha_fin
+            horas_reales = max(
+                (fecha_fin - entrada).total_seconds() / 3600,
+                0.0,
+            )
             turno = self.turno_repo.get_by_id(asistencia.turno_id)
             horas_extras = Decimal("0.00")
-            if horas_reales > turno.horas_teoricas:
+            if turno and horas_reales > turno.horas_teoricas:
                 horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
-            self.asistencia_repo.update(
+            if self.asistencia_repo.auto_cerrar_stale(
                 asistencia.id,
-                {
-                    "hora_salida_real": fecha_fin,
-                    "horas_extras": horas_extras,
-                    "observaciones": "Cierre automático por timeout de heartbeat",
-                },
-            )
-        return len(stale)
+                fecha_fin,
+                horas_extras,
+                "Cierre automático por timeout de heartbeat",
+            ):
+                cerrados += 1
+        return cerrados

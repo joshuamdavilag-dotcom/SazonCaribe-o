@@ -274,12 +274,12 @@ async function finalizarTurno() {
       throw new Error('Sesión expirada');
     }
 
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error del servidor' }));
-      throw new Error(err.detail || `Error ${res.status}`);
+      const msg = data?.detail || `Error ${res.status}`;
+      throw new Error(msg);
     }
 
-    const data = await res.json();
     state.currentAsistencia = null;
     localStorage.removeItem('pos_asistencia');
     renderAttendanceStatus();
