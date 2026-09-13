@@ -3,12 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#003366">
+  <meta name="theme-color" content="#0D233A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=3.1">
+  <link rel="stylesheet" href="css/style.css?v=5.5">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          screens: {
+            xs: '400px',
+          },
+          fontFamily: {
+            display: ['Epilogue', 'sans-serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              coral: '#E64A2E',
+              coralHover: '#CF3B20',
+              coralLight: '#FFF0ED',
+              orange: '#F2784B',
+              navy: '#0F3B66',
+              navyDark: '#0D233A',
+              navyDeep: '#081726',
+              turquoise: '#1EB8B8',
+              turquoiseLight: '#E6F9F9',
+              sun: '#F8B319',
+              sand: '#FBF8F3',
+            }
+          },
+          boxShadow: {
+            'card-tropical': '0 20px 40px -15px rgba(8, 23, 38, 0.45), 0 0 25px rgba(30, 184, 184, 0.12)',
+            'btn-coral': '0 10px 20px -5px rgba(230, 74, 46, 0.45)',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
 <body>
@@ -19,23 +54,65 @@
   <!-- =================================================================
        SCREEN: LOGIN
        ================================================================= -->
-  <section id="screen-login" class="screen screen-login active" aria-label="Inicio de sesión">
-    <div class="login-card animate-in">
-      <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo login-logo-img">
-      <h1 class="login-logo">Sazón Caribeño</h1>
-      <p class="login-tagline">Sistema de Gestión Restaurante</p>
-      <form id="login-form" autocomplete="on" novalidate>
-        <div class="input-group">
-          <span class="icon" aria-hidden="true">👤</span>
-          <input type="text" id="login-username" class="input-field" placeholder="Usuario" autocomplete="username" required>
+  <section id="screen-login" class="screen active relative w-full min-h-screen hidden justify-between items-center p-6 bg-gradient-to-b from-[#0D233A] via-[#0C3C60] to-[#091B2E] overflow-hidden" aria-label="Inicio de sesión">
+    <!-- Elementos decorativos de fondo con tinte caribeño -->
+    <div class="absolute -top-24 -right-20 w-64 h-64 rounded-full bg-[#1EB8B8]/15 blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-[#E64A2E]/15 blur-3xl pointer-events-none"></div>
+    <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F8B319]/10 blur-3xl pointer-events-none"></div>
+    <!-- Contenedor central / Tarjeta de login -->
+    <div class="w-full my-auto flex justify-center items-center z-10 py-4">
+      <div class="login-card w-full max-w-[380px] bg-white rounded-3xl p-7 shadow-card-tropical border border-white/80 relative">
+        <!-- 1. Branding: Logo, Título y Subtítulo -->
+        <div class="flex flex-col items-center text-center mb-7">
+          <div class="relative w-24 h-24 mb-3 rounded-full bg-white shadow-md p-1 border-2 border-brand-sun/40 flex items-center justify-center overflow-hidden transition-transform duration-300 hover:scale-105">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="w-full h-full object-contain drop-shadow-sm">
+          </div>
+          <h1 class="font-display font-extrabold text-[28px] leading-tight text-brand-navy tracking-tight">
+            Sazón <span class="text-brand-coral">Caribeño</span>
+          </h1>
+          <div class="flex items-center space-x-1.5 mt-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-brand-turquoise"></span>
+            <p class="text-xs font-medium text-slate-500 tracking-wide uppercase">Sistema de Gestión Restaurante</p>
+            <span class="w-1.5 h-1.5 rounded-full bg-brand-turquoise"></span>
+          </div>
         </div>
-        <div class="input-group">
-          <span class="icon" aria-hidden="true">🔒</span>
-          <input type="password" id="login-password" class="input-field" placeholder="Contraseña" autocomplete="current-password" required>
-        </div>
-        <button type="submit" class="btn btn-primary" id="btn-login">Iniciar Sesión</button>
-      </form>
-      <p class="caption mt-md">v1.0.0 — Caribe</p>
+        <!-- 2. Formulario -->
+        <form id="login-form" class="space-y-4" autocomplete="on" novalidate>
+          <!-- Campo Usuario -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-700 tracking-wider" for="login-username">USUARIO</label>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined absolute left-3.5 text-slate-400 pointer-events-none text-[20px]">person</span>
+              <input autocomplete="username" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#091E33] placeholder-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white focus:border-brand-turquoise focus:ring-4 focus:ring-brand-turquoise/20" id="login-username" name="username" placeholder="Usuario" required type="text">
+            </div>
+          </div>
+          <!-- Campo Contraseña -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center">
+              <label class="block text-xs font-semibold text-slate-700 tracking-wider" for="login-password">CONTRASEÑA</label>
+              <a class="text-xs font-medium text-brand-turquoise hover:text-[#0F3B66] transition-colors" href="#">¿Olvidó su PIN?</a>
+            </div>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined absolute left-3.5 text-slate-400 pointer-events-none text-[20px]">lock</span>
+              <input autocomplete="current-password" class="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#091E33] placeholder-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white focus:border-brand-turquoise focus:ring-4 focus:ring-brand-turquoise/20" id="login-password" name="password" placeholder="Contraseña" required type="password">
+              <button class="absolute right-3.5 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none" type="button" tabindex="-1" onclick="const p = document.getElementById('login-password'); const isP = p.type === 'password'; p.type = isP ? 'text' : 'password'; this.firstElementChild.innerText = isP ? 'visibility_off' : 'visibility';" aria-label="Mostrar contraseña">
+                <span class="material-symbols-outlined text-[20px]">visibility</span>
+              </button>
+            </div>
+          </div>
+          <!-- Botón Iniciar Sesión -->
+          <div class="pt-2">
+            <button type="submit" class="w-full py-3.5 px-4 bg-brand-coral hover:bg-brand-coralHover active:scale-[0.98] text-white font-bold text-sm tracking-wide rounded-xl shadow-btn-coral transition-all duration-200 flex items-center justify-center space-x-2 group" id="login-btn">
+              <span>Iniciar Sesión</span>
+              <span class="material-symbols-outlined text-[18px] transition-transform duration-200 group-hover:translate-x-1">arrow_forward</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- Footer interno -->
+    <div class="w-full pb-3 text-center z-10">
+      <p class="text-xs font-medium text-white/50 tracking-wider">v1.0.0 — Caribe</p>
     </div>
   </section>
 
@@ -48,243 +125,584 @@
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">
-        <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo">
-        <div class="brand-name">Sazón Caribeño</div>
-        <div class="brand-tagline">POS Restaurante</div>
+      <!-- Brand -->
+      <div class="sidebar-brand w-full flex flex-row items-center gap-3 px-5 py-4 border-b border-white/10">
+        <span class="material-symbols-outlined text-[26px] text-[#1EB8B8]">restaurant</span>
+        <div class="text-left">
+          <h1 class="text-[17px] font-extrabold leading-tight tracking-tight">Sazón Caribeño</h1>
+          <p class="text-[10px] uppercase tracking-[0.18em] text-white/50">POS Restaurante</p>
+        </div>
       </div>
 
-      <nav class="sidebar-nav" aria-label="Navegación principal">
-        <button class="nav-item active" data-screen="salon">
-          <span class="nav-icon">🍽️</span>
+      <!-- Nav -->
+      <nav class="sidebar-nav flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5" aria-label="Navegación principal">
+        <a class="nav-item active" data-screen="salon">
+          <span class="material-symbols-outlined nav-icon text-[20px]">table_restaurant</span>
           <span class="nav-label">Salón</span>
-        </button>
-        <button class="nav-item" data-screen="comandero">
-          <span class="nav-icon">📝</span>
+        </a>
+        <a class="nav-item" data-screen="comandero">
+          <span class="material-symbols-outlined nav-icon text-[20px]">soup_kitchen</span>
           <span class="nav-label">Comandas</span>
-        </button>
-        <button class="nav-item" data-screen="menu-view">
-          <span class="nav-icon">📖</span>
+        </a>
+        <a class="nav-item" data-screen="menu-view">
+          <span class="material-symbols-outlined nav-icon text-[20px]">restaurant_menu</span>
           <span class="nav-label">Carta</span>
-        </button>
-        <button class="nav-item nav-item-admin" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
-          <span class="nav-icon">🍽️</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">edit_note</span>
           <span class="nav-label">Gestión Menú</span>
-        </button>
-        <button class="nav-item nav-item-admin" data-screen="inventory" data-roles="Administrador,Gerente">
-          <span class="nav-icon">📦</span>
-          <span class="nav-label">Inventario</span>
-        </button>
-        <button class="nav-item nav-item-admin" data-screen="personal" data-roles="Administrador,Gerente">
-          <span class="nav-icon">👥</span>
-          <span class="nav-label">Personal</span>
-        </button>
-        <button class="nav-item" data-screen="cuenta">
-          <span class="nav-icon">💰</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="inventory" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">inventory_2</span>
+          <span class="nav-label">Almacén Digital</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="personal" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">badge</span>
+          <span class="nav-label">Personal y Nóminas</span>
+        </a>
+        <a class="nav-item" data-screen="cuenta">
+          <span class="material-symbols-outlined nav-icon text-[20px]">point_of_sale</span>
           <span class="nav-label">Cierre de Caja</span>
-        </button>
-        <button class="nav-item nav-item-admin" data-screen="gastos" data-roles="Administrador,Gerente">
-          <span class="nav-icon">💸</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
-        </button>
+        </a>
       </nav>
 
       <!-- Attendance Control -->
-      <div id="attendance-panel" class="attendance-panel" style="display:none;">
-        <div class="attendance-label">Control de Turno</div>
-        <select id="turno-select" class="form-input" style="height:36px;font-size:12px;padding:0 8px;margin-bottom:8px;">
+      <div id="attendance-panel" class="attendance-panel bg-white/5 rounded-xl p-3 mx-3 mb-2 flex flex-col gap-2" style="display:none;">
+        <div class="flex items-center justify-between text-[11px] text-white/60">
+          <span>Turno Actual</span>
+          <span id="attendance-clock" class="font-mono">--:--</span>
+        </div>
+        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:#fff;color:#0F3B66;">
           <option value="">Seleccionar turno…</option>
         </select>
-        <div style="display:flex;gap:6px;">
-          <button id="btn-iniciar-turno" class="btn btn-sm" style="flex:1;height:34px;font-size:12px;background:#2A9D8F;color:#fff;border:none;border-radius:8px;cursor:pointer;">▶ Iniciar</button>
-          <button id="btn-finalizar-turno" class="btn btn-sm" style="flex:1;height:34px;font-size:12px;background:#E63946;color:#fff;border:none;border-radius:8px;cursor:pointer;opacity:0.4;pointer-events:none;">⏹ Finalizar</button>
-        </div>
-        <div id="attendance-status" style="margin-top:6px;font-size:11px;color:#6b7280;text-align:center;"></div>
+        <button id="btn-attendance-toggle" class="btn-turquoise w-full py-1.5 text-xs rounded-lg font-semibold flex items-center justify-center gap-1">
+          <span class="material-symbols-outlined text-sm">schedule</span> Iniciar Turno
+        </button>
+        <div id="attendance-status" style="font-size:10px;color:#94a3b8;text-align:center;"></div>
       </div>
 
-      <div class="sidebar-user">
-        <div class="avatar" id="sidebar-avatar">U</div>
+      <!-- User -->
+      <div class="sidebar-user w-full" id="user-card">
+        <div class="avatar" id="user-avatar">U</div>
         <div class="user-info">
-          <div class="user-name" id="sidebar-username">Usuario</div>
-          <div class="user-role" id="sidebar-role">Rol</div>
+          <div class="user-name" id="user-name">Usuario</div>
+          <div class="user-role" id="user-role">Rol</div>
         </div>
         <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">⏻</button>
       </div>
     </aside>
 
     <!-- MAIN CONTENT -->
-    <main class="main-content">
+    <main class="main-content lg:ml-[260px] min-h-screen pb-20 lg:pb-6 bg-slate-50">
 
       <!-- SCREEN: SALÓN -->
-      <section id="screen-salon" class="screen active" aria-label="Salón">
-        <header class="screen-header">
-          <h2 class="title">🍽️ Mapa de Mesas</h2>
-          <div class="header-actions">
-            <button class="btn btn-turquoise" id="btn-para-llevar" onclick="abrirOrdenParaLlevar()" style="font-size:13px;height:36px;padding:0 14px;">🛍️ Para Llevar</button>
-            <button class="btn btn-secondary admin-only" id="btn-gestion-mesas" style="font-size:13px;">⚙️ Gestionar Mesas</button>
-            <span class="caption" id="salon-clock"></span>
+      <section id="screen-salon" class="screen active w-full max-w-full overflow-x-hidden" aria-label="Salón">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="salon-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Mapa de Mesas</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Gestión de atención y comandas en tiempo real</p>
+            </div>
+            <div id="occupancy-card" class="shrink-0 w-[104px] bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <p class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ocupación</p>
+              <p class="font-display font-extrabold text-xl text-brand-navy leading-none mt-0.5"><span id="occupancy-pct">0%</span></p>
+              <div class="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div id="occupancy-bar" class="h-full rounded-full bg-brand-coral transition-all duration-500" style="width:0%"></div>
+              </div>
+              <p class="text-[10px] font-medium text-slate-500 mt-1"><span id="occupancy-count">0/0</span> mesas</p>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2.5">
+            <button type="button" id="btn-para-llevar" class="flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-turquoise text-white font-semibold text-sm shadow-sm shadow-brand-turquoise/30 active:scale-[0.98] transition">
+              <span class="material-symbols-outlined text-[20px]">takeout_dining</span> Para Llevar
+            </button>
+            <button type="button" id="btn-gestion-mesas" class="admin-only flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-brand-navy/15 bg-white text-brand-navy font-semibold text-sm active:scale-[0.98] transition">
+              <span class="material-symbols-outlined text-[20px]">table_restaurant</span> Mesas
+            </button>
           </div>
         </header>
-        <div class="screen-body">
-          <div class="chips-row" role="tablist" aria-label="Filtrar mesas">
-            <button class="chip active" data-filter="all" role="tab" aria-selected="true">Todas</button>
-            <button class="chip" data-filter="LIBRE" role="tab">🟢 Libres</button>
-            <button class="chip" data-filter="OCUPADA" role="tab">🔴 Ocupadas</button>
-            <button class="chip" data-filter="RESERVADA" role="tab">🟡 Reservadas</button>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 space-y-3 lg:px-6 w-full max-w-full min-w-0">
+          <!-- Filtros por estado -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar mesas">
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="all" role="tab" aria-selected="true">
+              Todas <span id="cnt-all" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="LIBRE" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Libres <span id="cnt-libre" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="OCUPADA" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-coral"></span> Ocupadas <span id="cnt-ocupada" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="RESERVADA" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Reservadas <span id="cnt-reservada" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
           </div>
-          <div class="chips-row" id="zona-filters" role="tablist" aria-label="Filtrar por zona" style="margin-top:6px;">
-            <button class="chip active" data-zona="all" role="tab" aria-selected="true">🗺️ Todas las Zonas</button>
+
+          <!-- Filtros dinámicos por zona -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" id="zona-filters" role="tablist" aria-label="Filtrar por zona">
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-coral aria-selected:text-white aria-selected:border-brand-coral" data-zona="all" role="tab" aria-selected="true">🗺️ Todas las Zonas</button>
           </div>
-          <main id="table-grid" class="table-grid" aria-label="Mapa de mesas"></main>
+
+          <!-- Encabezado de la distribución -->
+          <div class="flex items-center justify-between gap-2 pt-1">
+            <div class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px] text-slate-400">grid_view</span>
+              <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Distribución en Planta</h2>
+            </div>
+            <div class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+              <span class="material-symbols-outlined text-[14px]">schedule</span>
+              <span id="salon-clock">--:-- --</span>
+              <span class="text-slate-300">·</span>
+              <span id="salon-date">---</span>
+            </div>
+          </div>
+
+          <!-- Grid principal renderizado por renderTables() -->
+          <main id="table-grid" class="grid grid-cols-2 gap-3" aria-label="Mapa de mesas"></main>
         </div>
+
+        <!-- FAB: Nueva comanda rápida -->
+        <button id="btn-nueva-comanda" type="button" aria-label="Nueva comanda rápida"
+                class="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-40 grid place-items-center w-14 h-14 rounded-full bg-brand-coral text-white shadow-lg shadow-brand-coral/30 active:scale-95 transition">
+          <span class="material-symbols-outlined text-[26px]">add</span>
+        </button>
       </section>
 
       <!-- SCREEN: COMANDERO / KDS -->
-      <section id="screen-comandero" class="screen" aria-label="Panel de Cocina">
-        <header class="screen-header">
-          <h2 class="title">🍳 Panel de Cocina</h2>
-          <div class="header-actions">
-            <button class="btn btn-secondary" id="btn-refresh-cocina" style="font-size:13px;">🔄 Actualizar</button>
-            <span class="caption" id="comandero-clock"></span>
+      <section id="screen-comandero" class="screen w-full max-w-full overflow-x-hidden" aria-label="Panel de Cocina">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="kds-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Panel de Cocina</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Monitoreo de comandas en tiempo real</p>
+            </div>
+            <div class="shrink-0 flex items-center gap-2.5">
+              <div class="text-right">
+                <p id="comandero-clock" class="font-display font-extrabold text-xl text-brand-navy leading-none">--:-- --</p>
+                <p id="comandero-date" class="text-[11px] font-semibold text-slate-400 mt-0.5">---</p>
+              </div>
+              <button id="btn-refresh-cocina" type="button" aria-label="Actualizar comandas"
+                      class="grid place-items-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-90 transition">
+                <span class="material-symbols-outlined text-[19px]">refresh</span>
+              </button>
+            </div>
           </div>
         </header>
-        <div class="screen-body pb-xl">
-          <div class="period-tabs" style="margin-bottom:16px;">
-            <button class="period-tab active" data-cocina-tab="cocina">🔥 En Cocina</button>
-            <button class="period-tab" data-cocina-tab="lista">✅ Listas para Servir</button>
-            <button class="period-tab" data-cocina-tab="historial">📋 Historial</button>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Pestañas KDS -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar comandas">
+            <button type="button" class="kds-tab active" data-cocina-tab="cocina" role="tab" aria-selected="true">🔥 En Cocina <span class="kds-count" id="kc-count-cocina">0</span></button>
+            <button type="button" class="kds-tab" data-cocina-tab="lista" role="tab" aria-selected="false">✅ Listas p/ Servir <span class="kds-count" id="kc-count-lista">0</span></button>
+            <button type="button" class="kds-tab" data-cocina-tab="historial" role="tab" aria-selected="false">📜 Historial</button>
           </div>
-          <div id="cocina-grid" class="cocina-grid" aria-label="Órdenes activas">
+
+          <!-- Grid de comandas renderizado por renderCocinaCards() -->
+          <main id="cocina-grid" class="cocina-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" aria-label="Órdenes activas">
             <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando órdenes…</p>
-          </div>
+          </main>
         </div>
       </section>
 
       <!-- SCREEN: CARTA (Browse Only) -->
-      <section id="screen-menu-view" class="screen" aria-label="Carta">
-        <header class="screen-header">
-          <h2 class="title">📖 Carta</h2>
-          <div class="header-actions"></div>
-        </header>
-        <div class="chips-row" id="carta-cat-filters" role="tablist" aria-label="Filtrar por categoría">
-          <button class="chip active" data-cat="all" role="tab" aria-selected="true">Todas</button>
+      <section id="screen-menu-view" class="screen w-full max-w-full overflow-x-hidden" aria-label="Carta">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="carta-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
         </div>
-        <div class="screen-body">
-          <main id="menu-browse-grid" class="menu-grid" aria-label="Productos"></main>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Carta</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Selecciona platillos o bebidas para agregar a la orden</p>
+            </div>
+          </div>
+          <!-- Búsqueda rápida -->
+          <div class="mt-3 flex items-center gap-2 h-11 px-3.5 rounded-xl bg-[#F0EAE1] border border-transparent focus-within:border-brand-turquoise focus-within:ring-4 focus-within:ring-brand-turquoise/15 transition">
+            <span class="material-symbols-outlined text-[20px] text-slate-400">search</span>
+            <input id="menu-search" type="search" placeholder="Buscar platillo o bebida…" autocomplete="off"
+                   class="flex-1 bg-transparent outline-none text-sm text-brand-navy placeholder-slate-400 font-medium">
+            <button type="button" id="menu-search-clear" aria-label="Limpiar búsqueda"
+                    class="hidden grid place-items-center w-7 h-7 rounded-full bg-white text-slate-500 active:scale-90 transition">
+              <span class="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Filtros por categoría (render dinámico en renderCartaCatFilters) -->
+          <div id="carta-cat-filters" class="category-tabs !flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría">
+            <button class="category-tab active" data-cat="all" role="tab" aria-selected="true">🍽️ Todos <span class="cat-count">0</span></button>
+          </div>
+
+          <!-- Grid de productos renderizado por renderMenuItems() -->
+          <main id="menu-grid" class="menu-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-0" aria-label="Productos">
+            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando carta…</p>
+          </main>
         </div>
       </section>
 
       <!-- SCREEN: GESTIÓN MENÚ (Admin/Gerente) -->
-      <section id="screen-menu-mgmt" class="screen" aria-label="Gestión de Menú">
-        <header class="screen-header">
-          <h2 class="title">🍽️ Gestión de Menú</h2>
-          <div class="header-actions">
-            <button class="btn btn-secondary" id="btn-preparacion-cocina" style="height:40px;padding:0 16px;font-size:14px;">🍳 Producción del Día</button>
-            <button class="btn btn-turquoise" id="btn-new-dish" style="height:40px;padding:0 16px;font-size:14px;">+ Nuevo Platillo</button>
+      <section id="screen-menu-mgmt" class="screen w-full max-w-full overflow-x-hidden" aria-label="Gestión de Menú">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="menu-mgmt-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Gestión Menú -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Gestión de Menú</h1>
+            <p class="text-sm text-slate-500 mt-1">Configuración de catálogo, precios y recetas de cocina</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-preparacion" type="button"
+                    class="admin-only btn-turquoise flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px]">skillet</span> Producción del Día
+            </button>
+            <button id="btn-nuevo-platillo" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">add</span> Nuevo Platillo
+            </button>
           </div>
         </header>
-        <div class="chips-row" id="menu-mgmt-cat-filters" role="tablist" aria-label="Filtrar por categoría">
-          <button class="chip active" data-cat="all" role="tab" aria-selected="true">Todas</button>
-        </div>
-        <div class="chips-row" id="menu-mgmt-status-filters" role="tablist" aria-label="Filtrar por estado">
-          <button class="chip active" data-status="all" role="tab" aria-selected="true">Todos</button>
-          <button class="chip" data-status="active" role="tab">Activos</button>
-          <button class="chip" data-status="inactive" role="tab">Inactivos</button>
-        </div>
-        <div class="screen-body">
-          <div id="menu-mgmt-grid" class="data-card-grid" aria-label="Platillos"></div>
+
+        <!-- Cuerpo Gestión Menú -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Filtros de Categoría -->
+          <div id="menu-mgmt-cat-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-cat="all" role="tab" aria-selected="true">Todas <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Filtros de Estado -->
+          <div id="menu-mgmt-status-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por estado">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-status="activos" role="tab" aria-selected="true">Activos <span class="chip-count">(0)</span></button>
+            <button class="chip px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-status="inactivos" role="tab" aria-selected="false">Inactivos <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Grid de tarjetas de administración (renderizado por renderMenuMgmt) -->
+          <div id="menu-mgmt-grid" class="data-card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-0" aria-label="Platillos"></div>
         </div>
       </section>
 
-      <!-- SCREEN: INVENTARIO (Admin/Gerente) -->
-      <section id="screen-inventory" class="screen" aria-label="Inventario">
-        <header class="screen-header">
-          <h2 class="title">📦 Almacén Digital</h2>
-          <div class="header-actions">
-            <button class="btn btn-secondary" id="btn-manage-unidades" style="height:40px;padding:0 16px;font-size:14px;">⚖️ Unidades</button>
-            <button class="btn btn-turquoise" id="btn-new-insumo" style="height:40px;padding:0 16px;font-size:14px;">+ Nuevo Insumo</button>
+      <!-- SCREEN: INVENTARIO / ALMACÉN DIGITAL (Admin/Gerente) -->
+      <section id="screen-inventory" class="screen w-full max-w-full overflow-x-hidden" aria-label="Inventario">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="inventory-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Almacén Digital -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Almacén Digital</h1>
+            <p class="text-sm text-slate-500 mt-1">Control de stock, insumos y unidades de medida</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-unidades" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">balance</span> Unidades
+            </button>
+            <button id="btn-nuevo-insumo" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">add</span> Nuevo Insumo
+            </button>
           </div>
         </header>
-        <div id="insumo-cat-filters" class="chips-row" style="padding:0 20px 8px;"></div>
-        <div class="screen-body pb-xl">
-          <div id="inventory-alerts" class="alerts-strip" aria-label="Alertas de stock"></div>
-          <div id="inventory-grid" class="data-card-grid" aria-label="Insumos"></div>
+
+        <!-- Cuerpo Almacén Digital -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-4 w-full max-w-full min-w-0">
+          <!-- Filtros de Categoría de Insumos -->
+          <div id="insumo-cat-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría de insumo">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-cat="all" role="tab" aria-selected="true" onclick="applyInsumoFilter(null)">Todas <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Franja para Alertas de Stock Bajo -->
+          <div id="stock-alerts" class="space-y-2 w-full min-w-0" aria-label="Alertas de stock">
+            <div class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-semibold w-full min-w-0">
+              <span class="material-symbols-outlined shrink-0 text-[16px] text-amber-600 animate-pulse">warning</span>
+              <span class="min-w-0">3 insumos con stock crítico</span>
+            </div>
+          </div>
+
+          <!-- Grid de Insumos (renderizado por renderInsumos) -->
+          <div id="insumo-grid" class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 w-full" aria-label="Insumos"></div>
         </div>
       </section>
 
-      <!-- SCREEN: PERSONAL (Admin/Gerente) -->
-      <section id="screen-personal" class="screen" aria-label="Personal y Nóminas">
-        <header class="screen-header">
-          <h2 class="title">👥 Personal y Nóminas</h2>
-          <div class="header-actions">
-            <button class="btn btn-secondary admin-only" id="btn-gestion-turnos" style="height:40px;padding:0 16px;font-size:14px;">⏱️ Gestión de Turnos</button>
-            <button class="btn btn-turquoise" id="btn-new-empleado" style="height:40px;padding:0 16px;font-size:14px;">➕ Agregar Empleado</button>
+      <!-- SCREEN: PERSONAL Y NÓMINAS -->
+      <section id="screen-personal" class="screen w-full max-w-full overflow-x-hidden" aria-label="Personal y Nóminas">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="personal-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Personal y Nóminas -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Personal y Nóminas</h1>
+            <p class="text-sm text-slate-500 mt-1">Empleados, roles, asistencias y pagos del equipo</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-turnos" type="button"
+                    class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">schedule</span> Gestión de Turnos
+            </button>
+            <button id="btn-nuevo-empleado" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">person_add</span> Agregar Empleado
+            </button>
           </div>
         </header>
-        <div class="screen-body pb-xl">
-          <div id="personal-table-container"></div>
+
+        <!-- Cuerpo Personal -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-4 w-full max-w-full min-w-0">
+          <!-- Contenedor del Directorio de Empleados (renderizado por renderPersonalTable) -->
+          <div id="personal-table-container" class="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div>
+                <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Directorio de Empleados</h3>
+                <p class="text-xs text-slate-500 mt-1">0 empleados registrados</p>
+              </div>
+              <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+                <span class="material-symbols-outlined text-[15px]">groups</span> Equipo
+              </span>
+            </div>
+            <div>
+              <table id="personal-table" class="employee-table w-full text-sm min-w-[600px]">
+                <thead>
+                  <tr>
+                    <th>Empleado</th>
+                    <th>Puesto</th>
+                    <th>Salario</th>
+                    <th>Teléfono</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
       <!-- SCREEN: CUENTA / DASHBOARD -->
-      <section id="screen-cuenta" class="screen" aria-label="Caja actual y cierre">
-        <header class="screen-header">
-          <h2 class="title">💰 Cierre de Caja</h2>
-          <div class="header-actions"><span class="caption" id="cuenta-role-badge"></span></div>
-        </header>
-        <div class="screen-body pb-xl" id="panel-reportes-cierre">
-
-          <!-- Period Selector + Cerrar Caja -->
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <div class="period-tabs" style="flex:1;">
-              <button class="period-tab active" data-periodo="diario">📅 Hoy</button>
-              <button class="period-tab" data-periodo="semanal">📆 Esta Semana</button>
-              <button class="period-tab" data-periodo="quincenal">📋 Quincenal</button>
-              <button class="period-tab" data-periodo="mensual">🗓️ Este Mes</button>
+      <section id="screen-cuenta" class="screen w-full max-w-full overflow-x-hidden" aria-label="Caja actual y cierre">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
             </div>
-            <button class="btn admin-only" id="btn-venta-retroactiva" style="background:var(--turquesa-ola);color:#fff;padding:10px 16px;font-weight:700;border-radius:10px;white-space:nowrap;font-size:13px;">➕ Venta Pasada</button>
-            <button class="btn" id="btn-cerrar-caja" style="background:#E63946;color:#fff;padding:10px 20px;font-weight:700;border-radius:10px;white-space:nowrap;">🔒 Cerrar Caja</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="cuenta-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Cierre de Caja -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <div>
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Cierre de Caja</h1>
+              <p class="text-sm text-slate-500 mt-1">Resumen de ventas, costos, utilidad e historial</p>
+            </div>
+            <span class="hidden lg:inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[#E8F1F1] text-[11px] font-bold text-[#006B6B]" id="cuenta-role-badge"></span>
+          </div>
+          <div class="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+            <button id="btn-venta-retroactiva" type="button" class="admin-only w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs py-2 px-3 rounded-xl bg-[#2A9D8F] text-white font-semibold active:scale-95 transition shadow-sm shadow-emerald-500/20">
+              <span class="material-symbols-outlined text-[18px]">history_toggle_off</span> Venta Retroactiva
+            </button>
+            <button id="btn-cerrar-caja" type="button" class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs py-2 px-3 rounded-xl bg-[#E63946] text-white font-semibold active:scale-95 transition shadow-sm shadow-red-500/20">
+              <span class="material-symbols-outlined text-[18px]">lock</span> Cerrar Caja
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo -->
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4" id="panel-reportes-cierre">
+
+          <!-- Filtros de Periodo -->
+          <div class="period-tabs flex items-center gap-1.5 overflow-x-auto whitespace-nowrap w-full pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button class="period-tab active" data-periodo="diario">Hoy</button>
+            <button class="period-tab" data-periodo="semanal">Semana</button>
+            <button class="period-tab" data-periodo="quincenal">Quincenal</button>
+            <button class="period-tab" data-periodo="mensual">Mes</button>
           </div>
 
           <!-- Summary Cards -->
-          <div class="cierre-summary-grid" id="cierre-summary-grid">
+          <div id="cierre-summary" class="cierre-summary-grid grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 w-full">
             <div class="cierre-card cierre-card--ingresos">
-              <div class="cc-icon">💵</div>
+              <span class="cc-icon ic-turquesa"><span class="material-symbols-outlined">payments</span></span>
               <div class="cc-body">
                 <div class="cc-label">Ingresos Totales</div>
                 <div class="cc-value" id="cc-ingresos">C$0.00</div>
               </div>
             </div>
             <div class="cierre-card cierre-card--nomina">
-              <div class="cc-icon">👥</div>
+              <span class="cc-icon ic-rojo"><span class="material-symbols-outlined">groups</span></span>
               <div class="cc-body">
                 <div class="cc-label">Gastos Nómina</div>
                 <div class="cc-value" id="cc-nomina">C$0.00</div>
               </div>
             </div>
             <div class="cierre-card cierre-card--insumos">
-              <div class="cc-icon">📦</div>
+              <span class="cc-icon ic-amarillo"><span class="material-symbols-outlined">inventory_2</span></span>
               <div class="cc-body">
                 <div class="cc-label">Costo Insumos</div>
                 <div class="cc-value" id="cc-insumos">C$0.00</div>
               </div>
             </div>
             <div class="cierre-card cierre-card--gastos">
-              <div class="cc-icon">💸</div>
+              <span class="cc-icon ic-naranja"><span class="material-symbols-outlined">receipt_long</span></span>
               <div class="cc-body">
                 <div class="cc-label">Gastos Operativos</div>
                 <div class="cc-value" id="cc-gastos-op">C$0.00</div>
               </div>
             </div>
-            <div class="cierre-card" style="border-left:4px solid #E63946;">
-              <div class="cc-icon">🏷️</div>
+            <div class="cierre-card">
+              <span class="cc-icon ic-rosa"><span class="material-symbols-outlined">percent</span></span>
               <div class="cc-body">
                 <div class="cc-label">Descuentos</div>
-                <div class="cc-value" id="cc-descuentos" style="color:#E63946;">C$0.00</div>
+                <div class="cc-value" id="cc-descuentos">C$0.00</div>
               </div>
             </div>
             <div class="cierre-card cierre-card--utilidad">
-              <div class="cc-icon">📈</div>
+              <span class="cc-icon ic-verde"><span class="material-symbols-outlined">trending_up</span></span>
               <div class="cc-body">
                 <div class="cc-label">Utilidad Neta</div>
                 <div class="cc-value" id="cc-utilidad">C$0.00</div>
@@ -299,17 +717,17 @@
           </div>
 
           <!-- Charts Row -->
-          <div class="cierre-charts-row">
-            <div class="cierre-chart-box">
+          <div id="cierre-charts" class="cierre-charts-row grid grid-cols-1 lg:grid-cols-2 gap-4 w-full min-w-0">
+            <div class="cierre-chart-box w-full overflow-hidden relative min-w-0">
               <h4 class="cierre-chart-title">Distribución de Costos</h4>
               <div class="cierre-chart-canvas-wrap">
-                <canvas id="chart-pie-costos"></canvas>
+                <canvas id="chart-pie-costos" class="max-w-full w-full block"></canvas>
               </div>
             </div>
-            <div class="cierre-chart-box">
+            <div class="cierre-chart-box w-full overflow-hidden relative min-w-0">
               <h4 class="cierre-chart-title">Top 5 Platillos Más Vendidos</h4>
               <div class="cierre-chart-canvas-wrap">
-                <canvas id="chart-bar-platillos"></canvas>
+                <canvas id="chart-bar-platillos" class="max-w-full w-full block"></canvas>
               </div>
             </div>
           </div>
@@ -317,39 +735,94 @@
           <!-- Top Platillos List -->
           <div id="cierre-top-list"></div>
 
-          <!-- Daily Orders History -->
-          <div id="historial-ordenes-dia" style="margin-top:24px;">
-            <h4 class="cierre-top-title">📋 Historial de Órdenes del Día</h4>
-            <div id="historial-ordenes-list" style="margin-top:10px;"></div>
+          <!-- Historial de Órdenes del día -->
+          <div id="historial-ordenes" class="table-container overflow-x-auto bg-white rounded-2xl shadow-sm border border-slate-200 w-full min-w-0">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Historial de Órdenes</h3>
+              <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+                <span class="material-symbols-outlined text-[15px]">receipt_long</span> Caja abierta
+              </span>
+            </div>
+            <div id="historial-ordenes-list" class="p-1"></div>
           </div>
 
         </div>
       </section>
 
       <!-- SCREEN: GASTOS (Admin/Gerente) -->
-      <section id="screen-gastos" class="screen" aria-label="Gastos operativos">
-        <header class="screen-header">
-          <h2 class="title">💸 Gestión de Gastos Operativos</h2>
-          <div class="header-actions">
-            <button class="btn btn-turquoise" id="btn-new-gasto" style="height:40px;padding:0 16px;font-size:14px;">+ Registrar Gasto</button>
+      <section id="screen-gastos" class="screen w-full max-w-full overflow-x-hidden" aria-label="Gestión de Gastos Operativos">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
           </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="gastos-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Gestión de Gastos -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="min-w-0">
+            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#0F3B66]">Módulo de Finanzas · Auditoría</span>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Gestión de Gastos Operativos</h1>
+            <p class="text-sm text-slate-500 mt-1">Registro, auditoría y control de compras y servicios del negocio</p>
+          </div>
+          <button id="btn-nuevo-gasto" type="button" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F3B66] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-blue-900/20">
+            <span class="material-symbols-outlined text-[18px]">add</span> Registrar Gasto
+          </button>
         </header>
-        <div class="screen-body pb-xl">
-          <div id="gastos-cat-filters" class="chips-row" style="padding:0 0 var(--space-md) 0;"></div>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
-            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+
+        <!-- Cuerpo -->
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4 w-full min-w-0">
+          <!-- Resumen -->
+          <div class="grid grid-cols-1 xs:grid-cols-2 gap-3 w-full min-w-0">
+            <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="grid place-items-center w-9 h-9 rounded-xl bg-red-50 text-[#E63946] shrink-0"><span class="material-symbols-outlined text-[18px]">payments</span></span>
+                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total Hoy</span>
+              </div>
+              <p class="mt-2.5 font-display text-xl font-extrabold text-[#E63946] break-words" id="gasto-total-hoy">C$0.00</p>
+            </div>
+            <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="grid place-items-center w-9 h-9 rounded-xl bg-teal-50 text-[#006B6B] shrink-0"><span class="material-symbols-outlined text-[18px]">receipt_long</span></span>
+                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Movimientos</span>
+              </div>
+              <p class="mt-2.5 font-display text-xl font-extrabold text-brand-navy break-words" id="gasto-movimientos">0</p>
+            </div>
+          </div>
+
+          <!-- Filtros por categoría -->
+          <div id="gasto-cat-filters" class="flex items-center gap-2 overflow-x-auto pb-1 w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"></div>
+
+          <!-- Tabla de egresos -->
+          <div class="rounded-2xl bg-white border border-slate-100 overflow-x-auto shadow-sm w-full min-w-0">
+            <table id="gastos-table" class="w-full text-sm min-w-[600px]">
               <thead>
-                <tr style="background:var(--azul-marino);color:#fff;text-align:left;">
-                  <th style="padding:12px 16px;font-weight:600;">ID</th>
-                  <th style="padding:12px 16px;font-weight:600;">Fecha</th>
-                  <th style="padding:12px 16px;font-weight:600;">Categoría</th>
-                  <th style="padding:12px 16px;font-weight:600;">Descripción</th>
-                  <th style="padding:12px 16px;font-weight:600;text-align:right;">Monto</th>
-                  <th style="padding:12px 16px;font-weight:600;">Registrado Por</th>
+                <tr class="text-left text-[11px] font-bold uppercase tracking-wide text-slate-400 bg-slate-50">
+                  <th class="px-4 py-3">ID</th>
+                  <th class="px-4 py-3">Fecha</th>
+                  <th class="px-4 py-3">Categoría</th>
+                  <th class="px-4 py-3">Descripción</th>
+                  <th class="px-4 py-3 text-right">Monto</th>
+                  <th class="px-4 py-3">Registrado Por</th>
                 </tr>
               </thead>
-              <tbody id="gastos-table-body">
-                <tr><td colspan="6" style="padding:32px;text-align:center;color:#9ca3af;">Cargando gastos…</td></tr>
+              <tbody id="gastos-tbody">
+                <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
               </tbody>
             </table>
           </div>
@@ -360,11 +833,26 @@
 
     <!-- MOBILE BOTTOM NAV -->
     <nav class="bottom-nav" id="bottom-nav" aria-label="Navegación móvil">
-      <button class="bottom-nav-item active" data-screen="salon"><span class="bnav-icon">🍽️</span><span class="bnav-label">Salón</span></button>
-      <button class="bottom-nav-item" data-screen="comandero"><span class="bnav-icon">📝</span><span class="bnav-label">Comandas</span></button>
-      <button class="bottom-nav-item" data-screen="menu-view"><span class="bnav-icon">📖</span><span class="bnav-label">Carta</span></button>
-      <button class="bottom-nav-item" data-screen="cuenta"><span class="bnav-icon">💰</span><span class="bnav-label">Caja</span></button>
-      <button class="bottom-nav-item bottom-nav-more" id="bottom-nav-more"><span class="bnav-icon">⋯</span><span class="bnav-label">Más</span></button>
+      <a class="bottom-nav-item nav-item active" data-screen="salon">
+        <span class="material-symbols-outlined nav-icon">table_restaurant</span>
+        <span class="nav-label">Salón</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="comandero">
+        <span class="material-symbols-outlined nav-icon">soup_kitchen</span>
+        <span class="nav-label">Comandas</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="menu-view">
+        <span class="material-symbols-outlined nav-icon">restaurant_menu</span>
+        <span class="nav-label">Carta</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="cuenta">
+        <span class="material-symbols-outlined nav-icon">point_of_sale</span>
+        <span class="nav-label">Caja</span>
+      </a>
+      <a class="bottom-nav-item bottom-nav-more" id="bottom-nav-more">
+        <span class="material-symbols-outlined nav-icon">menu</span>
+        <span class="nav-label">Más</span>
+      </a>
     </nav>
   </div>
 
@@ -876,35 +1364,35 @@
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">
           <div style="font-weight:700;font-size:14px;margin-bottom:10px;" id="gestion-form-title">Nueva Mesa</div>
           <input type="hidden" id="gestion-mesa-id">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="grid grid-cols-1 xs:grid-cols-3 gap-2 w-full">
             <div>
               <label class="label" for="gestion-mesa-numero">Número</label>
-              <input type="number" id="gestion-mesa-numero" class="form-input" min="1" placeholder="Ej: 5">
+              <input type="number" id="gestion-mesa-numero" class="form-input w-full" min="1" placeholder="Ej: 5">
             </div>
             <div>
               <label class="label" for="gestion-mesa-capacidad">Capacidad</label>
-              <input type="number" id="gestion-mesa-capacidad" class="form-input" min="1" value="4">
+              <input type="number" id="gestion-mesa-capacidad" class="form-input w-full" min="1" value="4">
             </div>
             <div>
               <label class="label" for="gestion-mesa-zona">Zona</label>
-              <div style="display:flex;gap:6px;">
-                <select id="gestion-mesa-zona" class="form-input" style="flex:1;"></select>
-                <button type="button" class="btn btn-secondary" id="btn-toggle-zonas-panel" title="Administrar zonas" style="padding:0 10px;font-size:16px;height:38px;">⚙️</button>
+              <div class="flex w-full min-w-0 gap-1.5">
+                <select id="gestion-mesa-zona" class="form-input" style="flex:1;min-width:0;"></select>
+                <button type="button" class="btn btn-secondary" id="btn-toggle-zonas-panel" title="Administrar zonas" style="padding:0 10px;font-size:16px;height:38px;flex-shrink:0;">⚙️</button>
               </div>
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:10px;">
-            <button class="btn btn-primary" id="gestion-guardar-mesa" style="flex:1;">💾 Guardar</button>
-            <button class="btn btn-secondary" id="gestion-cancelar-edicion" style="display:none;">Cancelar</button>
+          <div class="flex flex-col xs:flex-row gap-2 mt-2.5 w-full">
+            <button class="btn btn-primary w-full xs:flex-1" id="gestion-guardar-mesa">💾 Guardar</button>
+            <button class="btn btn-secondary xs:w-auto" id="gestion-cancelar-edicion" style="display:none;">Cancelar</button>
           </div>
         </div>
 
         <!-- Panel de Gestión de Zonas (colapsable) -->
         <div id="zonas-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:16px;">
           <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Zonas</div>
-          <div style="display:flex;gap:8px;margin-bottom:10px;">
-            <input type="text" id="zona-nueva-nombre" class="form-input" placeholder="Nombre de la nueva zona…" style="flex:1;height:36px;font-size:13px;">
-            <button class="btn btn-turquoise" id="btn-guardar-zona" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;">+ Guardar</button>
+          <div class="flex w-full min-w-0 gap-2 mb-2.5">
+            <input type="text" id="zona-nueva-nombre" class="form-input" placeholder="Nombre de la nueva zona…" style="flex:1;min-width:0;height:36px;font-size:13px;">
+            <button class="btn btn-turquoise" id="btn-guardar-zona" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;flex-shrink:0;">+ Guardar</button>
           </div>
           <div id="zonas-list" style="max-height:160px;overflow-y:auto;"></div>
         </div>
@@ -1396,6 +1884,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=5.5"></script>
 </body>
 </html>
