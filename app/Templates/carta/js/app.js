@@ -240,7 +240,10 @@ function openModal(item) {
     : `Categoría: ${catName}`;
 
   document.getElementById('modal-media').innerHTML = `
-    <img src="${imgFor(item)}" alt="${esc(item.nombre)}" loading="lazy" decoding="async">
+    <div id="btn-open-lightbox" role="button" tabindex="0" aria-label="Ver la imagen completa de ${esc(item.nombre)}" title="Toca para ver la imagen completa">
+      <img id="modal-product-img" src="${imgFor(item)}" alt="${esc(item.nombre)}" loading="lazy" decoding="async">
+      <span class="modal-zoom-hint"><span class="material-symbols-outlined ms-16">zoom_in</span> Ver Completa</span>
+    </div>
     <div class="modal-img-badges">
       <span class="badge-img"><span class="material-symbols-outlined ms-18">local_fire_department</span>Popular</span>
       <span class="badge-img"><span class="material-symbols-outlined ms-18">set_meal</span>${esc(catName)}</span>
@@ -248,7 +251,7 @@ function openModal(item) {
 
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-title-row">
-      <h2 class="t-headline-lg">${esc(item.nombre)}</h2>
+      <h2 id="modal-product-title" class="t-headline-lg">${esc(item.nombre)}</h2>
       <span class="price-badge">${formatPrice(item.precio)}</span>
     </div>
     <div class="modal-meta">
@@ -276,6 +279,8 @@ function openModal(item) {
       </div>
     </div>`;
 
+  bindLightboxTrigger();
+
   document.getElementById('modal-overlay').classList.add('open');
   document.body.classList.add('modal-open');
 }
@@ -283,6 +288,86 @@ function openModal(item) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.classList.remove('modal-open');
+}
+
+/* =========================================================================
+   Lightbox de imagen — visor a pantalla completa de la foto del platillo
+   ========================================================================= */
+function openLightbox() {
+  const lightbox = document.getElementById('image-lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const mainImg = document.getElementById('modal-product-img');
+  const titleEl = document.getElementById('modal-product-title');
+
+  if (!lightbox || !lightboxImg || !mainImg || !mainImg.src) return;
+
+  lightboxImg.src = mainImg.src;
+  lightboxImg.classList.remove('scale-150', 'cursor-zoom-out');
+  lightboxImg.classList.add('cursor-zoom-in');
+
+  if (lightboxCaption && titleEl) {
+    lightboxCaption.textContent = titleEl.textContent;
+  }
+
+  lightbox.classList.remove('hidden');
+  lightbox.setAttribute('aria-hidden', 'false');
+  setTimeout(() => {
+    lightbox.classList.remove('opacity-0', 'pointer-events-none');
+    lightbox.classList.add('opacity-100', 'pointer-events-auto');
+  }, 10);
+}
+
+function closeLightbox() {
+  const lightbox = document.getElementById('image-lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  if (!lightbox) return;
+
+  lightbox.classList.remove('opacity-100', 'pointer-events-auto');
+  lightbox.classList.add('opacity-0', 'pointer-events-none');
+  setTimeout(() => {
+    lightbox.classList.add('hidden');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.classList.remove('scale-150', 'cursor-zoom-out');
+  }, 300);
+}
+
+function bindLightboxTrigger() {
+  const trigger = document.getElementById('btn-open-lightbox');
+  if (!trigger) return;
+  trigger.addEventListener('click', openLightbox);
+  trigger.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openLightbox();
+    }
+  });
+}
+
+function setupImageLightbox() {
+  const lightbox = document.getElementById('image-lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const closeBtn = document.getElementById('close-lightbox');
+  if (!lightbox || !lightboxImg || !closeBtn) return;
+
+  closeBtn.addEventListener('click', closeLightbox);
+
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  lightboxImg.addEventListener('click', (e) => {
+    e.stopPropagation();
+    lightboxImg.classList.toggle('scale-150');
+    lightboxImg.classList.toggle('cursor-zoom-out');
+    lightboxImg.classList.toggle('cursor-zoom-in');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !lightbox.classList.contains('hidden')) {
+      closeLightbox();
+    }
+  });
 }
 
 /* =========================================================================
@@ -399,7 +484,10 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key !== 'Escape') return;
+    const lightbox = document.getElementById('image-lightbox');
+    if (lightbox && !lightbox.classList.contains('hidden')) return;
+    closeModal();
   });
 
   document.querySelector('.bottomnav').addEventListener('click', onBottomNav);
@@ -445,6 +533,7 @@ function init() {
   document.getElementById('welcome-hero-bg').style.backgroundImage = `url('${IMG_HERO_MOBILE}')`;
   document.getElementById('hero-logo').src = IMG_LOGO;
   document.getElementById('footer-logo').src = IMG_LOGO_SMALL;
+  setupImageLightbox();
   bindEvents();
   loadCarta();
 }

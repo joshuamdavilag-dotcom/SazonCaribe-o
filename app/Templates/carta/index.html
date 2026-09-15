@@ -149,6 +149,22 @@
   </div>
 </div>
 
+<!-- ================================================================
+     LIGHTBOX — Visor de imagen a pantalla completa
+     (abierto desde la foto del modal de detalle del platillo)
+================================================================= -->
+<div class="image-lightbox hidden opacity-0 pointer-events-none select-none" id="image-lightbox" aria-hidden="true">
+  <button class="lightbox-close" id="close-lightbox" type="button" aria-label="Cerrar visor">
+    <span class="material-symbols-outlined">close</span>
+  </button>
+
+  <div class="lightbox-stage">
+    <img id="lightbox-img" src="" alt="Vista previa del platillo" class="cursor-zoom-in" draggable="false">
+  </div>
+
+  <p class="lightbox-caption" id="lightbox-caption"></p>
+</div>
+
 <script src="js/app.js"></script>
 </body>
 </html>
