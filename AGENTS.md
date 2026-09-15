@@ -268,6 +268,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Dynamic menu categories**: `CategoriaMenu` model, backend CRUD, delete guarded
 - **Dynamic inventory categories & units**: `CategoriaInsumo` + `UnidadMedida` models; `Insumo` uses `unidad_medida_id` FK + `categoria_id` FK
 - **Nómina calculations**: `pago_base = salario_base / 2` (fijo); `tarifa_hora = salario_base / 240` (1.0x); `pago_neto = pago_base + (total_horas_extras × tarifa_hora) - total_adelantos` (mínimo 0). No se recalculan horas ordinarias trabajadas.
+- **Recalculación de nómina**: `NominaCalcularRequest` acepta `recalcular: bool = False`. Si `recalcular=True` y ya existe una nómina `PENDIENTE` para el empleado/período, `POST /nomina/calcular` recalcula los montos con la fórmula actual y **actualiza** el registro existente (no crea duplicado); si la existente está `PAGADO` responde 400. `PUT /nomina/{id}/recalcular` (Admin/Gerente) hace lo mismo sobre una nómina por ID: 404 si no existe, 400 si no está `PENDIENTE`. La actualización solo toca los campos numéricos (preserva `estado` y `fecha_pago`). Se usa para corregir nóminas pendientes creadas con el esquema de cálculo anterior.
+- **Frontend recalculación**: botón 🔄 (icono `sync`) en cada ítem del Historial de Nóminas (`#nomina-history-list`) solo cuando la nómina está `PENDIENTE` y marcado `.admin-only` (`recalcularNominaRegistro(id)` → `PUT /nomina/{id}/recalcular`). Al presionar "Calcular Nómina", si la API responde "Ya existe nómina registrada", `calcularNomina()` pide confirmación ("¿Deseas recalcular los montos con el esquema actual?") y reenvía con `recalcular: true`; usa `api(..., { silent: true })` para que la primera llamada no muestre el toast de error antes de la confirmación.
 
 ## API Endpoints Summary
 
@@ -358,6 +360,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/nomina/calcular                     | Yes      | Any                |
 | POST   | /api/v1/nomina/generar                      | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/nomina/{id}/pagar                   | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/nomina/{id}/recalcular              | Yes      | Admin, Gerente     |
 | GET    | /api/v1/nomina/empleado/{id}                | Yes      | Any                |
 | GET    | /api/v1/nomina/empleados/{id}/historial     | Yes      | Any                |
 | POST   | /api/v1/nomina/adelantos                    | Yes      | Admin, Gerente     |

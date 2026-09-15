@@ -284,11 +284,62 @@ class NominaService:
         nominas = self.nomina_repo.get_by_empleado(empleado_id)
         return [NominaResponse.model_validate(n) for n in nominas]
 
+    def recalcular_nomina(self, nomina_id: int) -> NominaResponse:
+        """
+        Recalcula los montos de una nómina existente con la fórmula actual.
+
+        Recalcula salario base fijo (salario_base / 2), horas extras a
+        tarifa normal 1.0x (salario_base / 240) y adelantos del período.
+        Solo es válido para nóminas en estado PENDIENTE.
+
+        Args:
+            nomina_id: ID del registro de nómina.
+
+        Returns:
+            NominaResponse con la nómina recalculada.
+
+        Raises:
+            HTTPException 404: Si la nómina (o su empleado) no existe.
+            HTTPException 400: Si la nómina no está en estado PENDIENTE.
+        """
+        nomina = self.nomina_repo.get_by_id(nomina_id)
+        if not nomina:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la nómina con ID {nomina_id}"
+            )
+
+        if nomina.estado != "PENDIENTE":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"No se puede recalcular la nómina con ID {nomina_id} "
+                    f"porque está en estado {nomina.estado}. Solo se pueden "
+                    f"recalcular nóminas pendientes de pago."
+                )
+            )
+
+        empleado = self.empleado_repo.get_by_id(nomina.empleado_id)
+        if not empleado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el empleado con ID {nomina.empleado_id}"
+            )
+
+        nomina_data = self._calcular_periodo(
+            empleado,
+            nomina.fecha_inicio,
+            nomina.fecha_fin
+        )
+        nomina_actualizada = self.nomina_repo.update(nomina_id, nomina_data)
+        return NominaResponse.model_validate(nomina_actualizada)
+
     def calcular_nomina_periodo(
         self,
         empleado_id: int,
         fecha_inicio: date,
-        fecha_fin: date
+        fecha_fin: date,
+        recalcular: bool = False
     ) -> NominaResponse:
         """
         Calcula la nómina de un empleado para un período específico.
@@ -297,17 +348,24 @@ class NominaService:
         horas extras a tarifa normal (salario_base / 240). No depende
         de las horas ordinarias registradas.
 
+        Si `recalcular=True` y ya existe una nómina en estado PENDIENTE
+        para el período, recalcula los montos y actualiza el registro
+        existente (no crea un duplicado).
+
         Args:
             empleado_id: ID del empleado.
             fecha_inicio: Fecha de inicio del período.
             fecha_fin: Fecha de fin del período.
+            recalcular: Si True, recalcula y actualiza una nómina PENDIENTE
+                existente en lugar de rechazar la solicitud.
 
         Returns:
-            NominaResponse con la nómina creada.
+            NominaResponse con la nómina creada o actualizada.
 
         Raises:
             HTTPException 404: Si el empleado no existe.
-            HTTPException 400: Si ya existe nómina para ese período.
+            HTTPException 400: Si ya existe nómina para ese período
+                (y `recalcular=False`), o si la existente no está en PENDIENTE.
         """
         from fastapi import HTTPException, status
 
@@ -318,16 +376,36 @@ class NominaService:
                 detail=f"No se encontró el empleado con ID {empleado_id}"
             )
 
-        if self.nomina_repo.exists_by_periodo_y_empleado(
+        existente = self.nomina_repo.get_by_periodo_y_empleado(
             empleado_id, fecha_inicio, fecha_fin
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"Ya existe nómina registrada para el empleado "
-                    f"{empleado_id} en el período {fecha_inicio} al {fecha_fin}"
+        )
+
+        if existente:
+            if not recalcular:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Ya existe nómina registrada para el empleado "
+                        f"{empleado_id} en el período {fecha_inicio} al {fecha_fin}"
+                    )
                 )
+            if existente.estado != "PENDIENTE":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"No se puede recalcular la nómina con ID {existente.id} "
+                        f"porque está en estado {existente.estado}. Solo se pueden "
+                        f"recalcular nóminas pendientes de pago."
+                    )
+                )
+
+            nomina_data = self._calcular_periodo(
+                empleado,
+                fecha_inicio,
+                fecha_fin
             )
+            nomina_actualizada = self.nomina_repo.update(existente.id, nomina_data)
+            return NominaResponse.model_validate(nomina_actualizada)
 
         nomina_data = self._calcular_periodo(
             empleado,

@@ -71,7 +71,9 @@ def generar_nomina(
     description=(
         "Calcula la nómina de un empleado específico para un período. "
         "Usa salario base fijo (salario_base / 2) más horas extras "
-        "a tarifa normal 1.0x (salario_base / 240) y crea el registro."
+        "a tarifa normal 1.0x (salario_base / 240) y crea el registro. "
+        "Con `recalcular=True` y una nómina PENDIENTE existente, "
+        "actualiza el registro en lugar de crear un duplicado."
     ),
     tags=["Nóminas & Pagos"]
 )
@@ -86,6 +88,8 @@ def calcular_nomina(
     - **empleado_id**: ID del empleado
     - **fecha_inicio**: Fecha de inicio del período
     - **fecha_fin**: Fecha de fin del período
+    - **recalcular**: Si True y ya existe una nómina PENDIENTE para el
+      período, recalcula y actualiza el registro existente.
 
     El cálculo incluye:
     - Salario base fijo (salario_base / 2)
@@ -95,7 +99,8 @@ def calcular_nomina(
     return service.calcular_nomina_periodo(
         request.empleado_id,
         request.fecha_inicio,
-        request.fecha_fin
+        request.fecha_fin,
+        request.recalcular
     )
 
 
@@ -148,6 +153,37 @@ def pagar_nomina(
     como fecha de pago. No se permite pagar una nómina ya pagada.
     """
     return service.pagar_nomina(nomina_id)
+
+
+@router.put(
+    "/{nomina_id}/recalcular",
+    response_model=NominaResponse,
+    summary="Recalcular nómina",
+    description=(
+        "Recalcula los montos de una nómina existente en estado PENDIENTE "
+        "con la fórmula de cálculo actual (salario base fijo + horas extras "
+        "a tarifa 1.0x − adelantos). Actualiza el registro en la base de datos."
+    ),
+    tags=["Nóminas & Pagos"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def recalcular_nomina(
+    nomina_id: int = Path(
+        ...,
+        gt=0,
+        description="ID de la nómina a recalcular"
+    ),
+    service: NominaService = Depends(get_nomina_service)
+) -> NominaResponse:
+    """
+    Recalcula una nómina pendiente con el esquema actual.
+
+    - **nomina_id**: ID del registro de nómina.
+
+    Solo se permite recalcular nóminas en estado PENDIENTE. Los montos
+    se recalculan igual que al crearlas y el registro se actualiza.
+    """
+    return service.recalcular_nomina(nomina_id)
 
 
 # =============================================================================

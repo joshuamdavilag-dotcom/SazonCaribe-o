@@ -41,6 +41,15 @@ class NominaCalcularRequest(BaseModel):
         description="Fecha de fin del período",
         examples=["2026-07-15"]
     )
+    recalcular: bool = Field(
+        default=False,
+        description=(
+            "Si True y ya existe una nómina en estado PENDIENTE para el período, "
+            "recalcula los montos con la fórmula actual y actualiza el registro "
+            "existente en lugar de crear un duplicado."
+        ),
+        examples=[True]
+    )
 
 
 class NominaResponse(BaseModel):

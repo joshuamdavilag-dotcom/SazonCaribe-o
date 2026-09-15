@@ -2177,6 +2177,12 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   color: #166534;
 }
 
+.nomina-history-item .nh-recalc {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+}
+
 .nomina-empty {
   text-align: center;
   padding: 24px;

@@ -79,7 +79,7 @@ async function api(endpoint, options = {}) {
     }
     return res.status === 204 ? null : await res.json();
   } catch (e) {
-    if (e.message !== 'Sesión expirada') showToast(e.message, 'error');
+    if (!options.silent && e.message !== 'Sesión expirada') showToast(e.message, 'error');
     throw e;
   }
 }
@@ -3089,25 +3089,60 @@ async function calcularNomina() {
   btn.disabled = true;
   btn.textContent = '⏳ Calculando…';
 
+  const buildBody = (recalcular) => JSON.stringify({
+    empleado_id: nominaModalEmpleadoId,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    recalcular,
+  });
+
+  const finalizarCalculo = (result, mensaje) => {
+    state.nominaActual = result;
+    renderNominaResult(result);
+    showToast(mensaje, 'success');
+    loadNominaHistorial(nominaModalEmpleadoId);
+  };
+
   try {
     const result = await api('/nomina/calcular', {
       method: 'POST',
-      body: JSON.stringify({
-        empleado_id: nominaModalEmpleadoId,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-      }),
+      silent: true,
+      body: buildBody(false),
     });
-
-    state.nominaActual = result;
-    renderNominaResult(result);
-    showToast('Nómina calculada con éxito', 'success');
-    loadNominaHistorial(nominaModalEmpleadoId);
-  } catch { /* handled by api() */ }
-  finally {
+    finalizarCalculo(result, 'Nómina calculada con éxito');
+  } catch (e) {
+    const msg = (e && e.message) || '';
+    if (!/Ya existe nómina registrada/.test(msg)) {
+      showToast(msg || 'Error al calcular nómina', 'error');
+      return;
+    }
+    if (!confirm('Ya existe un registro para este periodo. ¿Deseas recalcular los montos con el esquema actual?')) {
+      return;
+    }
+    btn.textContent = '⏳ Recalculando…';
+    try {
+      const result = await api('/nomina/calcular', {
+        method: 'POST',
+        body: buildBody(true),
+      });
+      finalizarCalculo(result, `Nómina recalculada: C$${parseFloat(result.pago_neto).toFixed(2)}`);
+    } catch { /* handled by api() */ }
+  } finally {
     btn.disabled = false;
     btn.textContent = '🧮 Calcular Nómina';
   }
+}
+
+async function recalcularNominaRegistro(nominaId) {
+  try {
+    const result = await api(`/nomina/${nominaId}/recalcular`, { method: 'PUT' });
+    if (state.nominaActual && state.nominaActual.id === result.id) {
+      state.nominaActual = result;
+      renderNominaResult(result);
+    }
+    showToast(`Nómina recalculada: C$${parseFloat(result.pago_neto).toFixed(2)}`, 'success');
+    loadNominaHistorial(nominaModalEmpleadoId);
+  } catch { /* handled by api() */ }
 }
 
 function renderNominaResult(data) {
@@ -3317,6 +3352,9 @@ function renderNominaHistorial(nominas) {
     const adelLine = adel > 0
       ? `<div class="nh-adelantos" style="font-size:11px;color:var(--rojo-cangrejo);">Adelantos: -C$${adel.toFixed(2)}</div>`
       : '';
+    const recalcBtn = !esPagado
+      ? `<button class="emp-action emp-sky admin-only nh-recalc" title="Recalcular con el esquema actual" onclick="recalcularNominaRegistro(${n.id})"><span class="material-symbols-outlined">sync</span></button>`
+      : '';
     return `
       <div class="nomina-history-item">
         <div class="nh-period">
@@ -3326,6 +3364,7 @@ function renderNominaHistorial(nominas) {
         </div>
         <div class="nh-amount">C$${parseFloat(n.pago_neto).toFixed(2)}</div>
         <span class="nh-status ${statusClass}">${statusText}</span>
+        ${recalcBtn}
       </div>`;
   }).join('');
 }
