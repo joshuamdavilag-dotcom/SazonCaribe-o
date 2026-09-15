@@ -70,8 +70,8 @@ def generar_nomina(
     summary="Calcular nómina de un empleado",
     description=(
         "Calcula la nómina de un empleado específico para un período. "
-        "Obtiene asistencias finalizadas, calcula horas normales "
-        "y extras (tarifa normal 1.0x) y crea el registro."
+        "Usa salario base fijo (salario_base / 2) más horas extras "
+        "a tarifa normal 1.0x (salario_base / 240) y crea el registro."
     ),
     tags=["Nóminas & Pagos"]
 )
@@ -88,9 +88,9 @@ def calcular_nomina(
     - **fecha_fin**: Fecha de fin del período
 
     El cálculo incluye:
-    - Horas normales trabajadas × tarifa normal
-    - Horas extras × tarifa normal (1.0x)
-    - Pago neto total (sin deducciones)
+    - Salario base fijo (salario_base / 2)
+    - Horas extras × tarifa normal (1.0x = salario_base / 240)
+    - Pago neto total (menos adelantos)
     """
     return service.calcular_nomina_periodo(
         request.empleado_id,

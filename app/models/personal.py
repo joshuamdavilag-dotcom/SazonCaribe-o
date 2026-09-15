@@ -172,6 +172,11 @@ class Usuario(Base):
         nullable=False,
         default=True
     )
+    turno_habilitado: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
 
     # Relación uno-a-uno con Empleado
     empleado: Mapped["Empleado"] = relationship(

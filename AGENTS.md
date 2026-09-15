@@ -204,6 +204,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Stock modal: Two-tab layout — Movimiento tab (adjust stock via `PATCH /insumos/{id}/stock` with unit selector + conversion preview) and Detalles tab (edit category/unit/stock_minimo via `PATCH /insumos/{id}` with packaging fields section); gear subpanels for inline category/unit creation
 - Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
 - Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
+- Habilitación Dinámica de Turno: `#btn-toggle-all-turnos` en el header de Personal + botón `.btn-toggle-turno` por fila (solo usuarios rol `Vendedor`); `syncMassTurnoButton()` refleja el estado agregado (todos habilitados = "Turnos Habilitados"); `toggleTurnoMasivo()` → `PATCH /personal/usuarios/turno-masivo`, `toggleTurnoUsuario(id, bool)` → `PATCH /personal/usuarios/{id}/turno` (delegación `click` sobre `#personal-table-container`); ambos `admin-only`
 - Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` prefill con `slice(0,16)` del string crudo (sin conversión); `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `fecha_hora_entrada`, `fecha_hora_salida`, `motivo`; backend guarda la hora local tal cual SIN conversión a UTC; recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
 - `formatLocalTime(isoStr)` helper formatea de forma literal el string crudo (extrae HH:MM y muestra 12h AM/PM) — sin conversión de zona; los datetimes de asistencia son hora local fija de Managua
@@ -230,6 +231,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Pagar orden (auto-libera mesa)| Y             | Y       | Y        |
 | Iniciar turno                 | Y             | Y       | Y        |
 | Gestionar turnos (CRUD)       | Y             | Y       | N        |
+| Habilitar turno (vendedores)  | Y             | Y       | N        |
 | Dar de baja empleado (lógica) | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |
@@ -238,8 +240,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Business Rules
 
-- **Payroll**: Biweekly (monthly_salary / 2); salary is per-employee (`Empleado.salario_base`), not per-puesto
-- **Overtime**: (salary / 30 / 8) per hour over `horas_teoricas`
+- **Payroll**: Biweekly (monthly_salary / 2); salary is per-employee (`Empleado.salario_base`), not per-puesto. Pago de nómina = base fija + horas extras — NO se recalcula por horas ordinarias trabajadas, eliminando discrepancias por suma de asistencias
+- **Overtime**: (salary / 240) per hour (1.0x, sin recargo); `monto_horas_extras = total_horas_extras × (salario_base / 240)`
 - **IVA**: Removed — menu prices are tax-inclusive; `IVA_RATE=0.0`
 - **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
@@ -265,7 +267,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **Dynamic zones**: `Zona` model with FK from Mesa; delete guarded if zone has mesas
 - **Dynamic menu categories**: `CategoriaMenu` model, backend CRUD, delete guarded
 - **Dynamic inventory categories & units**: `CategoriaInsumo` + `UnidadMedida` models; `Insumo` uses `unidad_medida_id` FK + `categoria_id` FK
-- **Nómina calculations**: Horas extras at 1.0x, no deducciones; `pago_neto = bruto + pago_horas_extras - total_adelantos`
+- **Nómina calculations**: `pago_base = salario_base / 2` (fijo); `tarifa_hora = salario_base / 240` (1.0x); `pago_neto = pago_base + (total_horas_extras × tarifa_hora) - total_adelantos` (mínimo 0). No se recalculan horas ordinarias trabajadas.
 
 ## API Endpoints Summary
 
@@ -281,6 +283,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/personal/usuarios                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/personal/usuarios                   | Yes      | Any                |
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
+| PATCH  | /api/v1/personal/usuarios/turno-masivo      | Yes      | Admin, Gerente     |
+| PATCH  | /api/v1/personal/usuarios/{id}/turno        | Yes      | Admin, Gerente     |
 | POST   | /api/v1/asistencia/turnos                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/asistencia/turnos                   | Yes      | Any                |
 | POST   | /api/v1/asistencia/turnos/iniciar/{id} | Yes      | Any |
@@ -515,6 +519,13 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `DELETE /asistencia/turnos/{id}` → delete (Admin/Gerente only)
 - `TurnoUpdate` schema for PUT body; `TurnoResponse` for list
 - **Frontend**: `#modal-turnos` with inline CRUD; `calcularHoraSalida()` auto-computes `hora_salida` from `hora_entrada + horas_teoricas` using modulo 1440 for midnight crossover; `hora_salida` field is readonly/calculated
+
+### Habilitación Dinámica de Turno (vendedores)
+- `Usuario.turno_habilitado` (Boolean, default `False`, nullable `False`) controla si un usuario con rol `Vendedor` puede iniciar sesión.
+- **Gate de login**: `POST /auth/login` devuelve `403` "Tu turno de trabajo no está habilitado actualmente por gerencia." si `rol == "Vendedor"` y `turno_habilitado == False`. Admin/Gerente omiten la verificación (no existen roles Mesero/Cocinero en `RolEnum`).
+- `PATCH /personal/usuarios/{id}/turno` → body `{"turno_habilitado": bool}`; `PATCH /personal/usuarios/turno-masivo` → mismo body, actualiza a todos los `Vendedor` (retorna `{"actualizados": N}`). Ambos Admin/Gerente.
+- Migración de startup `_migrate_usuarios_turno_habilitado()`: agrega la columna si falta y, **solo en la primera ejecución**, habilita (`= 1`) a los Vendedores ya existentes para no bloquearlos en el despliegue. En reinicios posteriores no toca el estado.
+- Los Vendedores nuevos nacen con `turno_habilitado = False` y requieren habilitación de gerencia.
 
 ### KDS (Kitchen Display System)
 - `OrdenRepository.obtener_ordenes_filtradas()` eager-loads `Orden.mesa.zona` and `Orden.mesero` for KDS card display

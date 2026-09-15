@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.security import verificar_password, crear_access_token
 from app.repositories.usuario_repository import UsuarioRepository
 from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.personal import RolEnum
 
 router = APIRouter()
 
@@ -41,6 +42,12 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    if usuario.rol == RolEnum.VENDEDOR.value and not usuario.turno_habilitado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu turno de trabajo no está habilitado actualmente por gerencia."
         )
 
     payload = {

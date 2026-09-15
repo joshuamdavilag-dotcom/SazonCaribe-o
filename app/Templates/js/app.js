@@ -2856,6 +2856,7 @@ async function loadPersonal() {
     state.usuarios = usuarios;
     renderPersonalTable(empleados, usuarios);
   } catch { renderPersonalTable([]); }
+  syncMassTurnoButton();
 }
 
 const EMP_AVATAR_TINTS = [
@@ -2948,6 +2949,10 @@ function renderPersonalTable(empleados, usuarios) {
                   <button class="emp-action emp-turq" title="Ver nómina de ${nombreCompleto}" onclick="openNominaModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">payments</span></button>
                   <button class="emp-action emp-sky" title="Ver asistencias de ${nombreCompleto}" onclick="openAsistenciasModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">history</span></button>
                   ${user ? `<button class="emp-action emp-slate" title="Restablecer contraseña de ${username}" onclick="openResetPasswordModal(${user.id}, '${user.username}')"><span class="material-symbols-outlined">key</span></button>` : ''}
+                  ${user && user.rol === 'Vendedor' ? `
+                  <button class="btn-toggle-turno ${user.turno_habilitado ? 'active text-emerald-600 bg-emerald-50' : 'inactive text-slate-400 bg-slate-100'} admin-only p-1.5 rounded-lg transition-colors" data-id="${user.id}" data-enabled="${user.turno_habilitado ? 'true' : 'false'}" title="${user.turno_habilitado ? 'Deshabilitar Turno' : 'Habilitar Turno'} de ${nombreCompleto}">
+                    <span class="material-symbols-outlined text-lg leading-none block">${user.turno_habilitado ? 'toggle_on' : 'toggle_off'}</span>
+                  </button>` : ''}
                   <button class="emp-action emp-danger admin-only ${e.activo ? '' : 'is-disabled'}" title="Dar de baja" onclick="openEliminarEmpleadoModal(${e.id})"><span class="material-symbols-outlined">person_off</span></button>
                 </div>
               </td>
@@ -2956,6 +2961,58 @@ function renderPersonalTable(empleados, usuarios) {
         </tbody>
       </table>
     </div>`;
+}
+
+/* -------------------------------------------------------------------------
+   Habilitación Dinámica de Turno (vendedores)
+   ------------------------------------------------------------------------- */
+
+function syncMassTurnoButton() {
+  const btn = document.getElementById('btn-toggle-all-turnos');
+  if (!btn) return;
+  const vendedores = (state.usuarios || []).filter(u => u.rol === 'Vendedor');
+  const allEnabled = vendedores.length > 0 && vendedores.every(u => u.turno_habilitado);
+  btn.dataset.enabled = String(allEnabled);
+  btn.querySelector('.material-symbols-outlined').textContent = allEnabled ? 'toggle_on' : 'toggle_off';
+  const label = btn.querySelector('span:last-child');
+  if (label) label.textContent = allEnabled ? 'Turnos Habilitados' : 'Habilitar Todos los Turnos';
+}
+
+async function toggleTurnoMasivo() {
+  const btn = document.getElementById('btn-toggle-all-turnos');
+  if (!btn) return;
+  const next = btn.dataset.enabled !== 'true';
+  btn.disabled = true;
+  try {
+    const res = await api('/personal/usuarios/turno-masivo', {
+      method: 'PATCH',
+      body: JSON.stringify({ turno_habilitado: next }),
+    });
+    (state.usuarios || []).forEach(u => {
+      if (u.rol === 'Vendedor') u.turno_habilitado = next;
+    });
+    renderPersonalTable(state.empleados, state.usuarios);
+    syncMassTurnoButton();
+    showToast(next
+      ? `Meseros habilitados para iniciar turno (${res.actualizados || 0})`
+      : 'Turno de todos los meseros deshabilitado');
+  } catch { /* handled by api() */ } finally { btn.disabled = false; }
+}
+
+async function toggleTurnoUsuario(usuarioId, habilitar) {
+  try {
+    const res = await api(`/personal/usuarios/${usuarioId}/turno`, {
+      method: 'PATCH',
+      body: JSON.stringify({ turno_habilitado: habilitar }),
+    });
+    const usu = (state.usuarios || []).find(u => u.id === usuarioId);
+    if (usu) usu.turno_habilitado = res.turno_habilitado;
+    renderPersonalTable(state.empleados, state.usuarios);
+    syncMassTurnoButton();
+    showToast(habilitar
+      ? 'Mesero habilitado para iniciar turno'
+      : 'Mesero deshabilitado — no podrá iniciar turno');
+  } catch { /* handled by api() */ }
 }
 
 let nominaModalEmpleadoId = null;
@@ -3060,17 +3117,24 @@ function renderNominaResult(data) {
   document.getElementById('nomina-periodo-text').textContent =
     `${data.fecha_inicio} al ${data.fecha_fin}`;
 
-  const horasNormales = parseFloat(data.salario_quincenal_teorico) > 0
-    ? 'Ver cálculo detallado'
-    : '0.00 h';
+  const base = parseFloat(data.salario_quincenal_teorico);
+  const tarifa = parseFloat(data.tarifa_hora_extra || (parseFloat(data.salario_base_mensual) / 240));
+  const horasExtras = parseFloat(data.total_horas_extras);
+  const montoExtras = parseFloat(data.pago_horas_extras);
 
-  document.getElementById('nomina-horas-normales').textContent = horasNormales;
-  document.getElementById('nomina-pago-normales').textContent =
-    `C$${(parseFloat(data.salario_quincenal_teorico) - parseFloat(data.pago_horas_extras)).toFixed(2)}`;
-  document.getElementById('nomina-horas-extras').textContent =
-    `${parseFloat(data.total_horas_extras).toFixed(2)} h`;
-  document.getElementById('nomina-pago-extras').textContent =
-    `C$${parseFloat(data.pago_horas_extras).toFixed(2)}`;
+  document.getElementById('nomina-salario-base').textContent = `C$${base.toFixed(2)}`;
+
+  if (horasExtras > 0) {
+    document.getElementById('nomina-horas-extras').textContent =
+      `${horasExtras.toFixed(2)} h × C$${tarifa.toFixed(2)}/h`;
+    document.getElementById('nomina-pago-extras').textContent = `C$${montoExtras.toFixed(2)}`;
+  } else {
+    document.getElementById('nomina-horas-extras').textContent = '0.00 h';
+    document.getElementById('nomina-pago-extras').textContent = 'C$0.00';
+  }
+
+  const diasTrabajados = horasExtras > 0 ? 'Con horas' : '0 h';
+  document.getElementById('nomina-asistencia-dias').textContent = `${horasExtras.toFixed(2)} h extra`;
 
   const adelantosRow = document.getElementById('nomina-adelantos-row');
   const adelantosDisplay = document.getElementById('nomina-adelantos-display');
@@ -4770,6 +4834,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('turno-entrada').value = '08:00';
     document.getElementById('turno-horas').value = '8';
     calcularHoraSalida();
+  });
+
+  // Habilitación Dinámica de Turno (vendedores)
+  document.getElementById('btn-toggle-all-turnos')?.addEventListener('click', toggleTurnoMasivo);
+  document.getElementById('personal-table-container')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-toggle-turno');
+    if (!btn) return;
+    toggleTurnoUsuario(Number(btn.dataset.id), btn.dataset.enabled !== 'true');
   });
 
   // Zonas panel toggle + CRUD

@@ -23,8 +23,7 @@ class NominaService:
     adelantos de salario y la generación de registros de nómina.
     """
 
-    DIAS_MENSUALES = Decimal("30")
-    HORAS_DIARIAS = Decimal("8")
+    HORAS_MENSUALES = Decimal("240")
 
     def __init__(self, db: Session) -> None:
         """
@@ -116,58 +115,12 @@ class NominaService:
             ):
                 continue
 
-            salario_base_mensual = Decimal(
-                str(empleado.salario_base)
-            )
-
-            salario_quincenal_teorico = (
-                salario_base_mensual / self.DIAS_MENSUALES * self.DIAS_MENSUALES / 2
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            asistencias = self.asistencia_repo.get_asistencias_por_rango_fechas(
-                empleado.id,
+            nomina_data = self._calcular_periodo(
+                empleado,
                 periodo.fecha_inicio,
                 periodo.fecha_fin
             )
-
-            total_horas_extras = sum(
-                Decimal(str(a.horas_extras)) for a in asistencias
-            )
-
-            valor_dia = (
-                salario_base_mensual / self.DIAS_MENSUALES
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            valor_hora_ordinaria = (
-                valor_dia / self.HORAS_DIARIAS
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            pago_horas_extras = (
-                total_horas_extras * valor_hora_ordinaria
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            total_adelantos = self._obtener_total_adelantos(
-                empleado.id, periodo.fecha_inicio, periodo.fecha_fin
-            )
-
-            pago_neto = (
-                salario_quincenal_teorico + pago_horas_extras - total_adelantos
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if pago_neto < 0:
-                pago_neto = Decimal("0.00")
-
-            nomina_data = {
-                "empleado_id": empleado.id,
-                "fecha_inicio": periodo.fecha_inicio,
-                "fecha_fin": periodo.fecha_fin,
-                "salario_base_mensual": salario_base_mensual,
-                "salario_quincenal_teorico": salario_quincenal_teorico,
-                "total_horas_extras": total_horas_extras,
-                "pago_horas_extras": pago_horas_extras,
-                "total_adelantos": total_adelantos,
-                "pago_neto": pago_neto,
-                "estado": "PENDIENTE"
-            }
+            nomina_data["estado"] = "PENDIENTE"
 
             nomina_creada = self.nomina_repo.create(nomina_data)
             nominas_generadas.append(
@@ -175,6 +128,66 @@ class NominaService:
             )
 
         return nominas_generadas
+
+    def _calcular_periodo(
+        self,
+        empleado,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> dict:
+        """
+        Calcula la nómina de un empleado para un período.
+
+        Fórmula: Pago = (salario_base / 2) + (horas_extras × tarifa) − adelantos.
+        El salario base es fijo (no se recalculan horas ordinarias) y las
+        horas extras se pagan a tarifa normal 1.0x (salario_base / 240).
+        """
+        salario_base_mensual = Decimal(str(empleado.salario_base))
+
+        salario_quincenal_teorico = (
+            salario_base_mensual / Decimal("2")
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        tarifa_hora = (
+            salario_base_mensual / self.HORAS_MENSUALES
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        asistencias = self.asistencia_repo.get_finalizadas_por_rango(
+            empleado.id,
+            fecha_inicio,
+            fecha_fin
+        )
+
+        total_horas_extras = sum(
+            (Decimal(str(a.horas_extras)) for a in asistencias),
+            Decimal("0.00"),
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        pago_horas_extras = (
+            total_horas_extras * tarifa_hora
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        total_adelantos = self._obtener_total_adelantos(
+            empleado.id, fecha_inicio, fecha_fin
+        )
+
+        pago_neto = (
+            salario_quincenal_teorico + pago_horas_extras - total_adelantos
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if pago_neto < 0:
+            pago_neto = Decimal("0.00")
+
+        return {
+            "empleado_id": empleado.id,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+            "salario_base_mensual": salario_base_mensual,
+            "salario_quincenal_teorico": salario_quincenal_teorico,
+            "total_horas_extras": total_horas_extras,
+            "pago_horas_extras": pago_horas_extras,
+            "total_adelantos": total_adelantos,
+            "pago_neto": pago_neto,
+        }
 
     def obtener_nomina(self, nomina_id: int) -> NominaResponse:
         """
@@ -280,8 +293,9 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período específico.
 
-        Obtiene las asistencias finalizadas, calcula horas normales
-        y extras (a tarifa normal 1.0x) y crea el registro de nómina.
+        Usa salario base fijo (salario_base / 2) más compensación por
+        horas extras a tarifa normal (salario_base / 240). No depende
+        de las horas ordinarias registradas.
 
         Args:
             empleado_id: ID del empleado.
@@ -294,7 +308,6 @@ class NominaService:
         Raises:
             HTTPException 404: Si el empleado no existe.
             HTTPException 400: Si ya existe nómina para ese período.
-            HTTPException 400: Si no hay asistencias finalizadas en el período.
         """
         from fastapi import HTTPException, status
 
@@ -316,86 +329,12 @@ class NominaService:
                 )
             )
 
-        asistencias = self.asistencia_repo.get_finalizadas_por_rango(
-            empleado_id, fecha_inicio, fecha_fin
+        nomina_data = self._calcular_periodo(
+            empleado,
+            fecha_inicio,
+            fecha_fin
         )
-
-        if not asistencias:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"No hay asistencias finalizadas para el empleado "
-                    f"{empleado_id} en el período {fecha_inicio} al {fecha_fin}"
-                )
-            )
-
-        salario_base_mensual = Decimal(str(empleado.salario_base))
-
-        valor_hora_normal = (
-            salario_base_mensual / self.DIAS_MENSUALES / self.HORAS_DIARIAS
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-        valor_hora_extra = valor_hora_normal
-
-        total_horas_normales = Decimal("0")
-        total_horas_extras = Decimal("0")
-
-        for a in asistencias:
-            horas_extras = Decimal(str(a.horas_extras))
-            total_horas_extras += horas_extras
-
-            if a.hora_salida_real and a.hora_entrada_real:
-                total_trabajadas = Decimal(
-                    str(
-                        (a.hora_salida_real - a.hora_entrada_real)
-                        .total_seconds()
-                        / 3600
-                    )
-                )
-                horas_normales = total_trabajadas - horas_extras
-                if horas_normales < 0:
-                    horas_normales = Decimal("0")
-                total_horas_normales += horas_normales
-
-        total_horas_normales = total_horas_normales.quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        total_horas_extras = total_horas_extras.quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-
-        pago_horas_normales = (
-            total_horas_normales * valor_hora_normal
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-        pago_horas_extras = (
-            total_horas_extras * valor_hora_extra
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-        bruto = pago_horas_normales + pago_horas_extras
-
-        total_adelantos = self._obtener_total_adelantos(
-            empleado_id, fecha_inicio, fecha_fin
-        )
-
-        pago_neto = (bruto - total_adelantos).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        if pago_neto < 0:
-            pago_neto = Decimal("0.00")
-
-        nomina_data = {
-            "empleado_id": empleado_id,
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin,
-            "salario_base_mensual": salario_base_mensual,
-            "salario_quincenal_teorico": bruto,
-            "total_horas_extras": total_horas_extras,
-            "pago_horas_extras": pago_horas_extras,
-            "total_adelantos": total_adelantos,
-            "pago_neto": pago_neto,
-            "estado": "PENDIENTE"
-        }
+        nomina_data["estado"] = "PENDIENTE"
 
         nomina_creada = self.nomina_repo.create(nomina_data)
         return NominaResponse.model_validate(nomina_creada)

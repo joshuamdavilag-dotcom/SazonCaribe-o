@@ -155,6 +155,7 @@ async def startup_event():
     _migrate_menu_item_imagen_tiempo()
     _migrate_asistencia_utc_a_local()
     _migrate_asistencias_anulada()
+    _migrate_usuarios_turno_habilitado()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -491,6 +492,43 @@ def _migrate_asistencias_anulada():
         except Exception as e:
             db.rollback()
             print(f"  [X] Error al agregar 'anulada' a asistencias: {e}")
+
+
+def _migrate_usuarios_turno_habilitado():
+    """Agrega la columna turno_habilitado a usuarios si no existe.
+
+    Solo en la primera ejecución habilita a los Vendedores ya registrados
+    (turno_habilitado = 1) para que el despliegue no los bloquee de golpe;
+    en reinicios posteriores la columna ya existe y no se toca el estado.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' "
+                "AND COLUMN_NAME = 'turno_habilitado'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE usuarios ADD COLUMN turno_habilitado TINYINT(1) "
+                    "NOT NULL DEFAULT 0"
+                ))
+                db.execute(text(
+                    "UPDATE usuarios SET turno_habilitado = 1 WHERE rol = 'Vendedor'"
+                ))
+                db.commit()
+                print(
+                    "  [~] Columna 'turno_habilitado' agregada a usuarios y "
+                    "Vendedores existentes habilitados"
+                )
+            else:
+                print("  [~] Columna 'turno_habilitado' ya existe en usuarios")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'turno_habilitado' a usuarios: {e}")
 
 
 def _fix_unidades_medida():

@@ -387,6 +387,52 @@ class PersonalService:
             self.usuario_repo.get_by_id(usuario_id)
         )
 
+    def cambiar_turno_habilitado(
+        self,
+        usuario_id: int,
+        turno_habilitado: bool,
+    ) -> UsuarioResponse:
+        """
+        Habilita o deshabilita el inicio de turno de un usuario Vendedor.
+
+        Args:
+            usuario_id: ID del usuario.
+            turno_habilitado: Nuevo estado de habilitación.
+
+        Returns:
+            UsuarioResponse con el usuario actualizado.
+
+        Raises:
+            HTTPException 404: Si el usuario no existe.
+        """
+        usuario = self.usuario_repo.get_by_id(usuario_id)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el usuario con ID {usuario_id}"
+            )
+
+        actualizado = self.usuario_repo.actualizar_turno_habilitado(
+            usuario_id,
+            turno_habilitado,
+        )
+        return UsuarioResponse.model_validate(actualizado)
+
+    def habilitar_turno_masivo(self, turno_habilitado: bool) -> dict:
+        """
+        Habilita o deshabilita el inicio de turno de todos los Vendedores.
+
+        Args:
+            turno_habilitado: Nuevo estado de habilitación.
+
+        Returns:
+            Dict con la cantidad de usuarios actualizados.
+        """
+        actualizados = self.usuario_repo.actualizar_turno_habilitado_masivo(
+            turno_habilitado
+        )
+        return {"actualizados": actualizados}
+
     # =========================================================================
     # Métodos Privados de Validación
     # =========================================================================

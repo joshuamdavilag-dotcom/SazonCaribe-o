@@ -1,8 +1,8 @@
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 
 # =============================================================================
@@ -101,6 +101,14 @@ class NominaResponse(BaseModel):
         default=None,
         description="Fecha y hora en que se realizó el pago"
     )
+
+    @computed_field
+    @property
+    def tarifa_hora_extra(self) -> Decimal:
+        """Tarifa por hora extra (1.0x) = salario mensual / 240."""
+        return (self.salario_base_mensual / Decimal("240")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
 
 # =============================================================================

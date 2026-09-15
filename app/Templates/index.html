@@ -572,6 +572,11 @@
                     class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
               <span class="material-symbols-outlined text-[18px] text-slate-500">schedule</span> Gestión de Turnos
             </button>
+            <button id="btn-toggle-all-turnos" type="button" data-enabled="false"
+                    class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">toggle_off</span>
+              <span>Habilitar Todos los Turnos</span>
+            </button>
             <button id="btn-nuevo-empleado" type="button"
                     class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
               <span class="material-symbols-outlined text-[18px]">person_add</span> Agregar Empleado
@@ -1735,24 +1740,24 @@
             <div style="font-size:14px;font-weight:500;color:#374151;" id="nomina-periodo-text"></div>
           </div>
           <div class="nomina-breakdown">
-            <div class="nomina-row" id="nomina-horas-normales-row" style="cursor:pointer;" onclick="toggleNominaDetalle()" title="Ver desglose de horas">
-              <span class="nomina-label">⏱️ Horas Normales Trabajadas <span style="font-size:11px;color:var(--turquesa-ola);">▸ Ver detalle</span></span>
-              <span class="nomina-value" id="nomina-horas-normales">—</span>
+            <div class="nomina-row" id="nomina-asistencia-row" style="cursor:pointer;" onclick="toggleNominaDetalle()" title="Asistencia registrada en el período (informativo, no afecta el salario base)">
+              <span class="nomina-label">⏱️ Asistencia del Período <span style="font-size:11px;color:var(--turquesa-ola);">▸ Ver detalle</span></span>
+              <span class="nomina-value" id="nomina-asistencia-dias">—</span>
             </div>
             <div id="nomina-detalle-panel" style="display:none;background:#f8fafc;border-left:3px solid var(--turquesa-ola);margin:4px 0 8px 12px;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#374151;">
               <div id="nomina-detalle-content"></div>
             </div>
             <div class="nomina-row">
-              <span class="nomina-label">💰 Importe Base (Horas Normales)</span>
-              <span class="nomina-value" id="nomina-pago-normales">—</span>
+              <span class="nomina-label">💰 Salario Base (Fijo)</span>
+              <span class="nomina-value" id="nomina-salario-base">—</span>
             </div>
             <div class="nomina-divider"></div>
             <div class="nomina-row">
-              <span class="nomina-label">⚡ Horas Extras</span>
+              <span class="nomina-label">⚡ Horas Extras (Acumuladas)</span>
               <span class="nomina-value" id="nomina-horas-extras">—</span>
             </div>
             <div class="nomina-row">
-              <span class="nomina-label">💰 Importe Horas Extras (1.0x)</span>
+              <span class="nomina-label">💰 Monto por Horas Extras (1.0x)</span>
               <span class="nomina-value" id="nomina-pago-extras">—</span>
             </div>
             <div class="nomina-row nomina-row--deduction" id="nomina-adelantos-row" style="display:none;">

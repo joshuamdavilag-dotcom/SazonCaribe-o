@@ -228,6 +228,10 @@ class UsuarioResponse(UsuarioBase):
         ...,
         description="Estado del usuario (activo/inactivo)"
     )
+    turno_habilitado: bool = Field(
+        ...,
+        description="Si es Vendedor, indica si puede iniciar turno (habilitado por gerencia)"
+    )
 
 
 class PasswordResetRequest(BaseModel):
@@ -252,4 +256,21 @@ class EliminarEmpleadoRequest(BaseModel):
         max_length=128,
         description="Contraseña del usuario en sesión para autorizar la baja",
         examples=["MiClave123"]
+    )
+
+
+class TurnoHabilitadoUpdate(BaseModel):
+    """Esquema para cambiar la habilitación de turno de un usuario Vendedor."""
+    turno_habilitado: bool = Field(
+        ...,
+        description="True permite al Vendedor iniciar su turno, False lo bloquea"
+    )
+
+
+class TurnoMasivoResponse(BaseModel):
+    """Esquema de respuesta para la habilitación masiva de turnos."""
+    actualizados: int = Field(
+        ...,
+        ge=0,
+        description="Cantidad de usuarios Vendedor actualizados"
     )

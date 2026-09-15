@@ -16,6 +16,8 @@ from app.schemas.personal import (
     UsuarioResponse,
     PasswordResetRequest,
     EliminarEmpleadoRequest,
+    TurnoHabilitadoUpdate,
+    TurnoMasivoResponse,
     RolEnum
 )
 from app.services.personal_service import PersonalService
@@ -227,3 +229,49 @@ def restablecer_contrasena(
     - **nueva_password**: Nueva contraseña (mínimo 6 caracteres)
     """
     return service.restablecer_contrasena(usuario_id, request)
+
+
+@router.patch(
+    "/usuarios/turno-masivo",
+    response_model=TurnoMasivoResponse,
+    summary="Habilitar/deshabilitar turno de todos los Vendedores",
+    description="Actualiza masivamente la habilitación de turno de todos los usuarios con rol Vendedor. Solo Administradores y Gerentes.",
+    tags=["Usuarios"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def habilitar_turno_masivo(
+    request: TurnoHabilitadoUpdate,
+    service: PersonalService = Depends(get_personal_service)
+) -> TurnoMasivoResponse:
+    """
+    Habilita o deshabilita el inicio de turno de todos los Vendedores.
+
+    - **turno_habilitado**: true habilita a todos, false los bloquea.
+    """
+    resultado = service.habilitar_turno_masivo(request.turno_habilitado)
+    return TurnoMasivoResponse(**resultado)
+
+
+@router.patch(
+    "/usuarios/{usuario_id}/turno",
+    response_model=UsuarioResponse,
+    summary="Cambiar habilitación de turno de un usuario",
+    description="Habilita o deshabilita el inicio de turno de un usuario Vendedor. Solo Administradores y Gerentes.",
+    tags=["Usuarios"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def cambiar_turno_habilitado(
+    usuario_id: int,
+    request: TurnoHabilitadoUpdate,
+    service: PersonalService = Depends(get_personal_service)
+) -> UsuarioResponse:
+    """
+    Cambia la habilitación de turno de un usuario específico.
+
+    - **usuario_id**: ID del usuario
+    - **turno_habilitado**: true habilita su turno, false lo bloquea.
+    """
+    return service.cambiar_turno_habilitado(
+        usuario_id,
+        request.turno_habilitado,
+    )
