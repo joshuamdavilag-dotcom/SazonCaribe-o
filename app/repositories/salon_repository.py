@@ -157,6 +157,8 @@ class SalonRepository:
         if db_mesa is None:
             return None
         db_mesa.estado = nuevo_estado
+        if nuevo_estado == EstadoMesa.LIBRE:
+            db_mesa.apodo = None
         self.db.commit()
         self.db.refresh(db_mesa)
         return db_mesa
@@ -168,6 +170,17 @@ class SalonRepository:
         for key, value in kwargs.items():
             if value is not None and hasattr(db_mesa, key):
                 setattr(db_mesa, key, value)
+                if key == "estado" and value == EstadoMesa.LIBRE:
+                    db_mesa.apodo = None
+        self.db.commit()
+        self.db.refresh(db_mesa)
+        return db_mesa
+
+    def asignar_apodo(self, mesa_id: int, apodo: Optional[str]) -> Optional[Mesa]:
+        db_mesa = self.obtener_mesa_por_id(mesa_id)
+        if db_mesa is None:
+            return None
+        db_mesa.apodo = apodo
         self.db.commit()
         self.db.refresh(db_mesa)
         return db_mesa

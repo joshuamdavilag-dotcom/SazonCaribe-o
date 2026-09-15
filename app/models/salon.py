@@ -78,6 +78,11 @@ class Mesa(Base):
         nullable=False,
         default=EstadoMesa.LIBRE
     )
+    apodo: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None
+    )
     zona_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("zonas.id", name="fk_mesas_zona_id"),

@@ -1292,6 +1292,12 @@
         <button class="modal-close" id="close-detalle-mesa-ocupada" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
+        <!-- Apodo temporal de la mesa -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span class="caption" style="white-space:nowrap;">👤 Apodo</span>
+          <input type="text" id="oc-apodo-input" class="form-input" maxlength="100" placeholder="Ej: Cliente movido a esta mesa (Juan)" style="flex:1;height:34px;font-size:12px;">
+          <button class="btn btn-turquoise" id="btn-save-apodo" style="height:34px;padding:0 14px;font-size:12px;white-space:nowrap;">Guardar</button>
+        </div>
         <div id="oc-items-list" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
         <div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">

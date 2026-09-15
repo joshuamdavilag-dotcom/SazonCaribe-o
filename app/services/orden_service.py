@@ -411,6 +411,7 @@ class OrdenService:
                     mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)
                     if mesa:
                         mesa.estado = EstadoMesa.LIBRE
+                        mesa.apodo = None
 
             self.db.commit()
             self.db.refresh(orden)

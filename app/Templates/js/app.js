@@ -9,6 +9,12 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
   ? 'http://127.0.0.1:8000/api/v1'
   : `${location.origin}/api/v1`;
 
+function escHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 /* =========================================================================
    State
    ========================================================================= */
@@ -702,7 +708,7 @@ function tableCardHTML(m) {
   return `
       <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
-               aria-label="Mesa ${m.numero}, ${estado.toLowerCase()}">
+               aria-label="Mesa ${m.numero}${m.apodo ? ', ' + m.apodo : ''}, ${estado.toLowerCase()}">
         <div class="flex items-start gap-2.5 flex-wrap">
           <div class="grid place-items-center w-8 h-8 rounded-lg shrink-0 ${s.iconBox}">
             <span class="material-symbols-outlined text-[18px]">${s.icon}</span>
@@ -710,6 +716,7 @@ function tableCardHTML(m) {
           <div class="min-w-0 flex-1 leading-tight">
             <h3 class="font-display font-bold text-sm sm:text-base text-slate-900 whitespace-nowrap">Mesa ${m.numero}</h3>
             <span class="block text-[11px] font-medium text-slate-400">${zona}</span>
+            ${m.apodo ? `<span class="oc-apodo mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-brand-coral"><span class="material-symbols-outlined text-[12px]">tag</span>${escHtml(m.apodo)}</span>` : ''}
           </div>
           <span class="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${s.badge}">
             <span class="w-1.5 h-1.5 rounded-full ${s.dot}${estado === 'OCUPADA' ? ' animate-ping' : ''}"></span>${s.label}
@@ -4044,7 +4051,9 @@ function openDetalleMesaOcupada(mesaId) {
 
   state.currentOcupada = { mesaId, orden: null };
 
-  document.getElementById('oc-mesa-numero').textContent = mesa.numero;
+  document.getElementById('oc-mesa-numero').textContent = mesa.apodo ? `${mesa.numero} · «${mesa.apodo}»` : mesa.numero;
+  const apodoInput = document.getElementById('oc-apodo-input');
+  if (apodoInput) apodoInput.value = mesa.apodo || '';
   document.getElementById('oc-items-list').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;">Cargando orden…</p>';
   ['oc-subtotal', 'oc-total'].forEach(id => {
@@ -4118,7 +4127,10 @@ async function forzarLibrarMesa() {
       body: JSON.stringify({ estado: 'LIBRE' }),
     });
     const mesa = state.tables.find(t => t.id === oc.mesaId);
-    if (mesa) mesa.estado = 'LIBRE';
+    if (mesa) {
+      mesa.estado = 'LIBRE';
+      mesa.apodo = null;
+    }
     showToast('Mesa liberada correctamente', 'success');
     closeDetalleMesaOcupada();
     renderTables(state.tables);
@@ -4264,13 +4276,44 @@ async function cerrarCuenta() {
     });
 
     const mesa = state.tables.find(t => t.id === oc.mesaId);
-    if (mesa) mesa.estado = 'LIBRE';
+    if (mesa) {
+      mesa.estado = 'LIBRE';
+      mesa.apodo = null;
+    }
 
     showToast('Cuenta cerrada y mesa liberada', 'success');
     closeDetalleMesaOcupada();
     renderTables(state.tables);
   } catch (err) {
     showToast(err.message || 'Error al cerrar cuenta', 'error');
+  }
+}
+
+/* =========================================================================
+   Apodo de Mesa — asignar/limpiar apodo temporal de una mesa ocupada
+   ========================================================================= */
+async function guardarApodo() {
+  const oc = state.currentOcupada;
+  if (!oc) return;
+
+  const input = document.getElementById('oc-apodo-input');
+  const valor = (input?.value || '').trim();
+
+  try {
+    const mesa = await api(`/salon/mesas/${oc.mesaId}/apodo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ apodo: valor }),
+    });
+
+    const local = state.tables.find(t => t.id === oc.mesaId);
+    if (local) local.apodo = mesa.apodo || null;
+
+    document.getElementById('oc-mesa-numero').textContent = mesa.apodo ? `${mesa.numero} · «${mesa.apodo}»` : mesa.numero;
+    renderTables(state.tables);
+    enriquecerMesasOcupadas();
+    showToast(mesa.apodo ? `Apodo guardado: ${mesa.apodo}` : 'Apodo eliminado', 'success');
+  } catch (err) {
+    showToast(err.message || 'Error al guardar el apodo', 'error');
   }
 }
 
@@ -4972,6 +5015,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-pre-cuenta')?.addEventListener('click', openPreCuenta);
   document.getElementById('btn-cerrar-cuenta')?.addEventListener('click', cerrarCuenta);
   document.getElementById('btn-forzar-librar')?.addEventListener('click', forzarLibrarMesa);
+
+  // Apodo de mesa ocupada
+  document.getElementById('btn-save-apodo')?.addEventListener('click', guardarApodo);
+  document.getElementById('oc-apodo-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); guardarApodo(); }
+  });
 
   // Pre-Cuenta modal
   document.getElementById('close-pre-cuenta')?.addEventListener('click', closePreCuenta);

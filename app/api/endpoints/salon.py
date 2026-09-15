@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Path, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, requerir_rol
@@ -41,6 +41,11 @@ def get_salon_service(db: Session = Depends(get_db)) -> SalonService:
 class CambioEstadoRequest(BaseModel):
     """Esquema simple para cambiar el estado de una mesa."""
     nuevo_estado: EstadoMesa
+
+
+class ApodoRequest(BaseModel):
+    """Esquema para asignar el apodo temporal de una mesa ocupada."""
+    apodo: Optional[str] = Field(default=None, max_length=100)
 
 
 # =============================================================================
@@ -209,6 +214,40 @@ def cambiar_estado_mesa(
     - **MANTENIMIENTO**: Mesa fuera de servicio
     """
     return service.cambiar_estado_mesa(mesa_id, body.nuevo_estado)
+
+
+@router.patch(
+    "/mesas/{mesa_id}/apodo",
+    response_model=MesaResponse,
+    summary="Asignar apodo a mesa ocupada",
+    description=(
+        "Establece un apodo temporal a una mesa ocupada para rastrear al cliente "
+        "(ej: 'Mesa 1' → 'Juan'). Envía apodo vacío para limpiarlo. "
+        "El apodo se borra automáticamente cuando la mesa vuelve a LIBRE."
+    ),
+    tags=["Salón y Mesas"]
+)
+def asignar_apodo_mesa(
+    mesa_id: int = Path(
+        ...,
+        gt=0,
+        description="ID de la mesa"
+    ),
+    body: ApodoRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: SalonService = Depends(get_salon_service)
+) -> MesaResponse:
+    """
+    Asigna o limpia el apodo de una mesa ocupada.
+
+    - **mesa_id**: ID de la mesa (en la URL)
+    - **apodo**: Apodo a asignar; vacío o null lo limpia
+
+    Restricciones:
+    - Solo aplica a mesas en estado **OCUPADA**
+    - El apodo se resetea solo cuando la mesa vuelve a **LIBRE**
+    """
+    return service.asignar_apodo_mesa(mesa_id, body.apodo)
 
 
 @router.put(

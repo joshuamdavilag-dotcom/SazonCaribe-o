@@ -156,6 +156,7 @@ async def startup_event():
     _migrate_asistencia_utc_a_local()
     _migrate_asistencias_anulada()
     _migrate_usuarios_turno_habilitado()
+    _migrate_mesas_apodo()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -531,6 +532,31 @@ def _migrate_usuarios_turno_habilitado():
             print(f"  [X] Error al agregar 'turno_habilitado' a usuarios: {e}")
 
 
+def _migrate_mesas_apodo():
+    """Agrega la columna apodo a mesas si no existe (apodo temporal de cliente)."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mesas' "
+                "AND COLUMN_NAME = 'apodo'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL"
+                ))
+                db.commit()
+                print("  [~] Columna 'apodo' agregada a mesas")
+            else:
+                print("  [~] Columna 'apodo' ya existe en mesas")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'apodo' a mesas: {e}")
+
+
 def _fix_unidades_medida():
     """Corrige magnitudes y cadenas de conversión de unidades existentes.
 
@@ -707,7 +733,7 @@ def _fix_orphaned_mesas():
         try:
             result = db.execute(text("""
                 UPDATE mesas
-                SET estado = 'LIBRE'
+                SET estado = 'LIBRE', apodo = NULL
                 WHERE estado = 'OCUPADA'
                   AND id NOT IN (
                     SELECT DISTINCT ordenes.mesa_id

@@ -172,6 +172,45 @@ class SalonService:
 
         return MesaResponse.model_validate(mesa_actualizada)
 
+    def asignar_apodo_mesa(
+        self,
+        mesa_id: int,
+        apodo: Optional[str]
+    ) -> MesaResponse:
+        """
+        Asigna un apodo temporal a una mesa ocupada.
+
+        El apodo se usa para rastrear al cliente si se movió de mesa
+        (ej: "Mesa 1" → "Juan"). Solo aplica a mesas OCUPADA y se limpia
+        automáticamente cuando la mesa vuelve a LIBRE.
+
+        Args:
+            mesa_id: ID de la mesa.
+            apodo: Apodo a asignar; vacío o None limpia el apodo.
+
+        Raises:
+            HTTPException 404: Si la mesa no existe.
+            HTTPException 400: Si la mesa no está ocupada.
+        """
+        mesa = self.salon_repo.obtener_mesa_por_id(mesa_id)
+        if not mesa:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la mesa con ID {mesa_id}"
+            )
+        if mesa.estado != EstadoMesa.OCUPADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se puede asignar un apodo a mesas ocupadas"
+            )
+
+        apodo_limpio = apodo.strip() if apodo else None
+        if apodo_limpio == "":
+            apodo_limpio = None
+
+        mesa_actualizada = self.salon_repo.asignar_apodo(mesa_id, apodo_limpio)
+        return MesaResponse.model_validate(mesa_actualizada)
+
     def actualizar_mesa(self, mesa_id: int, mesa_in: MesaUpdate) -> MesaResponse:
         existente = self.salon_repo.obtener_mesa_por_id(mesa_id)
         if not existente:

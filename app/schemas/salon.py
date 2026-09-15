@@ -71,6 +71,11 @@ class MesaResponse(MesaBase):
         ...,
         description="ID de la zona asociada"
     )
+    apodo: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Apodo temporal de la mesa (ej: nombre del cliente que ocupó la mesa)"
+    )
 
 
 # =============================================================================
