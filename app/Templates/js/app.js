@@ -183,6 +183,7 @@ async function login(username, password) {
     const data = await api('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
+      silent: true,
     });
     state.token = data.access_token;
     localStorage.setItem('pos_token', data.access_token);
@@ -198,8 +199,12 @@ async function login(username, password) {
     loadTurnos();
     navigateTo('salon');
     showToast(`Bienvenido, ${state.user.username}`);
-  } catch {
-    showToast('Usuario o contraseña incorrectos', 'error');
+  } catch (e) {
+    const serverMsg = e && typeof e.message === 'string'
+      && e.message !== 'Failed to fetch'
+      && e.message !== 'Error del servidor'
+      ? e.message : null;
+    showToast(serverMsg || 'Usuario o contraseña incorrectos', 'error');
     return;
   }
 }

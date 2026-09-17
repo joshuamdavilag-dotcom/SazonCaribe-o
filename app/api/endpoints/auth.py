@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,8 @@ from app.core.security import verificar_password, crear_access_token
 from app.repositories.usuario_repository import UsuarioRepository
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.personal import RolEnum
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,7 +32,14 @@ def login(
     - Retorna un token JWT con id, username y rol.
     """
     usuario_repo = UsuarioRepository(db)
-    usuario = usuario_repo.get_by_username(data.username.strip().lower())
+    username_norm = data.username.strip().lower()
+    usuario = usuario_repo.get_by_username(username_norm)
+
+    logger.info(
+        "Login intent username=%r usuario_existe=%s",
+        username_norm,
+        usuario is not None,
+    )
 
     if not usuario:
         raise HTTPException(
@@ -37,7 +48,14 @@ def login(
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    if not verificar_password(data.password, usuario.password_hash):
+    password_valida = verificar_password(data.password, usuario.password_hash)
+    logger.info(
+        "Login intent username=%r password_valida=%s",
+        username_norm,
+        password_valida,
+    )
+
+    if not password_valida:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",

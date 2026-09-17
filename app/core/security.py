@@ -25,14 +25,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 def verificar_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
+        plain_password.strip().encode("utf-8"),
         hashed_password.encode("utf-8"),
     )
 
 
 def obtener_password_hash(password: str) -> str:
     return bcrypt.hashpw(
-        password.encode("utf-8"),
+        password.strip().encode("utf-8"),
         bcrypt.gensalt(),
     ).decode("utf-8")
 
