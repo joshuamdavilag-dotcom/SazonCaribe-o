@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from app.schemas.inventario import InsumoResponse
 
@@ -215,3 +215,10 @@ class MenuItemUpdate(BaseModel):
         description="Lista completa de ingredientes del plato (reemplaza la existente)",
         examples=[[{"insumo_id": 1, "cantidad_necesaria": 0.200}]]
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _aceptar_clave_receta_legacy(cls, values):
+        if isinstance(values, dict) and "receta" in values and "ingredientes_receta" not in values:
+            values["ingredientes_receta"] = values.pop("receta")
+        return values

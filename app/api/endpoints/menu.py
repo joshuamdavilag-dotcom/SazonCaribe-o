@@ -259,7 +259,7 @@ def actualizar_menu_item(
     description=(
         "Desactiva un plato (borrado lógico) marcándolo como no disponible. "
         "Queda oculto en comandas y carta pública, pero su receta e historial "
-        "de ventas se conservan. Solo administradores."
+        "de ventas se conservan. Solo Administradores y Gerentes."
     ),
     tags=["Menú y Recetas"],
     dependencies=[_requerir_rol_menu]

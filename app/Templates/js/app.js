@@ -76,7 +76,13 @@ async function api(endpoint, options = {}) {
       throw new Error('Sesión expirada');
     }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error del servidor' }));
+      let err;
+      try {
+        err = await res.json();
+      } catch {
+        const raw = await res.text().catch(() => '');
+        err = { detail: `Error del servidor (HTTP ${res.status})${raw ? `: ${raw.slice(0, 200)}` : ''}` };
+      }
       let msg = err.detail || `Error ${res.status}`;
       if (Array.isArray(msg)) {
         msg = msg.map(e => e.msg || JSON.stringify(e)).join('; ');
@@ -1996,7 +2002,11 @@ async function saveDish(e) {
   }
 
   const receta = buildRecetaPayload();
-  if (receta.length > 0) payload.receta = receta;
+  if (id) {
+    payload.ingredientes_receta = receta;
+  } else if (receta.length > 0) {
+    payload.receta = receta;
+  }
 
   try {
     let savedId = id ? parseInt(id, 10) : null;

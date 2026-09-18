@@ -1,6 +1,8 @@
 import asyncio
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from typing import Dict
@@ -33,12 +35,29 @@ from app.api.endpoints.gasto import router as gasto_router
 
 settings = get_settings()
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="Sazón Caribeño API",
     description="Sistema Integral de Gestión para Restaurantes",
     version="1.0.0",
     debug=settings.DEBUG
 )
+
+
+@app.exception_handler(Exception)
+async def manejador_error_no_controlado(request: Request, exc: Exception) -> JSONResponse:
+    """Convierte cualquier excepción no controlada en JSON con detail (nunca HTML)."""
+    logger.exception(
+        "Error no controlado en %s %s: %s",
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno del servidor: {type(exc).__name__}"},
+    )
 
 app.add_middleware(
     CORSMiddleware,
