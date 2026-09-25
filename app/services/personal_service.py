@@ -1,9 +1,17 @@
 from typing import List, Optional
+import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models.personal import Puesto, Empleado, Usuario
+from app.models.orden import Orden
+from app.models.gasto import Gasto
+from app.models.asistencia import Asistencia
+from app.models.nomina import Nomina, AdelantoSalario
+from app.models.inventario import PreparacionCocina
+from app.models.caja import CierreCaja
 from app.repositories.base_repository import BaseRepository
 from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -253,6 +261,197 @@ class PersonalService:
 
         empleado_desactivado = self.empleado_repo.desactivar(empleado_id)
         return EmpleadoResponse.model_validate(empleado_desactivado)
+
+    def eliminar_usuario(
+        self,
+        usuario_id: int,
+        request: EliminarEmpleadoRequest,
+        current_user: Usuario,
+    ) -> dict:
+        """
+        Elimina un usuario (y su empleado vinculado) liberando su username.
+
+        Regla de reutilización:
+        1. Si NI el usuario NI su empleado tienen registros asociados
+           (órdenes, gastos, asistencias, nóminas, adelantos, preparaciones
+           de cocina o cierres de caja), elimina físicamente ambos registros.
+        2. Si tienen registros contables, los archiva: renombra username y
+           cédula a ``{valor}_deleted_{id}`` y desactiva usuario y empleado
+           (``activo = False``). Así el username y la cédula quedan
+           disponibles para volver a registrar al empleado.
+
+        Requiere la contraseña del usuario en sesión (Admin/Gerente).
+
+        Args:
+            usuario_id: ID del usuario a eliminar.
+            request: Solicitud con la contraseña del usuario en sesión.
+            current_user: Usuario autenticado (Admin/Gerente).
+
+        Returns:
+            Dict con ``resultado`` ('eliminado' | 'archivado') y ``mensaje``.
+
+        Raises:
+            HTTPException 404: Si el usuario no existe.
+            HTTPException 400: Si es el propio usuario o ya fue eliminado.
+            HTTPException 401: Si la contraseña es incorrecta.
+        """
+        usuario = self.usuario_repo.get_by_id(usuario_id)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el usuario con ID {usuario_id}"
+            )
+
+        if current_user.id == usuario_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No puedes eliminar tu propio usuario"
+            )
+
+        if not verificar_password(request.password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Contraseña incorrecta"
+            )
+
+        sufijo = f"_deleted_{usuario_id}"
+        if not usuario.activo and usuario.username.endswith(sufijo):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este usuario ya fue eliminado"
+            )
+
+        empleado = (
+            self.empleado_repo.get_by_id(usuario.empleado_id)
+            if usuario.empleado_id else None
+        )
+        tiene_refs_usuario = self._usuario_tiene_referencias(usuario_id)
+        tiene_refs_empleado = (
+            self._empleado_tiene_referencias(usuario.empleado_id)
+            if usuario.empleado_id else False
+        )
+
+        if not tiene_refs_usuario and not tiene_refs_empleado:
+            self.usuario_repo.delete(usuario_id)
+            if empleado is not None:
+                self.empleado_repo.delete(empleado.id)
+            return {
+                "resultado": "eliminado",
+                "mensaje": (
+                    f"El usuario '{usuario.username}' y su empleado fueron "
+                    f"eliminados porque no tienen registros asociados."
+                ),
+            }
+
+        nuevo_username = self._nombre_archivado(usuario.username, usuario_id, 50)
+        self.usuario_repo.update(usuario_id, {
+            "username": nuevo_username,
+            "activo": False,
+        })
+
+        if empleado is not None:
+            nueva_cedula = self._nombre_archivado(
+                empleado.cedula_identidad, empleado.id, 20
+            )
+            self.empleado_repo.update(empleado.id, {
+                "cedula_identidad": nueva_cedula,
+                "activo": False,
+            })
+            mensaje = (
+                f"El usuario '{usuario.username}' fue archivado como "
+                f"'{nuevo_username}' y su empleado {empleado.nombre} fue "
+                f"desactivado. El username y la cédula quedaron disponibles "
+                f"para recontratar."
+            )
+        else:
+            mensaje = (
+                f"El usuario '{usuario.username}' fue archivado como "
+                f"'{nuevo_username}' y desactivado. El username quedó "
+                f"disponible para recontratar."
+            )
+
+        return {"resultado": "archivado", "mensaje": mensaje}
+
+    def _usuario_tiene_referencias(self, usuario_id: int) -> bool:
+        """
+        Verifica si algún registro de otra tabla apunta al usuario.
+
+        Evita borrar físicamente un usuario con actividad asociada
+        (''referenced by'' de las FKs hacia ``usuarios.id``).
+
+        Args:
+            usuario_id: ID del usuario.
+
+        Returns:
+            True si existe al menos una referencia.
+        """
+        tablas = [
+            (Orden, Orden.mesero_id),
+            (Gasto, Gasto.registrado_por),
+            (Asistencia, Asistencia.modificado_por),
+            (AdelantoSalario, AdelantoSalario.registrado_por_id),
+            (PreparacionCocina, PreparacionCocina.registrado_por),
+            (CierreCaja, CierreCaja.cerrado_por),
+        ]
+        return self._alguna_referencia(usuario_id, tablas)
+
+    def _empleado_tiene_referencias(self, empleado_id: int) -> bool:
+        """
+        Verifica si el empleado tiene registros contables (asistencias,
+        nóminas o adelantos) que impiden su borrado físico.
+
+        Args:
+            empleado_id: ID del empleado.
+
+        Returns:
+            True si existe al menos una referencia.
+        """
+        tablas = [
+            (Asistencia, Asistencia.empleado_id),
+            (Nomina, Nomina.empleado_id),
+            (AdelantoSalario, AdelantoSalario.empleado_id),
+        ]
+        return self._alguna_referencia(empleado_id, tablas)
+
+    def _alguna_referencia(self, pk: int, tablas) -> bool:
+        """
+        Implementación compartida de conteo de FKs.
+
+        Args:
+            pk: ID a buscar en las columnas FK.
+            tablas: Lista de tuplas (modelo, columna_fk).
+
+        Returns:
+            True si alguna tabla tiene un registro con esa FK.
+        """
+        for modelo, columna in tablas:
+            statement = (
+                select(func.count())
+                .select_from(modelo)
+                .where(columna == pk)
+            )
+            if self.db.execute(statement).scalar_one() > 0:
+                return True
+        return False
+
+    def _nombre_archivado(self, valor: str, pk: int, max_len: int) -> str:
+        """
+        Genera el nombre archivado ``{valor}_deleted_{pk}`` truncando la base
+        para respetar el largo máximo de la columna.
+
+        Args:
+            valor: Nombre original (username o cédula).
+            pk: ID del registro (sufijo de unicidad).
+            max_len: Largo máximo de la columna.
+
+        Returns:
+            El nombre archivado, o el mismo valor si ya tenía el sufijo.
+        """
+        sufijo = f"_deleted_{pk}"
+        if valor.endswith(sufijo):
+            return valor
+        parte = valor[: max_len - len(sufijo)].strip()
+        return f"{parte}{sufijo}"
 
     def editar_empleado(
         self, empleado_id: int, empleado_in: EmpleadoUpdate

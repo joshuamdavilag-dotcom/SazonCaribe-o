@@ -247,6 +247,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
 - **Anulación de registro de asistencia**: `DELETE /asistencia/{id}` (Admin/Gerente) marca `Asistencia.anulada=True` (borrado lógico, nunca `db.delete`) con `motivo` obligatorio que se guarda en `motivo_modificacion` + `modificado_por` (auditoría). Bloquea: registro inexistente (404), motivo vacío (400), turno aún activo sin salida (400), registro ya anulado (400). Los registros anulados NO cuentan para nómina: `get_finalizadas_por_rango`, `get_asistencias_por_rango_fechas` y `get_asistencia_del_dia` filtran `Asistencia.anulada == False`, por lo que horas normales y extras se descartan del cálculo y el empleado puede volver a marcar entrada el mismo día. El historial (`get_asistencias_por_empleado`) conserva el registro con badge "🚫 Anulado" (y motivo en tooltip) para trazabilidad.
 - **Borrado lógico de platillos**: `DELETE /menu/items/{id}` does a SOFT DELETE — sets `disponible=False` (never `db.delete`). Receta e historial de ventas (`detalle_orden`) se conservan; el plato puede reactivarse editándolo. `IntegrityError` se captura y devuelve 400 con mensaje claro. `GET /menu/items` devuelve solo activos por defecto; `?incluir_inactivos=true` (solo Admin/Gerente) los incluye para Gestión de Menú. La unicidad de nombre verifica también inactivos.
+- **Eliminación con liberación de nombres (platos y usuarios)**: `DELETE /menu/items/{id}` y `DELETE /personal/usuarios/{id}` usan una regla borrar/archivar para liberar el nombre (título del plato / username + cédula) y poder reutilizarlo tras una "baja". Sin registros asociados → borrado físico (`db.delete`; la receta se purga vía `cascade="all, delete-orphan"`); con referencias contables → archivo: renombra a `{valor}_deleted_{id}` (idempotente; truncado al `max_len` de la columna; colisión → sufijo `uuid4` corto) y marca `disponible=False`/`activo=False`. Helpers: `_nombre_archivado()` en `MenuService` (max 100) y `PersonalService` (username 50, cédula 20); `PersonalService._usuario_tiene_referencias()` (6 FKs: ordenes.mesero_id, gastos.registrado_por, asistencias.modificado_por, adelantos_salario.registrado_por_id, preparaciones_cocina.registrado_por, cierres_caja.cerrado_por) y `_empleado_tiene_referencias()` (3 FKs: asistencias/nominas/adelantos_salario.empleado_id). Se borra primero el usuario y luego su empleado (ambos solo si las dos consultas dan 0). El endpoint de usuario pide `{password}` (autorización, patrón de `dar_de_baja_empleado`), 400 si es auto-borrado o ya archivado, 401 si la contraseña es incorrecta. **Login**: `POST /auth/login` rechaza con 403 "Tu usuario está desactivado..." si `usuario.activo == False` (nuevo check tras validar password).
+- **Migración de startup `_migrate_nombres_archivados()`** (en `app/main.py`, corre en cada inicio): platos `disponible=False` → si no tienen ventas se `db.delete` (aceptado: desactivar un plato limpio lo purga en el siguiente reinicio); con ventas → renombra. Usuarios `activo=False` → SOLO renombra username y cédula del empleado vinculado (nunca borra en la migración; el borrado físico es exclusivo del endpoint). Idempotente vía sufijo `_deleted_{id}`.
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
 - **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`, optional `notas` for special instructions like "Sin cebolla", "poco cocido")
 - **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`. Does NOT apply to para llevar (mesa_id null).
@@ -277,6 +279,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Method | Path                                        | Auth     | RBAC              |
 |--------|---------------------------------------------|----------|--------------------|
 | POST   | /api/v1/auth/login                          | No       | —                  |
+| GET    | /api/v1/auth/me                             | Yes      | Any (sesión propia) |
 | GET    | /api/v1/personal/puestos                    | Yes      | Any                |
 | POST   | /api/v1/personal/puestos                    | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/empleados                  | Yes      | Admin, Gerente     |
@@ -285,6 +288,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | DELETE | /api/v1/personal/empleados/{id}             | Yes      | Admin, Gerente     |
 | POST   | /api/v1/personal/usuarios                   | Yes      | Admin, Gerente     |
 | GET    | /api/v1/personal/usuarios                   | Yes      | Any                |
+| DELETE | /api/v1/personal/usuarios/{id}              | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/personal/usuarios/{id}/reset-password | Yes    | Admin, Gerente     |
 | PATCH  | /api/v1/personal/usuarios/turno-masivo      | Yes      | Admin, Gerente     |
 | PATCH  | /api/v1/personal/usuarios/{id}/turno        | Yes      | Admin, Gerente     |
@@ -516,7 +520,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - Background `_heartbeat_watcher()` task runs every `HEARTBEAT_INTERVAL_SECONDS` (default: 300s / 5 min), queries `get_activas_sin_heartbeat()` for turnos with no heartbeat in `HEARTBEAT_TIMEOUT_SECONDS`
 - Stale turnos are auto-closed with `hora_salida_real = ultimo_heartbeat` and hours calculated normally
 - Configurable via `.env`: `HEARTBEAT_INTERVAL_SECONDS` (BG check interval, default 300s) and `HEARTBEAT_TIMEOUT_SECONDS` (stale threshold, default 900s / 15 min)
-- **Frontend**: `enviarHeartbeat()` fires every 2 min via `setInterval` — only for Vendedor role with active shift (`state.currentAsistencia` set); silently ignored on error; cleared on logout
+- **Frontend**: `enviarHeartbeat()` fires every 2 min via `setInterval` — only for Vendedor role with active shift (`state.currentAsistencia` set); silently ignored on error. `iniciarIntervalosSesion()` arranca en `login()` y en el restore de sesión el heartbeat (120 s) + el polling `verificarSesionTurno()` (60 s → `GET /auth/me`); ambos se limpian en `logout()`. Interceptor global `api()`: ante `403` con detail `TURNO_DESHABILITADO` / `USUARIO_DESACTIVADO` muestra toast + `logout()` automático (los sentinels se suprimen del toast genérico vía `ERRORES_SESION`); el toast de cierre se muestra incluso con `silent: true`
 
 ### Gestión de Turnos CRUD
 - `POST /asistencia/turnos` → create shift template (nombre, hora_entrada, horas_teoricas)
@@ -531,6 +535,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `PATCH /personal/usuarios/{id}/turno` → body `{"turno_habilitado": bool}`; `PATCH /personal/usuarios/turno-masivo` → mismo body, actualiza a todos los `Vendedor` (retorna `{"actualizados": N}`). Ambos Admin/Gerente.
 - Migración de startup `_migrate_usuarios_turno_habilitado()`: agrega la columna si falta y, **solo en la primera ejecución**, habilita (`= 1`) a los Vendedores ya existentes para no bloquearlos en el despliegue. En reinicios posteriores no toca el estado.
 - Los Vendedores nuevos nacen con `turno_habilitado = False` y requieren habilitación de gerencia.
+- **Invalidación de sesiones activas**: `get_current_user` (en `app/api/deps.py`) valida en **cada petición** el usuario fresco de BD — si `activo == False` → `403 USUARIO_DESACTIVADO`; si rol `Vendedor` y `turno_habilitado == False` → `403 TURNO_DESHABILITADO`. Esto corta de raíz las sesiones abiertas (todas las rutas autenticadas pasan por `get_current_user`, incluso vía `requerir_rol`). Usuario eliminado físicamente → `401` (token inválido, logout automático). `GET /auth/me` (nuevo, `AuthMeResponse`: id, username, rol, turno_habilitado, activo) expone la sesión y sirve de fuente para el polling. La asistencia activa del vendedor bloqueado la cierra el watcher de heartbeat (≤15 min), no el toggle.
 
 ### KDS (Kitchen Display System)
 - `OrdenRepository.obtener_ordenes_filtradas()` eager-loads `Orden.mesa.zona` and `Orden.mesero` for KDS card display

@@ -68,7 +68,8 @@ from app.schemas.analitica import (
 from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
-    TokenData
+    TokenData,
+    AuthMeResponse
 )
 
 __all__ = [
@@ -117,5 +118,6 @@ __all__ = [
     "CierreCajaResponse",
     "LoginRequest",
     "TokenResponse",
-    "TokenData"
+    "TokenData",
+    "AuthMeResponse"
 ]

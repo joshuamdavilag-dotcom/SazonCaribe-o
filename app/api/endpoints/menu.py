@@ -10,6 +10,7 @@ from app.schemas.personal import RolEnum
 from app.schemas.menu import (
     CategoriaMenuCreate,
     CategoriaMenuResponse,
+    EliminarItemResponse,
     MenuItemCreate,
     MenuItemResponse,
     MenuItemUpdate
@@ -254,12 +255,14 @@ def actualizar_menu_item(
 
 @router.delete(
     "/items/{item_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Desactivar plato del menú (borrado lógico)",
+    response_model=EliminarItemResponse,
+    summary="Eliminar plato del menú (borra o archiva)",
     description=(
-        "Desactiva un plato (borrado lógico) marcándolo como no disponible. "
-        "Queda oculto en comandas y carta pública, pero su receta e historial "
-        "de ventas se conservan. Solo Administradores y Gerentes."
+        "Elimina un plato liberando su nombre para reutilizarlo. "
+        "Sin historial de ventas: se borra físicamente (junto con su receta). "
+        "Con historial de ventas: se archiva renombrando su nombre a "
+        "'{nombre}_deleted_{id}' y marcándolo no disponible, conservando "
+        "el historial. Solo Administradores y Gerentes."
     ),
     tags=["Menú y Recetas"],
     dependencies=[_requerir_rol_menu]
@@ -267,8 +270,14 @@ def actualizar_menu_item(
 def eliminar_menu_item(
     item_id: int = Path(..., gt=0, description="ID del plato a eliminar"),
     service: MenuService = Depends(get_menu_service)
-) -> None:
-    service.eliminar_platillo(item_id)
+) -> EliminarItemResponse:
+    """
+    Elimina un plato con la regla borrar/archivar.
+
+    - **Sin ventas** → eliminación física (se borra la receta vía cascada).
+    - **Con ventas** → archivo: renombra a ``{nombre}_deleted_{id}`` y desactiva.
+    """
+    return service.eliminar_platillo(item_id)
 
 
 @router.post(

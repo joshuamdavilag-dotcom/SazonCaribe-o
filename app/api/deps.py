@@ -31,8 +31,10 @@ def get_current_user(
         Objeto Usuario autenticado.
 
     Raises:
-        HTTPException 401: Token inválido o expirado.
-        HTTPException 404: Usuario no encontrado en BD.
+        HTTPException 401: Token inválido o expirado, o el usuario ya no
+            existe en BD (borrado físicamente).
+        HTTPException 403: El usuario está desactivado o su turno de trabajo
+            fue deshabilitado por gerencia.
     """
     payload = decodificar_access_token(token)
     usuario_id = payload.get("sub")
@@ -49,8 +51,21 @@ def get_current_user(
 
     if not usuario:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuario no encontrado"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="USUARIO_DESACTIVADO"
+        )
+
+    if usuario.rol == RolEnum.VENDEDOR.value and not usuario.turno_habilitado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="TURNO_DESHABILITADO"
         )
 
     return usuario

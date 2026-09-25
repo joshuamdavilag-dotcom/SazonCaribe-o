@@ -222,3 +222,17 @@ class MenuItemUpdate(BaseModel):
         if isinstance(values, dict) and "receta" in values and "ingredientes_receta" not in values:
             values["ingredientes_receta"] = values.pop("receta")
         return values
+
+
+class EliminarItemResponse(BaseModel):
+    """Esquema de respuesta al eliminar un plato del menú."""
+    resultado: str = Field(
+        ...,
+        description="'eliminado' si se borró físicamente, 'archivado' si se conservó con nombre renombrado",
+        examples=["archivado"]
+    )
+    mensaje: str = Field(
+        ...,
+        description="Mensaje legible del resultado de la operación",
+        examples=["'Arroz con Camarón' fue archivado: tiene historial de ventas; el nombre queda disponible para un nuevo plato"]
+    )

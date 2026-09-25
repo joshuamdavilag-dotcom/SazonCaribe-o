@@ -1,5 +1,6 @@
 import os
 import base64
+import uuid
 from io import BytesIO
 from typing import Optional, List
 
@@ -286,21 +287,25 @@ class MenuService:
         item_actualizado = self.menu_repo.actualizar_menu_item(item_id, item_in)
         return MenuItemResponse.model_validate(item_actualizado)
 
-    def eliminar_platillo(self, item_id: int) -> None:
+    def eliminar_platillo(self, item_id: int) -> dict:
         """
-        Borrado lógico (soft delete) de un plato.
+        Elimina un plato del menú con la regla borrar/archivar.
 
-        Marca el plato como ``disponible = False`` para ocultarlo de
-        comandas y de la carta pública, sin eliminarlo físicamente. De esta
-        forma el historial de ventas (``detalle_orden``) y la receta se
-        conservan y el plato puede reactivarse desde Gestión de Menú.
+        - Sin historial de ventas: lo elimina físicamente (junto con su
+          receta vía cascada ORM). El nombre queda libre de inmediato.
+        - Con historial de ventas: lo archiva renombrando su ``nombre`` a
+          ``{nombre}_deleted_{id}`` y marcándolo ``disponible = False``.
+          El historial se conserva y el nombre original queda libre para
+          reutilizarse en un plato nuevo.
 
         Args:
-            item_id: ID del plato a desactivar.
+            item_id: ID del plato a eliminar.
+
+        Returns:
+            Dict con ``resultado`` ('eliminado' | 'archivado') y ``mensaje``.
 
         Raises:
             HTTPException 404: Si el plato no existe.
-            HTTPException 400: Si ocurre una violación de integridad al desactivar.
         """
         from sqlalchemy.exc import IntegrityError
 
@@ -311,18 +316,76 @@ class MenuService:
                 detail=f"No se encontró el plato con ID {item_id}"
             )
 
+        ventas = self.menu_repo.contar_ventas(item_id)
+        if ventas == 0:
+            try:
+                self.menu_repo.eliminar_menu_item_fisico(item_id)
+            except IntegrityError:
+                self.db.rollback()
+                return self._archivar_platillo(item_id, existing.nombre)
+            return {
+                "resultado": "eliminado",
+                "mensaje": (
+                    f"'{existing.nombre}' fue eliminado permanentemente "
+                    f"(no tenía ventas registradas)."
+                ),
+            }
+
+        return self._archivar_platillo(item_id, existing.nombre)
+
+    def _archivar_platillo(self, item_id: int, nombre: str) -> dict:
+        """
+        Archiva un plato conservando su historial: libera el nombre original
+        renombrándolo con el sufijo ``_deleted_{id}`` (idempotente) y lo marca
+        no disponible. Si el nombre ya existe (colisión), agrega un sufijo corto.
+
+        Args:
+            item_id: ID del plato a archivar.
+            nombre: Nombre actual del plato.
+
+        Returns:
+            Dict con ``resultado`` 'archivado' y ``mensaje``.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        sufijo = f"_deleted_{item_id}"
+        max_len = 100
+        nombre_archivo = self._nombre_archivado(nombre, item_id, max_len)
+
         try:
-            self.menu_repo.eliminar_menu_item(item_id)
+            self.menu_repo.marcar_archivado(item_id, nombre_archivo)
         except IntegrityError:
             self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"No se pudo desactivar el plato '{existing.nombre}': "
-                    f"existen referencias asociadas (historial de ventas u "
-                    f"otros registros)."
-                )
-            )
+            parte = nombre[: max(1, max_len - 8 - len(sufijo))]
+            nombre_archivo = f"{parte}_{uuid.uuid4().hex[:6]}{sufijo}"
+            self.menu_repo.marcar_archivado(item_id, nombre_archivo)
+
+        return {
+            "resultado": "archivado",
+            "mensaje": (
+                f"'{nombre}' fue archivado: tiene historial de ventas, se "
+                f"conservó bajo '{nombre_archivo}' y el nombre original quedó "
+                f"disponible para un nuevo plato."
+            ),
+        }
+
+    def _nombre_archivado(self, valor: str, pk: int, max_len: int) -> str:
+        """
+        Genera el nombre archivado ``{valor}_deleted_{pk}`` truncando la base
+        para respetar el largo máximo de la columna.
+
+        Args:
+            valor: Nombre original.
+            pk: ID del registro (sufijo de unicidad).
+            max_len: Largo máximo de la columna.
+
+        Returns:
+            El nombre archivado, o el mismo valor si ya tenía el sufijo.
+        """
+        sufijo = f"_deleted_{pk}"
+        if valor.endswith(sufijo):
+            return valor
+        return f"{valor[: max_len - len(sufijo)]}{sufijo}"
 
     def _procesar_imagen_webp(self, contenido: bytes) -> bytes:
         """

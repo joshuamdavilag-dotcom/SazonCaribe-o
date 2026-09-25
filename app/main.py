@@ -176,6 +176,7 @@ async def startup_event():
     _migrate_asistencias_anulada()
     _migrate_usuarios_turno_habilitado()
     _migrate_mesas_apodo()
+    _migrate_nombres_archivados()
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
@@ -574,6 +575,99 @@ def _migrate_mesas_apodo():
         except Exception as e:
             db.rollback()
             print(f"  [X] Error al agregar 'apodo' a mesas: {e}")
+
+
+def _migrate_nombres_archivados():
+    """Libera nombres retenidos por registros inactivos/eliminados.
+
+    - Platillos inactivos (``disponible = False``):
+        * Sin ventas → se eliminan físicamente (receta incluida vía cascada).
+        * Con ventas → se renombran a ``{nombre}_deleted_{id}`` liberando el
+          nombre original para un plato nuevo.
+    - Usuarios inactivos (``activo = False``):
+        * Se renombran username y la cédula de su empleado vinculado a
+          ``{valor}_deleted_{id}``. En la migración NUNCA se borran usuarios:
+          el borrado físico solo ocurre vía DELETE /personal/usuarios/{id}.
+
+    Idempotente: los registros que ya tienen el sufijo ``_deleted_{id}`` se
+    omiten, por lo que en reinicios posteriores el costo es mínimo.
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import Session
+
+    from app.models.menu import MenuItem
+    from app.models.orden import DetalleOrden
+    from app.models.personal import Usuario, Empleado
+
+    with Session(engine) as db:
+        # --- Platillos inactivos -------------------------------------------------
+        items = db.execute(
+            select(MenuItem).where(MenuItem.disponible == False)  # noqa: E712
+        ).scalars().all()
+        for item in items:
+            try:
+                ventas = db.execute(
+                    select(func.count())
+                    .select_from(DetalleOrden)
+                    .where(DetalleOrden.producto_id == item.id)
+                ).scalar_one()
+                if ventas == 0:
+                    db.delete(item)
+                    db.commit()
+                    print(
+                        "  [~] Platillo inactivo "
+                        f"'#{item.id} {item.nombre}' eliminado (sin ventas)"
+                    )
+                else:
+                    sufijo = f"_deleted_{item.id}"
+                    if not item.nombre.endswith(sufijo):
+                        nombre_archivo = (
+                            f"{item.nombre[: 100 - len(sufijo)]}{sufijo}"
+                        )
+                        item.nombre = nombre_archivo
+                        db.commit()
+                        print(
+                            "  [~] Platillo inactivo "
+                            f"'#{item.id} {nombre_archivo}' renombrado (con ventas)"
+                        )
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Migración nombre plato #{item.id}: {e}")
+
+        # --- Usuarios inactivos ---------------------------------------------------
+        usuarios = db.execute(
+            select(Usuario).where(Usuario.activo == False)  # noqa: E712
+        ).scalars().all()
+        for usuario in usuarios:
+            try:
+                sufijo = f"_deleted_{usuario.id}"
+                if not usuario.username.endswith(sufijo):
+                    usuario.username = (
+                        f"{usuario.username[: 50 - len(sufijo)].strip()}{sufijo}"
+                    )
+                    db.commit()
+                    print(
+                        "  [~] Usuario inactivo "
+                        f"'#{usuario.id}' renombrado a '{usuario.username}'"
+                    )
+                if usuario.empleado_id:
+                    empleado = db.get(Empleado, usuario.empleado_id)
+                    if empleado is not None and empleado.activo:
+                        sufijo_emp = f"_deleted_{empleado.id}"
+                        if not empleado.cedula_identidad.endswith(sufijo_emp):
+                            empleado.cedula_identidad = (
+                                f"{empleado.cedula_identidad[: 20 - len(sufijo_emp)].strip()}"
+                                f"{sufijo_emp}"
+                            )
+                        empleado.activo = False
+                        db.commit()
+                        print(
+                            "  [~] Empleado vinculado al usuario "
+                            f"'#{usuario.id}' desactivado (cédula liberada si aplicaba)"
+                        )
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Migración nombre usuario #{usuario.id}: {e}")
 
 
 def _fix_unidades_medida():

@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.menu import CategoriaMenu, MenuItem, Receta
+from app.models.orden import DetalleOrden
 from app.schemas.menu import CategoriaMenuCreate, MenuItemCreate, MenuItemUpdate
 
 
@@ -137,6 +138,68 @@ class MenuRepository:
         db_item.disponible = False
         self.db.commit()
         return True
+
+    def contar_ventas(self, item_id: int) -> int:
+        """
+        Cuenta cuántas líneas de órdenes (``detalle_orden``) referencian a
+        un plato. Si el conteo es mayor que cero, el plato no puede borrarse
+        físicamente y debe archivarse (renombrar nombre + desactivar).
+
+        Args:
+            item_id: ID del plato.
+
+        Returns:
+            Cantidad de referencias en el historial de ventas.
+        """
+        statement = select(func.count(DetalleOrden.id)).where(
+            DetalleOrden.producto_id == item_id
+        )
+        return self.db.execute(statement).scalar_one()
+
+    def eliminar_menu_item_fisico(self, item_id: int) -> bool:
+        """
+        Elimina físicamente un plato del menú.
+
+        Solo debe invocarse cuando ``contar_ventas()`` devuelve cero: de lo
+        contrario la FK de ``detalle_orden.producto_id`` levantará un
+        ``IntegrityError``. La cascada ORM de ``ingredientes_receta`` borra
+        las recetas asociadas en el mismo flush.
+
+        Args:
+            item_id: ID del plato a eliminar.
+
+        Returns:
+            True si el plato existía y se eliminó; False si no existe.
+        """
+        statement = select(MenuItem).where(MenuItem.id == item_id)
+        db_item = self.db.execute(statement).scalar_one_or_none()
+        if db_item is None:
+            return False
+        self.db.delete(db_item)
+        self.db.commit()
+        return True
+
+    def marcar_archivado(self, item_id: int, nombre_archivo: str) -> Optional[MenuItem]:
+        """
+        Archiva un plato conservando su historial: renombra su ``nombre`` a
+        ``{nombre}_deleted_{id}`` (liberando el nombre original para un plato
+        nuevo) y lo marca como ``disponible = False``.
+
+        Args:
+            item_id: ID del plato a archivar.
+            nombre_archivo: Nuevo nombre ya truncado para la columna.
+
+        Returns:
+            El plato archivado o None si no existe.
+        """
+        statement = select(MenuItem).where(MenuItem.id == item_id)
+        db_item = self.db.execute(statement).scalar_one_or_none()
+        if db_item is None:
+            return None
+        db_item.nombre = nombre_archivo
+        db_item.disponible = False
+        self.db.commit()
+        return db_item
 
     def _query_items_base(self, incluir_insumos: bool = True):
         """

@@ -259,6 +259,20 @@ class EliminarEmpleadoRequest(BaseModel):
     )
 
 
+class EliminarUsuarioResponse(BaseModel):
+    """Esquema de respuesta al eliminar un usuario del sistema."""
+    resultado: str = Field(
+        ...,
+        description="'eliminado' si se borró físicamente, 'archivado' si se conservó con username renombrado",
+        examples=["archivado"]
+    )
+    mensaje: str = Field(
+        ...,
+        description="Mensaje legible del resultado de la operación",
+        examples=["El usuario 'prueba02' y su empleado fueron eliminados porque no tienen registros contables."]
+    )
+
+
 class TurnoHabilitadoUpdate(BaseModel):
     """Esquema para cambiar la habilitación de turno de un usuario Vendedor."""
     turno_habilitado: bool = Field(

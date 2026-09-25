@@ -49,3 +49,27 @@ class TokenData(BaseModel):
         default=None,
         description="Rol del usuario en el sistema"
     )
+
+
+class AuthMeResponse(BaseModel):
+    """Esquema de respuesta del endpoint GET /auth/me (validez de sesión)."""
+    id: int = Field(
+        ...,
+        description="ID del usuario autenticado"
+    )
+    username: str = Field(
+        ...,
+        description="Nombre de usuario"
+    )
+    rol: str = Field(
+        ...,
+        description="Rol del usuario en el sistema"
+    )
+    turno_habilitado: bool = Field(
+        ...,
+        description="Indica si el turno de trabajo del usuario está habilitado por gerencia"
+    )
+    activo: bool = Field(
+        ...,
+        description="Indica si el usuario está activo"
+    )

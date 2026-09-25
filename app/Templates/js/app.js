@@ -42,6 +42,7 @@ const state = {
   currentAsistencia: JSON.parse(localStorage.getItem('pos_asistencia') || 'null'),
   currentOcupada: null,
   heartbeatInterval: null,
+  sessionPollInterval: null,
 };
 
 /* =========================================================================
@@ -60,6 +61,8 @@ function formatLocalTime(isoStr) {
 /* =========================================================================
    API Helpers
    ========================================================================= */
+const ERRORES_SESION = ['Sesión expirada', 'TURNO_DESHABILITADO', 'USUARIO_DESACTIVADO'];
+
 async function api(endpoint, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = { ...options.headers };
@@ -68,6 +71,20 @@ async function api(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
   Object.keys(headers).forEach(k => { if (headers[k] === undefined) delete headers[k]; });
+
+  const forzarCierreSesion = (err) => {
+    if (err.detail === 'TURNO_DESHABILITADO') {
+      showToast('Tu turno ha sido finalizado/deshabilitado por gerencia.', 'error', 5000);
+      logout();
+      return new Error('TURNO_DESHABILITADO');
+    }
+    if (err.detail === 'USUARIO_DESACTIVADO') {
+      showToast('Tu usuario fue desactivado. Contacta a gerencia.', 'error', 5000);
+      logout();
+      return new Error('USUARIO_DESACTIVADO');
+    }
+    return null;
+  };
 
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
@@ -83,6 +100,8 @@ async function api(endpoint, options = {}) {
         const raw = await res.text().catch(() => '');
         err = { detail: `Error del servidor (HTTP ${res.status})${raw ? `: ${raw.slice(0, 200)}` : ''}` };
       }
+      const sesion = forzarCierreSesion(err);
+      if (sesion) throw sesion;
       let msg = err.detail || `Error ${res.status}`;
       if (Array.isArray(msg)) {
         msg = msg.map(e => e.msg || JSON.stringify(e)).join('; ');
@@ -91,7 +110,7 @@ async function api(endpoint, options = {}) {
     }
     return res.status === 204 ? null : await res.json();
   } catch (e) {
-    if (!options.silent && e.message !== 'Sesión expirada') showToast(e.message, 'error');
+    if (!options.silent && !ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
     throw e;
   }
 }
@@ -204,6 +223,7 @@ async function login(username, password) {
     showAttendancePanel();
     loadTurnos();
     navigateTo('salon');
+    iniciarIntervalosSesion();
     showToast(`Bienvenido, ${state.user.username}`);
   } catch (e) {
     const serverMsg = e && typeof e.message === 'string'
@@ -217,6 +237,7 @@ async function login(username, password) {
 
 function logout() {
   if (state.heartbeatInterval) { clearInterval(state.heartbeatInterval); state.heartbeatInterval = null; }
+  if (state.sessionPollInterval) { clearInterval(state.sessionPollInterval); state.sessionPollInterval = null; }
   state.token = null;
   state.user = null;
   state.currentAsistencia = null;
@@ -246,64 +267,34 @@ function updateUserBadges() {
    ========================================================================= */
 async function iniciarTurno(turnoId) {
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-
-    const res = await fetch(`${API_BASE}/asistencia/turnos/iniciar/${turnoId}`, {
+    const data = await api(`/asistencia/turnos/iniciar/${turnoId}`, {
       method: 'POST',
-      headers,
+      silent: true,
     });
-
-    if (res.status === 401) {
-      logout();
-      throw new Error('Sesión expirada');
-    }
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error del servidor' }));
-      throw new Error(err.detail || `Error ${res.status}`);
-    }
-
-    const data = await res.json();
     state.currentAsistencia = data;
     localStorage.setItem('pos_asistencia', JSON.stringify(data));
     renderAttendanceStatus();
     showToast('Turno iniciado con éxito', 'success');
     return data;
   } catch (e) {
-    if (e.message !== 'Sesión expirada') showToast(e.message, 'error');
+    if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
     throw e;
   }
 }
 
 async function finalizarTurno() {
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-
-    const res = await fetch(`${API_BASE}/asistencia/check-out`, {
+    await api('/asistencia/check-out', {
       method: 'POST',
-      headers,
+      silent: true,
     });
-
-    if (res.status === 401) {
-      logout();
-      throw new Error('Sesión expirada');
-    }
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const msg = data?.detail || `Error ${res.status}`;
-      throw new Error(msg);
-    }
-
     state.currentAsistencia = null;
     localStorage.removeItem('pos_asistencia');
     renderAttendanceStatus();
     showToast('Turno finalizado con éxito', 'success');
-    return data;
+    return null;
   } catch (e) {
-    if (e.message !== 'Sesión expirada') showToast(e.message, 'error');
+    if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
     throw e;
   }
 }
@@ -478,6 +469,25 @@ async function enviarHeartbeat() {
       method: 'POST', headers,
     });
   } catch { /* silent — intentionally ignored */ }
+}
+
+/* --- Verificación de sesión (polling cada 60s) ---
+   Consulta GET /auth/me; si la gerencia deshabilitó el turno (403
+   TURNO_DESHABILITADO) o el usuario fue desactivado (403
+   USUARIO_DESACTIVADO), el interceptor de api() hace logout automático. */
+async function verificarSesionTurno() {
+  if (!state.token || !state.user) return;
+  try {
+    await api('/auth/me', { silent: true });
+  } catch { /* el interceptor ya manejó el cierre de sesión */ }
+}
+
+/* --- Intervalos de sesión: heartbeat + poll de validez --- */
+function iniciarIntervalosSesion() {
+  if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
+  if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
+  state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
+  state.sessionPollInterval = setInterval(verificarSesionTurno, 60_000);
 }
 
 /* =========================================================================
@@ -1709,12 +1719,16 @@ function bindMenuMgmtStatusFilters() {
 }
 
 async function deleteDish(itemId, nombre) {
-  if (!confirm(`¿Desactivar el platillo "${nombre}"?\nQuedará oculto en comandas y en la carta, pero su receta e historial de ventas se conservan.`)) return;
+  if (!confirm(`¿Eliminar el platillo "${nombre}"?\n• Sin ventas: se borra permanentemente (con su receta).\n• Con ventas: se archiva conservando el historial y el nombre queda disponible.`)) return;
   try {
-    await api(`/menu/items/${itemId}`, { method: 'DELETE' });
-    showToast(`"${nombre}" desactivado`);
-    const item = state.menuItems.find(i => i.id === itemId);
-    if (item) item.disponible = false;
+    const res = await api(`/menu/items/${itemId}`, { method: 'DELETE' });
+    showToast(res?.mensaje || (res?.resultado === 'eliminado' ? `"${nombre}" eliminado` : `"${nombre}" archivado`));
+    if (res?.resultado === 'eliminado') {
+      state.menuItems = state.menuItems.filter(i => i.id !== itemId);
+    } else {
+      const item = state.menuItems.find(i => i.id === itemId);
+      if (item) item.disponible = false;
+    }
     applyMenuMgmtFilter();
   } catch { /* handled by api() */ }
 }
@@ -2971,6 +2985,7 @@ function renderPersonalTable(empleados, usuarios) {
                   <button class="emp-action emp-turq" title="Ver nómina de ${nombreCompleto}" onclick="openNominaModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">payments</span></button>
                   <button class="emp-action emp-sky" title="Ver asistencias de ${nombreCompleto}" onclick="openAsistenciasModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">history</span></button>
                   ${user ? `<button class="emp-action emp-slate" title="Restablecer contraseña de ${username}" onclick="openResetPasswordModal(${user.id}, '${user.username}')"><span class="material-symbols-outlined">key</span></button>` : ''}
+                  ${user ? `<button class="emp-action emp-danger admin-only" title="Eliminar usuario de ${nombreCompleto}" onclick="openEliminarUsuarioModal(${user.id}, '${user.username}', '${nq}')"><span class="material-symbols-outlined">delete</span></button>` : ''}
                   ${user && user.rol === 'Vendedor' ? `
                   <button class="btn-toggle-turno ${user.turno_habilitado ? 'active text-emerald-600 bg-emerald-50' : 'inactive text-slate-400 bg-slate-100'} admin-only p-1.5 rounded-lg transition-colors" data-id="${user.id}" data-enabled="${user.turno_habilitado ? 'true' : 'false'}" title="${user.turno_habilitado ? 'Deshabilitar Turno' : 'Habilitar Turno'} de ${nombreCompleto}">
                     <span class="material-symbols-outlined text-lg leading-none block">${user.turno_habilitado ? 'toggle_on' : 'toggle_off'}</span>
@@ -3091,6 +3106,49 @@ async function confirmEliminarEmpleado() {
     });
     showToast('Empleado dado de baja correctamente');
     closeEliminarEmpleadoModal();
+    loadPersonal();
+  } catch (e) {
+    pw.focus();
+    pw.select();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   Eliminar Usuario (físico o archivo con liberación de username)
+   ========================================================================= */
+let eliminarUsuarioId = null;
+
+function openEliminarUsuarioModal(usuarioId, username, nombreEmpleado) {
+  eliminarUsuarioId = usuarioId;
+  document.getElementById('eliminar-usuario-nombre').textContent = nombreEmpleado || `#${usuarioId}`;
+  document.getElementById('eliminar-usuario-username').textContent = username || '';
+  const pw = document.getElementById('eliminar-usuario-password');
+  pw.value = '';
+  document.getElementById('confirm-eliminar-usuario').disabled = false;
+  document.getElementById('modal-eliminar-usuario').classList.add('show');
+  setTimeout(() => pw.focus(), 80);
+}
+
+function closeEliminarUsuarioModal() {
+  document.getElementById('modal-eliminar-usuario').classList.remove('show');
+  eliminarUsuarioId = null;
+}
+
+async function confirmEliminarUsuario() {
+  if (!eliminarUsuarioId) return;
+  const pw = document.getElementById('eliminar-usuario-password');
+  if (!pw.value) return showToast('Ingresa tu contraseña para autorizar', 'warning');
+  const btn = document.getElementById('confirm-eliminar-usuario');
+  btn.disabled = true;
+  try {
+    const res = await api(`/personal/usuarios/${eliminarUsuarioId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ password: pw.value }),
+    });
+    showToast(res?.mensaje || 'Usuario procesado correctamente');
+    closeEliminarUsuarioModal();
     loadPersonal();
   } catch (e) {
     pw.focus();
@@ -4989,6 +5047,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') { e.preventDefault(); confirmEliminarEmpleado(); }
   });
 
+  // Eliminar Usuario modal
+  document.getElementById('close-eliminar-usuario')?.addEventListener('click', closeEliminarUsuarioModal);
+  document.getElementById('cancel-eliminar-usuario')?.addEventListener('click', closeEliminarUsuarioModal);
+  document.getElementById('confirm-eliminar-usuario')?.addEventListener('click', confirmEliminarUsuario);
+  document.getElementById('eliminar-usuario-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmEliminarUsuario(); }
+  });
+
   // Asistencias modal
   document.getElementById('close-asistencias')?.addEventListener('click', closeAsistenciasModal);
 
@@ -5060,7 +5126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showAttendancePanel();
     loadTurnos();
     navigateTo('salon');
-    state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
+    iniciarIntervalosSesion();
   } else {
     showLogin();
   }

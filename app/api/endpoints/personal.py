@@ -16,6 +16,7 @@ from app.schemas.personal import (
     UsuarioResponse,
     PasswordResetRequest,
     EliminarEmpleadoRequest,
+    EliminarUsuarioResponse,
     TurnoHabilitadoUpdate,
     TurnoMasivoResponse,
     RolEnum
@@ -207,6 +208,34 @@ def listar_usuarios(
     Retorna la lista de todos los usuarios del sistema.
     """
     return service.listar_usuarios()
+
+
+@router.delete(
+    "/usuarios/{usuario_id}",
+    response_model=EliminarUsuarioResponse,
+    summary="Eliminar usuario (físico o archivo)",
+    description=(
+        "Elimina un usuario liberando su username para reutilizarlo. "
+        "Sin registros asociados: borra físicamente el usuario y su empleado. "
+        "Con registros contables: archiva renombrando username y cédula a "
+        "'{valor}_deleted_{id}' y desactivando ambos. Requiere la contraseña "
+        "del usuario autenticado. Solo Administradores y Gerentes."
+    ),
+    tags=["Usuarios"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def eliminar_usuario(
+    usuario_id: int,
+    request: EliminarEmpleadoRequest,
+    current_user: Usuario = Depends(get_current_user),
+    service: PersonalService = Depends(get_personal_service)
+) -> EliminarUsuarioResponse:
+    """
+    Elimina un usuario con la regla borrar/archivar.
+
+    - **password**: Contraseña del usuario en sesión para autorizar la acción.
+    """
+    return service.eliminar_usuario(usuario_id, request, current_user)
 
 
 @router.put(
