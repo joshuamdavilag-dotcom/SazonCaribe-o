@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.personal import Usuario
@@ -23,6 +23,10 @@ class UsuarioRepository(BaseRepository[Usuario]):
         """
         Busca un usuario por su nombre de usuario (credencial).
 
+        Primero intenta una coincidencia exacta (aprovecha el índice único) y,
+        si no encuentra nada, hace un fallback tolerante con LOWER/TRIM para
+        sanear filas legacy que tengan espacios o mayúsculas de la era pre-fix.
+
         Args:
             username: Nombre de usuario a buscar.
 
@@ -30,6 +34,14 @@ class UsuarioRepository(BaseRepository[Usuario]):
             El usuario encontrado o None si no existe.
         """
         statement = select(Usuario).where(Usuario.username == username)
+        usuario = self.db.execute(statement).scalar_one_or_none()
+        if usuario is not None:
+            return usuario
+
+        normalized = username.strip().lower()
+        statement = select(Usuario).where(
+            func.lower(func.trim(Usuario.username)) == normalized
+        )
         return self.db.execute(statement).scalar_one_or_none()
 
     def get_by_empleado_id(self, empleado_id: int) -> Optional[Usuario]:

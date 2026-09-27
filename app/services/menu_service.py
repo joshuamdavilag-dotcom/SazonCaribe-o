@@ -1,5 +1,5 @@
-import os
 import base64
+import time
 import uuid
 from io import BytesIO
 from typing import Optional, List
@@ -28,6 +28,9 @@ from app.schemas.menu_publico import (
 
 IMAGEN_ANCHO_MAX = 1080
 IMAGEN_WEBP_CALIDAD = 80
+IMAGEN_MAX_BYTES = 15 * 1024 * 1024   # 15 MB — el pipeline re-encodea a WebP ≤1080px de todos modos
+IMGBB_INTENTOS = 3
+IMGBB_BACKOFF_SEGUNDOS = 1.5
 
 
 class MenuService:
@@ -406,32 +409,34 @@ class MenuService:
             HTTPException 400: Si el archivo no es una imagen válida.
         """
         try:
+            prerender = Image.open(BytesIO(contenido))
+            prerender.verify()
             img = Image.open(BytesIO(contenido))
             img = ImageOps.exif_transpose(img) or img
+
+            if img.width > IMAGEN_ANCHO_MAX:
+                alto = round(img.height * IMAGEN_ANCHO_MAX / img.width)
+                img = img.resize(
+                    (IMAGEN_ANCHO_MAX, alto),
+                    Image.Resampling.LANCZOS
+                )
+
+            if img.mode not in ("RGB", "RGBA"):
+                img = img.convert("RGBA")
+
+            buffer = BytesIO()
+            img.save(
+                buffer,
+                format="WEBP",
+                quality=IMAGEN_WEBP_CALIDAD,
+                method=6
+            )
+            return buffer.getvalue()
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El archivo no contiene una imagen válida"
             )
-
-        if img.width > IMAGEN_ANCHO_MAX:
-            alto = round(img.height * IMAGEN_ANCHO_MAX / img.width)
-            img = img.resize(
-                (IMAGEN_ANCHO_MAX, alto),
-                Image.Resampling.LANCZOS
-            )
-
-        if img.mode not in ("RGB", "RGBA"):
-            img = img.convert("RGBA")
-
-        buffer = BytesIO()
-        img.save(
-            buffer,
-            format="WEBP",
-            quality=IMAGEN_WEBP_CALIDAD,
-            method=6
-        )
-        return buffer.getvalue()
 
     def subir_imagen(self, item_id: int, archivo) -> MenuItemResponse:
         """
@@ -443,11 +448,12 @@ class MenuService:
 
         Flujo:
         1. Verifica que el plato exista.
-        2. Valida tipo MIME y extensión (PNG, JPEG, WebP o GIF) y tamaño <= 5 MB.
-        3. Optimiza la imagen: ancho máximo 1080px + WebP calidad 80%.
-        4. Codifica a Base64 y envía a ImgBB.
-        5. Extrae la URL de la respuesta exitosa.
-        6. Persiste imagen_url y retorna el plato actualizado.
+        2. Valida tamaño <= 15 MB.
+        3. Valida la imagen por CONTENIDO con Pillow (independiente de MIME/extensión).
+        4. Optimiza la imagen: ancho máximo 1080px + WebP calidad 80%.
+        5. Codifica a Base64 y envía a ImgBB (con reintentos ante fallos transitorios).
+        6. Extrae la URL de la respuesta exitosa.
+        7. Persiste imagen_url y retorna el plato actualizado.
 
         Args:
             item_id: ID del plato.
@@ -458,7 +464,7 @@ class MenuService:
 
         Raises:
             HTTPException 404: Si el plato no existe.
-            HTTPException 400: Si el archivo no es una imagen válida o excede 5 MB.
+            HTTPException 400: Si el archivo no es una imagen válida o excede 15 MB.
             HTTPException 502: Si ImgBB retorna un error o no responde.
             HTTPException 500: Si IMGBB_API_KEY no está configurada.
         """
@@ -477,31 +483,11 @@ class MenuService:
                 detail="No se recibió ningún archivo de imagen"
             )
 
-        mime = (archivo.content_type or "").lower()
-        extension = os.path.splitext(archivo.filename or "")[1].lower()
-
-        mimes_permitidos = {
-            "image/png", "image/jpeg", "image/webp", "image/gif",
-        }
-        extensiones = {
-            ".png": ".png",
-            ".jpg": ".jpg",
-            ".jpeg": ".jpg",
-            ".webp": ".webp",
-            ".gif": ".gif",
-        }
-        if mime not in mimes_permitidos or extension not in extensiones:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Solo se permiten imágenes PNG, JPEG, WebP o GIF"
-            )
-
         contenido = archivo.file.read()
-        max_bytes = 5 * 1024 * 1024
-        if len(contenido) > max_bytes:
+        if len(contenido) > IMAGEN_MAX_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La imagen supera el tamaño máximo de 5 MB"
+                detail="La imagen supera el tamaño máximo de 15 MB"
             )
 
         if not settings.IMGBB_API_KEY:
@@ -510,29 +496,39 @@ class MenuService:
                 detail="IMGBB_API_KEY no configurada en el servidor"
             )
 
+        # Validación por contenido: Pillow decide si el archivo es una imagen
+        # (ignora MIME/extensión, que varía según el dispositivo). Formatos no
+        # soportados (p. ej. HEIC sin convertir) lanzan 400 con mensaje claro.
         contenido_optimizado = self._procesar_imagen_webp(contenido)
         b64_image = base64.b64encode(contenido_optimizado).decode("utf-8")
 
-        try:
-            response = httpx.post(
-                "https://api.imgbb.com/1/upload",
-                data={
-                    "key": settings.IMGBB_API_KEY,
-                    "image": b64_image,
-                },
-                timeout=30.0,
-            )
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Error de ImgBB: {e.response.status_code}"
-            )
-        except httpx.RequestError:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="No se pudo conectar con ImgBB"
-            )
+        # Reintentos con backoff ante fallos transitorios de red o 5xx de ImgBB.
+        response = None
+        for intento in range(IMGBB_INTENTOS):
+            try:
+                response = httpx.post(
+                    "https://api.imgbb.com/1/upload",
+                    data={
+                        "key": settings.IMGBB_API_KEY,
+                        "image": b64_image,
+                    },
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                break
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code < 500 or intento == IMGBB_INTENTOS - 1:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Error de ImgBB: {e.response.status_code}"
+                    )
+            except httpx.RequestError:
+                if intento == IMGBB_INTENTOS - 1:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="No se pudo conectar con ImgBB"
+                    )
+            time.sleep(IMGBB_BACKOFF_SEGUNDOS * (intento + 1))
 
         result = response.json()
         if not result.get("success"):

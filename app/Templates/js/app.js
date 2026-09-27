@@ -63,6 +63,16 @@ function formatLocalTime(isoStr) {
    ========================================================================= */
 const ERRORES_SESION = ['Sesión expirada', 'TURNO_DESHABILITADO', 'USUARIO_DESACTIVADO'];
 
+function _jwtExpirado(token) {
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
 async function api(endpoint, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = { ...options.headers };
@@ -87,11 +97,11 @@ async function api(endpoint, options = {}) {
   };
 
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-    if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
-      logout();
-      throw new Error('Sesión expirada');
-    }
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      cache: 'no-store',
+    });
     if (!res.ok) {
       let err;
       try {
@@ -99,6 +109,18 @@ async function api(endpoint, options = {}) {
       } catch {
         const raw = await res.text().catch(() => '');
         err = { detail: `Error del servidor (HTTP ${res.status})${raw ? `: ${raw.slice(0, 200)}` : ''}` };
+      }
+      // 401: solo cierra sesión si el 401 es REALMENTE de nuestra API (JSON con
+      // `detail`) o si el token ya expiró localmente. Portales cautivos/proxies
+      // del WiFi también responden 401 con HTML → se trata como pérdida de
+      // conexión (sin logout) para no matar la sesión durante una caída.
+      if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
+        const esApiPropia = err && typeof err.detail === 'string' && err.detail.length > 0;
+        if (esApiPropia || _jwtExpirado(state.token)) {
+          logout();
+          throw new Error('Sesión expirada');
+        }
+        throw new Error('SIN_CONEXION');
       }
       const sesion = forzarCierreSesion(err);
       if (sesion) throw sesion;
@@ -110,7 +132,16 @@ async function api(endpoint, options = {}) {
     }
     return res.status === 204 ? null : await res.json();
   } catch (e) {
-    if (!options.silent && !ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
+    const esRed = e.name === 'TypeError'
+      || e.message === 'SIN_CONEXION'
+      || /fetch|network|load failed|net::/i.test(e.message || '');
+    if (!options.silent) {
+      if (esRed) {
+        showToast('Sin conexión a internet — reintentando…', 'error');
+      } else if (!ERRORES_SESION.includes(e.message)) {
+        showToast(e.message, 'error');
+      }
+    }
     throw e;
   }
 }
@@ -1844,6 +1875,8 @@ async function openEditDish(itemId) {
   document.getElementById('dish-prep-time').value = item.tiempo_preparacion || '';
   setDishToggle(item.disponible !== false);
 
+  resetDishImage();
+
   const preview = document.getElementById('dish-image-preview');
   const hint = document.getElementById('dish-image-hint');
   if (preview) {
@@ -2061,8 +2094,15 @@ async function saveDish(e) {
     }
     const fileInput = document.getElementById('dish-image');
     if (savedId && fileInput && fileInput.files && fileInput.files.length > 0) {
-      await uploadDishImage(savedId, fileInput.files[0]);
-      showToast('Imagen subida');
+      try {
+        const comprimida = await compressImageFile(fileInput.files[0]);
+        await uploadDishImage(savedId, comprimida);
+        showToast('Platillo guardado — imagen actualizada');
+      } catch (errImg) {
+        const motivo = (errImg && errImg.message) ? errImg.message : 'Error inesperado';
+        showToast(`Platillo guardado, pero la imagen falló: ${motivo}. Reintenta subirla.`, 'error', 6000);
+        return;
+      }
     }
     closeDishModal();
     loadMenuManagement();
@@ -2081,6 +2121,44 @@ async function uploadDishImage(itemId, file) {
   return updated;
 }
 
+/* Comprime la foto en el navegador (canvas → máx. 1600px, WebP ~85%) antes de
+   subirla: evita el rechazo por tamaño en el servidor y acelera la subida.
+   En iPhone Safari también convierte HEIC → JPEG/WebP automáticamente. */
+function compressImageFile(file) {
+  const maxDim = 1600;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('No se pudo procesar esta foto. Usa otra imagen o conviértela a JPG.'));
+      img.onload = () => {
+        try {
+          const ancho = img.naturalWidth;
+          const alto = img.naturalHeight;
+          const escala = Math.min(1, maxDim / Math.max(ancho, alto));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(ancho * escala));
+          canvas.height = Math.max(1, Math.round(alto * escala));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          const soportaWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+          const tipo = soportaWebp ? 'image/webp' : 'image/jpeg';
+          canvas.toBlob(blob => {
+            if (!blob) return reject(new Error('No se pudo comprimir la imagen'));
+            const base = (file.name || 'imagen').replace(/\.[^.]+$/, '');
+            const nombre = `${base}.${tipo === 'image/webp' ? 'webp' : 'jpg'}`;
+            resolve(new File([blob], nombre, { type: tipo }));
+          }, tipo, 0.85);
+        } catch {
+          reject(new Error('No se pudo procesar esta foto. Usa otra imagen o conviértela a JPG.'));
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function previewDishImage() {
   const input = document.getElementById('dish-image');
   const preview = document.getElementById('dish-image-preview');
@@ -2090,7 +2168,7 @@ function previewDishImage() {
   if (!file) {
     preview.style.display = 'none';
     preview.removeAttribute('src');
-    if (hint) hint.textContent = 'PNG, JPEG, WebP o GIF · máx. 5 MB. Si no eliges imagen se usará el placeholder.';
+    if (hint) hint.textContent = 'Se comprime en el navegador (WebP). Si no eliges imagen se usará el placeholder.';
     return;
   }
   const reader = new FileReader();
@@ -2108,7 +2186,7 @@ function resetDishImage() {
   const hint = document.getElementById('dish-image-hint');
   if (input) input.value = '';
   if (preview) { preview.style.display = 'none'; preview.removeAttribute('src'); }
-  if (hint) hint.textContent = 'PNG, JPEG, WebP o GIF · máx. 5 MB. Si no eliges imagen se usará el placeholder.';
+  if (hint) hint.textContent = 'Se comprime en el navegador (WebP). Si no eliges imagen se usará el placeholder.';
 }
 
 /* =========================================================================
@@ -5156,6 +5234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!document.hidden) alVolverPestana();
   });
   window.addEventListener('focus', alVolverPestana);
+  window.addEventListener('online', alVolverPestana);
 
   // Restore session
   if (state.token && state.user) {

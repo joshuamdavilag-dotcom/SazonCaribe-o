@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Optional
 
 import bcrypt
@@ -6,6 +7,8 @@ from jose import JWTError, jwt
 from fastapi import HTTPException, status
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -24,10 +27,22 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 # =============================================================================
 
 def verificar_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(
-        plain_password.strip().encode("utf-8"),
-        hashed_password.encode("utf-8"),
-    )
+    """
+    Verifica una contraseña contra su hash bcrypt.
+
+    Si el hash almacenado es inválido/corrupto (p. ej. de la era passlib o
+    truncado), captura la excepción y devuelve False en vez de propagar un 500,
+    dejando además un log con el prefijo del hash para diagnóstico.
+    """
+    try:
+        return bcrypt.checkpw(
+            plain_password.strip().encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except (TypeError, ValueError):
+        prefijo = (hashed_password or "")[:11]
+        logger.warning("Verificación con hash inválido/corrupto: %r", prefijo)
+        return False
 
 
 def obtener_password_hash(password: str) -> str:

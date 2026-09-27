@@ -46,21 +46,22 @@ def login(
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas",
+            detail=f"No existe el usuario '{username_norm}'",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
     password_valida = verificar_password(data.password, usuario.password_hash)
     logger.info(
-        "Login intent username=%r password_valida=%s",
+        "Login intent username=%r password_valida=%s hash_prefix=%r",
         username_norm,
         password_valida,
+        (usuario.password_hash or "")[:7],
     )
 
     if not password_valida:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas",
+            detail="Contraseña incorrecta",
             headers={"WWW-Authenticate": "Bearer"}
         )
 

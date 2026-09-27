@@ -295,7 +295,7 @@ def subir_imagen_menu_item(
     item_id: int = Path(..., gt=0, description="ID del plato"),
     archivo: UploadFile = File(
         ...,
-        description="Archivo de imagen (PNG, JPEG, WebP o GIF, máx. 5 MB)"
+        description="Archivo de imagen (se comprime a WebP en el navegador; máx. 15 MB en el servidor)"
     ),
     service: MenuService = Depends(get_menu_service)
 ) -> MenuItemResponse:
@@ -305,8 +305,8 @@ def subir_imagen_menu_item(
     - **archivo**: Archivo de imagen a almacenar (multipart/form-data)
 
     Validaciones del servidor:
-    - Tipo de archivo permitido (PNG, JPEG, WebP o GIF)
-    - Tamaño máximo de 5 MB
+    - La imagen se valida por CONTENIDO con Pillow (no depende de MIME/extensión)
+    - Tamaño máximo de 15 MB
     - El campo `imagen_url` lo asigna el servidor, nunca el cliente
     """
     return service.subir_imagen(item_id, archivo)

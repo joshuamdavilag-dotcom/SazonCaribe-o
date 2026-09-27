@@ -205,23 +205,23 @@ def run_tests():
     print_ok(f"Nueva imagen {url2}; archivo anterior eliminado")
 
     # ---- FASE 5: validaciones ----
-    print_step(5, "Validaciones: tipo no permitido y tamaño máximo")
+    print_step(5, "Validaciones: contenido no-imagen y tamaño máximo")
     r = client.post(
         f"{API_V1}/menu/items/{item_id}/imagen",
         headers=headers,
         files={"archivo": ("malo.txt", b"no soy imagen", "text/plain")},
     )
-    assert r.status_code == 400, f"Se esperaba 400 para tipo no permitido, got {r.status_code}"
-    print_ok("Tipo .txt rechazado con 400")
+    assert r.status_code == 400, f"Se esperaba 400 para contenido no-imagen, got {r.status_code}"
+    print_ok("Archivo no-imagen rechazado con 400")
 
-    grande = b"\x89PNG\r\n\x1a\n" + b"\x00" * (5 * 1024 * 1024 + 1)
+    grande = b"\x89PNG\r\n\x1a\n" + b"\x00" * (15 * 1024 * 1024 + 1)
     r = client.post(
         f"{API_V1}/menu/items/{item_id}/imagen",
         headers=headers,
         files={"archivo": ("grande.png", grande, "image/png")},
     )
     assert r.status_code == 400, f"Se esperaba 400 por tamaño, got {r.status_code}"
-    print_ok("Archivo > 5 MB rechazado con 400")
+    print_ok("Archivo > 15 MB rechazado con 400")
 
     # imagen_url no se debe poder forzar desde el body
     r = client.put(f"{API_V1}/menu/items/{item_id}", headers=headers, json={

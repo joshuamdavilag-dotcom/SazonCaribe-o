@@ -180,6 +180,7 @@ async def startup_event():
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
+    _auditar_hashes()
     _fix_orphaned_mesas()
     asyncio.create_task(_heartbeat_watcher())
 
@@ -835,6 +836,30 @@ def _fix_joshi_password():
         except Exception as e:
             db.rollback()
             print(f"  [!] Error en auth fix: {e}")
+
+
+def _auditar_hashes():
+    """Audita hashes de contraseña legacy (no-bcrypt) para diagnóstico en producción."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            rows = db.execute(
+                text("SELECT username, LEFT(password_hash, 11) as prefix FROM usuarios")
+            ).fetchall()
+            problematicos = [
+                row for row in rows if not (row.prefix or "").startswith("$2")
+            ]
+            if problematicos:
+                detalle = ", ".join(
+                    f"{r.username} ({r.prefix})" for r in problematicos
+                )
+                print(f"  [!] [AUTH AUDIT] {len(problematicos)} usuarios con hash no-bcrypt: {detalle}")
+            else:
+                print(f"  [AUTH AUDIT] {len(rows)} usuarios, todos con hash bcrypt válido")
+        except Exception as e:
+            print(f"  [!] Error en auditoría de hashes: {e}")
 
 
 def _fix_orphaned_mesas():
