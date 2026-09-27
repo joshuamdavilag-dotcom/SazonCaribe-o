@@ -70,6 +70,12 @@ class Settings(BaseSettings):
         description="Tiempo máximo sin heartbeat antes de finalizar turno (15 min)"
     )
 
+    # Día de negocio — corte del "hoy" laboral (los turnos de bar/restaurante cruzan medianoche)
+    HORA_INICIO_DIA: int = Field(
+        default=7,
+        description="Hora (0-23) a la que empieza el día de negocio; el 'hoy' abarca 7:00 AM → 7:00 AM"
+    )
+
     # Nómina
     HOURS_PER_DAY: int = Field(default=8, description="Horas laborales por día")
     OVERTIME_MULTIPLIER: float = Field(

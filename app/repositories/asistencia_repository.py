@@ -5,7 +5,7 @@ from typing import Optional, List
 from sqlalchemy import select, and_, update, func, or_
 from sqlalchemy.orm import Session
 
-from app.core.tiempo import ahora_local, hoy_local
+from app.core.tiempo import ahora_local, ventana_dia_negocio
 from app.models.asistencia import Asistencia
 from app.models.personal import Usuario
 from app.repositories.base_repository import BaseRepository
@@ -43,6 +43,40 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
             Asistencia.anulada == False
         )
         return self.db.execute(statement).scalar_one_or_none()
+
+    def get_asistencia_del_dia_negocio(
+        self,
+        empleado_id: int,
+        ahora: datetime | None = None,
+    ) -> Optional[Asistencia]:
+        """
+        Asistencia no anulada dentro del "día de negocio" vigente.
+
+        El día de negocio es la ventana 7:00 AM → 7:00 AM (configurable via
+        HORA_INICIO_DIA) para que los turnos de bar/restaurante que cruzan la
+        medianoche no queden partidos entre dos fechas calendario. Se consulta
+        por ``hora_entrada_real`` (no por la columna ``fecha``, que guarda el
+        día calendario de creación y perdería los turnos de madrugada).
+
+        Args:
+            empleado_id: ID del empleado.
+            ahora: Hora local de referencia (default: ahora mismo).
+
+        Returns:
+            La asistencia más antigua de la ventana o None.
+        """
+        inicio, fin = ventana_dia_negocio(ahora)
+        statement = (
+            select(Asistencia)
+            .where(
+                Asistencia.empleado_id == empleado_id,
+                Asistencia.anulada == False,
+                Asistencia.hora_entrada_real >= inicio,
+                Asistencia.hora_entrada_real < fin,
+            )
+            .order_by(Asistencia.hora_entrada_real.asc())
+        )
+        return self.db.execute(statement).scalars().first()
 
     def get_asistencias_por_empleado(
         self,
@@ -120,7 +154,11 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
 
     def tiene_registro_hoy(self, empleado_id: int) -> bool:
         """
-        Verifica si el empleado ya tiene registro de asistencia hoy.
+        Verifica si el empleado ya tiene registro en el "día de negocio" vigente.
+
+        "Hoy" abarca la ventana 7:00 AM → 7:00 AM (HORA_INICIO_DIA), no el día
+        calendario, para que los turnos de bar/restaurante que cruzan la
+        medianoche no queden partidos entre dos fechas.
 
         Args:
             empleado_id: ID del empleado.
@@ -128,7 +166,7 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             True si ya tiene registro, False si no.
         """
-        return self.get_asistencia_del_dia(empleado_id, hoy_local()) is not None
+        return self.get_asistencia_del_dia_negocio(empleado_id) is not None
 
     def get_asistencias_por_rango_fechas(
         self,

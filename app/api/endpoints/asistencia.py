@@ -201,8 +201,6 @@ def registrar_salida(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AsistenciaResponse:
-    from app.core.tiempo import hoy_local
-
     repo = AsistenciaRepository(db)
     asistencias = repo.get_asistencias_por_empleado(current_user.empleado_id)
     activa = next(
@@ -210,9 +208,8 @@ def registrar_salida(
         None,
     )
     if not activa:
-        asistencia_hoy = repo.get_asistencia_del_dia(
+        asistencia_hoy = repo.get_asistencia_del_dia_negocio(
             current_user.empleado_id,
-            hoy_local(),
         )
         if asistencia_hoy and asistencia_hoy.hora_salida_real is not None:
             return AsistenciaResponse.model_validate(asistencia_hoy)

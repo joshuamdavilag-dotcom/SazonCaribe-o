@@ -42,9 +42,9 @@ def iniciar_turno(
         return abierta
 
     ahora = ahora_local()
-    registrada_hoy = asistencia_repo.get_asistencia_del_dia(
+    registrada_hoy = asistencia_repo.get_asistencia_del_dia_negocio(
         empleado_id,
-        ahora.date(),
+        ahora,
     )
     if registrada_hoy is not None:
         raise HTTPException(
