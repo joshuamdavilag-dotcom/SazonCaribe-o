@@ -37,7 +37,21 @@ def iniciar_turno(
             detail=f"No se encontró el turno con ID {turno_id}",
         )
 
+    abierta = asistencia_repo.get_abierta_por_empleado(empleado_id)
+    if abierta:
+        return abierta
+
     ahora = ahora_local()
+    registrada_hoy = asistencia_repo.get_asistencia_del_dia(
+        empleado_id,
+        ahora.date(),
+    )
+    if registrada_hoy is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya registraste y finalizaste tu turno hoy",
+        )
+
     datos = {
         "empleado_id": empleado_id,
         "turno_id": turno_id,

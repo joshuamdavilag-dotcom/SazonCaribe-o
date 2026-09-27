@@ -47,8 +47,11 @@ class Settings(BaseSettings):
         description="Algoritmo de codificación JWT"
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=480,
-        description="Tiempo de expiración del token en minutos"
+        default=525600,
+        description=(
+            "Tiempo de expiración del token en minutos (525600 = 365 días). "
+            "No afecta horas laborales: la sesión solo se cierra por gerencia"
+        )
     )
 
     # Servidor

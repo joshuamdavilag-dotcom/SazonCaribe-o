@@ -54,7 +54,7 @@ def crear_access_token(
     Args:
         data: Payload a codificar (ej: {"sub": user_id, "rol": "Vendedor"}).
         expires_delta: Tiempo de vida personalizado. Si es None,
-                       usa ACCESS_TOKEN_EXPIRE_MINUTES (8h).
+                       usa ACCESS_TOKEN_EXPIRE_MINUTES (365 días).
 
     Returns:
         Token JWT codificado como string.

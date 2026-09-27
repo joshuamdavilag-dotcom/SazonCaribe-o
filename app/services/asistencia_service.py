@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.tiempo import ahora_local, hoy_local
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
@@ -481,6 +482,69 @@ class AsistenciaService:
         self.asistencia_repo.actualizar_heartbeat(asistencia_id)
         self.db.refresh(asistencia)
         return AsistenciaResponse.model_validate(asistencia)
+
+    def obtener_asistencia_activa(
+        self,
+        empleado_id: int,
+    ) -> Optional[AsistenciaResponse]:
+        """Devuelve la asistencia abierta del empleado o None si no tiene."""
+        activa = self.asistencia_repo.get_abierta_por_empleado(empleado_id)
+        if not activa:
+            return None
+        return AsistenciaResponse.model_validate(activa)
+
+    def cerrar_asistencias_por_deshabilitacion(
+        self,
+        empleado_ids: List[int],
+    ) -> int:
+        """
+        Cierra las asistencias activas tras deshabilitar el turno (regla ≤15 min).
+
+        Al deshabilitar a un Vendedor con turno activo, su asistencia NO se pierde:
+        se le guarda la hora de salida y se cierra la sesión. La salida forzada es:
+        - con heartbeat: ``max(ultimo_heartbeat, ahora - HEARTBEAT_TIMEOUT)``
+          (descuento garantizado ≤15 min; con app abierta, ≤2 min).
+        - sin heartbeat: ``hora_entrada_real`` (no se inventa tiempo; gerencia
+          corrige con Editar Horarios).
+        Las horas extras se calculan con la fórmula normal (reales - teóricas(8)).
+        Idempotente: solo cierra registros aún sin salida (UPDATE condicional).
+
+        Returns:
+            Cantidad de asistencias cerradas.
+        """
+        if not empleado_ids:
+            return 0
+        activas = self.asistencia_repo.get_abiertas_por_empleados(empleado_ids)
+        if not activas:
+            return 0
+        timeout = timedelta(
+            seconds=get_settings().HEARTBEAT_TIMEOUT_SECONDS
+        )
+        ahora = ahora_local()
+        cerrados = 0
+        for asistencia in activas:
+            entrada = asistencia.hora_entrada_real or ahora
+            if asistencia.ultimo_heartbeat:
+                fecha_fin = max(asistencia.ultimo_heartbeat, ahora - timeout)
+            else:
+                fecha_fin = entrada
+            fecha_fin = min(fecha_fin, ahora)
+            horas_reales = max(
+                (fecha_fin - entrada).total_seconds() / 3600,
+                0.0,
+            )
+            turno = self.turno_repo.get_by_id(asistencia.turno_id)
+            horas_extras = Decimal("0.00")
+            if turno and horas_reales > turno.horas_teoricas:
+                horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+            if self.asistencia_repo.auto_cerrar_stale(
+                asistencia.id,
+                fecha_fin,
+                horas_extras,
+                "Cierre automático por deshabilitación de turno",
+            ):
+                cerrados += 1
+        return cerrados
 
     def cerrar_turnos_stale(
         self,

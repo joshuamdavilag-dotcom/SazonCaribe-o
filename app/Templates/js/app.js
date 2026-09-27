@@ -275,6 +275,7 @@ async function iniciarTurno(turnoId) {
     localStorage.setItem('pos_asistencia', JSON.stringify(data));
     renderAttendanceStatus();
     showToast('Turno iniciado con éxito', 'success');
+    enviarHeartbeat();
     return data;
   } catch (e) {
     if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
@@ -463,12 +464,37 @@ async function enviarHeartbeat() {
   if (state.user.rol !== 'Vendedor') return;
   if (!state.currentAsistencia) return;
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    headers['Authorization'] = `Bearer ${state.token}`;
-    await fetch(`${API_BASE}/asistencia/turnos/heartbeat/${state.currentAsistencia.id}`, {
-      method: 'POST', headers,
+    await api(`/asistencia/turnos/heartbeat/${state.currentAsistencia.id}`, {
+      method: 'POST',
+      keepalive: true,
+      silent: true,
     });
-  } catch { /* silent — intentionally ignored */ }
+  } catch (e) {
+    const msg = (e && typeof e.message === 'string') ? e.message : '';
+    const cerrado = msg.includes('salida') || msg.includes('No se encontró la asistencia');
+    if (cerrado) {
+      state.currentAsistencia = null;
+      localStorage.removeItem('pos_asistencia');
+      renderAttendanceStatus();
+      showToast('Tu turno se cerró automáticamente. Contacta a gerencia.', 'warning');
+    }
+  }
+}
+
+/* --- Realineación del turno activo contra la BD (login/restore/foco) --- */
+async function syncAsistenciaActiva() {
+  if (!state.token || !state.user) return;
+  try {
+    const data = await api('/asistencia/activa', { silent: true });
+    if (data) {
+      state.currentAsistencia = data;
+      localStorage.setItem('pos_asistencia', JSON.stringify(data));
+    } else {
+      state.currentAsistencia = null;
+      localStorage.removeItem('pos_asistencia');
+    }
+    renderAttendanceStatus();
+  } catch { /* el interceptor ya maneja 403/401; silencio */ }
 }
 
 /* --- Verificación de sesión (polling cada 60s) ---
@@ -482,12 +508,13 @@ async function verificarSesionTurno() {
   } catch { /* el interceptor ya manejó el cierre de sesión */ }
 }
 
-/* --- Intervalos de sesión: heartbeat + poll de validez --- */
+/* --- Intervalos de sesión: heartbeat + poll de validez + sync inicial --- */
 function iniciarIntervalosSesion() {
   if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
   if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
   state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
   state.sessionPollInterval = setInterval(verificarSesionTurno, 60_000);
+  syncAsistenciaActiva();
 }
 
 /* =========================================================================
@@ -5117,6 +5144,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clock
   updateClock();
   setInterval(updateClock, 30000);
+
+  // Sincronización al volver a la pestaña/foco (recupera pausas de móvil/desktop)
+  const alVolverPestana = () => {
+    if (!state.token || !state.user) return;
+    verificarSesionTurno();
+    enviarHeartbeat();
+    syncAsistenciaActiva();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) alVolverPestana();
+  });
+  window.addEventListener('focus', alVolverPestana);
 
   // Restore session
   if (state.token && state.user) {

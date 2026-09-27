@@ -24,9 +24,11 @@ from app.schemas.personal import (
     UsuarioCreate,
     UsuarioResponse,
     PasswordResetRequest,
-    EliminarEmpleadoRequest
+    EliminarEmpleadoRequest,
+    RolEnum,
 )
 from app.core.security import obtener_password_hash, verificar_password
+from app.services.asistencia_service import AsistenciaService
 
 
 class PersonalService:
@@ -615,6 +617,10 @@ class PersonalService:
             usuario_id,
             turno_habilitado,
         )
+        if not turno_habilitado and actualizado.rol == RolEnum.VENDEDOR.value:
+            AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
+                [actualizado.empleado_id],
+            )
         return UsuarioResponse.model_validate(actualizado)
 
     def habilitar_turno_masivo(self, turno_habilitado: bool) -> dict:
@@ -630,6 +636,11 @@ class PersonalService:
         actualizados = self.usuario_repo.actualizar_turno_habilitado_masivo(
             turno_habilitado
         )
+        if not turno_habilitado and actualizados > 0:
+            vendedores = self.usuario_repo.get_by_rol(RolEnum.VENDEDOR.value)
+            AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
+                [u.empleado_id for u in vendedores],
+            )
         return {"actualizados": actualizados}
 
     # =========================================================================

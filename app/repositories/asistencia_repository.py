@@ -2,11 +2,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
 
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, update, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.tiempo import ahora_local, hoy_local
 from app.models.asistencia import Asistencia
+from app.models.personal import Usuario
 from app.repositories.base_repository import BaseRepository
 
 
@@ -194,12 +195,71 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         self,
         timeout_desde: datetime,
     ) -> List[Asistencia]:
+        """
+        Asistencias activas (sin salida) cuyo dueño ya NO puede permanecer abierto.
+
+        Un usuario mantiene el turno abierto si está activo y (no es Vendedor o
+        tiene ``turno_habilitado``). Solo se auto-cierra lo "deshabilitado":
+        vendedor con turno apagado, usuario inactivo o sin usuario vinculado.
+        La línea base es el último heartbeat (o la hora de entrada si nunca hubo
+        pulso) para incluir asistencias cuyo primer heartbeat nunca llegó.
+        """
+        usuario_puede_seguir = (
+            select(Usuario.id)
+            .where(
+                Usuario.empleado_id == Asistencia.empleado_id,
+                Usuario.activo == True,
+                or_(
+                    Usuario.rol != "Vendedor",
+                    Usuario.turno_habilitado == True,
+                ),
+            )
+            .exists()
+        )
         statement = (
             select(Asistencia)
             .where(
                 Asistencia.hora_salida_real.is_(None),
-                Asistencia.ultimo_heartbeat.isnot(None),
-                Asistencia.ultimo_heartbeat < timeout_desde,
+                Asistencia.anulada == False,
+                func.coalesce(
+                    Asistencia.ultimo_heartbeat,
+                    Asistencia.hora_entrada_real,
+                ) < timeout_desde,
+                ~usuario_puede_seguir,
+            )
+        )
+        result = self.db.execute(statement)
+        return list(result.scalars().all())
+
+    def get_abierta_por_empleado(
+        self,
+        empleado_id: int,
+    ) -> Optional[Asistencia]:
+        """Asistencia abierta (sin salida, no anulada) de un empleado, si existe."""
+        statement = (
+            select(Asistencia)
+            .where(
+                Asistencia.empleado_id == empleado_id,
+                Asistencia.hora_salida_real.is_(None),
+                Asistencia.anulada == False,
+            )
+            .order_by(Asistencia.id.asc())
+        )
+        return self.db.execute(statement).scalars().first()
+
+    def get_abiertas_por_empleados(
+        self,
+        empleado_ids: List[int],
+    ) -> List[Asistencia]:
+        """Asistencias abiertas (sin salida, no anuladas) de varios empleados."""
+        if not empleado_ids:
+            return []
+        statement = (
+            select(Asistencia)
+            .where(
+                Asistencia.empleado_id.in_(empleado_ids),
+                Asistencia.hora_salida_real.is_(None),
+                Asistencia.anulada == False,
             )
         )
         result = self.db.execute(statement)

@@ -230,6 +230,24 @@ def registrar_salida(
 # =============================================================================
 
 @router.get(
+    "/activa",
+    response_model=Optional[AsistenciaResponse],
+    summary="Asistencia activa del usuario logueado",
+    description=(
+        "Devuelve la asistencia abierta (sin salida) del empleado logueado o "
+        "null. El frontend la usa para resincronizar el panel en login/restore "
+        "en lugar de depender del localStorage."
+    ),
+    tags=["Asistencia"]
+)
+def asistencia_activa(
+    current_user: Usuario = Depends(get_current_user),
+    service: AsistenciaService = Depends(get_asistencia_service),
+) -> Optional[AsistenciaResponse]:
+    return service.obtener_asistencia_activa(current_user.empleado_id)
+
+
+@router.get(
     "/empleados/{empleado_id}/historial",
     response_model=List[AsistenciaResponse],
     summary="Historial de asistencia del empleado",
