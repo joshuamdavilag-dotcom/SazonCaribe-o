@@ -8,14 +8,17 @@ normal (reales - teoricas, nunca negativas, tope de columna NUMERIC(4,2) => 99.9
 y deja el motivo de auditoría. Los registros de HOY (turnos legítimos aún activos)
 NO se tocan. Es idempotente: los registros ya cerrados se ignoran.
 
+Se ejecuta automáticamente en el arranque de la app (``app/main.py``) y también
+puede correrse como script:
+
 Uso:
     python -m app.db.cerrar_turnos_huerfanos             # aplica y commitea
     python -m app.db.cerrar_turnos_huerfanos --dry-run   # simula y hace rollback
 """
 import argparse
-import sys
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import List
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,7 +37,17 @@ def _teoricas_de(a: Asistencia, db: Session) -> int:
     return turno.horas_teoricas if turno else 8
 
 
-def _cerrar_huérfanos(db: Session) -> None:
+def sancar_turnos_huerfanos(db: Session) -> List[Asistencia]:
+    """Cierra turnos huérfanos de días anteriores con salida a las 18:00.
+
+    Aplica los cambios en la sesión recibida (la fila a 6:00 PM del día de su
+    entrada, horas extras recalculadas y motivo de auditoría) y devuelve la
+    lista de asistencias afectadas, vacía si no hay nada que hacer. El cierre
+    de la transacción (commit/rollback) queda a cargo del llamador.
+
+    Returns:
+        Lista de asistencias que se cerraron (vacía si no hubo).
+    """
     hoy = date.today()
     abiertas = db.execute(
         select(Asistencia)
@@ -47,10 +60,8 @@ def _cerrar_huérfanos(db: Session) -> None:
 
     objetivo = [a for a in abiertas if a.hora_entrada_real.date() < hoy]
     if not objetivo:
-        print("No hay turnos huérfanos de días anteriores. Nada que hacer.")
-        return
+        return []
 
-    print(f"{len(objetivo)} turno(s) huérfano(s) de días anteriores:\n")
     for a in objetivo:
         entrada = a.hora_entrada_real
         salida = datetime.combine(entrada.date(), HORA_CIERRE)
@@ -66,9 +77,11 @@ def _cerrar_huérfanos(db: Session) -> None:
         a.motivo_modificacion = MOTIVO
 
         print(
-            f"  #{a.id}  empleado_id={a.empleado_id}  entrada={entrada:%Y-%m-%d %H:%M}  "
+            f"  #[{a.id}]  empleado_id={a.empleado_id}  "
+            f"entrada={entrada:%Y-%m-%d %H:%M}  "
             f"-> salida={salida:%Y-%m-%d %H:%M}  extras={extras}h"
         )
+    return objetivo
 
 
 def main() -> None:
@@ -84,13 +97,15 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        _cerrar_huérfanos(db)
+        cerrados = sancar_turnos_huerfanos(db)
+        if not cerrados:
+            print("No hay turnos huérfanos de días anteriores. Nada que hacer.")
         if args.dry_run:
             db.rollback()
             print("\n[dry-run] Cambios descartados (rollback).")
         else:
             db.commit()
-            print("\nCambios aplicados y commiteados.")
+            print(f"\n{len(cerrados)} turno(s) cerrado(s) y commiteado(s).")
     finally:
         db.close()
 

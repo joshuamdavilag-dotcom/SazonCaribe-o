@@ -182,6 +182,7 @@ async def startup_event():
     _fix_joshi_password()
     _auditar_hashes()
     _fix_orphaned_mesas()
+    _sancar_turnos_huerfanos()
     asyncio.create_task(_heartbeat_watcher())
 
 
@@ -888,6 +889,37 @@ def _fix_orphaned_mesas():
         except Exception as e:
             db.rollback()
             print(f"  [!] Error al liberar mesas huérfanas: {e}")
+
+
+def _sancar_turnos_huerfanos():
+    """Cierra turnos de asistencia huérfanos (sin salida) de días anteriores.
+
+    Reutiliza la lógica de saneamiento de ``app/db/cerrar_turnos_huerfanos.py``:
+    para cada asistencia abierta cuya entrada es de un día anterior al de hoy,
+    fija la salida a las 18:00 (6:00 PM) del día de la entrada, recalcula las
+    horas extras (con tope de columna NUMERIC(4,2)) y deja el motivo de
+    auditoría. Es idempotente: solo toca registros sin salida; los turnos de
+    hoy no se modifican.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.db.cerrar_turnos_huerfanos import sancar_turnos_huerfanos
+
+    with Session(engine) as db:
+        try:
+            cerrados = sancar_turnos_huerfanos(db)
+            if cerrados:
+                db.commit()
+                print(
+                    "  [ASISTENCIA] "
+                    f"{len(cerrados)} turno(s) huérfano(s) cerrado(s) "
+                    "automáticamente (salida 6:00 PM del día de entrada)"
+                )
+            else:
+                db.rollback()
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al sanear turnos huérfanos: {e}")
 
 
 async def _heartbeat_watcher():
