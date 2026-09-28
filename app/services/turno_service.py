@@ -8,6 +8,13 @@ from app.models.asistencia import Asistencia
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
 
+MAX_HORAS_EXTRAS = Decimal("99.99")
+
+
+def _ajustar_horas_extras(valor: Decimal) -> Decimal:
+    """Tope de columna NUMERIC(4,2): nunca supera 99.99."""
+    return min(valor, MAX_HORAS_EXTRAS)
+
 
 def _get_ip_cliente(request) -> str:
     if not request or not request.client:
@@ -85,7 +92,9 @@ def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
     turno = turno_repo.get_by_id(asistencia.turno_id)
     horas_extras = Decimal("0.00")
     if turno and horas_reales > turno.horas_teoricas:
-        horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+        horas_extras = _ajustar_horas_extras(
+            Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+        )
 
     datos = {
         "hora_salida_real": ahora,

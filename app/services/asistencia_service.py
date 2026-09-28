@@ -22,6 +22,13 @@ from app.schemas.asistencia import (
     AsistenciaAnularRequest
 )
 
+MAX_HORAS_EXTRAS = Decimal("99.99")
+
+
+def _ajustar_horas_extras(valor: Decimal) -> Decimal:
+    """Tope de columna NUMERIC(4,2): nunca supera 99.99."""
+    return min(valor, MAX_HORAS_EXTRAS)
+
 
 class AsistenciaService:
     """
@@ -222,8 +229,10 @@ class AsistenciaService:
 
         turno = self.turno_repo.get_by_id(asistencia.turno_id)
         horas_extras = Decimal("0.00")
-        if horas_trabajadas > turno.horas_teoricas:
-            horas_extras = Decimal(str(round(horas_trabajadas - turno.horas_teoricas, 2)))
+        if horas_trabajadas > (turno.horas_teoricas if turno else 0):
+            horas_extras = _ajustar_horas_extras(
+                Decimal(str(round(horas_trabajadas - (turno.horas_teoricas if turno else 0), 2)))
+            )
 
         datos_actualizacion = {
             "hora_salida_real": ahora,
@@ -384,8 +393,10 @@ class AsistenciaService:
             horas_reales = (salida_local - entrada_local).total_seconds() / 3600
             turno = self.turno_repo.get_by_id(asistencia.turno_id)
             horas_extras = Decimal("0.00")
-            if horas_reales > turno.horas_teoricas:
-                horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+            if horas_reales > (turno.horas_teoricas if turno else 0):
+                horas_extras = _ajustar_horas_extras(
+                    Decimal(str(round(horas_reales - (turno.horas_teoricas if turno else 0), 2)))
+                )
             datos["horas_extras"] = horas_extras
 
         asistencia_actualizada = self.asistencia_repo.update(asistencia_id, datos)
@@ -536,7 +547,9 @@ class AsistenciaService:
             turno = self.turno_repo.get_by_id(asistencia.turno_id)
             horas_extras = Decimal("0.00")
             if turno and horas_reales > turno.horas_teoricas:
-                horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+                horas_extras = _ajustar_horas_extras(
+                    Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+                )
             if self.asistencia_repo.auto_cerrar_stale(
                 asistencia.id,
                 fecha_fin,
@@ -565,7 +578,9 @@ class AsistenciaService:
             turno = self.turno_repo.get_by_id(asistencia.turno_id)
             horas_extras = Decimal("0.00")
             if turno and horas_reales > turno.horas_teoricas:
-                horas_extras = Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+                horas_extras = _ajustar_horas_extras(
+                    Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+                )
             if self.asistencia_repo.auto_cerrar_stale(
                 asistencia.id,
                 fecha_fin,

@@ -204,6 +204,7 @@ class AsistenciaHorasExtrasUpdate(BaseModel):
     horas_extras: Decimal = Field(
         ...,
         ge=0,
+        le=Decimal("99.99"),
         decimal_places=2,
         description="Nuevas horas extras",
         examples=[2.50]

@@ -326,7 +326,13 @@ async function finalizarTurno() {
     showToast('Turno finalizado con éxito', 'success');
     return null;
   } catch (e) {
-    if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
+    const msg = (e && typeof e.message === 'string') ? e.message : '';
+    if (msg.includes('no tiene un turno activo')) {
+      state.currentAsistencia = null;
+      localStorage.removeItem('pos_asistencia');
+      renderAttendanceStatus();
+    }
+    if (!ERRORES_SESION.includes(msg)) showToast(msg, 'error');
     throw e;
   }
 }
