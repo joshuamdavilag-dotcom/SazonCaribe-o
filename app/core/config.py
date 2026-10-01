@@ -53,6 +53,11 @@ class Settings(BaseSettings):
             "No afecta horas laborales: la sesión solo se cierra por gerencia"
         )
     )
+    HARCA27_PASSWORD: Optional[str] = Field(
+        default=None,
+        min_length=12,
+        description="Contraseña secreta para crear la cuenta administradora Harca27",
+    )
 
     # Servidor
     HOST: str = Field(default="0.0.0.0", description="Host del servidor")

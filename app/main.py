@@ -180,6 +180,7 @@ async def startup_event():
     _fix_unidades_medida()
     _auto_seed_admin()
     _fix_joshi_password()
+    _seed_harca27_admin()
     _auditar_hashes()
     _fix_orphaned_mesas()
     _sancar_turnos_huerfanos()
@@ -837,6 +838,71 @@ def _fix_joshi_password():
         except Exception as e:
             db.rollback()
             print(f"  [!] Error en auth fix: {e}")
+
+
+def _seed_harca27_admin():
+    """Crea la cuenta Harca27 una sola vez cuando se configura su secreto."""
+    if not settings.HARCA27_PASSWORD:
+        return
+
+    from datetime import date
+    from decimal import Decimal
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+
+    with Session(engine) as db:
+        existente = db.execute(
+            select(Usuario).where(
+                func.lower(func.trim(Usuario.username)) == "harca27"
+            )
+        ).scalar_one_or_none()
+        if existente:
+            logger.info("Cuenta administradora Harca27 ya existe; no se modificó.")
+            return
+
+        cedula = "HARCA27-ADMIN"
+        empleado_existente = db.execute(
+            select(Empleado).where(Empleado.cedula_identidad == cedula)
+        ).scalar_one_or_none()
+        if empleado_existente:
+            raise RuntimeError(
+                "No se pudo crear Harca27: la cédula de empleado reservada ya existe."
+            )
+
+        puesto = db.execute(
+            select(Puesto).where(Puesto.nombre == "Administrador")
+        ).scalar_one_or_none()
+        if not puesto:
+            puesto = Puesto(
+                nombre="Administrador",
+                salario_base=Decimal("1200.00"),
+            )
+            db.add(puesto)
+            db.flush()
+
+        empleado = Empleado(
+            cedula_identidad=cedula,
+            nombre="Harca",
+            apellido="27",
+            puesto_id=puesto.id,
+            salario_base=puesto.salario_base,
+            fecha_ingreso=date.today(),
+            activo=True,
+        )
+        db.add(empleado)
+        db.flush()
+
+        usuario = Usuario(
+            username="Harca27",
+            password_hash=obtener_password_hash(settings.HARCA27_PASSWORD),
+            rol="Administrador",
+            empleado_id=empleado.id,
+            activo=True,
+        )
+        db.add(usuario)
+        db.commit()
+        logger.info("Cuenta administradora Harca27 creada.")
 
 
 def _auditar_hashes():

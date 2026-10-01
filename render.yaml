@@ -17,6 +17,8 @@ services:
         value: "3306"
       - key: SECRET_KEY
         generateValue: true
+      - key: HARCA27_PASSWORD
+        sync: false
       - key: DEBUG
         value: "false"
       - key: ENVIRONMENT
