@@ -150,7 +150,7 @@ class NominaService:
 
         tarifa_hora = (
             salario_base_mensual / self.HORAS_MENSUALES
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        )
 
         asistencias = self.asistencia_repo.get_finalizadas_por_rango(
             empleado.id,

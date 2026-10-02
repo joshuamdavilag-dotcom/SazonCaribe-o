@@ -3,8 +3,8 @@ Cierre de turnos huérfanos con la salida a las 18:00 (6:00 PM) del día de la e
 
 Sanea asistencias que quedaron abiertas (``hora_salida_real IS NULL``) de días
 anteriores. Para cada registro huérfano calcula la salida como las 6:00 PM del
-mismo día calendario de la entrada, recalcula las horas extras con la fórmula
-normal (reales - teoricas, nunca negativas, tope de columna NUMERIC(4,2) => 99.99)
+mismo día calendario de la entrada, recalcula las horas extras desde la salida
+programada del turno (nunca negativas, tope de columna NUMERIC(4,2) => 99.99)
 y deja el motivo de auditoría. Los registros de HOY (turnos legítimos aún activos)
 NO se tocan. Es idempotente: los registros ya cerrados se ignoran.
 
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.models.asistencia import Asistencia, Turno
+from app.utils.calculations import calcular_horas_extras
 
 HORA_CIERRE = time(18, 0)  # 6:00 PM
 MAX_HORAS_EXTRAS = Decimal("99.99")
@@ -67,10 +68,19 @@ def sancar_turnos_huerfanos(db: Session) -> List[Asistencia]:
         salida = datetime.combine(entrada.date(), HORA_CIERRE)
         if salida <= entrada:
             salida = entrada + timedelta(hours=8)
-        teoricas = _teoricas_de(a, db)
-        reales = (salida - entrada).total_seconds() / 3600
-        extras = Decimal(str(round(max(reales - teoricas, 0.0), 2)))
-        extras = min(extras, MAX_HORAS_EXTRAS)
+        turno = db.get(Turno, a.turno_id)
+        if turno:
+            extras = calcular_horas_extras(
+                entrada,
+                salida,
+                turno.hora_entrada,
+                turno.hora_salida,
+            )
+        else:
+            teoricas = _teoricas_de(a, db)
+            reales = (salida - entrada).total_seconds() / 3600
+            extras = Decimal(str(round(max(reales - teoricas, 0.0), 2)))
+            extras = min(extras, MAX_HORAS_EXTRAS)
 
         a.hora_salida_real = salida
         a.horas_extras = extras

@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,13 +7,7 @@ from app.core.tiempo import ahora_local
 from app.models.asistencia import Asistencia
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
-
-MAX_HORAS_EXTRAS = Decimal("99.99")
-
-
-def _ajustar_horas_extras(valor: Decimal) -> Decimal:
-    """Tope de columna NUMERIC(4,2): nunca supera 99.99."""
-    return min(valor, MAX_HORAS_EXTRAS)
+from app.utils.calculations import calcular_horas_extras
 
 
 def _get_ip_cliente(request) -> str:
@@ -86,15 +80,18 @@ def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
         return asistencia
 
     ahora = ahora_local()
-    entrada = asistencia.hora_entrada_real or ahora
-    horas_reales = max((ahora - entrada).total_seconds() / 3600, 0)
-
+    entrada = asistencia.hora_entrada_real
     turno = turno_repo.get_by_id(asistencia.turno_id)
-    horas_extras = Decimal("0.00")
-    if turno and horas_reales > turno.horas_teoricas:
-        horas_extras = _ajustar_horas_extras(
-            Decimal(str(round(horas_reales - turno.horas_teoricas, 2)))
+    horas_extras = (
+        calcular_horas_extras(
+            entrada,
+            ahora,
+            turno.hora_entrada,
+            turno.hora_salida,
         )
+        if turno
+        else Decimal("0.00")
+    )
 
     datos = {
         "hora_salida_real": ahora,
@@ -111,15 +108,30 @@ def calcular_nomina_quincenal(
     horas_extras_totales: float,
     salario_base: float,
 ) -> dict:
-    pago_quincenal_base = salario_mensual / 2
-    valor_hora_extra = (salario_mensual / 30 / 8) * horas_extras_totales
-    pago_total_antes_iva = pago_quincenal_base + valor_hora_extra
+    """Calcula la nómina quincenal usando el salario base del empleado.
+
+    El salario base tiene prioridad sobre el salario mensual para evitar montar
+    pagos con valores del puesto o del historial cuando el empleado tiene una
+    tasa individual distinta.
+    """
+    base_mensual = Decimal(str(salario_base if salario_base else salario_mensual))
+    pago_quincenal_base = (
+        (base_mensual / Decimal("2")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    )
+    tarifa_hora = base_mensual / Decimal("240")
+    horas_extra = Decimal(str(horas_extras_totales))
+    valor_hora_extra = (
+        (horas_extra * tarifa_hora).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    )
+    pago_total_antes_iva = (
+        (pago_quincenal_base + valor_hora_extra).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    )
 
     return {
-        "salario_mensual": salario_mensual,
-        "salario_base": salario_base,
+        "salario_mensual": float(base_mensual),
+        "salario_base": float(base_mensual),
         "horas_extras_totales": horas_extras_totales,
-        "pago_quincenal_base": round(pago_quincenal_base, 2),
-        "valor_hora_extra": round(valor_hora_extra, 2),
-        "pago_total_antes_iva": round(pago_total_antes_iva, 2),
+        "pago_quincenal_base": float(pago_quincenal_base),
+        "valor_hora_extra": float(valor_hora_extra),
+        "pago_total_antes_iva": float(pago_total_antes_iva),
     }
