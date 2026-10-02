@@ -3,7 +3,15 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+def validar_password_bcrypt(password: str) -> str:
+    if len(password.strip().encode("utf-8")) > 72:
+        raise ValueError(
+            "La contraseña no puede superar los 72 bytes UTF-8 que admite bcrypt"
+        )
+    return password
 
 
 class RolEnum(str, Enum):
@@ -204,6 +212,11 @@ class UsuarioCreate(UsuarioBase):
         examples=[1]
     )
 
+    @field_validator("password")
+    @classmethod
+    def validar_longitud_bcrypt(cls, password: str) -> str:
+        return validar_password_bcrypt(password)
+
 
 class UsuarioResponse(UsuarioBase):
     """Esquema de respuesta para Usuario.
@@ -243,6 +256,11 @@ class PasswordResetRequest(BaseModel):
         description="Nueva contraseña temporal",
         examples=["NuevaClave123"]
     )
+
+    @field_validator("nueva_password")
+    @classmethod
+    def validar_longitud_bcrypt(cls, password: str) -> str:
+        return validar_password_bcrypt(password)
 
 
 class EliminarEmpleadoRequest(BaseModel):

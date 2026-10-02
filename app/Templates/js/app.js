@@ -257,8 +257,14 @@ async function login(username, password) {
     iniciarIntervalosSesion();
     showToast(`Bienvenido, ${state.user.username}`);
   } catch (e) {
+    const esErrorDeConexion = e?.name === 'TypeError'
+      || e?.message === 'SIN_CONEXION'
+      || /fetch|network|load failed|net::/i.test(e?.message || '');
+    if (esErrorDeConexion) {
+      showToast('No se pudo conectar con el sistema. Revisa tu conexión e inténtalo de nuevo.', 'error');
+      return;
+    }
     const serverMsg = e && typeof e.message === 'string'
-      && e.message !== 'Failed to fetch'
       && e.message !== 'Error del servidor'
       ? e.message : null;
     showToast(serverMsg || 'Usuario o contraseña incorrectos', 'error');

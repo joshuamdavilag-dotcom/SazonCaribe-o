@@ -35,8 +35,11 @@ def verificar_password(plain_password: str, hashed_password: str) -> bool:
     dejando además un log con el prefijo del hash para diagnóstico.
     """
     try:
+        # bcrypt 4.x truncaba contraseñas largas; replicar ese comportamiento
+        # mantiene autenticables los hashes legacy en bcrypt 5.x.
+        password_bytes = plain_password.strip().encode("utf-8")[:72]
         return bcrypt.checkpw(
-            plain_password.strip().encode("utf-8"),
+            password_bytes,
             hashed_password.encode("utf-8"),
         )
     except (TypeError, ValueError):
@@ -46,8 +49,13 @@ def verificar_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def obtener_password_hash(password: str) -> str:
+    password_bytes = password.strip().encode("utf-8")
+    if len(password_bytes) > 72:
+        raise ValueError(
+            "La contraseña no puede superar los 72 bytes UTF-8 que admite bcrypt"
+        )
     return bcrypt.hashpw(
-        password.strip().encode("utf-8"),
+        password_bytes,
         bcrypt.gensalt(),
     ).decode("utf-8")
 

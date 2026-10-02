@@ -1469,7 +1469,8 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="ne-password">Contraseña Temporal</label>
-          <input type="password" id="ne-password" class="form-input" placeholder="Mínimo 6 caracteres" required>
+          <input type="password" id="ne-password" class="form-input" placeholder="Mínimo 6 caracteres; máximo 72 bytes" required>
+          <small>El límite es de 72 bytes UTF-8; los caracteres acentuados pueden ocupar más de un byte.</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="ne-rol">Rol</label>
@@ -1501,7 +1502,8 @@
         </p>
         <div class="form-group">
           <label class="form-label" for="reset-pwd-new">Nueva Contraseña</label>
-          <input type="password" id="reset-pwd-new" class="form-input" placeholder="Mínimo 6 caracteres" required>
+          <input type="password" id="reset-pwd-new" class="form-input" placeholder="Mínimo 6 caracteres; máximo 72 bytes" required>
+          <small>El límite es de 72 bytes UTF-8; los caracteres acentuados pueden ocupar más de un byte.</small>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-reset-password" style="flex:1;">Cancelar</button>
