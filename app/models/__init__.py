@@ -8,6 +8,7 @@ from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
 from app.models.pago import PagoOnline, EstadoPago
+from app.models.calendario import EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 
 __all__ = [
     "Puesto",
@@ -38,4 +39,7 @@ __all__ = [
     "CategoriaGasto",
     "PagoOnline",
     "EstadoPago",
+    "EventoCalendario",
+    "TipoEventoCalendario",
+    "EstadoEventoCalendario",
 ]

@@ -12,6 +12,7 @@ from app.models.asistencia import Asistencia
 from app.models.nomina import Nomina, AdelantoSalario
 from app.models.inventario import PreparacionCocina
 from app.models.caja import CierreCaja
+from app.models.calendario import EventoCalendario
 from app.repositories.base_repository import BaseRepository
 from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -394,6 +395,7 @@ class PersonalService:
             (AdelantoSalario, AdelantoSalario.registrado_por_id),
             (PreparacionCocina, PreparacionCocina.registrado_por),
             (CierreCaja, CierreCaja.cerrado_por),
+            (EventoCalendario, EventoCalendario.creado_por_id),
         ]
         return self._alguna_referencia(usuario_id, tablas)
 

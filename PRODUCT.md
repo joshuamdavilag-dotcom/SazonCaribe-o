@@ -22,6 +22,29 @@ Implementado (Versión 1.0)
 
 ---
 
+# Módulo: Calendario de planificación
+
+## Funcionalidades
+
+- Calendario mensual autenticado para consultar planes de disponibilidad de platillos y llegadas de insumos.
+- Los eventos pueden abarcar uno o varios días, incluir horas opcionales y tener estado planificado, realizado o cancelado.
+- Los eventos de llegada pueden asociar insumo, proveedor y cantidad esperada.
+- Administradores y gerentes pueden crear, editar y eliminar eventos; el resto del personal solo puede consultar.
+- Las asistencias se muestran a partir de los registros reales, sin incluir registros anulados y sin permitir modificarlos desde el calendario.
+- La planificación no cambia automáticamente la disponibilidad del menú ni el inventario.
+- La consulta devuelve eventos y asistencias en una sola respuesta y limita los rangos solicitados a 63 días.
+
+## API
+
+- `GET /api/v1/calendario/?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`
+- `POST /api/v1/calendario/eventos`
+- `PUT /api/v1/calendario/eventos/{id}`
+- `DELETE /api/v1/calendario/eventos/{id}`
+
+La lectura requiere autenticación; las operaciones de escritura requieren rol Administrador o Gerente.
+
+---
+
 # Objetivo
 
 Permitir que cualquier cliente consulte el menú del restaurante mediante un código QR utilizando información administrada directamente desde el ERP.

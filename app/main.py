@@ -18,6 +18,7 @@ from app.models import (
     CierreCaja,
     Gasto, CategoriaGasto,
     PagoOnline, EstadoPago,
+    EventoCalendario,
 )
 from app.api.endpoints.personal import router as personal_router
 from app.api.endpoints.asistencia import router as asistencia_router
@@ -33,6 +34,7 @@ from app.api.endpoints.reportes import router as reportes_router
 from app.api.endpoints.caja import router as caja_router
 from app.api.endpoints.gasto import router as gasto_router
 from app.api.endpoints.pagos import router as pagos_router
+from app.api.endpoints.calendario import router as calendario_router
 
 
 settings = get_settings()
@@ -146,6 +148,12 @@ app.include_router(
     pagos_router,
     prefix="/api/v1/pagos",
     tags=["Pagos en línea"]
+)
+
+app.include_router(
+    calendario_router,
+    prefix="/api/v1/calendario",
+    tags=["Calendario"]
 )
 
 app.include_router(

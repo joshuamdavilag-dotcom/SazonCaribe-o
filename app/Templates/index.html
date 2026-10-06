@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=5.6">
+  <link rel="stylesheet" href="css/style.css?v=5.7">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -147,6 +147,10 @@
         <a class="nav-item" data-screen="menu-view">
           <span class="material-symbols-outlined nav-icon text-[20px]">restaurant_menu</span>
           <span class="nav-label">Carta</span>
+        </a>
+        <a class="nav-item" data-screen="calendario">
+          <span class="material-symbols-outlined nav-icon text-[20px]">calendar_month</span>
+          <span class="nav-label">Calendario</span>
         </a>
         <a class="nav-item nav-item-admin admin-only" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
           <span class="material-symbols-outlined nav-icon text-[20px]">edit_note</span>
@@ -831,6 +835,44 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CALENDARIO -->
+      <section id="screen-calendario" class="screen w-full max-w-full overflow-x-hidden" aria-label="Calendario de planificación">
+        <header class="screen-header calendar-screen-header">
+          <div>
+            <span class="calendar-eyebrow">Planificación del restaurante</span>
+            <h1>Calendario</h1>
+            <p>Disponibilidad de platillos, llegadas de insumos y asistencias registradas</p>
+          </div>
+          <button id="btn-calendar-add" type="button" class="calendar-add-btn admin-only" data-roles="Administrador,Gerente">
+            <span class="material-symbols-outlined">add</span> Nuevo evento
+          </button>
+        </header>
+        <div class="calendar-page">
+          <div class="calendar-toolbar">
+            <div class="calendar-month-controls">
+              <button id="calendar-prev" type="button" aria-label="Mes anterior" class="calendar-nav-btn">‹</button>
+              <button id="calendar-today" type="button" class="calendar-today-btn">Hoy</button>
+              <button id="calendar-next" type="button" aria-label="Mes siguiente" class="calendar-nav-btn">›</button>
+              <h2 id="calendar-month-title"></h2>
+            </div>
+            <div class="calendar-legend" aria-label="Leyenda">
+              <span><i class="calendar-dot dish"></i> Platillo</span>
+              <span><i class="calendar-dot delivery"></i> Insumo</span>
+              <span><i class="calendar-dot attendance"></i> Asistencia</span>
+            </div>
+          </div>
+          <div id="calendar-summary" class="calendar-summary" aria-live="polite"></div>
+          <div id="calendar-grid" class="calendar-grid" aria-live="polite">
+            <div class="calendar-loading">Cargando calendario…</div>
+          </div>
+          <section id="calendar-day-details" class="calendar-day-details" aria-live="polite" hidden>
+            <h3 id="calendar-day-title"></h3>
+            <div id="calendar-day-content"></div>
+          </section>
+          <p class="calendar-footnote">Las asistencias son registros reales y solo se muestran para consulta. Los eventos planificados no cambian automáticamente el menú ni el inventario.</p>
         </div>
       </section>
 
@@ -1954,7 +1996,88 @@
     </div>
   </div>
 
+  <div id="modal-calendar-event" class="modal-overlay" aria-label="Evento del calendario">
+    <div class="modal-sheet calendar-event-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="calendar-event-title">Nuevo evento</h3>
+        <button class="modal-close" id="close-calendar-event" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="calendar-event-form" novalidate>
+        <input type="hidden" id="calendar-event-id">
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-type">Tipo de evento</label>
+          <select id="calendar-event-type" class="form-input" required>
+            <option value="DISPONIBILIDAD_PLATILLO">Disponibilidad de platillo</option>
+            <option value="LLEGADA_INSUMO">Llegada de insumo</option>
+          </select>
+        </div>
+        <div class="form-group calendar-dish-field">
+          <label class="form-label" for="calendar-event-dish">Platillo</label>
+          <select id="calendar-event-dish" class="form-input"></select>
+        </div>
+        <div class="calendar-arrival-fields">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-insumo">Insumo</label>
+            <select id="calendar-event-insumo" class="form-input"></select>
+          </div>
+          <div class="calendar-form-row">
+            <div class="form-group">
+              <label class="form-label" for="calendar-event-provider">Proveedor (opcional)</label>
+              <select id="calendar-event-provider" class="form-input"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="calendar-event-quantity">Cantidad esperada (opcional)</label>
+              <input id="calendar-event-quantity" class="form-input" type="number" min="0.01" step="0.01" placeholder="Ej. 5">
+              <small id="calendar-quantity-unit" class="calendar-field-hint">La cantidad se registra en la unidad base del insumo.</small>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-name">Título</label>
+          <input id="calendar-event-name" class="form-input" type="text" maxlength="120" required placeholder="Ej. Disponible para el almuerzo">
+        </div>
+        <div class="calendar-form-row">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-start">Fecha inicial</label>
+            <input id="calendar-event-start" class="form-input" type="date" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-end">Fecha final (opcional)</label>
+            <input id="calendar-event-end" class="form-input" type="date">
+          </div>
+        </div>
+        <div class="calendar-form-row">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-time-start">Hora inicial (opcional)</label>
+            <input id="calendar-event-time-start" class="form-input" type="time">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-time-end">Hora final (opcional)</label>
+            <input id="calendar-event-time-end" class="form-input" type="time">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-status">Estado</label>
+          <select id="calendar-event-status" class="form-input">
+            <option value="PLANIFICADO">Planificado</option>
+            <option value="REALIZADO">Realizado</option>
+            <option value="CANCELADO">Cancelado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-description">Notas (opcional)</label>
+          <textarea id="calendar-event-description" class="form-input" rows="3" maxlength="2000" placeholder="Detalles del plan"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-calendar-event" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger calendar-delete-btn" id="delete-calendar-event" style="display:none;">Eliminar</button>
+          <button type="submit" class="btn btn-primary" id="save-calendar-event" style="flex:1;">Guardar evento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=5.6"></script>
+  <script src="js/app.js?v=5.7"></script>
 </body>
 </html>

@@ -45,6 +45,14 @@ const state = {
   paymentBusy: false,
   heartbeatInterval: null,
   sessionPollInterval: null,
+  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  calendarSelectedDay: calendarDateKey(new Date()),
+  calendarEvents: [],
+  calendarAttendances: [],
+  calendarMenuItems: [],
+  calendarInsumos: [],
+  calendarProveedores: [],
+  calendarCatalogsLoaded: false,
 };
 
 /* =========================================================================
@@ -207,6 +215,7 @@ function navigateTo(screenId) {
     loadHistorialOrdenesDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
+  if (screenId === 'calendario') loadCalendario();
 }
 
 /* =========================================================================
@@ -657,6 +666,364 @@ function openGastosModal() {
 
 function closeGastosModal() {
   document.getElementById('modal-registrar-gasto')?.classList.remove('show');
+}
+
+/* =========================================================================
+   Calendar — planning events + real attendance
+   ========================================================================= */
+function calendarDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function calendarDateFromKey(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function calendarTimeLabel(value) {
+  if (!value) return '';
+  return formatLocalTime(`2000-01-01T${value}`);
+}
+
+function calendarManager() {
+  return ['Administrador', 'Gerente'].includes(state.user?.rol);
+}
+
+function calendarGridRange(month) {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7;
+  const start = new Date(first.getFullYear(), first.getMonth(), first.getDate() - offset);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const endOffset = 6 - ((last.getDay() + 6) % 7);
+  const end = new Date(last.getFullYear(), last.getMonth(), last.getDate() + endOffset);
+  return { start, end };
+}
+
+async function loadCalendario() {
+  const grid = document.getElementById('calendar-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="calendar-loading">Cargando calendario…</div>';
+  const { start, end } = calendarGridRange(state.calendarMonth);
+  const params = new URLSearchParams({
+    desde: calendarDateKey(start),
+    hasta: calendarDateKey(end),
+  });
+  try {
+    const data = await api(`/calendario/?${params}`);
+    state.calendarEvents = data.eventos || [];
+    state.calendarAttendances = data.asistencias || [];
+    renderCalendario();
+  } catch {
+    grid.innerHTML = '<div class="calendar-empty calendar-load-error">No se pudo cargar el calendario. Intenta actualizarlo.</div>';
+  }
+}
+
+function renderCalendario() {
+  const title = document.getElementById('calendar-month-title');
+  const grid = document.getElementById('calendar-grid');
+  const summary = document.getElementById('calendar-summary');
+  if (!grid || !title || !summary) return;
+
+  title.textContent = state.calendarMonth.toLocaleDateString('es-NI', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const manager = calendarManager();
+  const dayEvents = new Map();
+  const dayAttendances = new Map();
+  state.calendarEvents.forEach(event => {
+    const start = calendarDateFromKey(event.fecha_inicio);
+    const end = calendarDateFromKey(event.fecha_fin || event.fecha_inicio);
+    for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+      const key = calendarDateKey(day);
+      if (!dayEvents.has(key)) dayEvents.set(key, []);
+      dayEvents.get(key).push(event);
+    }
+  });
+  state.calendarAttendances.forEach(attendance => {
+    if (!dayAttendances.has(attendance.fecha)) dayAttendances.set(attendance.fecha, []);
+    dayAttendances.get(attendance.fecha).push(attendance);
+  });
+
+  const range = calendarGridRange(state.calendarMonth);
+  const rangeStart = calendarDateKey(range.start);
+  const rangeEnd = calendarDateKey(range.end);
+  if (state.calendarSelectedDay < rangeStart || state.calendarSelectedDay > rangeEnd) {
+    state.calendarSelectedDay = calendarDateKey(new Date(
+      state.calendarMonth.getFullYear(),
+      state.calendarMonth.getMonth(),
+      1,
+    ));
+  }
+  const dayHeaders = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    .map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+  const dayCells = [];
+  for (const day = new Date(range.start); day <= range.end; day.setDate(day.getDate() + 1)) {
+    const key = calendarDateKey(day);
+    const isCurrentMonth = day.getMonth() === state.calendarMonth.getMonth();
+    const isToday = key === calendarDateKey(new Date());
+    const events = dayEvents.get(key) || [];
+    const attendances = dayAttendances.get(key) || [];
+    const eventMarkup = events.slice(0, 3).map(event => {
+      const kind = event.tipo === 'LLEGADA_INSUMO' ? 'delivery' : 'dish';
+      const related = event.tipo === 'LLEGADA_INSUMO' ? event.insumo_nombre : event.menu_item_nombre;
+      const time = event.hora_inicio ? `${calendarTimeLabel(event.hora_inicio)} ` : '';
+      const status = event.estado === 'CANCELADO' ? ' · Cancelado' : event.estado === 'REALIZADO' ? ' · Realizado' : '';
+      const text = `${time}${event.titulo}${related ? ` · ${related}` : ''}${status}`;
+      const safeText = escHtml(text);
+      return manager
+        ? `<button type="button" class="calendar-event-chip ${kind} ${event.estado.toLowerCase()}" data-calendar-event="${event.id}" title="${safeText}">${safeText}</button>`
+        : `<div class="calendar-event-chip ${kind} ${event.estado.toLowerCase()}" title="${safeText}">${safeText}</div>`;
+    }).join('');
+    const attendanceMarkup = attendances.slice(0, 2).map(attendance => {
+      const time = formatLocalTime(attendance.hora_entrada_real);
+      const text = `${time} ${attendance.empleado_nombre} · ${attendance.turno_nombre}`;
+      return `<div class="calendar-attendance-chip" title="${escHtml(text)}">${escHtml(text)}</div>`;
+    }).join('');
+    const hiddenCount = Math.max(0, events.length - 3) + Math.max(0, attendances.length - 2);
+    const more = hiddenCount
+      ? `<span class="calendar-more">+${hiddenCount} más</span>` : '';
+    const dayAction = manager
+      ? `<button type="button" class="calendar-day-add" data-calendar-date="${key}" aria-label="Crear evento el ${key}">+</button>`
+      : '';
+    dayCells.push(`
+      <div class="calendar-day ${isCurrentMonth ? '' : 'outside-month'} ${isToday ? 'today' : ''} ${key === state.calendarSelectedDay ? 'selected' : ''}">
+        <div class="calendar-day-header">
+          <button type="button" class="calendar-day-select" data-calendar-detail-date="${key}" aria-label="Ver detalles del ${key}">${day.getDate()}</button>${dayAction}
+        </div>
+        <div class="calendar-day-items">${eventMarkup}${attendanceMarkup}${more}</div>
+      </div>
+    `);
+  }
+  grid.innerHTML = `${dayHeaders}${dayCells.join('')}`;
+  const monthEvents = state.calendarEvents.filter(event => {
+    const start = calendarDateFromKey(event.fecha_inicio);
+    const end = calendarDateFromKey(event.fecha_fin || event.fecha_inicio);
+    return start.getMonth() === state.calendarMonth.getMonth()
+      || end.getMonth() === state.calendarMonth.getMonth()
+      || (start < range.start && end > range.start);
+  });
+  summary.innerHTML = `
+    <span><strong>${monthEvents.length}</strong> evento${monthEvents.length === 1 ? '' : 's'} de planificación</span>
+    <span><strong>${state.calendarAttendances.length}</strong> asistencia${state.calendarAttendances.length === 1 ? '' : 's'} registrada${state.calendarAttendances.length === 1 ? '' : 's'} en la vista</span>
+  `;
+  grid.querySelectorAll('[data-calendar-event]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(Number(button.dataset.calendarEvent)));
+  });
+  grid.querySelectorAll('[data-calendar-date]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(null, button.dataset.calendarDate));
+  });
+  grid.querySelectorAll('[data-calendar-detail-date]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.calendarSelectedDay = button.dataset.calendarDetailDate;
+      renderCalendario();
+    });
+  });
+  renderCalendarDayDetails(state.calendarSelectedDay);
+}
+
+function renderCalendarDayDetails(dateKey) {
+  const details = document.getElementById('calendar-day-details');
+  const title = document.getElementById('calendar-day-title');
+  const content = document.getElementById('calendar-day-content');
+  if (!details || !title || !content) return;
+  details.hidden = false;
+  title.textContent = calendarDateFromKey(dateKey).toLocaleDateString('es-NI', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const events = state.calendarEvents.filter(event =>
+    event.fecha_inicio <= dateKey && (event.fecha_fin || event.fecha_inicio) >= dateKey
+  );
+  const attendances = state.calendarAttendances.filter(item => item.fecha === dateKey);
+  const eventRows = events.map(event => {
+    const arrival = event.tipo === 'LLEGADA_INSUMO';
+    const related = arrival ? event.insumo_nombre : event.menu_item_nombre;
+    const time = event.hora_inicio
+      ? `${calendarTimeLabel(event.hora_inicio)}–${calendarTimeLabel(event.hora_fin)}`
+      : 'Todo el día';
+    const dateRange = event.fecha_fin && event.fecha_fin !== event.fecha_inicio
+      ? `${calendarDateFromKey(event.fecha_inicio).toLocaleDateString('es-NI')} – ${calendarDateFromKey(event.fecha_fin).toLocaleDateString('es-NI')}`
+      : '';
+    const quantity = event.cantidad_esperada
+      ? `${event.cantidad_esperada} ${event.insumo_unidad_medida || ''}`.trim()
+      : '';
+    const status = event.estado === 'REALIZADO' ? 'Realizado' : event.estado === 'CANCELADO' ? 'Cancelado' : 'Planificado';
+    const item = `
+      <span class="calendar-detail-icon ${arrival ? 'delivery' : 'dish'} material-symbols-outlined">${arrival ? 'local_shipping' : 'restaurant'}</span>
+      <span class="calendar-detail-copy">
+        <strong>${escHtml(event.titulo)}</strong>
+        <span>${escHtml(related || '')}${quantity ? ` · ${escHtml(quantity)}` : ''}${event.proveedor_nombre ? ` · ${escHtml(event.proveedor_nombre)}` : ''}</span>
+        <span>${escHtml(time)}${dateRange ? ` · ${escHtml(dateRange)}` : ''} · ${status}</span>
+        ${event.descripcion ? `<span class="calendar-detail-note">${escHtml(event.descripcion)}</span>` : ''}
+      </span>`;
+    return calendarManager()
+      ? `<button type="button" class="calendar-detail-row calendar-event-detail" data-calendar-event="${event.id}">${item}</button>`
+      : `<div class="calendar-detail-row">${item}</div>`;
+  }).join('');
+  const attendanceRows = attendances.map(attendance => `
+    <div class="calendar-detail-row attendance">
+      <span class="calendar-detail-icon attendance material-symbols-outlined">badge</span>
+      <span class="calendar-detail-copy">
+        <strong>${escHtml(attendance.empleado_nombre)}</strong>
+        <span>Turno ${escHtml(attendance.turno_nombre)}</span>
+        <span>Entrada ${escHtml(formatLocalTime(attendance.hora_entrada_real))} · Salida ${attendance.hora_salida_real ? escHtml(formatLocalTime(attendance.hora_salida_real)) : 'En curso'}</span>
+      </span>
+    </div>
+  `).join('');
+  content.innerHTML = eventRows + attendanceRows
+    || '<p class="calendar-day-empty">No hay eventos ni asistencias registrados para este día.</p>';
+  content.querySelectorAll('[data-calendar-event]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(Number(button.dataset.calendarEvent)));
+  });
+}
+
+async function loadCalendarCatalogs() {
+  if (state.calendarCatalogsLoaded) return;
+  const [menuItems, insumos, proveedores] = await Promise.all([
+    api('/menu/items?incluir_inactivos=true'),
+    api('/inventario/insumos'),
+    api('/inventario/proveedores'),
+  ]);
+  state.calendarMenuItems = menuItems;
+  state.calendarInsumos = insumos;
+  state.calendarProveedores = proveedores;
+  state.calendarCatalogsLoaded = true;
+}
+
+function fillCalendarSelect(id, rows, placeholder) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.innerHTML = `<option value="">${escHtml(placeholder)}</option>`
+    + rows.map(row => `<option value="${row.id}">${escHtml(row.nombre)}</option>`).join('');
+}
+
+function setCalendarEventTypeFields() {
+  const arrival = document.getElementById('calendar-event-type')?.value === 'LLEGADA_INSUMO';
+  document.querySelectorAll('.calendar-arrival-fields').forEach(el => { el.hidden = !arrival; });
+  document.querySelectorAll('.calendar-dish-field').forEach(el => { el.hidden = arrival; });
+}
+
+function updateCalendarQuantityUnit() {
+  const select = document.getElementById('calendar-event-insumo');
+  const hint = document.getElementById('calendar-quantity-unit');
+  if (!select || !hint) return;
+  const insumo = state.calendarInsumos.find(item => item.id === Number(select.value));
+  hint.textContent = insumo?.unidad_medida
+    ? `La cantidad se registra en ${insumo.unidad_medida}.`
+    : 'La cantidad se registra en la unidad base del insumo.';
+}
+
+async function openCalendarEventModal(eventId = null, dateKey = null) {
+  if (!calendarManager()) return;
+  try {
+    await loadCalendarCatalogs();
+  } catch {
+    return;
+  }
+  fillCalendarSelect('calendar-event-dish', state.calendarMenuItems, 'Selecciona un platillo');
+  fillCalendarSelect('calendar-event-insumo', state.calendarInsumos, 'Selecciona un insumo');
+  fillCalendarSelect('calendar-event-provider', state.calendarProveedores, 'Sin proveedor asignado');
+
+  const form = document.getElementById('calendar-event-form');
+  form.reset();
+  const existing = eventId
+    ? state.calendarEvents.find(event => event.id === eventId)
+    : null;
+  document.getElementById('calendar-event-id').value = existing?.id || '';
+  document.getElementById('calendar-event-title').textContent = existing ? 'Editar evento' : 'Nuevo evento';
+  document.getElementById('calendar-event-type').value = existing?.tipo || 'DISPONIBILIDAD_PLATILLO';
+  document.getElementById('calendar-event-dish').value = existing?.menu_item_id || '';
+  document.getElementById('calendar-event-insumo').value = existing?.insumo_id || '';
+  updateCalendarQuantityUnit();
+  document.getElementById('calendar-event-provider').value = existing?.proveedor_id || '';
+  document.getElementById('calendar-event-quantity').value = existing?.cantidad_esperada || '';
+  document.getElementById('calendar-event-name').value = existing?.titulo || '';
+  document.getElementById('calendar-event-start').value = existing?.fecha_inicio || dateKey || calendarDateKey(new Date());
+  document.getElementById('calendar-event-end').value = existing?.fecha_fin || '';
+  document.getElementById('calendar-event-time-start').value = existing?.hora_inicio?.slice(0, 5) || '';
+  document.getElementById('calendar-event-time-end').value = existing?.hora_fin?.slice(0, 5) || '';
+  document.getElementById('calendar-event-status').value = existing?.estado || 'PLANIFICADO';
+  document.getElementById('calendar-event-description').value = existing?.descripcion || '';
+  document.getElementById('delete-calendar-event').style.display = existing ? 'inline-flex' : 'none';
+  setCalendarEventTypeFields();
+  document.getElementById('modal-calendar-event').classList.add('show');
+}
+
+function closeCalendarEventModal() {
+  document.getElementById('modal-calendar-event')?.classList.remove('show');
+}
+
+async function saveCalendarEvent(event) {
+  event.preventDefault();
+  const id = document.getElementById('calendar-event-id').value;
+  const tipo = document.getElementById('calendar-event-type').value;
+  const fechaInicio = document.getElementById('calendar-event-start').value;
+  const fechaFin = document.getElementById('calendar-event-end').value;
+  const horaInicio = document.getElementById('calendar-event-time-start').value;
+  const horaFin = document.getElementById('calendar-event-time-end').value;
+  const titulo = document.getElementById('calendar-event-name').value.trim();
+  if (!titulo || !fechaInicio) return showToast('Completa el título y la fecha inicial', 'warning');
+  if (Boolean(horaInicio) !== Boolean(horaFin)) return showToast('Indica ambas horas o deja el evento sin horario', 'warning');
+  if (fechaFin && fechaFin < fechaInicio) return showToast('La fecha final no puede ser anterior a la inicial', 'warning');
+  if (horaInicio && (!fechaFin || fechaFin === fechaInicio) && horaFin <= horaInicio) {
+    return showToast('La hora final debe ser posterior a la inicial', 'warning');
+  }
+  const menuItemId = document.getElementById('calendar-event-dish').value;
+  const insumoId = document.getElementById('calendar-event-insumo').value;
+  const proveedorId = document.getElementById('calendar-event-provider').value;
+  if (tipo === 'DISPONIBILIDAD_PLATILLO' && !menuItemId) return showToast('Selecciona el platillo', 'warning');
+  if (tipo === 'LLEGADA_INSUMO' && !insumoId) return showToast('Selecciona el insumo', 'warning');
+
+  const quantity = document.getElementById('calendar-event-quantity').value;
+  const body = {
+    tipo,
+    titulo,
+    descripcion: document.getElementById('calendar-event-description').value.trim() || null,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin || null,
+    hora_inicio: horaInicio || null,
+    hora_fin: horaFin || null,
+    estado: document.getElementById('calendar-event-status').value,
+    menu_item_id: tipo === 'DISPONIBILIDAD_PLATILLO' ? Number(menuItemId) : null,
+    insumo_id: tipo === 'LLEGADA_INSUMO' ? Number(insumoId) : null,
+    proveedor_id: tipo === 'LLEGADA_INSUMO' && proveedorId ? Number(proveedorId) : null,
+    cantidad_esperada: tipo === 'LLEGADA_INSUMO' && quantity ? Number(quantity) : null,
+  };
+  const button = document.getElementById('save-calendar-event');
+  button.disabled = true;
+  try {
+    await api(id ? `/calendario/eventos/${id}` : '/calendario/eventos', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(body),
+    });
+    closeCalendarEventModal();
+    showToast(id ? 'Evento actualizado' : 'Evento creado', 'success');
+    await loadCalendario();
+  } catch {
+    // api() reports the request error.
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deleteCalendarEvent() {
+  const id = document.getElementById('calendar-event-id').value;
+  if (!id || !window.confirm('¿Eliminar este evento del calendario?')) return;
+  const button = document.getElementById('delete-calendar-event');
+  button.disabled = true;
+  try {
+    await api(`/calendario/eventos/${id}`, { method: 'DELETE' });
+    closeCalendarEventModal();
+    showToast('Evento eliminado', 'success');
+    await loadCalendario();
+  } catch {
+    // api() reports the request error.
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function guardarGasto() {
@@ -4978,6 +5345,33 @@ document.addEventListener('DOMContentLoaded', () => {
       cocinaTab = btn.dataset.cocinaTab;
       renderCocinaCards();
     });
+  });
+
+  document.getElementById('calendar-prev')?.addEventListener('click', () => {
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
+    state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
+    loadCalendario();
+  });
+  document.getElementById('calendar-next')?.addEventListener('click', () => {
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
+    state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
+    loadCalendario();
+  });
+  document.getElementById('calendar-today')?.addEventListener('click', () => {
+    const today = new Date();
+    state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    state.calendarSelectedDay = calendarDateKey(today);
+    loadCalendario();
+  });
+  document.getElementById('btn-calendar-add')?.addEventListener('click', () => openCalendarEventModal());
+  document.getElementById('calendar-event-type')?.addEventListener('change', setCalendarEventTypeFields);
+  document.getElementById('calendar-event-insumo')?.addEventListener('change', updateCalendarQuantityUnit);
+  document.getElementById('calendar-event-form')?.addEventListener('submit', saveCalendarEvent);
+  document.getElementById('close-calendar-event')?.addEventListener('click', closeCalendarEventModal);
+  document.getElementById('cancel-calendar-event')?.addEventListener('click', closeCalendarEventModal);
+  document.getElementById('delete-calendar-event')?.addEventListener('click', deleteCalendarEvent);
+  document.getElementById('modal-calendar-event')?.addEventListener('click', event => {
+    if (event.target.id === 'modal-calendar-event') closeCalendarEventModal();
   });
 
   // KDS refresh
