@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=5.5">
+  <link rel="stylesheet" href="css/style.css?v=5.6">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -1272,7 +1272,7 @@
             </div>
             <div style="display:none;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--turquesa-ola);" id="order-modal-cobrar-row">
               <input type="checkbox" id="order-modal-cobrar-now" checked style="accent-color:var(--turquesa-ola);width:16px;height:16px;cursor:pointer;">
-              <label for="order-modal-cobrar-now" style="cursor:pointer;user-select:none;">✅ Cobrar ahora (marcar como pagada)</label>
+              <label for="order-modal-cobrar-now" style="cursor:pointer;user-select:none;">✅ Cobrar ahora (elegir método de pago)</label>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-secondary" id="cancel-order-modal" style="flex:1;">Cancelar</button>
@@ -1343,6 +1343,36 @@
         <div style="margin-top:8px;">
           <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:#000;padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Método de pago -->
+  <div id="modal-metodo-pago" class="modal-overlay" aria-label="Método de pago">
+    <div class="modal-sheet payment-method-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title">💳 Método de pago</h3>
+        <button class="modal-close" id="close-metodo-pago" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="payment-method-content">
+        <p class="payment-method-total">
+          Total de la orden: <strong id="payment-order-total">C$0.00</strong>
+        </p>
+        <button type="button" class="payment-method-option" id="btn-pago-local">
+          <span class="payment-method-icon" aria-hidden="true">🏪</span>
+          <span class="payment-method-copy">
+            <strong>Pago recibido en el local</strong>
+            <small>Efectivo o terminal externa. Registra la orden como pagada.</small>
+          </span>
+        </button>
+        <button type="button" class="payment-method-option payment-method-option-online" id="btn-pago-online" disabled>
+          <span class="payment-method-icon" aria-hidden="true">🌐</span>
+          <span class="payment-method-copy">
+            <strong>Pago en línea</strong>
+            <small id="payment-online-status">Verificando disponibilidad…</small>
+          </span>
+        </button>
+        <button type="button" class="btn btn-secondary payment-method-cancel" id="cancel-metodo-pago">Cancelar</button>
       </div>
     </div>
   </div>
@@ -1925,6 +1955,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=5.5"></script>
+  <script src="js/app.js?v=5.6"></script>
 </body>
 </html>

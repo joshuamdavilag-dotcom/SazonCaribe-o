@@ -1558,18 +1558,61 @@ input, select, textarea { font: inherit; }
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-full);
   font-size: var(--font-label);
+  line-height: 1.4;
   font-weight: 600;
   color: var(--text-on-dark);
   z-index: var(--z-toast);
   transition: transform 0.3s ease;
   pointer-events: none;
-  white-space: nowrap;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 24px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .toast.show { transform: translateX(-50%) translateY(0); }
 .toast.success { background: var(--turquesa-ola); }
 .toast.error   { background: var(--rojo-cangrejo); }
 .toast.warning { background: var(--amarillo-solar); color: var(--azul-marino); }
+
+.payment-method-sheet { max-width: 440px; }
+.payment-method-content { display: grid; gap: 12px; }
+.payment-method-total {
+  color: var(--text-secondary);
+  font-size: var(--font-label);
+  text-align: center;
+}
+.payment-method-total strong { color: var(--azul-marino); }
+.payment-method-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--text-primary);
+  text-align: left;
+}
+.payment-method-option:not(:disabled):hover { border-color: var(--turquesa-ola); }
+.payment-method-option:disabled { cursor: not-allowed; opacity: 0.58; }
+.payment-method-icon { flex: 0 0 auto; font-size: 24px; }
+.payment-method-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.payment-method-copy strong { font-size: var(--font-label); }
+.payment-method-copy small {
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.payment-method-cancel { width: 100%; min-height: 42px; }
 
 /* =========================================================================
    Utilities
@@ -2674,16 +2717,15 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
      MOBILE — Toast
      ========================================================================= */
   .toast {
-    left: 12px;
-    right: 12px;
+    left: 50%;
+    right: auto;
     top: 12px;
-    max-width: none;
-    width: auto;
-    white-space: normal;
+    width: max-content;
+    max-width: min(560px, calc(100vw - 24px));
     text-align: center;
-    transform: translateY(-120%);
+    transform: translateX(-50%) translateY(-120%);
   }
-  .toast.show { transform: translateY(0); }
+  .toast.show { transform: translateX(-50%) translateY(0); }
 }
 
 /* =========================================================================

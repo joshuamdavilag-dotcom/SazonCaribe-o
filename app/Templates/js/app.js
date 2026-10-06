@@ -41,6 +41,8 @@ const state = {
   nominaActual: null,
   currentAsistencia: JSON.parse(localStorage.getItem('pos_asistencia') || 'null'),
   currentOcupada: null,
+  paymentOrder: null,
+  paymentBusy: false,
   heartbeatInterval: null,
   sessionPollInterval: null,
 };
@@ -1235,12 +1237,120 @@ async function cambiarEstadoKDS(ordenId, nuevoEstado) {
 }
 
 async function cobrarOrden(ordenId) {
-  if (!confirm(`¿Confirmar pago de la Orden #${ordenId}?`)) return;
+  const orden = cocinaOrdenes.find(item => item.id === ordenId);
+  openMetodoPago(orden || { id: ordenId, total: 0 }, 'kds');
+}
+
+function openMetodoPago(orden, origen) {
+  if (!orden?.id) return showToast('No se encontró la orden que deseas cobrar', 'error');
+  state.paymentOrder = { id: orden.id, total: Number(orden.total || 0), origen };
+  state.paymentBusy = false;
+  document.getElementById('payment-order-total').textContent =
+    `C$${state.paymentOrder.total.toFixed(2)}`;
+  const onlineButton = document.getElementById('btn-pago-online');
+  onlineButton.disabled = true;
+  document.getElementById('payment-online-status').textContent =
+    'Verificando disponibilidad…';
+  document.getElementById('btn-pago-local').disabled = false;
+  document.getElementById('modal-metodo-pago').classList.add('show');
+  verificarDisponibilidadPagoOnline();
+}
+
+async function verificarDisponibilidadPagoOnline() {
+  const button = document.getElementById('btn-pago-online');
+  const statusText = document.getElementById('payment-online-status');
   try {
-    await api(`/ordenes/${ordenId}/pagar`, { method: 'PUT' });
-    showToast(`Orden #${ordenId} pagada con éxito`, 'success');
-    await loadCocinaOrdenes();
-  } catch { /* handled by api() */ }
+    const disponibilidad = await api('/pagos/disponibilidad', { silent: true });
+    button.disabled = !disponibilidad.habilitado;
+    statusText.textContent = disponibilidad.habilitado
+      ? `Disponible${disponibilidad.proveedor_configurado ? ` · ${disponibilidad.proveedor_configurado}` : ''}`
+      : 'Aún no está configurado el proveedor de pagos.';
+  } catch {
+    button.disabled = true;
+    statusText.textContent = 'No se pudo verificar. Intenta de nuevo.';
+  }
+}
+
+function cerrarMetodoPago() {
+  document.getElementById('modal-metodo-pago').classList.remove('show');
+  state.paymentOrder = null;
+  state.paymentBusy = false;
+  document.getElementById('btn-pago-local').disabled = false;
+  document.getElementById('btn-pago-online').disabled = true;
+}
+
+async function confirmarPagoLocal() {
+  const orden = state.paymentOrder;
+  if (!orden || state.paymentBusy) return;
+  if (!confirm(`¿Confirmas que recibiste el pago de la Orden #${orden.id} en el local?`)) return;
+  state.paymentBusy = true;
+  document.getElementById('btn-pago-local').disabled = true;
+  try {
+    await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+    showToast(`Orden #${orden.id} pagada con éxito`, 'success');
+    cerrarMetodoPago();
+    if (orden.origen === 'mesa' && state.currentOcupada?.orden?.id === orden.id) {
+      closeDetalleMesaOcupada();
+      await loadTables();
+    } else {
+      await loadCocinaOrdenes();
+    }
+  } catch {
+    state.paymentBusy = false;
+    document.getElementById('btn-pago-local').disabled = false;
+  }
+}
+
+function crearClaveIdempotencia(ordenId) {
+  const random = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `pos-${ordenId}-${random}`;
+}
+
+async function iniciarPagoOnline() {
+  const orden = state.paymentOrder;
+  if (!orden || state.paymentBusy) return;
+  const checkoutWindow = window.open('about:blank', '_blank');
+  if (!checkoutWindow) {
+    showToast('Permite las ventanas emergentes para abrir el pago en línea.', 'warning', 5000);
+    return;
+  }
+
+  state.paymentBusy = true;
+  document.getElementById('btn-pago-online').disabled = true;
+  document.getElementById('btn-pago-local').disabled = true;
+  document.getElementById('payment-online-status').textContent =
+    'Preparando el checkout seguro…';
+  try {
+    const result = await api(`/pagos/ordenes/${orden.id}/checkout`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crearClaveIdempotencia(orden.id) },
+    });
+    const checkoutUrl = result?.pago?.checkout_url;
+    let checkoutAddress;
+    try {
+      checkoutAddress = new URL(checkoutUrl);
+    } catch {
+      showToast('El proveedor no devolvió una dirección de pago válida.', 'error', 5000);
+      throw new Error('URL de checkout inválida');
+    }
+    if (checkoutAddress.protocol !== 'https:') {
+      showToast('El proveedor no devolvió una dirección de pago segura.', 'error', 5000);
+      throw new Error('El proveedor no devolvió una dirección de pago segura.');
+    }
+    checkoutWindow.location.replace(checkoutAddress.href);
+    cerrarMetodoPago();
+    showToast(
+      'Checkout abierto. La orden se marcará pagada solo al confirmar el proveedor.',
+      'success',
+      6000,
+    );
+  } catch {
+    checkoutWindow.close();
+    state.paymentBusy = false;
+    document.getElementById('btn-pago-online').disabled = false;
+    document.getElementById('btn-pago-local').disabled = false;
+  }
 }
 window.cobrarOrden = cobrarOrden;
 
@@ -1572,6 +1682,7 @@ async function submitOrder() {
   btn.disabled = true;
   btn.textContent = '⏳ Enviando…';
 
+  let ordenParaCobrar = null;
   try {
     if (state.currentOrder._addToExisting && state.currentOrder._ordenId) {
       await api(`/ordenes/${state.currentOrder._ordenId}/items`, {
@@ -1608,8 +1719,7 @@ async function submitOrder() {
       if (!mesaId && orden && orden.id) {
         const cobrarNow = document.getElementById('order-modal-cobrar-now')?.checked;
         if (cobrarNow) {
-          await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
-          showToast('¡Orden para llevar cobrada con éxito!', 'success');
+          ordenParaCobrar = orden;
         } else {
           showToast('¡Comanda para llevar guardada!', 'success');
         }
@@ -1618,8 +1728,13 @@ async function submitOrder() {
       }
     }
 
+    if (ordenParaCobrar) {
+      showToast('Orden creada. Selecciona cómo se recibió el pago.', 'success');
+    }
+
     const mesaId = state.currentOrder.mesaId;
     closeOrderModal();
+    if (ordenParaCobrar) openMetodoPago(ordenParaCobrar, 'kds');
 
     if (mesaId) {
       const mesa = state.tables.find(t => t.id === mesaId);
@@ -4451,32 +4566,7 @@ function closePreCuenta() {
 async function cerrarCuenta() {
   const oc = state.currentOcupada;
   if (!oc || !oc.orden) return;
-
-  if (!confirm('¿Cerrar cuenta y liberar esta mesa?')) return;
-
-  try {
-    await api(`/ordenes/${oc.orden.id}/estado`, {
-      method: 'PATCH',
-      body: JSON.stringify({ estado: 'PAGADA' }),
-    });
-
-    await api(`/salon/mesas/${oc.mesaId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ estado: 'LIBRE' }),
-    });
-
-    const mesa = state.tables.find(t => t.id === oc.mesaId);
-    if (mesa) {
-      mesa.estado = 'LIBRE';
-      mesa.apodo = null;
-    }
-
-    showToast('Cuenta cerrada y mesa liberada', 'success');
-    closeDetalleMesaOcupada();
-    renderTables(state.tables);
-  } catch (err) {
-    showToast(err.message || 'Error al cerrar cuenta', 'error');
-  }
+  openMetodoPago(oc.orden, 'mesa');
 }
 
 /* =========================================================================
@@ -5213,6 +5303,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-pre-cuenta')?.addEventListener('click', openPreCuenta);
   document.getElementById('btn-cerrar-cuenta')?.addEventListener('click', cerrarCuenta);
   document.getElementById('btn-forzar-librar')?.addEventListener('click', forzarLibrarMesa);
+
+  // Método de pago
+  document.getElementById('close-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
+  document.getElementById('cancel-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
+  document.getElementById('btn-pago-local')?.addEventListener('click', confirmarPagoLocal);
+  document.getElementById('btn-pago-online')?.addEventListener('click', iniciarPagoOnline);
+  document.getElementById('modal-metodo-pago')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) cerrarMetodoPago();
+  });
 
   // Apodo de mesa ocupada
   document.getElementById('btn-save-apodo')?.addEventListener('click', guardarApodo);
