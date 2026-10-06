@@ -12,14 +12,33 @@ from app.models.asistencia import Turno
 
 
 class CalendarioRepository:
+    """Ejecuta consultas de calendario y asistencia con SQLAlchemy."""
+
     def __init__(self, db: Session):
+        """Guarda la sesión de base de datos de la petición."""
         self.db = db
 
     def obtener_eventos(
         self,
         desde: date,
         hasta: date,
-    ) -> list[tuple[EventoCalendario, str | None, str | None, str | None]]:
+    ) -> list[tuple[EventoCalendario, str | None, str | None, str | None, str | None]]:
+        """Lista eventos que se solapan con el rango y sus nombres de catálogo.
+
+        El intervalo es inclusivo: incluye eventos que empiezan antes de
+        ``desde`` si su ``fecha_fin`` llega hasta el rango. Un evento sin fecha
+        final se trata como un evento de un solo día. Los outer joins conservan
+        eventos aunque una referencia opcional no tenga nombre asociado.
+
+        Args:
+            desde: Primer día del rango consultado.
+            hasta: Último día del rango consultado.
+
+        Returns:
+            Filas con el evento, nombre de platillo, nombre de insumo, nombre de
+            proveedor y nombre de unidad base del insumo; los nombres pueden ser
+            ``None``.
+        """
         return list(
             self.db.execute(
                 select(
@@ -45,6 +64,21 @@ class CalendarioRepository:
         )
 
     def obtener_asistencias(self, desde: date, hasta: date) -> list[dict]:
+        """Obtiene asistencias reales no anuladas junto con empleado y turno.
+
+        El rango usa ``Asistencia.fecha`` (día calendario), no el día de
+        negocio. Se ordenan los registros por fecha y hora de entrada para que
+        la API pueda mostrarlos cronológicamente.
+
+        Args:
+            desde: Primer día calendario inclusivo.
+            hasta: Último día calendario inclusivo.
+
+        Returns:
+            Diccionarios con IDs, nombres, turno, fecha y horas de entrada y
+            salida. Los turnos abiertos mantienen ``hora_salida_real`` en
+            ``None``.
+        """
         filas = self.db.execute(
             select(Asistencia, Empleado.nombre, Empleado.apellido, Turno.nombre)
             .join(Empleado, Asistencia.empleado_id == Empleado.id)

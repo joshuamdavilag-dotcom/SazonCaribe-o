@@ -15,11 +15,25 @@ from app.schemas.calendario import EventoCalendarioRequest
 
 
 class CalendarioService:
+    """Coordina reglas de negocio y persistencia del calendario del restaurante."""
+
     def __init__(self, db: Session):
+        """Inicializa el servicio con la sesión SQLAlchemy de la petición."""
         self.db = db
         self.repo = CalendarioRepository(db)
 
     def obtener_calendario(self, desde: date, hasta: date) -> dict:
+        """Combina eventos planificados y asistencias válidas en el rango inclusivo.
+
+        Args:
+            desde: Primer día que se incluirá en el calendario.
+            hasta: Último día que se incluirá en el calendario.
+
+        Returns:
+            Diccionario compatible con ``CalendarioResponse``. Cada evento
+            incluye los nombres de sus referencias de catálogo y cada
+            asistencia contiene empleado, turno y horas registradas.
+        """
         eventos = self.repo.obtener_eventos(desde, hasta)
         asistencias = self.repo.obtener_asistencias(desde, hasta)
         return {
@@ -53,6 +67,22 @@ class CalendarioService:
         }
 
     def crear_evento(self, datos: EventoCalendarioRequest, usuario_id: int) -> EventoCalendario:
+        """Valida referencias y persiste un evento atribuible al usuario.
+
+        Si el evento se crea como ``REALIZADO``, registra el momento local de
+        finalización. Las previsiones no actualizan menú ni existencias.
+
+        Args:
+            datos: Datos ya validados por el esquema de entrada.
+            usuario_id: ID del usuario autenticado que crea el evento.
+
+        Returns:
+            El evento persistido y actualizado con sus valores de base de datos.
+
+        Raises:
+            HTTPException: 404 si un platillo, insumo o proveedor referenciado
+                no existe.
+        """
         self._validar_referencias(datos)
         evento = EventoCalendario(
             **datos.model_dump(exclude={"estado"}),
@@ -66,6 +96,22 @@ class CalendarioService:
         return evento
 
     def actualizar_evento(self, evento_id: int, datos: EventoCalendarioRequest) -> EventoCalendario:
+        """Reemplaza los campos editables y sincroniza el marcador de realizado.
+
+        ``REALIZADO`` conserva la primera fecha de finalización; cambiar a otro
+        estado limpia ``completado_en``. El método no cambia al creador original.
+
+        Args:
+            evento_id: ID del evento a actualizar.
+            datos: Representación completa del evento según el contrato ``PUT``.
+
+        Returns:
+            El evento actualizado.
+
+        Raises:
+            HTTPException: 404 si el evento o alguna referencia de catálogo no
+                existe.
+        """
         evento = self.db.get(EventoCalendario, evento_id)
         if not evento:
             raise HTTPException(status_code=404, detail="Evento de calendario no encontrado")
@@ -82,6 +128,14 @@ class CalendarioService:
         return evento
 
     def eliminar_evento(self, evento_id: int) -> None:
+        """Elimina permanentemente el evento indicado.
+
+        Args:
+            evento_id: ID del evento a eliminar.
+
+        Raises:
+            HTTPException: 404 cuando no existe un evento con ese ID.
+        """
         evento = self.db.get(EventoCalendario, evento_id)
         if not evento:
             raise HTTPException(status_code=404, detail="Evento de calendario no encontrado")
@@ -89,6 +143,19 @@ class CalendarioService:
         self.db.commit()
 
     def _validar_referencias(self, datos: EventoCalendarioRequest) -> None:
+        """Comprueba la existencia de los registros asociados opcionalmente.
+
+        La coherencia entre tipo de evento e IDs se valida en
+        ``EventoCalendarioRequest``; aquí se comprueba que cada ID válido
+        apunte a una fila existente.
+
+        Args:
+            datos: Entrada de evento cuyas referencias deben verificarse.
+
+        Raises:
+            HTTPException: 404 con un mensaje específico si falta una
+                referencia de platillo, insumo o proveedor.
+        """
         if (
             datos.menu_item_id is not None
             and self.db.get(MenuItem, datos.menu_item_id) is None
@@ -100,4 +167,7 @@ class CalendarioService:
             datos.proveedor_id is not None
             and self.db.get(Proveedor, datos.proveedor_id) is None
         ):
-            raise HTTPException(status_code=404, detail="El proveedor seleccionado no existe")
+            raise HTTPException(
+                status_code=404,
+                detail="El proveedor seleccionado no existe",
+            )

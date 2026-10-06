@@ -8,6 +8,13 @@ from app.models.calendario import EstadoEventoCalendario, TipoEventoCalendario
 
 
 class EventoCalendarioRequest(BaseModel):
+    """Entrada completa para crear o reemplazar un evento del calendario.
+
+    Las reglas de dominio aseguran fechas y horas coherentes y que los IDs
+    correspondan al tipo de evento. La existencia real de los IDs se comprueba
+    después en el servicio.
+    """
+
     tipo: TipoEventoCalendario
     titulo: str = Field(min_length=1, max_length=120)
     descripcion: Optional[str] = Field(default=None, max_length=2000)
@@ -24,6 +31,7 @@ class EventoCalendarioRequest(BaseModel):
     @field_validator("titulo")
     @classmethod
     def validar_titulo(cls, value: str) -> str:
+        """Elimina espacios externos y rechaza títulos que queden vacíos."""
         value = value.strip()
         if not value:
             raise ValueError("El título no puede quedar vacío")
@@ -31,6 +39,7 @@ class EventoCalendarioRequest(BaseModel):
 
     @model_validator(mode="after")
     def validar_evento(self):
+        """Aplica reglas que dependen de varios campos de la solicitud."""
         if self.fecha_fin and self.fecha_fin < self.fecha_inicio:
             raise ValueError("La fecha final no puede ser anterior a la fecha inicial")
         if (self.hora_inicio is None) != (self.hora_fin is None):
@@ -57,6 +66,8 @@ class EventoCalendarioRequest(BaseModel):
 
 
 class EventoCalendarioResponse(BaseModel):
+    """Representación pública de un evento con nombres de catálogo resueltos."""
+
     id: int
     tipo: TipoEventoCalendario
     titulo: str
@@ -81,6 +92,8 @@ class EventoCalendarioResponse(BaseModel):
 
 
 class AsistenciaCalendarioResponse(BaseModel):
+    """Asistencia real en modo solo lectura para mostrarla en el calendario."""
+
     id: int
     empleado_id: int
     empleado_nombre: str
@@ -91,5 +104,7 @@ class AsistenciaCalendarioResponse(BaseModel):
 
 
 class CalendarioResponse(BaseModel):
+    """Respuesta mensual con planes operativos y asistencias registradas."""
+
     eventos: list[EventoCalendarioResponse]
     asistencias: list[AsistenciaCalendarioResponse]

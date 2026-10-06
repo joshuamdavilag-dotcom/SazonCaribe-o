@@ -11,17 +11,29 @@ from app.core.tiempo import ahora_local
 
 
 class TipoEventoCalendario(str, Enum):
+    """Clases de planificación admitidas por el calendario."""
+
     DISPONIBILIDAD_PLATILLO = "DISPONIBILIDAD_PLATILLO"
     LLEGADA_INSUMO = "LLEGADA_INSUMO"
 
 
 class EstadoEventoCalendario(str, Enum):
+    """Estados de cumplimiento de un evento planificado."""
+
     PLANIFICADO = "PLANIFICADO"
     REALIZADO = "REALIZADO"
     CANCELADO = "CANCELADO"
 
 
 class EventoCalendario(Base):
+    """Evento operativo planificado, independiente del estado real del menú.
+
+    ``fecha_fin`` y las asociaciones de catálogo son opcionales. Una
+    disponibilidad se vincula a un platillo; una llegada se vincula a un
+    insumo y puede indicar proveedor y cantidad prevista. El autor es
+    obligatorio para conservar la trazabilidad de quién registró el plan.
+    """
+
     __tablename__ = "eventos_calendario"
     __table_args__ = (
         Index("ix_eventos_calendario_fecha_inicio", "fecha_inicio"),

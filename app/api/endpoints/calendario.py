@@ -15,6 +15,7 @@ _SOLO_GERENCIA = Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))
 
 
 def _validar_rango(desde: date, hasta: date) -> None:
+    """Rechaza rangos invertidos o mayores a 63 días calendario inclusivos."""
     if desde > hasta:
         raise HTTPException(status_code=400, detail="La fecha inicial debe ser anterior o igual a la fecha final")
     if (hasta - desde).days > 62:
@@ -28,6 +29,7 @@ def obtener_calendario(
     _: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Devuelve eventos y asistencias del rango a cualquier usuario activo."""
     _validar_rango(desde, hasta)
     return CalendarioService(db).obtener_calendario(desde, hasta)
 
@@ -43,6 +45,7 @@ def crear_evento(
     usuario: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Crea un evento como el usuario autenticado y responde con nombres asociados."""
     service = CalendarioService(db)
     evento = service.crear_evento(datos, usuario.id)
     return next(
@@ -62,6 +65,7 @@ def actualizar_evento(
     _: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Reemplaza un evento existente y devuelve su representación enriquecida."""
     service = CalendarioService(db)
     evento = service.actualizar_evento(evento_id, datos)
     return next(
@@ -80,5 +84,6 @@ def eliminar_evento(
     _: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Elimina un evento existente; devuelve HTTP 204 sin cuerpo."""
     CalendarioService(db).eliminar_evento(evento_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
