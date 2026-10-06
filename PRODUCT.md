@@ -152,6 +152,18 @@ No existirá un segundo panel administrativo.
 - ✅ Categorías de Insumo dinámicas
 - ✅ Reportes financieros por periodo (diario, semanal, quincenal, mensual, anual)
 - ✅ Unidad de empaque por insumo (factor de conversión por producto)
+- 🟡 Base de pagos en línea para órdenes del POS (adaptador genérico; requiere proveedor)
+
+## Pagos en línea del POS (base técnica)
+
+- La API registra intentos de pago, exige `Idempotency-Key` al iniciar el checkout y procesa webhooks mediante un adaptador que debe verificar la firma del proveedor.
+- Solo una confirmación verificada con importe y moneda coincidentes puede marcar la orden como pagada y liberar su mesa.
+- Las confirmaciones tardías, con importe distinto o de órdenes cuyo total cambió quedan en estado `REVISION`; no marcan la orden como pagada.
+- No se reciben ni almacenan números de tarjeta.
+- El proveedor predeterminado es `disabled`; aún no hay una pasarela activa. Se debe implementar y registrar el adaptador concreto, configurar sus credenciales y, si las requiere, `PAYMENT_SUCCESS_URL` / `PAYMENT_CANCEL_URL`, además de probarlo en sandbox antes de habilitar cobros.
+- El inicio requiere el header `Idempotency-Key`; el monto y la moneda se toman de la orden y de `PAYMENT_CURRENCY` (predeterminado `NIO`). El adaptador debe usar esa clave al crear el checkout en el proveedor.
+- Mientras `PAYMENT_PROVIDER=disabled` o no exista un adaptador registrado, disponibilidad reporta deshabilitado y el checkout responde `503`; no se crea una sesión de cobro falsa.
+- Rutas preparadas: `GET /api/v1/pagos/disponibilidad`, `POST /api/v1/pagos/ordenes/{orden_id}/checkout`, `GET /api/v1/pagos/{pago_id}` y `POST /api/v1/pagos/webhooks/{provider_name}`.
 
 ---
 

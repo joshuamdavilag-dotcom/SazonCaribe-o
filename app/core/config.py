@@ -103,6 +103,26 @@ class Settings(BaseSettings):
         description="API key de ImgBB para subir imágenes de platos"
     )
 
+    # Pagos en línea — permanece deshabilitado hasta registrar un adaptador real.
+    PAYMENT_PROVIDER: str = Field(
+        default="disabled",
+        description="Proveedor de pagos activo; 'disabled' evita iniciar cobros"
+    )
+    PAYMENT_CURRENCY: str = Field(
+        default="NIO",
+        min_length=3,
+        max_length=3,
+        description="Moneda ISO 4217 usada para los pagos en línea"
+    )
+    PAYMENT_SUCCESS_URL: str = Field(
+        default="",
+        description="URL HTTPS de retorno tras un pago exitoso, si el proveedor la requiere"
+    )
+    PAYMENT_CANCEL_URL: str = Field(
+        default="",
+        description="URL HTTPS de retorno al cancelar checkout, si el proveedor la requiere"
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

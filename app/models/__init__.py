@@ -7,6 +7,7 @@ from app.models.salon import Zona, Mesa, EstadoMesa
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
+from app.models.pago import PagoOnline, EstadoPago
 
 __all__ = [
     "Puesto",
@@ -35,4 +36,6 @@ __all__ = [
     "CierreCaja",
     "Gasto",
     "CategoriaGasto",
+    "PagoOnline",
+    "EstadoPago",
 ]

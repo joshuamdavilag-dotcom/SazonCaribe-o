@@ -17,6 +17,7 @@ from app.models import (
     Orden, DetalleOrden, EstadoOrden,
     CierreCaja,
     Gasto, CategoriaGasto,
+    PagoOnline, EstadoPago,
 )
 from app.api.endpoints.personal import router as personal_router
 from app.api.endpoints.asistencia import router as asistencia_router
@@ -31,6 +32,7 @@ from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.reportes import router as reportes_router
 from app.api.endpoints.caja import router as caja_router
 from app.api.endpoints.gasto import router as gasto_router
+from app.api.endpoints.pagos import router as pagos_router
 
 
 settings = get_settings()
@@ -138,6 +140,12 @@ app.include_router(
     gasto_router,
     prefix="/api/v1/gastos",
     tags=["Gastos"]
+)
+
+app.include_router(
+    pagos_router,
+    prefix="/api/v1/pagos",
+    tags=["Pagos en línea"]
 )
 
 app.include_router(
