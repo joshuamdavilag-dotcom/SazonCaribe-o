@@ -74,6 +74,7 @@ app/
 │       ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
 │       ├── caja.py          # Historial diario, cierre de caja (archivado)
 │       ├── gasto.py         # Gastos operativos CRUD
+│       ├── calendario.py    # Planificación autenticada + consulta de asistencias reales
 │       ├── reportes.py      # Reportes financieros por periodo
 │       └── analitica.py     # Cierre de caja legacy (métricas simples)
 ├── schemas/
@@ -87,6 +88,7 @@ app/
 │   ├── orden.py             # Orden, DetalleOrden, AgregarItems, AplicarDescuentoItemRequest, AplicarDescuentoGlobalRequest schemas
 │   ├── caja.py              # CierreCajaResponse, HistorialDiarioResponse
 │   ├── gasto.py             # GastoCreate, GastoResponse
+│   ├── calendario.py        # EventoCalendario request/response y respuesta de calendario
 │   ├── reportes.py          # PeriodoEnum, CierreCajaPeriodoResponse (includes gastos_operativos)
 │   ├── analitica.py         # CierreCajaResponse (legacy)
 │   └── auth.py              # LoginRequest, TokenResponse
@@ -100,6 +102,7 @@ app/
 │   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales/para llevar; subtotal, descuento_total, nombre_cliente fields; descuento_porcentaje, descuento_monto, motivo_descuento on DetalleOrden)
 │   ├── caja.py              # CierreCaja
 │   ├── gasto.py             # Gasto, CategoriaGasto enum
+│   ├── calendario.py        # EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 │   └── __init__.py          # Registers all models including Gasto
 ├── repositories/
 │   ├── base_repository.py   # Generic base repository
@@ -114,6 +117,7 @@ app/
 │   ├── orden_repository.py
 │   ├── caja_repository.py
 │   ├── gasto_repository.py       # obtener_por_rango(), sumar_por_rango()
+│   ├── calendario_repository.py  # eventos por rango + asistencias no anuladas con nombres
 │   ├── reportes_repository.py    # + obtener_gastos_clasificados(), obtener_descuentos_totales()
 │   └── analitica_repository.py
 ├── services/
@@ -127,6 +131,7 @@ app/
 │   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
 │   ├── caja_service.py
 │   ├── gasto_service.py          # registrar_gasto(), registrar_gasto_automatico()
+│   ├── calendario_service.py     # CRUD de eventos, validación de referencias, respuesta combinada
 │   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos; incluye descuentos en response
 │   ├── conversion_service.py     # convertir_cantidad() — transitive chain resolution via _get_chain()
 │   ├── turno_service.py          # Standalone functions
@@ -136,8 +141,10 @@ app/
 ├── Templates/
 │   ├── index.html
 │   ├── css/style.css
-│   ├── js/app.js                 # Uses POST /ordenes/{id}/items for adding items (legacy PATCH removed); descuentos via POST /ordenes/{id}/descuento-{item,global}
+│   ├── js/app.js                 # POS SPA, calendario mensual y detalle diario; órdenes con POST /ordenes/{id}/items
 │   └── carta/                    # Carta Digital pública (sin auth): index.html, css/style.css, js/app.js, img/ (hero, logos, placeholder) + img/platos/ (imágenes subidas por el ERP)
+├── docs/
+│   └── CALENDARIO.md             # Guía funcional y técnica completa del calendario
 └── tests/
 ```
 
@@ -194,6 +201,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `showToast(message, type)` for notifications
 - Role-based nav: `.nav-locked` class for restricted items
 - Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
+- Calendario: `#screen-calendario` mensual y responsive; `loadCalendario()` pide eventos + asistencias reales a `GET /calendario/?desde=&hasta=` una vez por navegación/mes; `renderCalendario()` dibuja semanas y permite elegir fecha para mostrar detalle diario completo. Asistencias son solo consulta (sin anuladas); Admin/Gerente crean/editar/eliminan eventos por modal `#modal-calendar-event`. Catálogos se cargan una vez desde Menú, Insumos y Proveedores. Reglas completas y contrato: `docs/CALENDARIO.md`.
 - Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal; startup `_fix_orphaned_mesas()` auto-frees OCUPADA tables with no active orders; table detail modal shows "Forzar Libramiento" button when OCUPADA but no active order found
 - Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
 - KDS (Panel de Cocina): `#screen-comandero` with 3 filter tabs (`data-cocina-tab`: cocina/lista/historial), `#cocina-grid` card grid; `loadCocinaOrdenes()` → `renderCocinaCards()`; `cambiarEstadoKDS(id, estado)` → `PATCH /ordenes/{id}/estado`; cards show zone, mesa, mesero, elapsed time with urgency colors, and item list with `producto_nombre`
@@ -235,12 +243,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Habilitar turno (vendedores)  | Y             | Y       | N        |
 | Dar de baja empleado (lógica) | Y             | Y       | N        |
 | Gastos operativos             | Y             | Y       | N        |
+| Consultar calendario          | Y             | Y       | Y        |
+| Gestionar eventos calendario | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
 | Nomina                        | Y             | Y       | N        |
 
 ## Business Rules
 
+- **Calendario de planificación**: `EventoCalendario` persiste disponibilidad planificada de platillos y llegadas de insumos; consulta autenticada para cualquier rol, escritura Admin/Gerente. Asistencias reales consultadas desde `Asistencia` por fecha calendario y `anulada=False`; incluye empleado, turno, hora de entrada/salida, no se editan desde esta pantalla. Rango API inclusivo máximo 63 días; no programa turnos ni altera disponibilidad de platillos/stock. Los eventos pueden cubrir varias fechas; las horas son opcionales (ambas o ninguna); estados `PLANIFICADO`/`REALIZADO`/`CANCELADO`. La cantidad esperada de entrega se registra en unidad base del insumo y no genera movimiento de inventario. Ver `docs/CALENDARIO.md`.
 - **Payroll**: Biweekly (monthly_salary / 2); salary is per-employee (`Empleado.salario_base`), not per-puesto. Pago de nómina = base fija + horas extras — NO se recalcula por horas ordinarias trabajadas, eliminando discrepancias por suma de asistencias
 - **Overtime**: (salary / 240) per hour (1.0x, sin recargo); `monto_horas_extras = total_horas_extras × (salario_base / 240)`
 - **IVA**: Removed — menu prices are tax-inclusive; `IVA_RATE=0.0`
@@ -363,6 +374,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
 | POST   | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
+| GET    | /api/v1/calendario/?desde=&hasta=            | Yes      | Any                |
+| POST   | /api/v1/calendario/eventos                   | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/calendario/eventos/{id}              | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/calendario/eventos/{id}              | Yes      | Admin, Gerente     |
 | GET    | /api/v1/reportes/cierre?periodo=            | Yes      | Admin, Gerente     |
 | GET    | /api/v1/nomina/pendientes                   | Yes      | Any                |
 | POST   | /api/v1/nomina/calcular                     | Yes      | Any                |
