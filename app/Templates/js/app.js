@@ -280,46 +280,80 @@ async function loadCameras() {
 function renderCameraStorage(storage) {
   const target = document.getElementById('camera-storage-status');
   if (!target) return;
-  target.innerHTML = `<span>Clips guardados: <strong>${storage.clips}</strong> (${formatearBytes(storage.bytes_usados)})</span>
-    <span>Espacio libre en disco: <strong>${formatearBytes(storage.bytes_libres)}</strong></span>`;
+  const total = Number(storage.bytes_totales) || 0;
+  const used = Number(storage.bytes_usados) || 0;
+  const free = Number(storage.bytes_libres) || 0;
+  const usedPercent = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  target.innerHTML = `<div class="camera-storage-copy">
+      <span class="camera-storage-icon"><span class="material-symbols-outlined">cloud_done</span></span>
+      <div><strong>Almacenamiento de clips</strong><span>${storage.clips} momentos guardados · ${formatearBytes(used)} utilizados</span></div>
+    </div>
+    <div class="camera-storage-capacity">
+      <div class="camera-storage-capacity-label"><span>Espacio disponible</span><strong>${formatearBytes(free)}</strong></div>
+      <div class="camera-storage-track" role="progressbar" aria-label="Espacio utilizado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(usedPercent)}"><span style="width:${usedPercent}%"></span></div>
+    </div>`;
+}
+
+function updateCameraStats() {
+  const totalStat = document.getElementById('camera-stat-total');
+  const activeStat = document.getElementById('camera-stat-active');
+  const clipsStat = document.getElementById('camera-stat-clips');
+  if (totalStat) totalStat.textContent = state.cameras.length;
+  if (activeStat) activeStat.textContent = state.cameras.filter(camera => camera.activa).length;
+  if (clipsStat) clipsStat.textContent = state.cameraClips.length;
 }
 
 function renderCameras() {
   const grid = document.getElementById('camera-grid');
   if (!grid) return;
+  updateCameraStats();
   if (!state.cameras.length) {
     grid.innerHTML = cameraEsGestor()
-      ? '<div class="camera-empty">Todavía no hay cámaras. Registra una arriba después de configurar el puente seguro.</div>'
-      : '<div class="camera-empty">No tienes cámaras autorizadas. Solicita acceso a Gerencia.</div>';
+      ? '<div class="camera-empty"><span class="camera-empty-icon"><span class="material-symbols-outlined">videocam_off</span></span><strong>Aún no hay cámaras</strong><span>Configura el puente seguro y agrega tu primera cámara para comenzar el monitoreo.</span></div>'
+      : '<div class="camera-empty"><span class="camera-empty-icon"><span class="material-symbols-outlined">lock</span></span><strong>No tienes cámaras asignadas</strong><span>Solicita a Gerencia acceso a las cámaras que necesitas consultar.</span></div>';
     return;
   }
   grid.innerHTML = state.cameras.map(camera => {
     const clips = state.cameraClips.filter(clip => clip.camara_id === camera.id);
     const users = cameraEsGestor()
-      ? `<details class="camera-access"><summary>Accesos individuales</summary>
-          <div class="camera-user-list">${state.cameraUsers.length
-            ? state.cameraUsers.map(user => `<label><input type="checkbox" data-camera-access="${camera.id}" value="${user.id}" ${camera.usuario_ids.includes(user.id) ? 'checked' : ''}>
-                <span>${escHtml(user.nombre_completo)} <small>@${escHtml(user.username)}</small></span></label>`).join('')
-            : '<p>No hay vendedores activos para autorizar.</p>'}
-          </div>
-          <button type="button" class="camera-secondary-btn" onclick="guardarAccesosCamara(${camera.id})">Guardar accesos</button>
-        </details>
-        <button type="button" class="camera-secondary-btn" onclick="editarCamara(${camera.id})">Editar cámara</button>
-        <button type="button" class="camera-secondary-btn" onclick="cambiarEstadoCamara(${camera.id}, ${!camera.activa})">${camera.activa ? 'Desactivar cámara' : 'Activar cámara'}</button>`
+      ? `<details class="camera-access"><summary><span class="material-symbols-outlined">group</span><span>Acceso del equipo</span><span class="camera-access-count">${camera.usuario_ids.length}</span><span class="material-symbols-outlined camera-access-chevron">expand_more</span></summary>
+        <p class="camera-access-hint">Selecciona los vendedores que podrán ver esta cámara.</p>
+        <div class="camera-user-list">${state.cameraUsers.length
+          ? state.cameraUsers.map(user => `<label><input type="checkbox" data-camera-access="${camera.id}" value="${user.id}" ${camera.usuario_ids.includes(user.id) ? 'checked' : ''}>
+              <span>${escHtml(user.nombre_completo)} <small>@${escHtml(user.username)}</small></span></label>`).join('')
+          : '<p>No hay vendedores activos para autorizar.</p>'}
+        </div>
+        <button type="button" class="camera-secondary-btn camera-save-access" onclick="guardarAccesosCamara(${camera.id})"><span class="material-symbols-outlined">save</span> Guardar accesos</button>
+      </details>
+      <div class="camera-admin-actions">
+        <button type="button" class="camera-secondary-btn" onclick="editarCamara(${camera.id})"><span class="material-symbols-outlined">edit</span> Editar</button>
+        <button type="button" class="camera-secondary-btn ${camera.activa ? 'camera-disable-action' : ''}" onclick="cambiarEstadoCamara(${camera.id}, ${!camera.activa})"><span class="material-symbols-outlined">${camera.activa ? 'videocam_off' : 'videocam'}</span> ${camera.activa ? 'Desactivar' : 'Activar'}</button>
+      </div>`
       : '';
     return `<article class="camera-card" data-camera-card="${camera.id}">
       <div class="camera-card-heading">
-        <div><h2>${escHtml(camera.nombre)}</h2><p>Ruta: <code>${escHtml(camera.slug)}</code></p></div>
-        <span class="camera-state ${camera.activa ? 'is-active' : 'is-disabled'}">${camera.activa ? 'Activa' : 'Desactivada'}</span>
+      <div class="camera-card-title">
+        <span class="camera-card-icon"><span class="material-symbols-outlined">videocam</span></span>
+        <div><h3>${escHtml(camera.nombre)}</h3><p><span class="material-symbols-outlined">link</span> ${escHtml(camera.slug)}</p></div>
+      </div>
+      <span class="camera-state ${camera.activa ? 'is-active' : 'is-disabled'}"><i></i>${camera.activa ? 'Activa' : 'Desactivada'}</span>
+      </div>
+      <div class="camera-feed${state.cameraPeers.has(camera.id) ? ' is-live' : ''}" id="camera-feed-${camera.id}">
+      <div class="camera-feed-placeholder" id="camera-placeholder-${camera.id}">
+        <span class="camera-feed-placeholder-icon"><span class="material-symbols-outlined">${camera.activa && camera.stream_url ? 'videocam' : 'videocam_off'}</span></span>
+        <strong>${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Vista en espera' : 'Puente pendiente de configurar'}</strong>
+        <span>${!camera.activa ? 'Actívala para volver a conectarla.' : camera.stream_url ? 'Conéctate para iniciar la transmisión en vivo.' : 'Configura CAMERA_BRIDGE_BASE_URL para habilitar el video.'}</span>
       </div>
       <video id="camera-video-${camera.id}" class="camera-video" controls autoplay muted playsinline hidden></video>
-      <p class="camera-stream-status" id="camera-status-${camera.id}" aria-live="polite">${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Desconectada' : 'Falta configurar CAMERA_BRIDGE_BASE_URL'}</p>
+      <span class="camera-live-badge" id="camera-live-${camera.id}" hidden><i></i> EN VIVO</span>
+      </div>
+      <div class="camera-stream-row"><span class="material-symbols-outlined">sensors</span><p class="camera-stream-status" id="camera-status-${camera.id}" aria-live="polite">${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Lista para conectar' : 'Puente sin configurar'}</p></div>
       <div class="camera-actions">
-        ${camera.activa && camera.stream_url
-          ? `<button type="button" class="camera-primary-btn" id="camera-connect-${camera.id}" onclick="conectarCamara(${camera.id})">Ver en vivo</button>
-             <button type="button" class="camera-secondary-btn" id="camera-record-${camera.id}" onclick="alternarGrabacionCamara(${camera.id})" disabled>Grabar momento</button>
-             <button type="button" class="camera-secondary-btn" id="camera-disconnect-${camera.id}" onclick="desconectarCamara(${camera.id})" hidden>Desconectar</button>`
-          : ''}
+      ${camera.activa && camera.stream_url
+        ? `<button type="button" class="camera-primary-btn" id="camera-connect-${camera.id}" onclick="conectarCamara(${camera.id})"><span class="material-symbols-outlined">play_arrow</span> Ver en vivo</button>
+           <button type="button" class="camera-secondary-btn" id="camera-record-${camera.id}" onclick="alternarGrabacionCamara(${camera.id})" disabled><span class="material-symbols-outlined">radio_button_checked</span> Grabar momento</button>
+           <button type="button" class="camera-secondary-btn camera-disconnect-btn" id="camera-disconnect-${camera.id}" onclick="desconectarCamara(${camera.id})" hidden><span class="material-symbols-outlined">stop</span> Desconectar</button>`
+        : ''}
       </div>
       ${users}
       ${cameraClipsMarkup(clips)}
@@ -334,10 +368,10 @@ function cameraClipsMarkup(clips) {
       return `<li><div><strong>${escHtml(new Date(clip.creado_en).toLocaleString('es-NI'))}</strong>
           <small>${escHtml(clip.usuario_nombre)} · ${formatearBytes(clip.bytes_guardados)}</small></div>
         <div class="camera-clip-actions">
-          <button type="button" class="camera-secondary-btn" onclick="verClipCamara('${escHtml(clip.id)}')">Reproducir</button>
-          ${puedeEliminar ? `<button type="button" class="camera-danger-btn" onclick="eliminarClipCamara('${escHtml(clip.id)}')">Eliminar</button>` : ''}
+          <button type="button" class="camera-secondary-btn" onclick="verClipCamara('${escHtml(clip.id)}')"><span class="material-symbols-outlined">play_arrow</span> Ver</button>
+          ${puedeEliminar ? `<button type="button" class="camera-danger-btn" onclick="eliminarClipCamara('${escHtml(clip.id)}')"><span class="material-symbols-outlined">delete</span> Borrar</button>` : ''}
         </div></li>`;
-    }).join('')}</ul>` : '<p>Aún no hay clips guardados.</p>'}
+    }).join('')}</ul>` : '<p class="camera-clips-empty">Todavía no hay momentos guardados. Conéctate y pulsa “Grabar momento” para conservar uno.</p>'}
   </section>`;
 }
 
@@ -409,9 +443,18 @@ async function cambiarEstadoCamara(cameraId, activa) {
 
 function setCameraStatus(cameraId, message, isError = false) {
   const target = document.getElementById(`camera-status-${cameraId}`);
-  if (!target) return;
-  target.textContent = message;
-  target.classList.toggle('is-error', isError);
+  if (target) {
+    target.textContent = message;
+    target.classList.toggle('is-error', isError);
+  }
+  const isLive = message === 'En vivo';
+  const feed = document.getElementById(`camera-feed-${cameraId}`);
+  const liveBadge = document.getElementById(`camera-live-${cameraId}`);
+  const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+  if (feed) feed.classList.toggle('is-live', isLive);
+  if (liveBadge) liveBadge.hidden = !isLive;
+  if (placeholder && isLive) placeholder.hidden = true;
+  if (placeholder && !isLive && !state.cameraPeers.has(cameraId)) placeholder.hidden = false;
 }
 
 function esperarFinIce(peer) {
@@ -452,6 +495,8 @@ async function conectarCamara(cameraId) {
       connection.stream = stream;
       video.srcObject = stream;
       video.hidden = false;
+      const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+      if (placeholder) placeholder.hidden = true;
       document.getElementById(`camera-record-${cameraId}`).disabled = false;
       setCameraStatus(cameraId, 'En vivo');
     };
@@ -609,7 +654,9 @@ function updateCameraRecordButton(cameraId) {
   const button = document.getElementById(`camera-record-${cameraId}`);
   if (!button) return;
   const recording = state.cameraRecordings.has(cameraId);
-  button.textContent = recording ? 'Detener y guardar' : 'Grabar momento';
+  button.innerHTML = recording
+    ? '<span class="material-symbols-outlined">stop_circle</span> Detener y guardar'
+    : '<span class="material-symbols-outlined">radio_button_checked</span> Grabar momento';
   button.classList.toggle('is-recording', recording);
 }
 
@@ -656,6 +703,12 @@ async function desconectarCamara(cameraId, stopRecording = true) {
   const recordButton = document.getElementById(`camera-record-${cameraId}`);
   if (recordButton) recordButton.disabled = true;
   updateCameraRecordButton(cameraId);
+  const liveBadge = document.getElementById(`camera-live-${cameraId}`);
+  const feed = document.getElementById(`camera-feed-${cameraId}`);
+  const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+  if (liveBadge) liveBadge.hidden = true;
+  if (feed) feed.classList.remove('is-live');
+  if (placeholder) placeholder.hidden = false;
   setCameraStatus(cameraId, 'Desconectada');
 }
 
@@ -673,6 +726,7 @@ async function loadCameraClips() {
   if (!state.token) return;
   try {
     state.cameraClips = await api('/cameras/clips');
+    updateCameraStats();
     document.querySelectorAll('[data-camera-card]').forEach(card => {
       const camera = state.cameras.find(item => item.id === Number(card.dataset.cameraCard));
       if (!camera) return;

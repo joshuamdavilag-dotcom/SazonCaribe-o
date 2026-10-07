@@ -845,17 +845,43 @@
       <!-- SCREEN: CÁMARAS -->
       <section id="screen-cameras" class="screen w-full max-w-full overflow-x-hidden" aria-label="Cámaras de seguridad">
         <header class="screen-header camera-screen-header">
-          <div>
-            <span class="calendar-eyebrow">Seguridad del local</span>
-            <h1>Cámaras</h1>
-            <p>Vista en vivo y clips manuales sin límite de duración. Sin audio; se eliminan automáticamente a los 7 días. La grabación se pausa si quedan menos de 512 MB en el disco.</p>
+          <div class="camera-hero-copy">
+            <span class="camera-hero-eyebrow"><span class="material-symbols-outlined">shield</span> SEGURIDAD DEL LOCAL</span>
+            <h1>Centro de cámaras</h1>
+            <p>Supervisa tus espacios en tiempo real y guarda los momentos importantes.</p>
+            <div class="camera-hero-note"><span class="material-symbols-outlined">lock</span> Conexión privada · Video sin audio · Clips por 7 días</div>
+          </div>
+          <div class="camera-hero-visual" aria-hidden="true">
+            <div class="camera-hero-orbit"></div>
+            <span class="material-symbols-outlined">videocam</span>
+            <span class="camera-hero-live"><i></i> MONITOREO</span>
           </div>
         </header>
         <div class="camera-page">
+          <div class="camera-overview" aria-label="Resumen de cámaras">
+            <article class="camera-stat">
+              <span class="camera-stat-icon"><span class="material-symbols-outlined">videocam</span></span>
+              <div><span class="camera-stat-label">Cámaras registradas</span><strong id="camera-stat-total">—</strong></div>
+            </article>
+            <article class="camera-stat">
+              <span class="camera-stat-icon camera-stat-icon-green"><span class="material-symbols-outlined">sensors</span></span>
+              <div><span class="camera-stat-label">Cámaras activas</span><strong id="camera-stat-active">—</strong></div>
+            </article>
+            <article class="camera-stat">
+              <span class="camera-stat-icon camera-stat-icon-amber"><span class="material-symbols-outlined">movie</span></span>
+              <div><span class="camera-stat-label">Momentos guardados</span><strong id="camera-stat-clips">—</strong></div>
+            </article>
+          </div>
           <div id="camera-storage-status" class="camera-storage-status admin-only" aria-live="polite"></div>
           <section class="camera-management admin-only" aria-label="Administrar cámaras">
-            <h2 id="camera-form-title">Configurar una cámara</h2>
-            <p>Registra el identificador de la ruta configurada en el puente seguro; no ingreses contraseñas RTSP aquí.</p>
+            <div class="camera-section-heading">
+              <span class="camera-section-icon"><span class="material-symbols-outlined">tune</span></span>
+              <div>
+                <span class="camera-section-kicker">ADMINISTRACIÓN</span>
+                <h2 id="camera-form-title">Configurar una cámara</h2>
+                <p>Agrega todas las cámaras que necesites y asigna quién puede ver cada una.</p>
+              </div>
+            </div>
             <form id="camera-form" class="camera-form">
               <input id="camera-id" type="hidden">
               <label>
@@ -867,12 +893,16 @@
                 <input id="camera-slug" type="text" maxlength="50" pattern="[a-z0-9][a-z0-9_-]*" required placeholder="entrada-principal">
               </label>
               <div class="camera-form-actions">
-                <button type="submit" id="camera-submit" class="btn-turquoise">Agregar cámara</button>
+                <button type="submit" id="camera-submit" class="camera-primary-btn"><span class="material-symbols-outlined">add</span> Agregar cámara</button>
                 <button type="button" id="camera-cancel-edit" class="camera-secondary-btn" hidden>Cancelar</button>
               </div>
             </form>
-            <p class="camera-setup-hint">El identificador debe coincidir con la ruta configurada en MediaMTX. Consulta <code>docs/CAMARAS.md</code> para instalar y asegurar el puente.</p>
+            <p class="camera-setup-hint"><span class="material-symbols-outlined">info</span><span>El identificador debe coincidir con la ruta de MediaMTX. No ingreses aquí contraseñas RTSP. <a href="docs/CAMARAS.md" target="_blank" rel="noopener">Ver guía de configuración</a></span></p>
           </section>
+          <div class="camera-list-heading">
+            <div><span class="camera-section-kicker">MONITOREO</span><h2>Tus cámaras</h2></div>
+            <span class="camera-live-key"><i></i> Vista privada</span>
+          </div>
           <div id="camera-grid" class="camera-grid" aria-live="polite">
             <div class="camera-empty">Cargando cámaras…</div>
           </div>
