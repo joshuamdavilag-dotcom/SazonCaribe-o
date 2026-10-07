@@ -7,14 +7,18 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.api.endpoints.calendario import _validar_rango
+from app.api.endpoints.calendario import _validar_rango, crear_eventos_masivos
 from app.core.database import Base
 from app.models.asistencia import Asistencia, Turno
 from app.models.calendario import EstadoEventoCalendario, TipoEventoCalendario
 from app.models.inventario import Insumo, Proveedor, UnidadMedida
 from app.models.menu import CategoriaMenu, MenuItem
 from app.models.personal import Empleado, Puesto, Usuario
-from app.schemas.calendario import CalendarioResponse, EventoCalendarioRequest
+from app.schemas.calendario import (
+    CalendarioResponse,
+    EventoCalendarioMasivoRequest,
+    EventoCalendarioRequest,
+)
 from app.services.calendario_service import CalendarioService
 from app.services.personal_service import PersonalService
 
@@ -117,6 +121,7 @@ class CalendarioTests(unittest.TestCase):
         self.assertEqual(len(response.eventos), 1)
         self.assertEqual(response.eventos[0].id, created.id)
         self.assertEqual(response.eventos[0].menu_item_nombre, "Pescado caribeño")
+        self.assertEqual(response.eventos[0].color_etiqueta, "azul")
         self.assertTrue(PersonalService(self.db)._usuario_tiene_referencias(self.usuario.id))
         self.assertEqual(len(response.asistencias), 1)
         self.assertEqual(response.asistencias[0].empleado_nombre, "Ana Caribe")
@@ -160,13 +165,53 @@ class CalendarioTests(unittest.TestCase):
             datos.model_copy(update={
                 "titulo": "Plan confirmado",
                 "estado": EstadoEventoCalendario.REALIZADO,
+                "color_etiqueta": "violeta",
             }),
         )
         self.assertEqual(updated.titulo, "Plan confirmado")
+        self.assertEqual(updated.color_etiqueta, "violeta")
         self.assertIsNotNone(updated.completado_en)
 
         service.eliminar_evento(event.id)
         self.assertIsNone(self.db.get(type(event), event.id))
+
+    def test_bulk_event_is_created_only_on_selected_days_with_color(self) -> None:
+        datos = EventoCalendarioMasivoRequest(
+            tipo=TipoEventoCalendario.DISPONIBILIDAD_PLATILLO,
+            titulo="Promoción del día",
+            fecha_inicio=date(2026, 5, 12),
+            fechas=[date(2026, 5, 12), date(2026, 5, 14)],
+            color_etiqueta="rosa",
+            menu_item_id=self.platillo.id,
+        )
+
+        respuesta = crear_eventos_masivos(datos, self.usuario, self.db)
+        events = CalendarioService(self.db).obtener_calendario(
+            date(2026, 5, 12), date(2026, 5, 14)
+        )["eventos"]
+
+        self.assertEqual([event["fecha_inicio"] for event in respuesta], [
+            date(2026, 5, 12),
+            date(2026, 5, 14),
+        ])
+        self.assertEqual([event["fecha_fin"] for event in respuesta], [None, None])
+        self.assertEqual({event["color_etiqueta"] for event in respuesta}, {"rosa"})
+        self.assertEqual(len(events), 2)
+
+    def test_bulk_event_rejects_duplicate_dates_and_unknown_color(self) -> None:
+        base = {
+            "tipo": TipoEventoCalendario.DISPONIBILIDAD_PLATILLO,
+            "titulo": "Promoción",
+            "fecha_inicio": date(2026, 5, 12),
+            "menu_item_id": self.platillo.id,
+        }
+        with self.assertRaises(ValidationError):
+            EventoCalendarioMasivoRequest(
+                **base,
+                fechas=[date(2026, 5, 12), date(2026, 5, 12)],
+            )
+        with self.assertRaises(ValidationError):
+            EventoCalendarioRequest(**base, color_etiqueta="rojo")
 
     def test_schema_rejects_incomplete_or_invalid_events(self) -> None:
         with self.assertRaises(ValidationError):

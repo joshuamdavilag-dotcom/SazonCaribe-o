@@ -45,6 +45,7 @@ class EventoCalendario(Base):
         nullable=False,
     )
     titulo: Mapped[str] = mapped_column(String(120), nullable=False)
+    color_etiqueta: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

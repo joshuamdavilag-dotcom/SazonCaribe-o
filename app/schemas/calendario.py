@@ -1,10 +1,19 @@
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.calendario import EstadoEventoCalendario, TipoEventoCalendario
+
+ColorEtiquetaCalendario = Literal[
+    "azul",
+    "turquesa",
+    "ambar",
+    "rosa",
+    "violeta",
+    "gris",
+]
 
 
 class EventoCalendarioRequest(BaseModel):
@@ -17,6 +26,7 @@ class EventoCalendarioRequest(BaseModel):
 
     tipo: TipoEventoCalendario
     titulo: str = Field(min_length=1, max_length=120)
+    color_etiqueta: ColorEtiquetaCalendario = "azul"
     descripcion: Optional[str] = Field(default=None, max_length=2000)
     fecha_inicio: date
     fecha_fin: Optional[date] = None
@@ -65,12 +75,28 @@ class EventoCalendarioRequest(BaseModel):
         return self
 
 
+class EventoCalendarioMasivoRequest(EventoCalendarioRequest):
+    """Evento común que se aplicará únicamente a las fechas seleccionadas."""
+
+    fecha_fin: None = None
+    fechas: list[date] = Field(min_length=2, max_length=63)
+
+    @field_validator("fechas")
+    @classmethod
+    def validar_fechas(cls, value: list[date]) -> list[date]:
+        """Ordena las fechas y rechaza días repetidos en la selección."""
+        if len(set(value)) != len(value):
+            raise ValueError("No se pueden repetir fechas seleccionadas")
+        return sorted(value)
+
+
 class EventoCalendarioResponse(BaseModel):
     """Representación pública de un evento con nombres de catálogo resueltos."""
 
     id: int
     tipo: TipoEventoCalendario
     titulo: str
+    color_etiqueta: Optional[str] = None
     descripcion: Optional[str]
     fecha_inicio: date
     fecha_fin: Optional[date]

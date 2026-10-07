@@ -19,14 +19,20 @@ mediante los flujos existentes de inventario.
 
 | Operación | Administrador | Gerente | Vendedor |
 |---|:---:|:---:|:---:|
-| Consultar eventos y asistencias | Sí | Sí | Sí |
+| Consultar eventos y asistencias (solo lectura) | Sí | Sí | Sí |
 | Crear, editar y eliminar eventos | Sí | Sí | No |
 
+Los empleados con rol `Vendedor` pueden consultar los eventos y asistencias
+desde el calendario, pero no crear, editar ni eliminar eventos. La interfaz
+oculta sus acciones de escritura y muestra un aviso de solo lectura. La
+protección también se aplica en el backend: los endpoints de escritura
+requieren `Administrador` o `Gerente`, de modo que una petición directa de un
+Vendedor no puede alterar los eventos.
+
 La consulta usa `get_current_user`, por lo que requiere el token del POS y
-respeta la validación normal de usuario activo y turno habilitado. Los
-endpoints de escritura además requieren `Administrador` o `Gerente`. La
-respuesta de asistencias incluye nombres de empleados y horarios reales; por
-eso esta API no es pública ni se monta en `/api/public`.
+respeta la validación normal de usuario activo y turno habilitado. La respuesta
+de asistencias incluye nombres de empleados y horarios reales; por eso esta
+API no es pública ni se monta en `/api/public`.
 
 ## Interfaz
 
@@ -35,15 +41,22 @@ La entrada **Calendario** del sidebar abre `#screen-calendario`. La vista:
 - Empieza en el mes actual; los controles permiten ir al mes anterior,
   siguiente o volver a hoy.
 - Presenta la cuadrícula semanal de lunes a domingo y marca el día actual.
-- Permite seleccionar un día para abrir debajo el detalle completo, incluso
-  cuando ese día tiene más eventos o asistencias de los que caben en la celda.
+- Resalta el día actual en celeste y el día activo con un contorno azul.
+- Un clic en un día abre debajo el detalle completo, incluso cuando hay más
+  eventos o asistencias de los que caben en la celda. Gerencia puede mantener
+  pulsado un día durante aproximadamente medio segundo para iniciar selección
+  múltiple; después puede tocar otros días, incluso no consecutivos. La barra
+  de selección muestra el total y permite limpiar, cancelar o crear un mismo
+  evento en todos los días marcados, sin ocupar las fechas intermedias.
 - Diferencia visualmente disponibilidad de platillos, llegadas de insumos y
   asistencias.
 - Muestra las asistencias reales con empleado, turno, entrada y salida (o
   “En curso” si aún no hay salida).
 - Permite crear un evento con fecha preseleccionada desde la acción `+` del día;
   **Nuevo evento** usa la fecha actual por defecto. Los administradores y
-  gerentes pueden pulsar un evento para editarlo.
+  gerentes pueden pulsar un evento para editarlo. Cada evento permite escoger
+  una etiqueta de seis colores, visible tanto en la cuadrícula como en el
+  detalle; los eventos anteriores a esta función conservan colores de respaldo.
 - Se adapta a móvil; el sidebar del POS se abre desde **Más** en la navegación
   inferior.
 
@@ -70,6 +83,7 @@ vacíos como `null`.
 | `id` | Entero, PK autoincremental | Identificador |
 | `tipo` | `DISPONIBILIDAD_PLATILLO` o `LLEGADA_INSUMO` | Clase de plan |
 | `titulo` | Texto, requerido, máximo 120 caracteres | Etiqueta del evento |
+| `color_etiqueta` | `azul`, `turquesa`, `ambar`, `rosa`, `violeta` o `gris` | Color persistente de la etiqueta |
 | `descripcion` | Texto opcional | Notas |
 | `fecha_inicio` | Fecha requerida | Primer día incluido |
 | `fecha_fin` | Fecha opcional | Último día incluido; si falta, evento de un día |
@@ -85,9 +99,9 @@ vacíos como `null`.
 
 Hay un índice por `fecha_inicio`. La consulta también incluye eventos de varios
 días cuyo intervalo se solapa con el rango solicitado. El modelo se registra en
-`app/models/__init__.py`; la creación de tablas sigue el patrón de
-`Base.metadata.create_all` en el arranque de la aplicación, igual que el resto
-del proyecto (no se genera una migración Alembic independiente en este cambio).
+`app/models/__init__.py`; `Base.metadata.create_all` crea la columna en
+instalaciones nuevas. En bases existentes, la migración idempotente de startup
+agrega `color_etiqueta` como columna nullable sin alterar eventos ya guardados.
 
 ## API
 
@@ -97,6 +111,7 @@ Base URL: `/api/v1/calendario`. Todas las rutas requieren autenticación.
 |---|---|---|---|
 | `GET` | `/` | Cualquier usuario autenticado | Eventos y asistencias para un rango |
 | `POST` | `/eventos` | Administrador, Gerente | Crea un evento (`201`) |
+| `POST` | `/eventos/masivo` | Administrador, Gerente | Crea un evento por cada fecha exacta seleccionada (`201`) |
 | `PUT` | `/eventos/{evento_id}` | Administrador, Gerente | Reemplaza los datos del evento |
 | `DELETE` | `/eventos/{evento_id}` | Administrador, Gerente | Elimina el evento (`204`) |
 
@@ -119,6 +134,7 @@ Forma de la respuesta:
       "id": 12,
       "tipo": "LLEGADA_INSUMO",
       "titulo": "Entrega de pescado",
+      "color_etiqueta": "ambar",
       "descripcion": "Confirmar recepción con cocina",
       "fecha_inicio": "2026-10-08",
       "fecha_fin": null,
@@ -167,6 +183,7 @@ hora local almacenada sin conversiones de zona horaria.
 {
   "tipo": "DISPONIBILIDAD_PLATILLO",
   "titulo": "Disponible para el almuerzo",
+  "color_etiqueta": "turquesa",
   "descripcion": null,
   "fecha_inicio": "2026-10-08",
   "fecha_fin": null,
@@ -179,6 +196,29 @@ hora local almacenada sin conversiones de zona horaria.
   "cantidad_esperada": null
 }
 ```
+
+Para asignar el mismo evento a fechas no consecutivas, se usa
+`POST /api/v1/calendario/eventos/masivo` con el mismo contenido y `fechas`
+como una lista de al menos dos fechas distintas (máximo 63). Por ejemplo:
+
+```json
+{
+  "tipo": "DISPONIBILIDAD_PLATILLO",
+  "titulo": "Disponible para el almuerzo",
+  "color_etiqueta": "turquesa",
+  "fecha_inicio": "2026-10-08",
+  "fecha_fin": null,
+  "fechas": ["2026-10-08", "2026-10-12"],
+  "menu_item_id": 6
+}
+```
+
+La API crea una fila independiente por cada día marcado, todas dentro de una
+transacción: o se guardan todas o ninguna. Cada fila tiene `fecha_fin: null`,
+así que los días intermedios no reciben el evento. Los colores fuera de la
+paleta se rechazan con `422`; fechas duplicadas también se rechazan. Por
+consistencia con la consulta de calendario, el intervalo entre la fecha
+seleccionada más temprana y la más tardía tampoco puede superar 63 días.
 
 Reglas de validación:
 
@@ -257,5 +297,6 @@ Pruebas de regresión del módulo: `tests/test_calendario.py`.
 ```
 
 La suite valida eventos de ambos tipos, relaciones de catálogo, persistencia,
-transición a realizado y borrado, rechazo de eventos inválidos, límite del
-rango y omisión de asistencias anuladas.
+transición a realizado y borrado, etiquetas de color, creación masiva en días
+no consecutivos, rechazo de eventos inválidos, límite del rango y omisión de
+asistencias anuladas.

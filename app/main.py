@@ -185,6 +185,7 @@ app.mount(
 async def startup_event():
     """Evento de inicio de la aplicación."""
     Base.metadata.create_all(bind=engine)
+    _migrate_calendario_color()
     _migrate_constraints()
     _migrate_unidades_medida()
     _migrate_recetas_unidad()
@@ -210,6 +211,21 @@ async def startup_event():
     _sancar_turnos_huerfanos()
     asyncio.create_task(_heartbeat_watcher())
     asyncio.create_task(_camera_clip_retention_watcher())
+
+
+def _migrate_calendario_color():
+    """Agrega la etiqueta de color a eventos existentes sin alterar sus datos."""
+    inspector = inspect(engine)
+    if not inspector.has_table("eventos_calendario"):
+        return
+    columns = {column["name"] for column in inspector.get_columns("eventos_calendario")}
+    if "color_etiqueta" in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE eventos_calendario ADD COLUMN color_etiqueta VARCHAR(20) NULL")
+        )
+    logger.info("Migración de color_etiqueta aplicada a eventos_calendario")
 
 
 def _migrate_constraints():

@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, requerir_rol
 from app.core.database import get_db
 from app.models.personal import Usuario
-from app.schemas.calendario import CalendarioResponse, EventoCalendarioRequest, EventoCalendarioResponse
+from app.schemas.calendario import (
+    CalendarioResponse,
+    EventoCalendarioMasivoRequest,
+    EventoCalendarioRequest,
+    EventoCalendarioResponse,
+)
 from app.schemas.personal import RolEnum
 from app.services.calendario_service import CalendarioService
 
@@ -52,6 +57,31 @@ def crear_evento(
         item for item in service.obtener_calendario(evento.fecha_inicio, evento.fecha_inicio)["eventos"]
         if item["id"] == evento.id
     )
+
+
+@router.post(
+    "/eventos/masivo",
+    response_model=list[EventoCalendarioResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_SOLO_GERENCIA],
+)
+def crear_eventos_masivos(
+    datos: EventoCalendarioMasivoRequest,
+    usuario: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Crea atómicamente una copia del evento por cada fecha seleccionada."""
+    service = CalendarioService(db)
+    fechas = datos.fechas
+    _validar_rango(fechas[0], fechas[-1])
+    eventos = service.crear_eventos_masivos(datos, usuario.id)
+    ids_creados = {evento.id for evento in eventos}
+    respuesta = service.obtener_calendario(fechas[0], fechas[-1])["eventos"]
+    return [
+        item
+        for item in respuesta
+        if item["id"] in ids_creados
+    ]
 
 
 @router.put(

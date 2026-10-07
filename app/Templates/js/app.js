@@ -47,6 +47,11 @@ const state = {
   sessionPollInterval: null,
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   calendarSelectedDay: calendarDateKey(new Date()),
+  calendarMultiSelecting: false,
+  calendarSelectedDays: new Set(),
+  calendarPressTimer: null,
+  calendarSuppressClickDate: null,
+  calendarBulkDates: [],
   calendarEvents: [],
   calendarAttendances: [],
   calendarMenuItems: [],
@@ -1251,6 +1256,30 @@ function calendarManager() {
   return ['Administrador', 'Gerente'].includes(state.user?.rol);
 }
 
+function calendarEventColor(event) {
+  const colors = ['azul', 'turquesa', 'ambar', 'rosa', 'violeta', 'gris'];
+  return colors.includes(event.color_etiqueta)
+    ? event.color_etiqueta
+    : event.tipo === 'LLEGADA_INSUMO' ? 'ambar' : 'azul';
+}
+
+function toggleCalendarSelectedDate(dateKey) {
+  if (state.calendarSelectedDays.has(dateKey)) {
+    state.calendarSelectedDays.delete(dateKey);
+  } else {
+    state.calendarSelectedDays.add(dateKey);
+  }
+  state.calendarSelectedDay = dateKey;
+}
+
+function exitCalendarMultiSelect() {
+  clearTimeout(state.calendarPressTimer);
+  state.calendarMultiSelecting = false;
+  state.calendarSelectedDays.clear();
+  state.calendarBulkDates = [];
+  renderCalendario();
+}
+
 function calendarGridRange(month) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const offset = (first.getDay() + 6) % 7;
@@ -1291,6 +1320,8 @@ function renderCalendario() {
     year: 'numeric',
   });
   const manager = calendarManager();
+  const readOnlyNotice = document.getElementById('calendar-readonly-notice');
+  if (readOnlyNotice) readOnlyNotice.hidden = manager;
   const dayEvents = new Map();
   const dayAttendances = new Map();
   state.calendarEvents.forEach(event => {
@@ -1328,14 +1359,15 @@ function renderCalendario() {
     const attendances = dayAttendances.get(key) || [];
     const eventMarkup = events.slice(0, 3).map(event => {
       const kind = event.tipo === 'LLEGADA_INSUMO' ? 'delivery' : 'dish';
+      const color = calendarEventColor(event);
       const related = event.tipo === 'LLEGADA_INSUMO' ? event.insumo_nombre : event.menu_item_nombre;
       const time = event.hora_inicio ? `${calendarTimeLabel(event.hora_inicio)} ` : '';
       const status = event.estado === 'CANCELADO' ? ' · Cancelado' : event.estado === 'REALIZADO' ? ' · Realizado' : '';
       const text = `${time}${event.titulo}${related ? ` · ${related}` : ''}${status}`;
       const safeText = escHtml(text);
       return manager
-        ? `<button type="button" class="calendar-event-chip ${kind} ${event.estado.toLowerCase()}" data-calendar-event="${event.id}" title="${safeText}">${safeText}</button>`
-        : `<div class="calendar-event-chip ${kind} ${event.estado.toLowerCase()}" title="${safeText}">${safeText}</div>`;
+        ? `<button type="button" class="calendar-event-chip ${kind} color-${color} ${event.estado.toLowerCase()}" data-calendar-event="${event.id}" title="${safeText}">${safeText}</button>`
+        : `<div class="calendar-event-chip ${kind} color-${color} ${event.estado.toLowerCase()}" title="${safeText}">${safeText}</div>`;
     }).join('');
     const attendanceMarkup = attendances.slice(0, 2).map(attendance => {
       const time = formatLocalTime(attendance.hora_entrada_real);
@@ -1348,10 +1380,13 @@ function renderCalendario() {
     const dayAction = manager
       ? `<button type="button" class="calendar-day-add" data-calendar-date="${key}" aria-label="Crear evento el ${key}">+</button>`
       : '';
+    const isSelected = state.calendarMultiSelecting
+      ? state.calendarSelectedDays.has(key)
+      : key === state.calendarSelectedDay;
     dayCells.push(`
-      <div class="calendar-day ${isCurrentMonth ? '' : 'outside-month'} ${isToday ? 'today' : ''} ${key === state.calendarSelectedDay ? 'selected' : ''}">
+      <div class="calendar-day ${isCurrentMonth ? '' : 'outside-month'} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${state.calendarMultiSelecting ? 'multi-selecting' : ''}">
         <div class="calendar-day-header">
-          <button type="button" class="calendar-day-select" data-calendar-detail-date="${key}" aria-label="Ver detalles del ${key}">${day.getDate()}</button>${dayAction}
+          <button type="button" class="calendar-day-select" data-calendar-detail-date="${key}" aria-label="${state.calendarMultiSelecting ? 'Seleccionar' : 'Ver detalles del'} ${key}" aria-pressed="${isSelected}">${day.getDate()}</button>${dayAction}
         </div>
         <div class="calendar-day-items">${eventMarkup}${attendanceMarkup}${more}</div>
       </div>
@@ -1369,6 +1404,15 @@ function renderCalendario() {
     <span><strong>${monthEvents.length}</strong> evento${monthEvents.length === 1 ? '' : 's'} de planificación</span>
     <span><strong>${state.calendarAttendances.length}</strong> asistencia${state.calendarAttendances.length === 1 ? '' : 's'} registrada${state.calendarAttendances.length === 1 ? '' : 's'} en la vista</span>
   `;
+  const selectionToolbar = document.getElementById('calendar-selection-toolbar');
+  const selectionCount = document.getElementById('calendar-selection-count');
+  const createSelectionButton = document.getElementById('calendar-selection-create');
+  if (selectionToolbar && selectionCount && createSelectionButton) {
+    const count = state.calendarSelectedDays.size;
+    selectionToolbar.hidden = !state.calendarMultiSelecting;
+    selectionCount.textContent = `${count} día${count === 1 ? '' : 's'} seleccionado${count === 1 ? '' : 's'}`;
+    createSelectionButton.disabled = count < 2;
+  }
   grid.querySelectorAll('[data-calendar-event]').forEach(button => {
     button.addEventListener('click', () => openCalendarEventModal(Number(button.dataset.calendarEvent)));
   });
@@ -1376,7 +1420,33 @@ function renderCalendario() {
     button.addEventListener('click', () => openCalendarEventModal(null, button.dataset.calendarDate));
   });
   grid.querySelectorAll('[data-calendar-detail-date]').forEach(button => {
-    button.addEventListener('click', () => {
+    const dateKey = button.dataset.calendarDetailDate;
+    button.addEventListener('pointerdown', () => {
+      state.calendarSuppressClickDate = null;
+      if (!manager || state.calendarMultiSelecting) return;
+      clearTimeout(state.calendarPressTimer);
+      state.calendarPressTimer = setTimeout(() => {
+        state.calendarMultiSelecting = true;
+        state.calendarSelectedDays.add(dateKey);
+        state.calendarSelectedDay = dateKey;
+        state.calendarSuppressClickDate = dateKey;
+        renderCalendario();
+      }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(type => {
+      button.addEventListener(type, () => clearTimeout(state.calendarPressTimer));
+    });
+    button.addEventListener('click', event => {
+      if (state.calendarSuppressClickDate === dateKey) {
+        state.calendarSuppressClickDate = null;
+        return;
+      }
+      if (state.calendarMultiSelecting || (manager && event.shiftKey)) {
+        state.calendarMultiSelecting = true;
+        toggleCalendarSelectedDate(dateKey);
+        renderCalendario();
+        return;
+      }
       state.calendarSelectedDay = button.dataset.calendarDetailDate;
       renderCalendario();
     });
@@ -1390,6 +1460,10 @@ function renderCalendarDayDetails(dateKey) {
   const content = document.getElementById('calendar-day-content');
   if (!details || !title || !content) return;
   details.hidden = false;
+  if (state.calendarMultiSelecting) {
+    details.hidden = true;
+    return;
+  }
   title.textContent = calendarDateFromKey(dateKey).toLocaleDateString('es-NI', {
     weekday: 'long',
     day: 'numeric',
@@ -1402,6 +1476,7 @@ function renderCalendarDayDetails(dateKey) {
   const attendances = state.calendarAttendances.filter(item => item.fecha === dateKey);
   const eventRows = events.map(event => {
     const arrival = event.tipo === 'LLEGADA_INSUMO';
+    const color = calendarEventColor(event);
     const related = arrival ? event.insumo_nombre : event.menu_item_nombre;
     const time = event.hora_inicio
       ? `${calendarTimeLabel(event.hora_inicio)}–${calendarTimeLabel(event.hora_fin)}`
@@ -1414,7 +1489,7 @@ function renderCalendarDayDetails(dateKey) {
       : '';
     const status = event.estado === 'REALIZADO' ? 'Realizado' : event.estado === 'CANCELADO' ? 'Cancelado' : 'Planificado';
     const item = `
-      <span class="calendar-detail-icon ${arrival ? 'delivery' : 'dish'} material-symbols-outlined">${arrival ? 'local_shipping' : 'restaurant'}</span>
+      <span class="calendar-detail-icon ${arrival ? 'delivery' : 'dish'} color-${color} material-symbols-outlined">${arrival ? 'local_shipping' : 'restaurant'}</span>
       <span class="calendar-detail-copy">
         <strong>${escHtml(event.titulo)}</strong>
         <span>${escHtml(related || '')}${quantity ? ` · ${escHtml(quantity)}` : ''}${event.proveedor_nombre ? ` · ${escHtml(event.proveedor_nombre)}` : ''}</span>
@@ -1478,12 +1553,17 @@ function updateCalendarQuantityUnit() {
     : 'La cantidad se registra en la unidad base del insumo.';
 }
 
-async function openCalendarEventModal(eventId = null, dateKey = null) {
+async function openCalendarEventModal(eventId = null, dateKey = null, bulkDates = []) {
   if (!calendarManager()) return;
   try {
     await loadCalendarCatalogs();
   } catch {
     return;
+  }
+  if (!eventId && bulkDates.length < 2 && state.calendarMultiSelecting) {
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
+    renderCalendario();
   }
   fillCalendarSelect('calendar-event-dish', state.calendarMenuItems, 'Selecciona un platillo');
   fillCalendarSelect('calendar-event-insumo', state.calendarInsumos, 'Selecciona un insumo');
@@ -1496,6 +1576,15 @@ async function openCalendarEventModal(eventId = null, dateKey = null) {
     : null;
   document.getElementById('calendar-event-id').value = existing?.id || '';
   document.getElementById('calendar-event-title').textContent = existing ? 'Editar evento' : 'Nuevo evento';
+  state.calendarBulkDates = existing ? [] : [...bulkDates].sort();
+  const bulkHint = document.getElementById('calendar-bulk-hint');
+  const dateRange = document.getElementById('calendar-event-date-range');
+  bulkHint.hidden = state.calendarBulkDates.length < 2;
+  bulkHint.textContent = state.calendarBulkDates.length >= 2
+    ? `Se creará una copia del evento únicamente en estos ${state.calendarBulkDates.length} días seleccionados.`
+    : '';
+  dateRange.hidden = state.calendarBulkDates.length >= 2;
+  document.querySelector(`input[name="calendar-event-color"][value="${calendarEventColor(existing || {})}"]`).checked = true;
   document.getElementById('calendar-event-type').value = existing?.tipo || 'DISPONIBILIDAD_PLATILLO';
   document.getElementById('calendar-event-dish').value = existing?.menu_item_id || '';
   document.getElementById('calendar-event-insumo').value = existing?.insumo_id || '';
@@ -1503,7 +1592,7 @@ async function openCalendarEventModal(eventId = null, dateKey = null) {
   document.getElementById('calendar-event-provider').value = existing?.proveedor_id || '';
   document.getElementById('calendar-event-quantity').value = existing?.cantidad_esperada || '';
   document.getElementById('calendar-event-name').value = existing?.titulo || '';
-  document.getElementById('calendar-event-start').value = existing?.fecha_inicio || dateKey || calendarDateKey(new Date());
+  document.getElementById('calendar-event-start').value = existing?.fecha_inicio || state.calendarBulkDates[0] || dateKey || calendarDateKey(new Date());
   document.getElementById('calendar-event-end').value = existing?.fecha_fin || '';
   document.getElementById('calendar-event-time-start').value = existing?.hora_inicio?.slice(0, 5) || '';
   document.getElementById('calendar-event-time-end').value = existing?.hora_fin?.slice(0, 5) || '';
@@ -1516,6 +1605,11 @@ async function openCalendarEventModal(eventId = null, dateKey = null) {
 
 function closeCalendarEventModal() {
   document.getElementById('modal-calendar-event')?.classList.remove('show');
+  state.calendarBulkDates = [];
+  const bulkHint = document.getElementById('calendar-bulk-hint');
+  const dateRange = document.getElementById('calendar-event-date-range');
+  if (bulkHint) bulkHint.hidden = true;
+  if (dateRange) dateRange.hidden = false;
 }
 
 async function saveCalendarEvent(event) {
@@ -1543,6 +1637,7 @@ async function saveCalendarEvent(event) {
   const body = {
     tipo,
     titulo,
+    color_etiqueta: document.querySelector('input[name="calendar-event-color"]:checked')?.value || 'azul',
     descripcion: document.getElementById('calendar-event-description').value.trim() || null,
     fecha_inicio: fechaInicio,
     fecha_fin: fechaFin || null,
@@ -1557,12 +1652,19 @@ async function saveCalendarEvent(event) {
   const button = document.getElementById('save-calendar-event');
   button.disabled = true;
   try {
-    await api(id ? `/calendario/eventos/${id}` : '/calendario/eventos', {
+    const bulk = !id && state.calendarBulkDates.length >= 2;
+    if (bulk) {
+      body.fecha_inicio = state.calendarBulkDates[0];
+      body.fecha_fin = null;
+      body.fechas = state.calendarBulkDates;
+    }
+    await api(id ? `/calendario/eventos/${id}` : bulk ? '/calendario/eventos/masivo' : '/calendario/eventos', {
       method: id ? 'PUT' : 'POST',
       body: JSON.stringify(body),
     });
     closeCalendarEventModal();
-    showToast(id ? 'Evento actualizado' : 'Evento creado', 'success');
+    if (bulk) exitCalendarMultiSelect();
+    showToast(id ? 'Evento actualizado' : bulk ? `Evento creado en ${body.fechas.length} días` : 'Evento creado', 'success');
     await loadCalendario();
   } catch {
     // api() reports the request error.
@@ -5910,20 +6012,38 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('calendar-prev')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
     state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
     state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
     loadCalendario();
   });
   document.getElementById('calendar-next')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
     state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
     state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
     loadCalendario();
   });
   document.getElementById('calendar-today')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
     const today = new Date();
     state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     state.calendarSelectedDay = calendarDateKey(today);
     loadCalendario();
+  });
+  document.getElementById('calendar-selection-clear')?.addEventListener('click', () => {
+    state.calendarSelectedDays.clear();
+    renderCalendario();
+  });
+  document.getElementById('calendar-selection-cancel')?.addEventListener('click', exitCalendarMultiSelect);
+  document.getElementById('calendar-selection-create')?.addEventListener('click', () => {
+    if (state.calendarSelectedDays.size < 2) return;
+    openCalendarEventModal(null, null, [...state.calendarSelectedDays]);
   });
   document.getElementById('btn-calendar-add')?.addEventListener('click', () => openCalendarEventModal());
   document.getElementById('calendar-event-type')?.addEventListener('change', setCalendarEventTypeFields);

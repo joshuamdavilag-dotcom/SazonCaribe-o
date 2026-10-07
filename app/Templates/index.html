@@ -925,6 +925,7 @@
             <span class="calendar-eyebrow">Planificación del restaurante</span>
             <h1>Calendario</h1>
             <p>Disponibilidad de platillos, llegadas de insumos y asistencias registradas</p>
+            <p id="calendar-readonly-notice" class="calendar-readonly-notice" hidden>Vista de consulta: puedes ver los eventos, pero solo Administración y Gerencia pueden crearlos o modificarlos.</p>
           </div>
           <button id="btn-calendar-add" type="button" class="calendar-add-btn admin-only" data-roles="Administrador,Gerente">
             <span class="material-symbols-outlined">add</span> Nuevo evento
@@ -945,6 +946,17 @@
             </div>
           </div>
           <div id="calendar-summary" class="calendar-summary" aria-live="polite"></div>
+          <div id="calendar-selection-toolbar" class="calendar-selection-toolbar" hidden>
+            <div>
+              <strong id="calendar-selection-count">0 días seleccionados</strong>
+              <span>Mantén pulsado un día para iniciar; luego toca los demás días.</span>
+            </div>
+            <div class="calendar-selection-actions">
+              <button id="calendar-selection-clear" class="btn btn-secondary" type="button">Limpiar</button>
+              <button id="calendar-selection-cancel" class="btn btn-secondary" type="button">Cancelar</button>
+              <button id="calendar-selection-create" class="btn btn-primary admin-only" data-roles="Administrador,Gerente" type="button">Crear evento</button>
+            </div>
+          </div>
           <div id="calendar-grid" class="calendar-grid" aria-live="polite">
             <div class="calendar-loading">Cargando calendario…</div>
           </div>
@@ -2116,7 +2128,19 @@
           <label class="form-label" for="calendar-event-name">Título</label>
           <input id="calendar-event-name" class="form-input" type="text" maxlength="120" required placeholder="Ej. Disponible para el almuerzo">
         </div>
-        <div class="calendar-form-row">
+        <fieldset class="form-group calendar-color-field">
+          <legend class="form-label">Color de etiqueta</legend>
+          <div class="calendar-color-options">
+            <label class="calendar-color-option azul"><input type="radio" name="calendar-event-color" value="azul" checked><span>Azul</span></label>
+            <label class="calendar-color-option turquesa"><input type="radio" name="calendar-event-color" value="turquesa"><span>Turquesa</span></label>
+            <label class="calendar-color-option ambar"><input type="radio" name="calendar-event-color" value="ambar"><span>Ámbar</span></label>
+            <label class="calendar-color-option rosa"><input type="radio" name="calendar-event-color" value="rosa"><span>Rosa</span></label>
+            <label class="calendar-color-option violeta"><input type="radio" name="calendar-event-color" value="violeta"><span>Violeta</span></label>
+            <label class="calendar-color-option gris"><input type="radio" name="calendar-event-color" value="gris"><span>Gris</span></label>
+          </div>
+        </fieldset>
+        <p id="calendar-bulk-hint" class="calendar-bulk-hint" hidden></p>
+        <div class="calendar-form-row" id="calendar-event-date-range">
           <div class="form-group">
             <label class="form-label" for="calendar-event-start">Fecha inicial</label>
             <input id="calendar-event-start" class="form-input" type="date" required>

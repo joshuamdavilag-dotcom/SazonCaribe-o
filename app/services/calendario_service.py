@@ -11,7 +11,7 @@ from app.models.calendario import (
 from app.models.inventario import Insumo, Proveedor
 from app.models.menu import MenuItem
 from app.repositories.calendario_repository import CalendarioRepository
-from app.schemas.calendario import EventoCalendarioRequest
+from app.schemas.calendario import EventoCalendarioMasivoRequest, EventoCalendarioRequest
 
 
 class CalendarioService:
@@ -42,6 +42,7 @@ class CalendarioService:
                     "id": evento.id,
                     "tipo": evento.tipo,
                     "titulo": evento.titulo,
+                    "color_etiqueta": evento.color_etiqueta,
                     "descripcion": evento.descripcion,
                     "fecha_inicio": evento.fecha_inicio,
                     "fecha_fin": evento.fecha_fin,
@@ -94,6 +95,35 @@ class CalendarioService:
         self.db.commit()
         self.db.refresh(evento)
         return evento
+
+    def crear_eventos_masivos(
+        self, datos: EventoCalendarioMasivoRequest, usuario_id: int
+    ) -> list[EventoCalendario]:
+        """Crea el mismo evento solo en las fechas seleccionadas, en una transacción."""
+        self._validar_referencias(datos)
+        campos_comunes = datos.model_dump(
+            exclude={"estado", "fecha_inicio", "fecha_fin", "fechas"}
+        )
+        eventos = [
+            EventoCalendario(
+                **campos_comunes,
+                fecha_inicio=fecha,
+                fecha_fin=None,
+                estado=datos.estado,
+                creado_por_id=usuario_id,
+                completado_en=(
+                    ahora_local()
+                    if datos.estado == EstadoEventoCalendario.REALIZADO
+                    else None
+                ),
+            )
+            for fecha in datos.fechas
+        ]
+        self.db.add_all(eventos)
+        self.db.commit()
+        for evento in eventos:
+            self.db.refresh(evento)
+        return eventos
 
     def actualizar_evento(self, evento_id: int, datos: EventoCalendarioRequest) -> EventoCalendario:
         """Reemplaza los campos editables y sincroniza el marcador de realizado.
