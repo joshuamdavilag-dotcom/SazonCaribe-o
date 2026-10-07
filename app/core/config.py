@@ -103,6 +103,24 @@ class Settings(BaseSettings):
         description="API key de ImgBB para subir imágenes de platos"
     )
 
+    # Cámaras: solo se guarda el path público del stream, no las credenciales RTSP.
+    CAMERA_BRIDGE_BASE_URL: str = Field(
+        default="",
+        description="Origen HTTPS del puente WebRTC local (sin ruta ni credenciales)"
+    )
+    CAMERA_STORAGE_DIR: str = Field(
+        default="app/data/camera-clips",
+        description="Directorio persistente para clips manuales de cámaras"
+    )
+    CAMERA_ICE_SERVERS_JSON: str = Field(
+        default="[]",
+        description="Lista JSON de servidores STUN/TURN para WebRTC"
+    )
+    CAMERA_TURN_SHARED_SECRET: str = Field(
+        default="",
+        description="Secreto compartido con TURN para generar credenciales temporales"
+    )
+
     # Pagos en línea — permanece deshabilitado hasta registrar un adaptador real.
     PAYMENT_PROVIDER: str = Field(
         default="disabled",

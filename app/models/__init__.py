@@ -9,6 +9,7 @@ from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
 from app.models.pago import PagoOnline, EstadoPago
 from app.models.calendario import EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
+from app.models.camera import Camera, CameraAccess, CameraClip
 
 __all__ = [
     "Puesto",
@@ -42,4 +43,7 @@ __all__ = [
     "EventoCalendario",
     "TipoEventoCalendario",
     "EstadoEventoCalendario",
+    "Camera",
+    "CameraAccess",
+    "CameraClip",
 ]

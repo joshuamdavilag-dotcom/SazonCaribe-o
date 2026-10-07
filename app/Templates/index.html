@@ -152,6 +152,10 @@
           <span class="material-symbols-outlined nav-icon text-[20px]">calendar_month</span>
           <span class="nav-label">Calendario</span>
         </a>
+        <a class="nav-item" data-screen="cameras">
+          <span class="material-symbols-outlined nav-icon text-[20px]">videocam</span>
+          <span class="nav-label">Cámaras</span>
+        </a>
         <a class="nav-item nav-item-admin admin-only" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
           <span class="material-symbols-outlined nav-icon text-[20px]">edit_note</span>
           <span class="nav-label">Gestión Menú</span>
@@ -834,6 +838,52 @@
                 <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CÁMARAS -->
+      <section id="screen-cameras" class="screen w-full max-w-full overflow-x-hidden" aria-label="Cámaras de seguridad">
+        <header class="screen-header camera-screen-header">
+          <div>
+            <span class="calendar-eyebrow">Seguridad del local</span>
+            <h1>Cámaras</h1>
+            <p>Vista en vivo y clips manuales sin límite de duración. Sin audio; se eliminan automáticamente a los 7 días. La grabación se pausa si quedan menos de 512 MB en el disco.</p>
+          </div>
+        </header>
+        <div class="camera-page">
+          <div id="camera-storage-status" class="camera-storage-status admin-only" aria-live="polite"></div>
+          <section class="camera-management admin-only" aria-label="Administrar cámaras">
+            <h2 id="camera-form-title">Configurar una cámara</h2>
+            <p>Registra el identificador de la ruta configurada en el puente seguro; no ingreses contraseñas RTSP aquí.</p>
+            <form id="camera-form" class="camera-form">
+              <input id="camera-id" type="hidden">
+              <label>
+                <span>Nombre visible</span>
+                <input id="camera-name" type="text" maxlength="100" required placeholder="Ej. Entrada principal">
+              </label>
+              <label>
+                <span>Identificador del puente</span>
+                <input id="camera-slug" type="text" maxlength="50" pattern="[a-z0-9][a-z0-9_-]*" required placeholder="entrada-principal">
+              </label>
+              <div class="camera-form-actions">
+                <button type="submit" id="camera-submit" class="btn-turquoise">Agregar cámara</button>
+                <button type="button" id="camera-cancel-edit" class="camera-secondary-btn" hidden>Cancelar</button>
+              </div>
+            </form>
+            <p class="camera-setup-hint">El identificador debe coincidir con la ruta configurada en MediaMTX. Consulta <code>docs/CAMARAS.md</code> para instalar y asegurar el puente.</p>
+          </section>
+          <div id="camera-grid" class="camera-grid" aria-live="polite">
+            <div class="camera-empty">Cargando cámaras…</div>
+          </div>
+        </div>
+        <div id="camera-clip-modal" class="modal-overlay" aria-label="Reproducir clip">
+          <div class="modal-sheet camera-clip-sheet">
+            <div class="modal-header">
+              <h3 class="modal-title" id="camera-clip-title">Clip guardado</h3>
+              <button type="button" class="modal-close" onclick="cerrarClipModal()" aria-label="Cerrar">✕</button>
+            </div>
+            <video id="camera-clip-player" controls playsinline></video>
           </div>
         </div>
       </section>

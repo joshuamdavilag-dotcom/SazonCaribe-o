@@ -53,6 +53,12 @@ const state = {
   calendarInsumos: [],
   calendarProveedores: [],
   calendarCatalogsLoaded: false,
+  cameras: [],
+  cameraUsers: [],
+  cameraPeers: new Map(),
+  cameraRecordings: new Map(),
+  cameraClips: [],
+  cameraClipObjectUrl: null,
 };
 
 /* =========================================================================
@@ -184,6 +190,9 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
+  if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
+    void cerrarTodasCamaras();
+  }
   document.querySelectorAll('.main-content .screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${screenId}`);
   if (target) target.classList.add('active');
@@ -216,6 +225,503 @@ function navigateTo(screenId) {
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
   if (screenId === 'calendario') loadCalendario();
+  if (screenId === 'cameras') loadCameras();
+}
+
+/* =========================================================================
+   Cameras
+   ========================================================================= */
+function cameraEsGestor() {
+  return ['Administrador', 'Gerente'].includes(state.user?.rol);
+}
+
+function formatearBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+async function loadCameras() {
+  const grid = document.getElementById('camera-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="camera-empty">Cargando cámaras…</div>';
+  try {
+    const [cameras, clips] = await Promise.all([
+      api('/cameras/'),
+      api('/cameras/clips'),
+    ]);
+    state.cameras = cameras;
+    state.cameraClips = clips;
+    if (cameraEsGestor()) {
+      const [usersResult, storageResult] = await Promise.allSettled([
+        api('/cameras/eligible-users'),
+        api('/cameras/storage'),
+      ]);
+      state.cameraUsers = usersResult.status === 'fulfilled' ? usersResult.value : [];
+      if (usersResult.status === 'rejected') {
+        showToast(`No se pudieron cargar los usuarios para permisos: ${usersResult.reason.message}`, 'error');
+      }
+      if (storageResult.status === 'fulfilled') {
+        renderCameraStorage(storageResult.value);
+      } else {
+        const storage = document.getElementById('camera-storage-status');
+        if (storage) storage.textContent = `No se pudo consultar el almacenamiento: ${storageResult.reason.message}`;
+      }
+    } else {
+      state.cameraUsers = [];
+    }
+    renderCameras();
+  } catch {
+    grid.innerHTML = '<div class="camera-empty">No se pudieron cargar las cámaras. Revisa tu conexión y vuelve a intentarlo.</div>';
+  }
+}
+
+function renderCameraStorage(storage) {
+  const target = document.getElementById('camera-storage-status');
+  if (!target) return;
+  target.innerHTML = `<span>Clips guardados: <strong>${storage.clips}</strong> (${formatearBytes(storage.bytes_usados)})</span>
+    <span>Espacio libre en disco: <strong>${formatearBytes(storage.bytes_libres)}</strong></span>`;
+}
+
+function renderCameras() {
+  const grid = document.getElementById('camera-grid');
+  if (!grid) return;
+  if (!state.cameras.length) {
+    grid.innerHTML = cameraEsGestor()
+      ? '<div class="camera-empty">Todavía no hay cámaras. Registra una arriba después de configurar el puente seguro.</div>'
+      : '<div class="camera-empty">No tienes cámaras autorizadas. Solicita acceso a Gerencia.</div>';
+    return;
+  }
+  grid.innerHTML = state.cameras.map(camera => {
+    const clips = state.cameraClips.filter(clip => clip.camara_id === camera.id);
+    const users = cameraEsGestor()
+      ? `<details class="camera-access"><summary>Accesos individuales</summary>
+          <div class="camera-user-list">${state.cameraUsers.length
+            ? state.cameraUsers.map(user => `<label><input type="checkbox" data-camera-access="${camera.id}" value="${user.id}" ${camera.usuario_ids.includes(user.id) ? 'checked' : ''}>
+                <span>${escHtml(user.nombre_completo)} <small>@${escHtml(user.username)}</small></span></label>`).join('')
+            : '<p>No hay vendedores activos para autorizar.</p>'}
+          </div>
+          <button type="button" class="camera-secondary-btn" onclick="guardarAccesosCamara(${camera.id})">Guardar accesos</button>
+        </details>
+        <button type="button" class="camera-secondary-btn" onclick="editarCamara(${camera.id})">Editar cámara</button>
+        <button type="button" class="camera-secondary-btn" onclick="cambiarEstadoCamara(${camera.id}, ${!camera.activa})">${camera.activa ? 'Desactivar cámara' : 'Activar cámara'}</button>`
+      : '';
+    return `<article class="camera-card" data-camera-card="${camera.id}">
+      <div class="camera-card-heading">
+        <div><h2>${escHtml(camera.nombre)}</h2><p>Ruta: <code>${escHtml(camera.slug)}</code></p></div>
+        <span class="camera-state ${camera.activa ? 'is-active' : 'is-disabled'}">${camera.activa ? 'Activa' : 'Desactivada'}</span>
+      </div>
+      <video id="camera-video-${camera.id}" class="camera-video" controls autoplay muted playsinline hidden></video>
+      <p class="camera-stream-status" id="camera-status-${camera.id}" aria-live="polite">${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Desconectada' : 'Falta configurar CAMERA_BRIDGE_BASE_URL'}</p>
+      <div class="camera-actions">
+        ${camera.activa && camera.stream_url
+          ? `<button type="button" class="camera-primary-btn" id="camera-connect-${camera.id}" onclick="conectarCamara(${camera.id})">Ver en vivo</button>
+             <button type="button" class="camera-secondary-btn" id="camera-record-${camera.id}" onclick="alternarGrabacionCamara(${camera.id})" disabled>Grabar momento</button>
+             <button type="button" class="camera-secondary-btn" id="camera-disconnect-${camera.id}" onclick="desconectarCamara(${camera.id})" hidden>Desconectar</button>`
+          : ''}
+      </div>
+      ${users}
+      ${cameraClipsMarkup(clips)}
+    </article>`;
+  }).join('');
+}
+
+function cameraClipsMarkup(clips) {
+  return `<section class="camera-clips"><h3>Momentos guardados <span>(${clips.length})</span></h3>
+    ${clips.length ? `<ul>${clips.map(clip => {
+      const puedeEliminar = cameraEsGestor() || clip.usuario_nombre === state.user?.username;
+      return `<li><div><strong>${escHtml(new Date(clip.creado_en).toLocaleString('es-NI'))}</strong>
+          <small>${escHtml(clip.usuario_nombre)} · ${formatearBytes(clip.bytes_guardados)}</small></div>
+        <div class="camera-clip-actions">
+          <button type="button" class="camera-secondary-btn" onclick="verClipCamara('${escHtml(clip.id)}')">Reproducir</button>
+          ${puedeEliminar ? `<button type="button" class="camera-danger-btn" onclick="eliminarClipCamara('${escHtml(clip.id)}')">Eliminar</button>` : ''}
+        </div></li>`;
+    }).join('')}</ul>` : '<p>Aún no hay clips guardados.</p>'}
+  </section>`;
+}
+
+async function guardarCamara(event) {
+  event.preventDefault();
+  const cameraId = document.getElementById('camera-id').value;
+  const nombre = document.getElementById('camera-name').value.trim();
+  const slug = document.getElementById('camera-slug').value.trim().toLowerCase();
+  try {
+    if (cameraId && state.cameraPeers.has(Number(cameraId))) {
+      await desconectarCamara(Number(cameraId));
+    }
+    await api(cameraId ? `/cameras/${cameraId}` : '/cameras/', {
+      method: cameraId ? 'PATCH' : 'POST',
+      body: JSON.stringify({ nombre, slug }),
+    });
+    resetCameraForm();
+    showToast(cameraId ? 'Cámara actualizada' : 'Cámara agregada');
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+function editarCamara(cameraId) {
+  const camera = state.cameras.find(item => item.id === cameraId);
+  if (!camera) return showToast('Cámara no encontrada', 'error');
+  document.getElementById('camera-id').value = camera.id;
+  document.getElementById('camera-name').value = camera.nombre;
+  document.getElementById('camera-slug').value = camera.slug;
+  document.getElementById('camera-form-title').textContent = `Editar cámara: ${camera.nombre}`;
+  document.getElementById('camera-submit').textContent = 'Guardar cambios';
+  document.getElementById('camera-cancel-edit').hidden = false;
+  document.getElementById('camera-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetCameraForm() {
+  document.getElementById('camera-form').reset();
+  document.getElementById('camera-id').value = '';
+  document.getElementById('camera-form-title').textContent = 'Configurar una cámara';
+  document.getElementById('camera-submit').textContent = 'Agregar cámara';
+  document.getElementById('camera-cancel-edit').hidden = true;
+}
+
+async function guardarAccesosCamara(cameraId) {
+  const usuario_ids = [...document.querySelectorAll(`[data-camera-access="${cameraId}"]:checked`)]
+    .map(input => Number(input.value));
+  try {
+    await api(`/cameras/${cameraId}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ usuario_ids }),
+    });
+    showToast('Accesos actualizados');
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+async function cambiarEstadoCamara(cameraId, activa) {
+  const accion = activa ? 'activar' : 'desactivar';
+  if (!confirm(`¿Deseas ${accion} esta cámara?`)) return;
+  try {
+    await api(`/cameras/${cameraId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activa }),
+    });
+    if (!activa) await desconectarCamara(cameraId);
+    showToast(`Cámara ${activa ? 'activada' : 'desactivada'}`);
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+function setCameraStatus(cameraId, message, isError = false) {
+  const target = document.getElementById(`camera-status-${cameraId}`);
+  if (!target) return;
+  target.textContent = message;
+  target.classList.toggle('is-error', isError);
+}
+
+function esperarFinIce(peer) {
+  if (peer.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise(resolve => {
+    const terminar = () => {
+      clearTimeout(timeout);
+      peer.removeEventListener('icegatheringstatechange', alCambiar);
+      resolve();
+    };
+    const alCambiar = () => {
+      if (peer.iceGatheringState === 'complete') {
+        terminar();
+      }
+    };
+    const timeout = setTimeout(terminar, 8000);
+    peer.addEventListener('icegatheringstatechange', alCambiar);
+    alCambiar();
+  });
+}
+
+async function conectarCamara(cameraId) {
+  const camera = state.cameras.find(item => item.id === cameraId);
+  if (!camera?.stream_url || !camera.activa) return;
+  if (state.cameraPeers.has(cameraId)) return;
+  const video = document.getElementById(`camera-video-${cameraId}`);
+  const connectButton = document.getElementById(`camera-connect-${cameraId}`);
+  try {
+    setCameraStatus(cameraId, 'Conectando al puente…');
+    connectButton.disabled = true;
+    const streamToken = await api(`/cameras/${cameraId}/stream-token`, { method: 'POST' });
+    const authorization = `Basic ${btoa(`${camera.slug}:${streamToken.token}`)}`;
+    const peer = new RTCPeerConnection({ iceServers: streamToken.ice_servers });
+    const connection = { peer, authorization, resourceUrl: null, stream: null };
+    state.cameraPeers.set(cameraId, connection);
+    peer.ontrack = event => {
+      const stream = event.streams[0] || new MediaStream([event.track]);
+      connection.stream = stream;
+      video.srcObject = stream;
+      video.hidden = false;
+      document.getElementById(`camera-record-${cameraId}`).disabled = false;
+      setCameraStatus(cameraId, 'En vivo');
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
+        setCameraStatus(cameraId, 'Conexión interrumpida. Verifica el puente y la red.', true);
+      }
+    };
+    peer.addTransceiver('video', { direction: 'recvonly' });
+    await peer.setLocalDescription(await peer.createOffer());
+    await esperarFinIce(peer);
+    const response = await fetch(camera.stream_url, {
+      method: 'POST',
+      headers: {
+        Authorization: authorization,
+        'Content-Type': 'application/sdp',
+        Accept: 'application/sdp',
+      },
+      body: peer.localDescription.sdp,
+    });
+    if (!response.ok) {
+      throw new Error(`El puente rechazó la conexión (HTTP ${response.status})`);
+    }
+    const answer = await response.text();
+    const location = response.headers.get('Location');
+    if (!location) {
+      throw new Error('El puente no expuso la cabecera Location necesaria para cerrar la sesión WHEP');
+    }
+    const resourceUrl = new URL(location, camera.stream_url);
+    if (resourceUrl.origin !== new URL(camera.stream_url).origin) {
+      throw new Error('El puente devolvió una URL de sesión en otro origen');
+    }
+    connection.resourceUrl = resourceUrl.toString();
+    await peer.setRemoteDescription({ type: 'answer', sdp: answer });
+    document.getElementById(`camera-disconnect-${cameraId}`).hidden = false;
+  } catch (error) {
+    await desconectarCamara(cameraId, false);
+    setCameraStatus(cameraId, error.message || 'No se pudo conectar al puente', true);
+    showToast(error.message || 'No se pudo conectar al puente', 'error', 5000);
+  } finally {
+    const button = document.getElementById(`camera-connect-${cameraId}`);
+    if (button) button.disabled = state.cameraPeers.has(cameraId);
+  }
+}
+
+function mimeGrabacionDisponible() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  return [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4',
+  ].find(type => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+async function alternarGrabacionCamara(cameraId) {
+  if (state.cameraRecordings.has(cameraId)) {
+    await detenerGrabacionCamara(cameraId);
+  } else {
+    await iniciarGrabacionCamara(cameraId);
+  }
+}
+
+async function iniciarGrabacionCamara(cameraId) {
+  const connection = state.cameraPeers.get(cameraId);
+  if (!connection?.stream) return showToast('Conecta la cámara antes de grabar', 'warning');
+  const mimeType = mimeGrabacionDisponible();
+  if (!mimeType) return showToast('Este navegador no permite grabar video', 'error');
+  let clip;
+  let recording;
+  try {
+    clip = await api(`/cameras/${cameraId}/clips`, {
+      method: 'POST',
+      body: JSON.stringify({ mime_type: mimeType }),
+    });
+    const recorder = new MediaRecorder(connection.stream, { mimeType });
+    const authHeaders = { Authorization: `Bearer ${state.token}` };
+    let resolveFinished;
+    recording = {
+      clipId: clip.id,
+      recorder,
+      sequence: 0,
+      uploadQueue: Promise.resolve(),
+      authHeaders,
+      finished: new Promise(resolve => { resolveFinished = resolve; }),
+    };
+    state.cameraRecordings.set(cameraId, recording);
+    recorder.ondataavailable = event => {
+      if (!event.data.size || recording.error) return;
+      const sequence = recording.sequence++;
+      recording.uploadQueue = recording.uploadQueue.then(() => api(
+        `/cameras/${cameraId}/clips/${recording.clipId}/chunks/${sequence}`,
+        {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/octet-stream' },
+          body: event.data,
+          silent: true,
+        },
+      )).catch(error => {
+        recording.error = error;
+        showToast(`La grabación se interrumpió: ${error.message}`, 'error', 6000);
+        if (recorder.state === 'recording') recorder.stop();
+      });
+    };
+    recorder.onstop = async () => {
+      try {
+        if (recording.error) throw recording.error;
+        await recording.uploadQueue;
+        await api(`/cameras/${cameraId}/clips/${recording.clipId}/finish`, {
+          method: 'POST',
+          headers: authHeaders,
+          silent: true,
+        });
+        showToast('Clip guardado; se conservará 7 días');
+      } catch (error) {
+        try {
+          await api(`/cameras/clips/${recording.clipId}`, {
+            method: 'DELETE',
+            headers: authHeaders,
+            silent: true,
+          });
+        } catch (deleteError) {
+          showToast(`No se pudo finalizar ni limpiar el clip: ${deleteError.message}`, 'error', 6000);
+        }
+        if (!recording.error) {
+          showToast(`No se pudo guardar el clip: ${error.message}`, 'error', 6000);
+        }
+      } finally {
+        state.cameraRecordings.delete(cameraId);
+        updateCameraRecordButton(cameraId);
+        resolveFinished();
+        await loadCameraClips();
+      }
+    };
+    recorder.start(5000);
+    updateCameraRecordButton(cameraId);
+    showToast('Grabación iniciada. Deténla para guardar el clip.');
+  } catch (error) {
+    if (recording) {
+      state.cameraRecordings.delete(cameraId);
+      updateCameraRecordButton(cameraId);
+    }
+    if (clip?.id) {
+      try {
+        await api(`/cameras/clips/${clip.id}`, { method: 'DELETE', silent: true });
+      } catch (cleanupError) {
+        showToast(`No se pudo limpiar la grabación incompleta: ${cleanupError.message}`, 'error', 6000);
+      }
+    }
+    showToast(`No se pudo iniciar la grabación: ${error.message}`, 'error', 5000);
+  }
+}
+
+function updateCameraRecordButton(cameraId) {
+  const button = document.getElementById(`camera-record-${cameraId}`);
+  if (!button) return;
+  const recording = state.cameraRecordings.has(cameraId);
+  button.textContent = recording ? 'Detener y guardar' : 'Grabar momento';
+  button.classList.toggle('is-recording', recording);
+}
+
+async function detenerGrabacionCamara(cameraId) {
+  const recording = state.cameraRecordings.get(cameraId);
+  if (!recording) return;
+  if (recording.recorder.state !== 'inactive') recording.recorder.stop();
+  await recording.finished;
+}
+
+async function desconectarCamara(cameraId, stopRecording = true) {
+  if (stopRecording && state.cameraRecordings.has(cameraId)) {
+    await detenerGrabacionCamara(cameraId);
+  }
+  const connection = state.cameraPeers.get(cameraId);
+  if (connection) {
+    connection.peer.close();
+    connection.stream?.getTracks().forEach(track => track.stop());
+    if (connection.resourceUrl) {
+      try {
+        const response = await fetch(connection.resourceUrl, {
+          method: 'DELETE',
+          headers: { Authorization: connection.authorization },
+        });
+        if (!response.ok && response.status !== 404) {
+          showToast(`El puente no pudo cerrar la sesión (HTTP ${response.status})`, 'error');
+        }
+      } catch {
+        showToast('Se cerró el video localmente, pero no se confirmó el cierre en el puente.', 'error');
+      }
+    }
+    state.cameraPeers.delete(cameraId);
+  }
+  const video = document.getElementById(`camera-video-${cameraId}`);
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+    video.hidden = true;
+  }
+  const connectButton = document.getElementById(`camera-connect-${cameraId}`);
+  if (connectButton) connectButton.disabled = false;
+  const disconnectButton = document.getElementById(`camera-disconnect-${cameraId}`);
+  if (disconnectButton) disconnectButton.hidden = true;
+  const recordButton = document.getElementById(`camera-record-${cameraId}`);
+  if (recordButton) recordButton.disabled = true;
+  updateCameraRecordButton(cameraId);
+  setCameraStatus(cameraId, 'Desconectada');
+}
+
+async function cerrarTodasCamaras() {
+  const cameraIds = new Set([
+    ...state.cameraPeers.keys(),
+    ...state.cameraRecordings.keys(),
+  ]);
+  for (const cameraId of cameraIds) {
+    await desconectarCamara(cameraId);
+  }
+}
+
+async function loadCameraClips() {
+  if (!state.token) return;
+  try {
+    state.cameraClips = await api('/cameras/clips');
+    document.querySelectorAll('[data-camera-card]').forEach(card => {
+      const camera = state.cameras.find(item => item.id === Number(card.dataset.cameraCard));
+      if (!camera) return;
+      const clips = state.cameraClips.filter(clip => clip.camara_id === camera.id);
+      const section = card.querySelector('.camera-clips');
+      if (section) section.outerHTML = cameraClipsMarkup(clips);
+    });
+  } catch { /* api() reports the error */ }
+}
+
+async function verClipCamara(clipId) {
+  try {
+    const response = await fetch(`${API_BASE}/cameras/clips/${encodeURIComponent(clipId)}/video`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Error ${response.status}`);
+    }
+    const blob = await response.blob();
+    if (state.cameraClipObjectUrl) URL.revokeObjectURL(state.cameraClipObjectUrl);
+    state.cameraClipObjectUrl = URL.createObjectURL(blob);
+    document.getElementById('camera-clip-player').src = state.cameraClipObjectUrl;
+    document.getElementById('camera-clip-modal').classList.add('show');
+  } catch (error) {
+    showToast(`No se pudo abrir el clip: ${error.message}`, 'error');
+  }
+}
+
+async function eliminarClipCamara(clipId) {
+  if (!confirm('¿Eliminar este clip permanentemente?')) return;
+  try {
+    await api(`/cameras/clips/${encodeURIComponent(clipId)}`, { method: 'DELETE' });
+    showToast('Clip eliminado');
+    await loadCameraClips();
+  } catch { /* api() shows the error */ }
+}
+
+function cerrarClipModal() {
+  const player = document.getElementById('camera-clip-player');
+  player.pause();
+  player.removeAttribute('src');
+  player.load();
+  document.getElementById('camera-clip-modal').classList.remove('show');
+  if (state.cameraClipObjectUrl) {
+    URL.revokeObjectURL(state.cameraClipObjectUrl);
+    state.cameraClipObjectUrl = null;
+  }
 }
 
 /* =========================================================================
@@ -284,6 +790,8 @@ async function login(username, password) {
 }
 
 function logout() {
+  void cerrarTodasCamaras();
+  if (state.cameraClipObjectUrl) cerrarClipModal();
   if (state.heartbeatInterval) { clearInterval(state.heartbeatInterval); state.heartbeatInterval = null; }
   if (state.sessionPollInterval) { clearInterval(state.sessionPollInterval); state.sessionPollInterval = null; }
   state.token = null;
@@ -5372,6 +5880,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('delete-calendar-event')?.addEventListener('click', deleteCalendarEvent);
   document.getElementById('modal-calendar-event')?.addEventListener('click', event => {
     if (event.target.id === 'modal-calendar-event') closeCalendarEventModal();
+  });
+  document.getElementById('camera-form')?.addEventListener('submit', guardarCamara);
+  document.getElementById('camera-cancel-edit')?.addEventListener('click', resetCameraForm);
+  document.getElementById('camera-clip-modal')?.addEventListener('click', event => {
+    if (event.target.id === 'camera-clip-modal') cerrarClipModal();
   });
 
   // KDS refresh

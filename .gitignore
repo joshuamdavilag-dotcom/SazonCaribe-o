@@ -26,3 +26,6 @@ alembic/versions/*.pyc
 
 # Logs
 *.log
+
+# Clips de cámaras (datos sensibles, nunca versionar)
+app/data/camera-clips/

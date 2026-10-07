@@ -19,6 +19,7 @@ from app.models import (
     Gasto, CategoriaGasto,
     PagoOnline, EstadoPago,
     EventoCalendario,
+    Camera, CameraAccess, CameraClip,
 )
 from app.api.endpoints.personal import router as personal_router
 from app.api.endpoints.asistencia import router as asistencia_router
@@ -35,6 +36,7 @@ from app.api.endpoints.caja import router as caja_router
 from app.api.endpoints.gasto import router as gasto_router
 from app.api.endpoints.pagos import router as pagos_router
 from app.api.endpoints.calendario import router as calendario_router
+from app.api.endpoints.cameras import router as cameras_router
 
 
 settings = get_settings()
@@ -157,6 +159,12 @@ app.include_router(
 )
 
 app.include_router(
+    cameras_router,
+    prefix="/api/v1/cameras",
+    tags=["Cámaras de seguridad"]
+)
+
+app.include_router(
     menu_publico_router,
     prefix="/api/public",
     tags=["Carta Pública (Menú Digital)"]
@@ -201,6 +209,7 @@ async def startup_event():
     _fix_orphaned_mesas()
     _sancar_turnos_huerfanos()
     asyncio.create_task(_heartbeat_watcher())
+    asyncio.create_task(_camera_clip_retention_watcher())
 
 
 def _migrate_constraints():
@@ -1020,6 +1029,20 @@ async def _heartbeat_watcher():
                 db.close()
         except Exception:
             pass
+
+
+async def _camera_clip_retention_watcher():
+    """Elimina clips vencidos y grabaciones abandonadas del almacenamiento persistente."""
+    from sqlalchemy.orm import Session
+    from app.services.camera_service import CameraService
+
+    while True:
+        try:
+            with Session(engine) as db:
+                CameraService(db).limpiar_clips_vencidos()
+        except Exception:
+            logger.exception("Falló la limpieza automática de clips de cámaras")
+        await asyncio.sleep(3600)
 
 
 @app.get(
