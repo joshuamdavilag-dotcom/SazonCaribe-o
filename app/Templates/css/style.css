@@ -129,6 +129,7 @@ input, select, textarea { font: inherit; }
   min-height: 100dvh;
 }
 .app-shell.visible { display: flex; }
+#screen-login.active ~ #app-shell { display: none !important; }
 
 /* =========================================================================
    Sidebar

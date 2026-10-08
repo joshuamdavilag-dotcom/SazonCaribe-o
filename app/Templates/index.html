@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=5.9">
+  <link rel="stylesheet" href="css/style.css?v=6.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -50,25 +50,6 @@
 
   <!-- Toast -->
   <div id="toast" class="toast" aria-live="polite"></div>
-  <section id="notifications-panel" class="notifications-panel" role="dialog" aria-modal="false" aria-labelledby="notifications-title" hidden>
-    <header class="notifications-header">
-      <div>
-        <p class="notifications-eyebrow">Sazón Caribeño</p>
-        <h2 id="notifications-title">Notificaciones</h2>
-        <p id="notifications-summary">Alertas y actividad del turno</p>
-      </div>
-      <div class="notifications-header-actions">
-        <button id="notifications-refresh" class="notifications-icon-button" type="button" aria-label="Actualizar notificaciones" title="Actualizar">
-          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
-        </button>
-        <button id="notifications-close" class="notifications-icon-button" type="button" aria-label="Cerrar notificaciones" title="Cerrar">
-          <span class="material-symbols-outlined" aria-hidden="true">close</span>
-        </button>
-      </div>
-    </header>
-    <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
-    <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
-  </section>
   <section id="app-error-screen" class="app-error-screen" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title" aria-describedby="app-error-description" hidden>
     <div class="app-error-card">
       <span class="app-error-icon material-symbols-outlined" aria-hidden="true">error</span>
@@ -151,6 +132,25 @@
        APP SHELL
        ================================================================= -->
   <div id="app-shell" class="app-shell">
+    <section id="notifications-panel" class="notifications-panel" role="dialog" aria-modal="false" aria-labelledby="notifications-title" hidden>
+      <header class="notifications-header">
+        <div>
+          <p class="notifications-eyebrow">Sazón Caribeño</p>
+          <h2 id="notifications-title">Notificaciones</h2>
+          <p id="notifications-summary">Alertas y actividad del turno</p>
+        </div>
+        <div class="notifications-header-actions">
+          <button id="notifications-refresh" class="notifications-icon-button" type="button" aria-label="Actualizar notificaciones" title="Actualizar">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          </button>
+          <button id="notifications-close" class="notifications-icon-button" type="button" aria-label="Cerrar notificaciones" title="Cerrar">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+      </header>
+      <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
+      <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
+    </section>
     <button id="desktop-notifications-toggle" class="desktop-notifications-toggle" type="button"
             aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
       <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
@@ -2218,6 +2218,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=5.9"></script>
+  <script src="js/app.js?v=6.0"></script>
 </body>
 </html>
