@@ -3417,12 +3417,41 @@ body { background: var(--bg-primary); }
   box-shadow: 0 22px 60px rgba(0, 35, 67, .2);
   animation: notificationPanelIn .18s ease-out;
 }
-.desktop-notifications-toggle {
-  position: fixed;
-  z-index: 940;
-  top: 15px;
-  right: 22px;
+.desktop-app-topbar {
   display: none;
+}
+.desktop-app-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.desktop-app-clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #375a75;
+}
+.desktop-app-clock > .material-symbols-outlined {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #e4edf2;
+  border-radius: 13px;
+  background: #fff;
+  color: #218779;
+  font-size: 21px;
+}
+.desktop-app-clock-copy {
+  display: grid;
+  gap: 1px;
+}
+.desktop-app-clock-copy strong { color: #12395b; font-size: 16px; font-weight: 800; line-height: 1.2; }
+.desktop-app-clock-copy span { color: #78899a; font-size: 10px; text-transform: capitalize; }
+.desktop-search-toggle,
+.desktop-notifications-toggle {
+  position: relative;
+  display: inline-flex;
   min-height: 42px;
   align-items: center;
   gap: 8px;
@@ -3435,7 +3464,9 @@ body { background: var(--bg-primary); }
   font-size: 12px;
   font-weight: 700;
 }
+.desktop-search-toggle:hover,
 .desktop-notifications-toggle:hover { border-color: #a8dcd4; background: #f5fbfa; color: #167d70; }
+.desktop-search-toggle .material-symbols-outlined,
 .desktop-notifications-toggle .material-symbols-outlined { font-size: 20px; }
 .desktop-notifications-toggle:focus-visible { outline: 3px solid rgba(42, 157, 143, .5); outline-offset: 3px; }
 .desktop-notifications-toggle .notification-count { top: -5px; right: -5px; }
@@ -3579,7 +3610,20 @@ button.notification-entry:hover { border-radius: 11px; background: #f6fafc; }
   }
 }
 @media (min-width: 1024px) {
-  .desktop-notifications-toggle { display: inline-flex; }
+  .desktop-app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 80;
+    display: flex;
+    min-height: 70px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 24px;
+    border-bottom: 1px solid #e6edf3;
+    background: rgba(244, 247, 251, .96);
+    backdrop-filter: blur(12px);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .notifications-panel { animation: none; }

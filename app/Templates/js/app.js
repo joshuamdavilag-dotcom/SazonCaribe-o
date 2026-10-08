@@ -6107,6 +6107,8 @@ function updateClock() {
   const el11 = document.getElementById('personal-clock-m');
   const el12 = document.getElementById('cuenta-clock-m');
   const el13 = document.getElementById('gastos-clock-m');
+  const el14 = document.getElementById('desktop-clock');
+  const el15 = document.getElementById('desktop-date');
   if (el1) el1.textContent = time;
   if (el2) el2.textContent = time;
   if (el3) el3.textContent = time;
@@ -6120,6 +6122,8 @@ function updateClock() {
   if (el11) el11.textContent = time;
   if (el12) el12.textContent = time;
   if (el13) el13.textContent = time;
+  if (el14) el14.textContent = time;
+  if (el15) el15.textContent = dateStr;
 }
 
 /* =========================================================================
@@ -6131,6 +6135,14 @@ document.addEventListener('DOMContentLoaded', () => {
       ? event.target.closest('button[aria-label="Notificaciones"]')
       : null;
     if (target) alternarNotificaciones();
+  });
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button[aria-label="Buscar"], button[aria-label="Buscar platillo"]')
+      : null;
+    if (!target) return;
+    if (state.currentScreen !== 'menu-view') navigateTo('menu-view');
+    setTimeout(() => document.getElementById('menu-search')?.focus(), 0);
   });
   document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {

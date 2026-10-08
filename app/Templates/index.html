@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.0">
+  <link rel="stylesheet" href="css/style.css?v=6.1">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -151,12 +151,6 @@
       <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
       <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
     </section>
-    <button id="desktop-notifications-toggle" class="desktop-notifications-toggle" type="button"
-            aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
-      <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-      <span>Notificaciones</span>
-    </button>
-
     <!-- SIDEBAR -->
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -242,6 +236,26 @@
 
     <!-- MAIN CONTENT -->
     <main class="main-content lg:ml-[260px] min-h-screen pb-20 lg:pb-6 bg-slate-50">
+      <div class="desktop-app-topbar" aria-label="Herramientas del sistema">
+        <div class="desktop-app-clock">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          <span class="desktop-app-clock-copy">
+            <strong id="desktop-clock">--:--</strong>
+            <span id="desktop-date">---</span>
+          </span>
+        </div>
+        <div class="desktop-app-actions">
+          <button class="desktop-search-toggle" type="button" aria-label="Buscar platillo">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <span>Buscar platillo</span>
+          </button>
+          <button id="desktop-notifications-toggle" class="desktop-notifications-toggle" type="button"
+                  aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+            <span>Notificaciones</span>
+          </button>
+        </div>
+      </div>
 
       <!-- SCREEN: SALÓN -->
       <section id="screen-salon" class="screen active w-full max-w-full overflow-x-hidden" aria-label="Salón">
@@ -2218,6 +2232,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.0"></script>
+  <script src="js/app.js?v=6.1"></script>
 </body>
 </html>
