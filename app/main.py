@@ -47,22 +47,23 @@ app = FastAPI(
     title="Sazón Caribeño API",
     description="Sistema Integral de Gestión para Restaurantes",
     version="1.0.0",
-    debug=settings.DEBUG
+    debug=False,
 )
 
 
 @app.exception_handler(Exception)
 async def manejador_error_no_controlado(request: Request, exc: Exception) -> JSONResponse:
-    """Convierte cualquier excepción no controlada en JSON con detail (nunca HTML)."""
-    logger.exception(
+    """Registra el detalle internamente y devuelve un error genérico al cliente."""
+    logger.error(
         "Error no controlado en %s %s: %s",
         request.method,
         request.url.path,
         type(exc).__name__,
+        exc_info=(type(exc), exc, exc.__traceback__),
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Error interno del servidor: {type(exc).__name__}"},
+        content={"detail": "Ocurrió un error inesperado. Intenta nuevamente."},
     )
 
 app.add_middleware(
