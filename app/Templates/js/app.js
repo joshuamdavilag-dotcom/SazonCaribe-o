@@ -22,6 +22,7 @@ const state = {
   token: localStorage.getItem('pos_token') || null,
   user: JSON.parse(localStorage.getItem('pos_user') || 'null'),
   currentScreen: 'salon',
+  errorReturnScreen: null,
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
   tables: [],
@@ -64,6 +65,7 @@ const state = {
   cameraRecordings: new Map(),
   cameraClips: [],
   cameraClipObjectUrl: null,
+  notificationsLoading: false,
 };
 
 /* =========================================================================
@@ -80,9 +82,183 @@ function formatLocalTime(isoStr) {
 }
 
 /* =========================================================================
+   Operational notifications
+   ========================================================================= */
+function actualizarContadoresNotificaciones(count) {
+  document.querySelectorAll('button[aria-label="Notificaciones"]').forEach(button => {
+    let badge = button.querySelector('.notification-count');
+    if (!badge) {
+      button.querySelector('span.absolute')?.remove();
+      badge = document.createElement('span');
+      badge.className = 'notification-count';
+      button.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.hidden = count === 0;
+    button.setAttribute('aria-expanded', String(!document.getElementById('notifications-panel')?.hidden));
+    button.setAttribute('aria-haspopup', 'dialog');
+  });
+}
+
+function renderNotifications(notifications, errors = []) {
+  const list = document.getElementById('notifications-list');
+  const summary = document.getElementById('notifications-summary');
+  if (!list || !summary) return;
+
+  const count = notifications.length;
+  summary.textContent = count
+    ? `${count} aviso${count === 1 ? '' : 's'} para revisar`
+    : 'Todo tranquilo por ahora';
+  actualizarContadoresNotificaciones(count);
+
+  const errorMarkup = errors.map(error => `
+    <div class="notification-entry notification-entry-error" role="status">
+      <span class="notification-entry-icon material-symbols-outlined" aria-hidden="true">cloud_off</span>
+      <span class="notification-entry-copy">
+        <strong>${escHtml(error.title)}</strong>
+        <span>${escHtml(error.message)}</span>
+      </span>
+    </div>`).join('');
+  const noticesMarkup = notifications.map(item => `
+    <button class="notification-entry ${item.urgent ? 'notification-entry-urgent' : ''}" type="button"
+            data-notification-screen="${item.screen}">
+      <span class="notification-entry-icon material-symbols-outlined" aria-hidden="true">${item.icon}</span>
+      <span class="notification-entry-copy">
+        <strong>${escHtml(item.title)}</strong>
+        <span>${escHtml(item.description)}</span>
+      </span>
+      <span class="material-symbols-outlined notification-entry-arrow" aria-hidden="true">chevron_right</span>
+    </button>`).join('');
+
+  list.innerHTML = errorMarkup + (noticesMarkup || (!errors.length
+    ? `<div class="notifications-empty">
+         <span class="material-symbols-outlined" aria-hidden="true">task_alt</span>
+         <strong>Todo en orden</strong>
+         <span>No hay comandas pendientes ni alertas de inventario.</span>
+       </div>`
+    : ''));
+}
+
+async function cargarNotificaciones() {
+  const list = document.getElementById('notifications-list');
+  if (!list || state.notificationsLoading) return;
+  state.notificationsLoading = true;
+  const refreshButton = document.getElementById('notifications-refresh');
+  if (refreshButton) refreshButton.disabled = true;
+  list.setAttribute('aria-busy', 'true');
+  list.innerHTML = `
+    <div class="notifications-loading" role="status">
+      <span class="notification-spinner" aria-hidden="true"></span>
+      Cargando avisos del turno…
+    </div>`;
+
+  const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
+  const requests = [
+    ['pending', api('/ordenes/?estado=PENDIENTE')],
+    ['preparing', api('/ordenes/?estado=PREPARANDO')],
+    ['ready', api('/ordenes/?estado=ENTREGADA')],
+  ];
+  if (esGestor) requests.push(['stock', api('/inventario/insumos/alertas')]);
+
+  const results = await Promise.allSettled(requests.map(([, request]) => request));
+  const data = {};
+  const errors = [];
+  results.forEach((result, index) => {
+    const [key] = requests[index];
+    if (result.status === 'fulfilled') {
+      data[key] = result.value;
+    } else {
+      const title = key === 'stock' ? 'No se pudo consultar el inventario' : 'No se pudieron consultar las comandas';
+      if (!errors.some(error => error.title === title)) errors.push({
+        title,
+        message: result.reason?.message || 'Intenta actualizar de nuevo.',
+      });
+    }
+  });
+
+  const notifications = [];
+  [['pending', 'Nueva comanda', 'schedule'], ['preparing', 'Comanda en preparación', 'soup_kitchen'], ['ready', 'Lista para servir', 'room_service']]
+    .forEach(([key, title, icon]) => {
+      (data[key] || []).forEach(order => {
+        const mesa = order.mesa_id ? `Mesa ${order.mesa?.numero || order.mesa_id}` : 'Para llevar';
+        const minutes = getMinutosTranscurrido(order.fecha_creacion);
+        notifications.push({
+          screen: 'comandero',
+          title: `${title} #${order.id} · ${mesa}`,
+          description: `Hace ${getTiempoTranscurrido(order.fecha_creacion)} · ${order.detalles?.length || 0} artículo${order.detalles?.length === 1 ? '' : 's'}`,
+          icon,
+          urgent: key !== 'ready' && minutes >= 20,
+        });
+      });
+    });
+  (data.stock || []).forEach(item => {
+    notifications.push({
+      screen: 'inventory',
+      title: `Stock bajo: ${item.nombre}`,
+      description: `${item.cantidad_actual} ${item.unidad_medida} · mínimo ${item.stock_minimo}`,
+      icon: 'inventory_2',
+      urgent: Number(item.cantidad_actual) <= 0,
+    });
+  });
+  notifications.sort((a, b) => Number(b.urgent) - Number(a.urgent));
+
+  renderNotifications(notifications, errors);
+  list.setAttribute('aria-busy', 'false');
+  state.notificationsLoading = false;
+  if (refreshButton) refreshButton.disabled = false;
+}
+
+function cerrarNotificaciones({ devolverFoco = false } = {}) {
+  const panel = document.getElementById('notifications-panel');
+  if (!panel || panel.hidden) return;
+  panel.hidden = true;
+  actualizarContadoresNotificaciones(
+    panel.querySelectorAll('.notification-entry[data-notification-screen]').length
+  );
+  if (devolverFoco) {
+    [...document.querySelectorAll('button[aria-label="Notificaciones"]')]
+      .find(button => button.offsetParent !== null)
+      ?.focus();
+  }
+}
+
+function alternarNotificaciones() {
+  const panel = document.getElementById('notifications-panel');
+  if (!panel) return;
+  if (!panel.hidden) {
+    cerrarNotificaciones();
+    return;
+  }
+  panel.hidden = false;
+  actualizarContadoresNotificaciones(panel.querySelectorAll('.notification-entry[data-notification-screen]').length);
+  void cargarNotificaciones();
+  document.getElementById('notifications-close')?.focus();
+}
+
+/* =========================================================================
    API Helpers
    ========================================================================= */
 const ERRORES_SESION = ['Sesión expirada', 'TURNO_DESHABILITADO', 'USUARIO_DESACTIVADO'];
+const ERROR_INTERNO = 'ERROR_INTERNO';
+
+function mostrarPantallaError() {
+  const screen = document.getElementById('app-error-screen');
+  if (!screen || !screen.hidden) return;
+  state.errorReturnScreen = state.currentScreen;
+  screen.hidden = false;
+  document.getElementById('app-error-back')?.focus();
+}
+
+function volverDePantallaError() {
+  const screen = document.getElementById('app-error-screen');
+  if (!screen || screen.hidden) return;
+  screen.hidden = true;
+  const returnScreen = state.errorReturnScreen;
+  state.errorReturnScreen = null;
+  if (returnScreen && document.getElementById(`screen-${returnScreen}`)) {
+    navigateTo(returnScreen);
+  }
+}
 
 function _jwtExpirado(token) {
   if (!token) return false;
@@ -124,6 +300,10 @@ async function api(endpoint, options = {}) {
       cache: 'no-store',
     });
     if (!res.ok) {
+      if (res.status >= 500) {
+        mostrarPantallaError();
+        throw new Error(ERROR_INTERNO);
+      }
       let err;
       try {
         err = await res.json();
@@ -159,7 +339,7 @@ async function api(endpoint, options = {}) {
     if (!options.silent) {
       if (esRed) {
         showToast('Sin conexión a internet — reintentando…', 'error');
-      } else if (!ERRORES_SESION.includes(e.message)) {
+      } else if (!ERRORES_SESION.includes(e.message) && e.message !== ERROR_INTERNO) {
         showToast(e.message, 'error');
       }
     }
@@ -5946,6 +6126,38 @@ function updateClock() {
    Event Listeners
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('button[aria-label="Notificaciones"]').forEach(button => {
+    button.addEventListener('click', alternarNotificaciones);
+  });
+  document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
+  document.getElementById('notifications-refresh')?.addEventListener('click', () => {
+    void cargarNotificaciones();
+  });
+  document.getElementById('notifications-panel')?.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target.closest('[data-notification-screen]') : null;
+    if (!target) return;
+    cerrarNotificaciones();
+    navigateTo(target.dataset.notificationScreen);
+  });
+  document.addEventListener('click', event => {
+    const panel = document.getElementById('notifications-panel');
+    const target = event.target;
+    if (panel && !panel.hidden && target instanceof Element
+        && !panel.contains(target) && !target.closest('button[aria-label="Notificaciones"]')) {
+      cerrarNotificaciones();
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') cerrarNotificaciones({ devolverFoco: true });
+  });
+
+  document.getElementById('app-error-back')?.addEventListener('click', volverDePantallaError);
+
+  window.addEventListener('error', event => {
+    if (event instanceof ErrorEvent) mostrarPantallaError();
+  });
+  window.addEventListener('unhandledrejection', () => mostrarPantallaError());
+
   // Login
   document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
