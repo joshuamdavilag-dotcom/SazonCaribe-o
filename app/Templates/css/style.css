@@ -3416,6 +3416,28 @@ body { background: var(--bg-primary); }
   box-shadow: 0 22px 60px rgba(0, 35, 67, .2);
   animation: notificationPanelIn .18s ease-out;
 }
+.desktop-notifications-toggle {
+  position: fixed;
+  z-index: 940;
+  top: 15px;
+  right: 22px;
+  display: none;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid #dfe8ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 51, 102, .08);
+  color: #234661;
+  font-size: 12px;
+  font-weight: 700;
+}
+.desktop-notifications-toggle:hover { border-color: #a8dcd4; background: #f5fbfa; color: #167d70; }
+.desktop-notifications-toggle .material-symbols-outlined { font-size: 20px; }
+.desktop-notifications-toggle:focus-visible { outline: 3px solid rgba(42, 157, 143, .5); outline-offset: 3px; }
+.desktop-notifications-toggle .notification-count { top: -5px; right: -5px; }
 .notifications-panel[hidden] { display: none; }
 @keyframes notificationPanelIn {
   from { opacity: 0; transform: translateY(-6px) scale(.985); }
@@ -3554,6 +3576,9 @@ button.notification-entry:hover { border-radius: 11px; background: #f6fafc; }
     max-height: min(68dvh, 520px);
     border-radius: 16px;
   }
+}
+@media (min-width: 1024px) {
+  .desktop-notifications-toggle { display: inline-flex; }
 }
 @media (prefers-reduced-motion: reduce) {
   .notifications-panel { animation: none; }

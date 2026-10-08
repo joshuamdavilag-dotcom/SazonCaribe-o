@@ -6126,8 +6126,11 @@ function updateClock() {
    Event Listeners
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('button[aria-label="Notificaciones"]').forEach(button => {
-    button.addEventListener('click', alternarNotificaciones);
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button[aria-label="Notificaciones"]')
+      : null;
+    if (target) alternarNotificaciones();
   });
   document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {

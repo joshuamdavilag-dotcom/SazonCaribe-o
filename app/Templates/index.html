@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=5.8">
+  <link rel="stylesheet" href="css/style.css?v=5.9">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -151,6 +151,11 @@
        APP SHELL
        ================================================================= -->
   <div id="app-shell" class="app-shell">
+    <button id="desktop-notifications-toggle" class="desktop-notifications-toggle" type="button"
+            aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
+      <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+      <span>Notificaciones</span>
+    </button>
 
     <!-- SIDEBAR -->
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
@@ -2213,6 +2218,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=5.8"></script>
+  <script src="js/app.js?v=5.9"></script>
 </body>
 </html>
