@@ -7,11 +7,16 @@ from typing import Generator
 from app.core.config import get_settings
 
 
+import ssl
+
 settings = get_settings()
 
 connect_args = {}
 if settings.ENVIRONMENT == "production":
-    connect_args = {"ssl": {"ssl_disabled": False}}
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    connect_args = {"ssl": ssl_ctx}
 
 engine = create_engine(
     settings.DATABASE_URL,
