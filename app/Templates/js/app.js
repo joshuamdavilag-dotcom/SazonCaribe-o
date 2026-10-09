@@ -41,11 +41,13 @@ const state = {
   empleados: [],
   nominaActual: null,
   currentAsistencia: JSON.parse(localStorage.getItem('pos_asistencia') || 'null'),
+  attendanceSynced: false,
   currentOcupada: null,
   paymentOrder: null,
   paymentBusy: false,
   heartbeatInterval: null,
   sessionPollInterval: null,
+  attendanceReminderInterval: null,
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   calendarSelectedDay: calendarDateKey(new Date()),
   calendarMultiSelecting: false,
@@ -1033,9 +1035,11 @@ function logout() {
   if (state.cameraClipObjectUrl) cerrarClipModal();
   if (state.heartbeatInterval) { clearInterval(state.heartbeatInterval); state.heartbeatInterval = null; }
   if (state.sessionPollInterval) { clearInterval(state.sessionPollInterval); state.sessionPollInterval = null; }
+  if (state.attendanceReminderInterval) { clearInterval(state.attendanceReminderInterval); state.attendanceReminderInterval = null; }
   state.token = null;
   state.user = null;
   state.currentAsistencia = null;
+  state.attendanceSynced = false;
   state.turnos = [];
   localStorage.removeItem('pos_token');
   localStorage.removeItem('pos_user');
@@ -1068,9 +1072,11 @@ async function iniciarTurno(turnoId) {
     });
     state.currentAsistencia = data;
     localStorage.setItem('pos_asistencia', JSON.stringify(data));
+    marcarInicioTurnoNotificado(turnoId);
     renderAttendanceStatus();
     showToast('Turno iniciado con éxito', 'success');
     enviarHeartbeat();
+    verificarAvisosTurno();
     return data;
   } catch (e) {
     if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
@@ -1088,6 +1094,7 @@ async function finalizarTurno() {
     localStorage.removeItem('pos_asistencia');
     renderAttendanceStatus();
     showToast('Turno finalizado con éxito', 'success');
+    verificarAvisosTurno();
     return null;
   } catch (e) {
     const msg = (e && typeof e.message === 'string') ? e.message : '';
@@ -1154,9 +1161,170 @@ async function loadTurnos() {
     data.forEach(t => {
       select.innerHTML += `<option value="${t.id}">${t.nombre} (${t.hora_entrada}–${t.hora_salida})</option>`;
     });
-    if (current) select.value = current;
+    const savedTurno = localStorage.getItem(`pos_turno_seleccionado_${state.user?.id}`);
+    select.value = current || savedTurno || '';
+    verificarAvisosTurno();
   } catch {
     state.turnos = [];
+  }
+}
+
+function leerHoraTurno(value) {
+  const [hours, minutes] = String(value || '').split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)
+      || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function obtenerAhoraManagua() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const fecha = `${values.year}-${values.month}-${values.day}`;
+  const minutos = Number(values.hour) * 60 + Number(values.minute);
+  const [year, month, day] = fecha.split('-').map(Number);
+  return {
+    fecha,
+    minutos,
+    absoluto: Math.floor(Date.UTC(year, month - 1, day) / 60_000) + minutos,
+  };
+}
+
+function desplazarFecha(fecha, dias) {
+  const [year, month, day] = fecha.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + dias)).toISOString().slice(0, 10);
+}
+
+function fechaInicioTurnoActual(turno, ahora) {
+  const entrada = leerHoraTurno(turno.hora_entrada);
+  const salida = leerHoraTurno(turno.hora_salida);
+  if (entrada === null || salida === null) return ahora.fecha;
+  const cruzaMedianoche = salida <= entrada;
+  return cruzaMedianoche && ahora.minutos < entrada && ahora.minutos < salida
+    ? desplazarFecha(ahora.fecha, -1)
+    : ahora.fecha;
+}
+
+function claveAvisoInicio(turnoId, fecha) {
+  return `pos_aviso_inicio_turno_${state.user?.id}_${turnoId}_${fecha}`;
+}
+
+function marcarInicioTurnoNotificado(turnoId) {
+  const turno = state.turnos.find(item => item.id === turnoId);
+  if (!turno) return;
+  const fecha = fechaInicioTurnoActual(turno, obtenerAhoraManagua());
+  localStorage.setItem(claveAvisoInicio(turnoId, fecha), '1');
+}
+
+function emitirAvisoTurno(key, title, body) {
+  if (localStorage.getItem(key)) return;
+  new Notification(title, { body, tag: key });
+  localStorage.setItem(key, '1');
+}
+
+function verificarAvisosTurno() {
+  if (!state.token || !state.user || !state.attendanceSynced
+      || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+  const ahora = obtenerAhoraManagua();
+  if (state.currentAsistencia) {
+    const asistencia = state.currentAsistencia;
+    const turno = state.turnos.find(item => item.id === asistencia.turno_id);
+    const entrada = leerHoraTurno(turno?.hora_entrada);
+    const salida = leerHoraTurno(turno?.hora_salida);
+    const fechaEntrada = String(asistencia.hora_entrada_real || '').slice(0, 10);
+    if (turno && entrada !== null && salida !== null && /^\d{4}-\d{2}-\d{2}$/.test(fechaEntrada)) {
+      const fechaSalida = desplazarFecha(fechaEntrada, salida <= entrada ? 1 : 0);
+      const [year, month, day] = fechaSalida.split('-').map(Number);
+      const salidaAbsoluta = Math.floor(Date.UTC(year, month - 1, day) / 60_000) + salida;
+      const key = `pos_aviso_salida_turno_${state.user.id}_${asistencia.id}`;
+      if (ahora.absoluto >= salidaAbsoluta) {
+        emitirAvisoTurno(
+          key,
+          'Es hora de finalizar tu turno',
+          `El turno ${turno.nombre} terminó a las ${String(turno.hora_salida).slice(0, 5)}. Recuerda registrar tu salida.`,
+        );
+      }
+    }
+    return;
+  }
+
+  const select = document.getElementById('turno-select');
+  const turno = state.turnos.find(item => item.id === Number(select?.value));
+  const entrada = leerHoraTurno(turno?.hora_entrada);
+  const salida = leerHoraTurno(turno?.hora_salida);
+  if (!turno || entrada === null || salida === null) return;
+
+  let fechaInicio = ahora.fecha;
+  let inicioAbsoluto = Math.floor(Date.UTC(
+    Number(fechaInicio.slice(0, 4)),
+    Number(fechaInicio.slice(5, 7)) - 1,
+    Number(fechaInicio.slice(8, 10)),
+  ) / 60_000) + entrada;
+  if (inicioAbsoluto > ahora.absoluto) {
+    fechaInicio = desplazarFecha(fechaInicio, -1);
+    inicioAbsoluto -= 24 * 60;
+  }
+  const duracion = (salida - entrada + 24 * 60) % (24 * 60) || 24 * 60;
+  const transcurrido = ahora.absoluto - inicioAbsoluto;
+  if (transcurrido >= 0 && transcurrido < duracion) {
+    const key = claveAvisoInicio(turno.id, fechaInicio);
+    emitirAvisoTurno(
+      key,
+      'Tu turno ya comenzó',
+      `El turno ${turno.nombre} inicia a las ${String(turno.hora_entrada).slice(0, 5)}. Recuerda registrar tu entrada.`,
+    );
+  }
+}
+
+function actualizarBotonAvisosTurno() {
+  const button = document.getElementById('btn-enable-attendance-notifications');
+  if (!button) return;
+  if (typeof Notification === 'undefined') {
+    button.hidden = true;
+    return;
+  }
+  button.hidden = false;
+  if (Notification.permission === 'granted') {
+    button.textContent = 'Avisos de turno activados';
+    button.disabled = true;
+  } else {
+    button.textContent = Notification.permission === 'denied'
+      ? 'Permite avisos en el navegador'
+      : 'Activar avisos de turno';
+    button.disabled = false;
+  }
+}
+
+async function activarAvisosTurno() {
+  if (typeof Notification === 'undefined') {
+    showToast('Este navegador no admite notificaciones del sistema.', 'error');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Los avisos están bloqueados. Permítelos desde la configuración del navegador para este sitio.', 'warning', 5000);
+    return;
+  }
+  try {
+    const permission = Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission();
+    actualizarBotonAvisosTurno();
+    if (permission === 'granted') {
+      showToast('Avisos de turno activados', 'success');
+      verificarAvisosTurno();
+    } else {
+      showToast('No se activaron los avisos de turno.', 'warning');
+    }
+  } catch (error) {
+    showToast(`No se pudieron activar los avisos: ${error.message}`, 'error', 5000);
   }
 }
 
@@ -1294,7 +1462,9 @@ async function syncAsistenciaActiva() {
       state.currentAsistencia = null;
       localStorage.removeItem('pos_asistencia');
     }
+    state.attendanceSynced = true;
     renderAttendanceStatus();
+    verificarAvisosTurno();
   } catch { /* el interceptor ya maneja 403/401; silencio */ }
 }
 
@@ -1313,8 +1483,12 @@ async function verificarSesionTurno() {
 function iniciarIntervalosSesion() {
   if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
   if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
+  if (state.attendanceReminderInterval) clearInterval(state.attendanceReminderInterval);
+  state.attendanceSynced = false;
   state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
   state.sessionPollInterval = setInterval(verificarSesionTurno, 60_000);
+  state.attendanceReminderInterval = setInterval(verificarAvisosTurno, 30_000);
+  actualizarBotonAvisosTurno();
   syncAsistenciaActiva();
 }
 
@@ -6295,6 +6469,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-logout')?.addEventListener('click', logout);
 
   // Attendance toggle (iniciar / finalizar)
+  document.getElementById('btn-enable-attendance-notifications')?.addEventListener('click', activarAvisosTurno);
+  document.getElementById('turno-select')?.addEventListener('change', (event) => {
+    const turnoId = event.currentTarget.value;
+    const key = `pos_turno_seleccionado_${state.user?.id}`;
+    if (turnoId) localStorage.setItem(key, turnoId);
+    else localStorage.removeItem(key);
+    verificarAvisosTurno();
+  });
   document.getElementById('btn-attendance-toggle')?.addEventListener('click', async () => {
     const toggle = document.getElementById('btn-attendance-toggle');
     if (state.currentAsistencia) {
@@ -6648,6 +6830,7 @@ document.addEventListener('DOMContentLoaded', () => {
     verificarSesionTurno();
     enviarHeartbeat();
     syncAsistenciaActiva();
+    verificarAvisosTurno();
   };
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) alVolverPestana();
