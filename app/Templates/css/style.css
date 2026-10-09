@@ -11,34 +11,28 @@
    CSS Custom Properties
    ========================================================================= */
 :root {
-  /* Brand Colors (Sazón Caribeño) */
-  --azul-marino:          #0F3B66;
-  --azul-marino-dark:     #0D233A;
-  --azul-marino-deep:     #081726;
-  --rojo-cangrejo:        #E64A2E;
-  --rojo-cangrejo-hover:  #CF3B20;
-  --rojo-cangrejo-light:  #FFF0ED;
-  --amarillo-solar:       #F8B319;
-  --turquesa-ola:         #1EB8B8;
-  --turquesa-ola-light:   #E6F9F9;
-  --arena-caribe:         #FBF8F3;
+  /* Brand Colors */
+  --azul-marino:       #003366;
+  --rojo-cangrejo:     #E63946;
+  --amarillo-solar:    #FFB703;
+  --turquesa-ola:      #2A9D8F;
 
   /* Semantic Colors */
-  --bg-primary:        #F8FAFC;
+  --bg-primary:        #F8F9FA;
   --bg-card:           #FFFFFF;
-  --bg-overlay:        rgba(13, 35, 58, 0.65);
-  --text-primary:      #0D233A;
-  --text-secondary:    #475569;
-  --text-muted:        #94A3B8;
+  --bg-overlay:        rgba(0, 51, 102, 0.55);
+  --text-primary:      #003366;
+  --text-secondary:    #5B6B7C;
+  --text-muted:        #8F9BAA;
   --text-on-dark:      #FFFFFF;
   --border-light:      #E2E8F0;
-  --border-focus:      #1EB8B8;
+  --border-focus:      #2A9D8F;
 
   /* Status Colors */
-  --status-libre:      #10B981;
-  --status-ocupada:    #E64A2E;
-  --status-reservada:  #F8B319;
-  --status-preparando: #F97316;
+  --status-libre:      #2A9D8F;
+  --status-ocupada:    #E63946;
+  --status-reservada:  #FFB703;
+  --status-preparando: #FF8C42;
 
   /* Sidebar */
   --sidebar-width:     260px;
@@ -61,17 +55,14 @@
   --radius-xl:  24px;
   --radius-full: 9999px;
 
-  /* Elevated Modern Shadows */
-  --shadow-sm:  0 1px 3px rgba(13, 35, 58, 0.05), 0 1px 2px rgba(13, 35, 58, 0.03);
-  --shadow-md:  0 4px 14px rgba(13, 35, 58, 0.08), 0 2px 4px rgba(13, 35, 58, 0.04);
-  --shadow-lg:  0 12px 28px rgba(13, 35, 58, 0.12), 0 4px 8px rgba(13, 35, 58, 0.06);
-  --shadow-xl:  0 20px 45px rgba(13, 35, 58, 0.18), 0 8px 16px rgba(13, 35, 58, 0.08);
-  --shadow-turquoise: 0 8px 20px rgba(30, 184, 184, 0.25);
-  --shadow-coral: 0 8px 20px rgba(230, 74, 46, 0.28);
+  /* Shadows */
+  --shadow-sm:  0 1px 3px rgba(0, 51, 102, 0.08);
+  --shadow-md:  0 4px 12px rgba(0, 51, 102, 0.12);
+  --shadow-lg:  0 8px 24px rgba(0, 51, 102, 0.16);
+  --shadow-xl:  0 12px 40px rgba(0, 51, 102, 0.20);
 
   /* Typography */
-  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-display: 'Epilogue', sans-serif;
+  --font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: 48px;
   --font-headline: 24px;
   --font-body: 16px;

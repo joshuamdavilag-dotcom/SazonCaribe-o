@@ -39,6 +39,7 @@ from app.api.endpoints.pagos import router as pagos_router
 from app.api.endpoints.calendario import router as calendario_router
 from app.api.endpoints.cameras import router as cameras_router
 from app.api.auditoria import router as auditoria_router
+from app.api.endpoints.backups import router as backups_router
 
 
 settings = get_settings()
@@ -171,6 +172,12 @@ app.include_router(
     auditoria_router,
     prefix="/api/v1/auditoria",
     tags=["Auditoría"]
+)
+
+app.include_router(
+    backups_router,
+    prefix="/api/v1/backups",
+    tags=["Copias de Seguridad"]
 )
 
 app.include_router(
