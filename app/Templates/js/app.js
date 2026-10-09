@@ -68,6 +68,9 @@ const state = {
   cameraClips: [],
   cameraClipObjectUrl: null,
   notificationsLoading: false,
+  auditOffset: 0,
+  auditLimit: 50,
+  auditPage: null,
 };
 
 /* =========================================================================
@@ -411,6 +414,7 @@ function navigateTo(screenId) {
     loadHistorialOrdenesDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
+  if (screenId === 'auditoria') { state.auditOffset = 0; loadAuditoria(); }
   if (screenId === 'calendario') loadCalendario();
   if (screenId === 'cameras') loadCameras();
 }
@@ -1514,6 +1518,65 @@ async function loadGastos() {
   } catch {
     tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-[#E63946]">Error al cargar gastos</td></tr>';
   }
+}
+
+async function loadAuditoria() {
+  const tbody = document.getElementById('auditoria-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">Cargando bitácora…</td></tr>';
+  const params = new URLSearchParams({
+    limit: String(state.auditLimit),
+    offset: String(state.auditOffset),
+  });
+  const desde = document.getElementById('auditoria-desde')?.value;
+  const hasta = document.getElementById('auditoria-hasta')?.value;
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  try {
+    state.auditPage = await api(`/auditoria/?${params.toString()}`);
+    renderAuditoria();
+  } catch (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-[#E63946]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
+  }
+}
+
+function renderAuditoria() {
+  const tbody = document.getElementById('auditoria-tbody');
+  if (!tbody || !state.auditPage) return;
+  const { items, total, limit, offset } = state.auditPage;
+  const totalEl = document.getElementById('auditoria-total');
+  const pageEl = document.getElementById('auditoria-pagina');
+  const previous = document.getElementById('btn-auditoria-anterior');
+  const next = document.getElementById('btn-auditoria-siguiente');
+  if (totalEl) totalEl.textContent = `${total} registro${total === 1 ? '' : 's'}`;
+  if (pageEl) pageEl.textContent = total
+    ? `Mostrando ${offset + 1}–${Math.min(offset + items.length, total)} de ${total}`
+    : 'Sin registros';
+  if (previous) previous.disabled = offset <= 0;
+  if (next) next.disabled = offset + limit >= total;
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">No hay cambios registrados en este período.</td></tr>';
+    return;
+  }
+  const labels = {
+    PRECIO_ASIGNADO: 'Precio asignado',
+    PRECIO_ACTUALIZADO: 'Precio actualizado',
+    DESCUENTO_APLICADO: 'Descuento aplicado',
+    DESCUENTO_GLOBAL_APLICADO: 'Descuento global',
+    DESCUENTO_RETIRADO: 'Descuento retirado',
+  };
+  tbody.innerHTML = items.map(event => {
+    const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
+    const before = event.antes ? JSON.stringify(event.antes, null, 2) : '—';
+    const after = event.despues ? JSON.stringify(event.despues, null, 2) : '—';
+    return `<tr class="border-b border-slate-100 align-top">
+      <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escHtml(stamp)}</td>
+      <td class="px-4 py-3 whitespace-nowrap"><strong class="text-slate-800">${escHtml(event.actor_username)}</strong><span class="block text-xs text-slate-500">${escHtml(event.actor_rol)}</span></td>
+      <td class="px-4 py-3 whitespace-nowrap"><span class="rounded-full bg-sky-50 text-sky-800 px-2 py-1 text-xs font-semibold">${escHtml(labels[event.accion] || event.accion)}</span></td>
+      <td class="px-4 py-3 text-slate-700">${escHtml(event.descripcion)}</td>
+      <td class="px-4 py-3"><details><summary class="cursor-pointer text-[#0F3B66] font-semibold">Ver datos</summary><div class="grid md:grid-cols-2 gap-2 mt-2"><div><strong class="text-xs text-slate-500">Antes</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(before)}</pre></div><div><strong class="text-xs text-slate-500">Después</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(after)}</pre></div></div></details></td>
+    </tr>`;
+  }).join('');
 }
 
 const CATEGORIA_BADGE = {
@@ -6770,6 +6833,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirm-editar-horarios')?.addEventListener('click', confirmEditarHorarios);
 
   // Gastos modal
+  document.getElementById('btn-refresh-auditoria')?.addEventListener('click', loadAuditoria);
+  document.getElementById('btn-filtrar-auditoria')?.addEventListener('click', () => {
+    state.auditOffset = 0;
+    loadAuditoria();
+  });
+  document.getElementById('btn-auditoria-anterior')?.addEventListener('click', () => {
+    state.auditOffset = Math.max(0, state.auditOffset - state.auditLimit);
+    loadAuditoria();
+  });
+  document.getElementById('btn-auditoria-siguiente')?.addEventListener('click', () => {
+    state.auditOffset += state.auditLimit;
+    loadAuditoria();
+  });
   document.getElementById('btn-nuevo-gasto')?.addEventListener('click', openGastosModal);
   document.getElementById('close-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('cancel-gasto-modal')?.addEventListener('click', closeGastosModal);

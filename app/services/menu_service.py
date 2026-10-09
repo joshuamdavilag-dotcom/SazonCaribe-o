@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.personal import Usuario
 
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.inventario_repository import InsumoRepository
@@ -24,6 +25,7 @@ from app.schemas.menu_publico import (
     CategoriaMenuPublicaResponse,
     MenuItemPublicoResponse,
 )
+from app.services.auditoria_service import AuditoriaService
 
 
 IMAGEN_ANCHO_MAX = 1080
@@ -114,7 +116,8 @@ class MenuService:
 
     def crear_menu_item(
         self,
-        item_in: MenuItemCreate
+        item_in: MenuItemCreate,
+        actor: Usuario | None = None,
     ) -> MenuItemResponse:
         """
         Crea un nuevo plato en el menú con su receta.
@@ -173,6 +176,18 @@ class MenuService:
                 )
 
         item_creado = self.menu_repo.crear_menu_item(item_in)
+        if actor is not None:
+            AuditoriaService.registrar(
+                self.db,
+                actor,
+                "PRECIO_ASIGNADO",
+                "platillo",
+                item_creado.id,
+                f"Precio inicial asignado a {item_creado.nombre}",
+                despues={"precio": str(item_creado.precio), "moneda": "C$"},
+            )
+        self.db.commit()
+        self.db.refresh(item_creado)
         return MenuItemResponse.model_validate(item_creado)
 
     def obtener_items(
@@ -220,7 +235,8 @@ class MenuService:
     def actualizar_menu_item(
         self,
         item_id: int,
-        item_in: MenuItemUpdate
+        item_in: MenuItemUpdate,
+        actor: Usuario | None = None,
     ) -> MenuItemResponse:
         """
         Actualiza un plato del menú con datos parciales.
@@ -287,6 +303,22 @@ class MenuService:
                         detail=f"Ya existe otro plato con el nombre '{item_in.nombre}'"
                     )
 
+        precio_anterior = existing.precio
+        cambio_precio = (
+            item_in.precio is not None
+            and item_in.precio != precio_anterior
+        )
+        if cambio_precio and actor is not None:
+            AuditoriaService.registrar(
+                self.db,
+                actor,
+                "PRECIO_ACTUALIZADO",
+                "platillo",
+                existing.id,
+                f"Precio de {existing.nombre} cambiado de C${precio_anterior} a C${item_in.precio}",
+                antes={"precio": str(precio_anterior), "moneda": "C$"},
+                despues={"precio": str(item_in.precio), "moneda": "C$"},
+            )
         item_actualizado = self.menu_repo.actualizar_menu_item(item_id, item_in)
         return MenuItemResponse.model_validate(item_actualizado)
 

@@ -20,6 +20,7 @@ from app.models import (
     PagoOnline, EstadoPago,
     EventoCalendario,
     Camera, CameraAccess, CameraClip,
+    RegistroAuditoria,
 )
 from app.api.endpoints.personal import router as personal_router
 from app.api.endpoints.asistencia import router as asistencia_router
@@ -37,6 +38,7 @@ from app.api.endpoints.gasto import router as gasto_router
 from app.api.endpoints.pagos import router as pagos_router
 from app.api.endpoints.calendario import router as calendario_router
 from app.api.endpoints.cameras import router as cameras_router
+from app.api.auditoria import router as auditoria_router
 
 
 settings = get_settings()
@@ -163,6 +165,12 @@ app.include_router(
     cameras_router,
     prefix="/api/v1/cameras",
     tags=["Cámaras de seguridad"]
+)
+
+app.include_router(
+    auditoria_router,
+    prefix="/api/v1/auditoria",
+    tags=["Auditoría"]
 )
 
 app.include_router(

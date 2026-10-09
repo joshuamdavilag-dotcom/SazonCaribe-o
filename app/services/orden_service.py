@@ -7,12 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.inventario import MovimientoInventario
+from app.models.personal import Usuario
 from app.models.salon import EstadoMesa
 from app.repositories.orden_repository import OrdenRepository
 from app.repositories.salon_repository import SalonRepository
 from app.repositories.menu_repository import MenuRepository
 from app.schemas.orden import OrdenCreate, DetalleOrdenCreate, VentaRetroactivaCreate
 from app.services.gasto_service import GastoService
+from app.services.auditoria_service import AuditoriaService
 
 
 class OrdenService:
@@ -23,6 +25,35 @@ class OrdenService:
         self.salon_repo = SalonRepository(db)
         self.menu_repo = MenuRepository(db)
         self.gasto_service = GastoService(db)
+
+    def _registrar_descuentos_de_detalles(
+        self,
+        orden_id: int,
+        detalles: list[DetalleOrden],
+        actor: Usuario | None,
+    ) -> None:
+        if actor is None:
+            return
+        for detalle in detalles:
+            descuento = detalle.descuento_monto or Decimal("0.00")
+            if descuento <= 0:
+                continue
+            AuditoriaService.registrar(
+                self.db,
+                actor,
+                "DESCUENTO_APLICADO",
+                "orden",
+                orden_id,
+                f"Descuento de C${descuento} aplicado al platillo #{detalle.producto_id} en orden #{orden_id}",
+                despues={
+                    "detalle_id": detalle.id,
+                    "producto_id": detalle.producto_id,
+                    "cantidad": detalle.cantidad,
+                    "descuento_monto": str(descuento),
+                    "descuento_porcentaje": str(detalle.descuento_porcentaje or 0),
+                    "motivo": detalle.motivo_descuento,
+                },
+            )
 
     # ================================================================== #
     #  Stock: validación, descuento y reversión                           #
@@ -267,6 +298,7 @@ class OrdenService:
         self,
         orden_in: OrdenCreate,
         mesero_id: int,
+        actor: Usuario | None = None,
     ) -> Orden:
         if orden_in.mesa_id:
             mesa = self.salon_repo.obtener_mesa_por_id(orden_in.mesa_id)
@@ -309,6 +341,10 @@ class OrdenService:
                     detalles=detalles_creados,
                 )
                 self.orden_repo.crear_orden(orden_db)
+                self.db.flush()
+                self._registrar_descuentos_de_detalles(
+                    orden_db.id, detalles_creados, actor
+                )
                 if orden_in.mesa_id:
                     mesa.estado = EstadoMesa.OCUPADA
 
@@ -328,6 +364,7 @@ class OrdenService:
         self,
         orden_id: int,
         nuevos_detalles: list,
+        actor: Usuario | None = None,
     ) -> Orden:
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
@@ -363,6 +400,11 @@ class OrdenService:
                     detalle.orden_id = orden_id
                     self.db.add(detalle)
 
+                self.db.flush()
+                self._registrar_descuentos_de_detalles(
+                    orden_id, detalles_creados, actor
+                )
+
                 if orden.estado != EstadoOrden.PENDIENTE:
                     orden.estado = EstadoOrden.PENDIENTE
 
@@ -378,8 +420,9 @@ class OrdenService:
         self,
         orden_id: int,
         nuevos_detalles: list,
+        actor: Usuario | None = None,
     ) -> Orden:
-        return self._agregar_items_interno(orden_id, nuevos_detalles)
+        return self._agregar_items_interno(orden_id, nuevos_detalles, actor)
 
     # ================================================================== #
     #  Pagar orden + liberar mesa — PUT /{id}/pagar                       #
@@ -487,6 +530,7 @@ class OrdenService:
         tipo: str,
         valor: float,
         motivo: Optional[str] = None,
+        actor: Usuario | None = None,
     ) -> Orden:
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
@@ -509,6 +553,11 @@ class OrdenService:
 
         try:
             with self.db.begin_nested():
+                antes = {
+                    "descuento_monto": str(detalle.descuento_monto or Decimal("0.00")),
+                    "descuento_porcentaje": str(detalle.descuento_porcentaje or Decimal("0.00")),
+                    "motivo": detalle.motivo_descuento,
+                }
                 base_line_total = Decimal(str(detalle.precio_unitario)) * detalle.cantidad
 
                 if tipo == "porcentaje":
@@ -528,6 +577,24 @@ class OrdenService:
                 detalle.motivo_descuento = motivo
 
                 self._recalcular_totales(orden)
+                if actor is not None:
+                    AuditoriaService.registrar(
+                        self.db,
+                        actor,
+                        "DESCUENTO_APLICADO",
+                        "orden",
+                        orden.id,
+                        f"Descuento de C${detalle.descuento_monto} aplicado al platillo #{detalle.producto_id} en orden #{orden.id}",
+                        antes=antes,
+                        despues={
+                            "detalle_id": detalle.id,
+                            "producto_id": detalle.producto_id,
+                            "descuento_monto": str(detalle.descuento_monto or Decimal("0.00")),
+                            "descuento_porcentaje": str(detalle.descuento_porcentaje or Decimal("0.00")),
+                            "motivo": detalle.motivo_descuento,
+                            "total_orden": str(orden.total),
+                        },
+                    )
 
             self.db.commit()
             self.db.refresh(orden)
@@ -543,6 +610,7 @@ class OrdenService:
         tipo: str,
         valor: float,
         motivo: Optional[str] = None,
+        actor: Usuario | None = None,
     ) -> Orden:
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
@@ -558,6 +626,19 @@ class OrdenService:
 
         try:
             with self.db.begin_nested():
+                antes = {
+                    "descuento_total": str(orden.descuento_total or Decimal("0.00")),
+                    "total": str(orden.total),
+                    "detalles": [
+                        {
+                            "detalle_id": detalle.id,
+                            "producto_id": detalle.producto_id,
+                            "descuento_monto": str(detalle.descuento_monto or Decimal("0.00")),
+                            "descuento_porcentaje": str(detalle.descuento_porcentaje or Decimal("0.00")),
+                        }
+                        for detalle in orden.detalles
+                    ],
+                }
                 current_subtotal = sum(
                     Decimal(str(d.precio_unitario)) * d.cantidad
                     for d in orden.detalles
@@ -593,6 +674,31 @@ class OrdenService:
                             d.descuento_porcentaje = Decimal("0.00")
 
                 self._recalcular_totales(orden)
+                if actor is not None:
+                    AuditoriaService.registrar(
+                        self.db,
+                        actor,
+                        "DESCUENTO_GLOBAL_APLICADO",
+                        "orden",
+                        orden.id,
+                        f"Descuento global de C${desc_total} aplicado a la orden #{orden.id}",
+                        antes=antes,
+                        despues={
+                            "descuento_solicitado": str(desc_total),
+                            "descuento_total": str(orden.descuento_total or Decimal("0.00")),
+                            "total": str(orden.total),
+                            "motivo": motivo,
+                            "detalles": [
+                                {
+                                    "detalle_id": detalle.id,
+                                    "producto_id": detalle.producto_id,
+                                    "descuento_monto": str(detalle.descuento_monto or Decimal("0.00")),
+                                    "descuento_porcentaje": str(detalle.descuento_porcentaje or Decimal("0.00")),
+                                }
+                                for detalle in orden.detalles
+                            ],
+                        },
+                    )
 
             self.db.commit()
             self.db.refresh(orden)
@@ -619,6 +725,7 @@ class OrdenService:
         self,
         orden_id: int,
         detalle_id: int,
+        actor: Usuario | None = None,
     ) -> Orden:
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
@@ -636,10 +743,34 @@ class OrdenService:
 
         try:
             with self.db.begin_nested():
+                antes = {
+                    "detalle_id": detalle.id,
+                    "producto_id": detalle.producto_id,
+                    "descuento_monto": str(detalle.descuento_monto or Decimal("0.00")),
+                    "descuento_porcentaje": str(detalle.descuento_porcentaje or Decimal("0.00")),
+                    "motivo": detalle.motivo_descuento,
+                }
                 detalle.descuento_porcentaje = None
                 detalle.descuento_monto = None
                 detalle.motivo_descuento = None
                 self._recalcular_totales(orden)
+                if actor is not None:
+                    AuditoriaService.registrar(
+                        self.db,
+                        actor,
+                        "DESCUENTO_RETIRADO",
+                        "orden",
+                        orden.id,
+                        f"Descuento retirado del platillo #{detalle.producto_id} en orden #{orden.id}",
+                        antes=antes,
+                        despues={
+                            "detalle_id": detalle.id,
+                            "producto_id": detalle.producto_id,
+                            "descuento_monto": "0.00",
+                            "descuento_porcentaje": "0.00",
+                            "total_orden": str(orden.total),
+                        },
+                    )
 
             self.db.commit()
             self.db.refresh(orden)

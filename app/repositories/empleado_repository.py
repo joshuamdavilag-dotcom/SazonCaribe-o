@@ -97,3 +97,4 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             El empleado desactivado o None si no existe.
         """
         return self.update(id, {"activo": False})
+    

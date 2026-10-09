@@ -120,6 +120,7 @@ def eliminar_categoria(
 )
 def crear_menu_item(
     item_in: MenuItemCreate,
+    current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> MenuItemResponse:
     """
@@ -137,7 +138,7 @@ def crear_menu_item(
     - Que cada ingrediente exista en inventario
     - Que el nombre del plato sea único
     """
-    return service.crear_menu_item(item_in)
+    return service.crear_menu_item(item_in, current_user)
 
 
 @router.get(
@@ -230,6 +231,7 @@ def actualizar_menu_item(
         gt=0,
         description="ID del plato a actualizar"
     ),
+    current_user: Usuario = Depends(get_current_user),
     service: MenuService = Depends(get_menu_service)
 ) -> MenuItemResponse:
     """
@@ -250,7 +252,7 @@ def actualizar_menu_item(
     - Que cada ingrediente nuevo exista (si se cambia la receta)
     - Que el nombre sea único entre platos
     """
-    return service.actualizar_menu_item(item_id, item_in)
+    return service.actualizar_menu_item(item_id, item_in, current_user)
 
 
 @router.delete(

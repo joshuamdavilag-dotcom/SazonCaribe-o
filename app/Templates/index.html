@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.1">
+  <link rel="stylesheet" href="css/style.css?v=6.2">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -205,6 +205,10 @@
         <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
           <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="auditoria" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">manage_search</span>
+          <span class="nav-label">Auditoría</span>
         </a>
       </nav>
 
@@ -891,6 +895,47 @@
                 <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: AUDITORÍA (Admin/Gerente) -->
+      <section id="screen-auditoria" class="screen w-full max-w-full overflow-x-hidden" aria-label="Bitácora de auditoría">
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div>
+            <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#0F3B66]">Control y trazabilidad</span>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Bitácora de Auditoría</h1>
+            <p class="text-sm text-slate-500 mt-1">Cambios de precios y descuentos registrados con usuario, fecha y detalle.</p>
+          </div>
+          <button id="btn-refresh-auditoria" type="button" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F3B66] text-white text-sm font-semibold">
+            <span class="material-symbols-outlined text-[18px]">refresh</span> Actualizar
+          </button>
+        </header>
+        <div class="p-4 md:p-6 space-y-4">
+          <div class="flex flex-col sm:flex-row gap-3 items-end bg-white border border-slate-200 rounded-2xl p-4">
+            <label class="text-xs font-semibold text-slate-600 flex flex-col gap-1">Desde
+              <input id="auditoria-desde" type="date" class="form-input">
+            </label>
+            <label class="text-xs font-semibold text-slate-600 flex flex-col gap-1">Hasta
+              <input id="auditoria-hasta" type="date" class="form-input">
+            </label>
+            <button id="btn-filtrar-auditoria" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold">Filtrar</button>
+            <span id="auditoria-total" class="sm:ml-auto text-sm text-slate-500">— registros</span>
+          </div>
+          <div class="rounded-2xl bg-white border border-slate-200 overflow-x-auto shadow-sm">
+            <table class="w-full text-sm min-w-[900px]">
+              <thead><tr class="text-left text-[11px] font-bold uppercase tracking-wide text-slate-400 bg-slate-50">
+                <th class="px-4 py-3">Fecha y hora</th><th class="px-4 py-3">Usuario</th><th class="px-4 py-3">Acción</th><th class="px-4 py-3">Detalle</th><th class="px-4 py-3">Antes / después</th>
+              </tr></thead>
+              <tbody id="auditoria-tbody">
+                <tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">Cargando bitácora…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-between">
+            <button id="btn-auditoria-anterior" type="button" class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold disabled:opacity-40">Anterior</button>
+            <span id="auditoria-pagina" class="text-xs text-slate-500"></span>
+            <button id="btn-auditoria-siguiente" type="button" class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold disabled:opacity-40">Siguiente</button>
           </div>
         </div>
       </section>

@@ -112,8 +112,7 @@ class MenuRepository:
                 )
                 self.db.add(db_receta)
 
-        self.db.commit()
-        self.db.refresh(db_item)
+        self.db.flush()
         return db_item
 
     def eliminar_menu_item(self, item_id: int) -> bool:

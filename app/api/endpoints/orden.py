@@ -66,7 +66,7 @@ def crear_orden(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
-    return service.crear_orden(orden_in, current_user.id)
+    return service.crear_orden(orden_in, current_user.id, current_user)
 
 
 # =====================================================================
@@ -143,9 +143,10 @@ def actualizar_estado(
 def agregar_items(
     orden_id: int = Path(..., gt=0),
     body: AgregarItemsOrdenRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
-    return service.agregar_items_canonico(orden_id, body.items)
+    return service.agregar_items_canonico(orden_id, body.items, current_user)
 
 
 # =====================================================================
@@ -183,10 +184,11 @@ def pagar_orden(
 def aplicar_descuento_item(
     orden_id: int = Path(..., gt=0),
     body: AplicarDescuentoItemRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     return service.aplicar_descuento_item(
-        orden_id, body.detalle_id, body.tipo, body.valor, body.motivo
+        orden_id, body.detalle_id, body.tipo, body.valor, body.motivo, current_user
     )
 
 
@@ -200,10 +202,11 @@ def aplicar_descuento_item(
 def aplicar_descuento_global(
     orden_id: int = Path(..., gt=0),
     body: AplicarDescuentoGlobalRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     return service.aplicar_descuento_global(
-        orden_id, body.tipo, body.valor, body.motivo
+        orden_id, body.tipo, body.valor, body.motivo, current_user
     )
 
 
@@ -217,6 +220,7 @@ def aplicar_descuento_global(
 def quitar_descuento_item(
     orden_id: int = Path(..., gt=0),
     detalle_id: int = Path(..., gt=0),
+    current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
-    return service.quitar_descuento_item(orden_id, detalle_id)
+    return service.quitar_descuento_item(orden_id, detalle_id, current_user)
