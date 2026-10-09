@@ -9,7 +9,7 @@ from app.api.deps import requerir_rol, get_current_user
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.services.backup_service import backup_service
-from app.services.auditoria_service import auditoria_service
+from app.services.auditoria_service import AuditoriaService
 
 router = APIRouter(
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR]))]
@@ -26,7 +26,7 @@ def crear_backup(
     Solo accesible para el rol ADMINISTRADOR.
     """
     try:
-        resultado = backup_service.crear_backup(db=db, usuario_id=current_user.id)
+        resultado = backup_service.crear_backup(db=db, actor=current_user)
         return {
             "mensaje": "Copia de seguridad creada correctamente",
             "backup": resultado
@@ -64,13 +64,15 @@ def descargar_backup(
             detail="El archivo de copia de seguridad no existe o la ruta es inválida"
         )
 
-    auditoria_service.log_evento(
+    AuditoriaService.registrar(
         db=db,
-        usuario_id=current_user.id,
-        modulo="BACKUP",
+        actor=current_user,
         accion="DESCARGAR_BACKUP",
-        detalles=f"Descargó la copia de seguridad '{filename}'"
+        entidad_tipo="BACKUP",
+        entidad_id=None,
+        descripcion=f"Descargó la copia de seguridad '{filename}'"
     )
+    db.commit()
 
     return FileResponse(
         path=filepath,
@@ -89,7 +91,7 @@ def eliminar_backup(
     Elimina una copia de seguridad almacenada en el servidor.
     Solo accesible para el rol ADMINISTRADOR.
     """
-    exito = backup_service.eliminar_backup(filename=filename, db=db, usuario_id=current_user.id)
+    exito = backup_service.eliminar_backup(filename=filename, db=db, actor=current_user)
     if not exito:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -124,19 +126,20 @@ async def subir_y_restaurar_backup(
                 detail="El archivo JSON no tiene la estructura válida de copia de seguridad de Sazón Caribeño"
             )
 
-        filepath = backup_service.obtener_ruta_backup(file.filename) or (backup_service.BACKUP_DIR if hasattr(backup_service, "BACKUP_DIR") else backup_service._model_to_dict)
         from pathlib import Path
         dest_path = Path("app/backups") / file.filename
         with open(dest_path, "wb") as f:
             f.write(content)
 
-        auditoria_service.log_evento(
+        AuditoriaService.registrar(
             db=db,
-            usuario_id=current_user.id,
-            modulo="BACKUP",
+            actor=current_user,
             accion="SUBIR_BACKUP",
-            detalles=f"Subió e importó el archivo de copia de seguridad '{file.filename}'"
+            entidad_tipo="BACKUP",
+            entidad_id=None,
+            descripcion=f"Subió e importó el archivo de copia de seguridad '{file.filename}'"
         )
+        db.commit()
 
         return {
             "mensaje": f"Archivo '{file.filename}' subido y guardado exitosamente en el servidor",

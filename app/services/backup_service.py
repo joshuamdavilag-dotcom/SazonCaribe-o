@@ -18,7 +18,7 @@ from app.models import (
     CierreCaja, CategoriaGasto, Gasto,
     EventoCalendario, RegistroAuditoria
 )
-from app.services.auditoria_service import auditoria_service
+from app.services.auditoria_service import AuditoriaService
 
 BACKUP_DIR = Path("app/backups")
 
@@ -55,7 +55,7 @@ class BackupService:
                 data[column.name] = val
         return data
 
-    def crear_backup(self, db: Session, usuario_id: Optional[int] = None) -> Dict[str, Any]:
+    def crear_backup(self, db: Session, actor: Optional[Usuario] = None) -> Dict[str, Any]:
         """Genera un archivo JSON de respaldo con todos los datos del sistema."""
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
         now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -101,7 +101,7 @@ class BackupService:
                 "sistema": "Sazón Caribeño POS",
                 "version": "1.0",
                 "fecha_creacion": datetime.now().isoformat(),
-                "registrado_por_usuario_id": usuario_id,
+                "registrado_por_usuario_id": actor.id if actor else None,
                 "total_registros": total_records,
                 "tablas": list(tables_data.keys())
             },
@@ -114,14 +114,16 @@ class BackupService:
         file_size_bytes = filepath.stat().st_size
         file_size_kb = round(file_size_bytes / 1024, 2)
 
-        if usuario_id:
-            auditoria_service.log_evento(
+        if actor:
+            AuditoriaService.registrar(
                 db=db,
-                usuario_id=usuario_id,
-                modulo="BACKUP",
+                actor=actor,
                 accion="CREAR_BACKUP",
-                detalles=f"Copia de seguridad '{filename}' creada ({file_size_kb} KB, {total_records} registros)"
+                entidad_tipo="BACKUP",
+                entidad_id=None,
+                descripcion=f"Copia de seguridad '{filename}' creada ({file_size_kb} KB, {total_records} registros)"
             )
+            db.commit()
 
         return {
             "filename": filename,
@@ -131,7 +133,7 @@ class BackupService:
             "fecha_creacion": backup_payload["metadata"]["fecha_creacion"]
         }
 
-    def listar_backups( me ) -> List[Dict[str, Any]]:
+    def listar_backups(self) -> List[Dict[str, Any]]:
         """Lista todas las copias de seguridad guardadas en el servidor."""
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
         backups = []
@@ -168,21 +170,23 @@ class BackupService:
             return None
         return filepath
 
-    def eliminar_backup(self, filename: str, db: Session, usuario_id: Optional[int] = None) -> bool:
+    def eliminar_backup(self, filename: str, db: Session, actor: Optional[Usuario] = None) -> bool:
         """Elimina una copia de seguridad del servidor."""
         filepath = self.obtener_ruta_backup(filename)
         if not filepath:
             return False
         filepath.unlink()
 
-        if usuario_id and db:
-            auditoria_service.log_evento(
+        if actor and db:
+            AuditoriaService.registrar(
                 db=db,
-                usuario_id=usuario_id,
-                modulo="BACKUP",
+                actor=actor,
                 accion="ELIMINAR_BACKUP",
-                detalles=f"Copia de seguridad '{filename}' eliminada del servidor"
+                entidad_tipo="BACKUP",
+                entidad_id=None,
+                descripcion=f"Copia de seguridad '{filename}' eliminada del servidor"
             )
+            db.commit()
         return True
 
 
