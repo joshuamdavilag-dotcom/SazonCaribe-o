@@ -22,7 +22,6 @@ const state = {
   token: localStorage.getItem('pos_token') || null,
   user: JSON.parse(localStorage.getItem('pos_user') || 'null'),
   currentScreen: 'salon',
-  previousScreen: null,    // Para navegar hacia atrás (go back)
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
   tables: [],
@@ -175,22 +174,9 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
-  const target = document.getElementById(`screen-${screenId}`);
-  
-  // Si la pantalla no existe, mostrar error y NO cambiar de pantalla (evita bucles)
-  if (!target) {
-    showToast(`La pantalla "${screenId}" no existe`, 'error');
-    return;
-  }
-
-  // Guardar pantalla anterior válida para poder volver
-  const previousScreen = state.currentScreen;
-  if (previousScreen && previousScreen !== screenId) {
-    state.previousScreen = previousScreen;
-  }
-
   document.querySelectorAll('.main-content .screen').forEach(s => s.classList.remove('active'));
-  target.classList.add('active');
+  const target = document.getElementById(`screen-${screenId}`);
+  if (target) target.classList.add('active');
 
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.screen === screenId);
@@ -208,7 +194,6 @@ function navigateTo(screenId) {
   document.getElementById('sidebar-backdrop')?.classList.remove('show');
   document.getElementById('sidebar-toggle')?.classList.remove('open');
 
-  // Cargar datos según la pantalla
   if (screenId === 'salon') loadTables();
   if (screenId === 'comandero') loadCocinaOrdenes();
   if (screenId === 'menu-view') loadMenuBrowse();
@@ -220,18 +205,6 @@ function navigateTo(screenId) {
     loadHistorialOrdenesDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
-}
-
-/**
- * Vuelve a la pantalla anterior válida (útil para botones "Atrás" o errores)
- */
-function navigateBack() {
-  if (state.previousScreen) {
-    navigateTo(state.previousScreen);
-  } else {
-    // Fallback: ir a Salón
-    navigateTo('salon');
-  }
 }
 
 /* =========================================================================
