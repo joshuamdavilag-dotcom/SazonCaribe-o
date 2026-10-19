@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -18,6 +19,8 @@ from app.services.calendario_service import CalendarioService
 router = APIRouter()
 _SOLO_GERENCIA = Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))
 
+logger = logging.getLogger(__name__)
+
 
 def _validar_rango(desde: date, hasta: date) -> None:
     """Rechaza rangos invertidos o mayores a 63 días calendario inclusivos."""
@@ -36,7 +39,11 @@ def obtener_calendario(
 ):
     """Devuelve eventos y asistencias del rango a cualquier usuario activo."""
     _validar_rango(desde, hasta)
-    return CalendarioService(db).obtener_calendario(desde, hasta)
+    try:
+        return CalendarioService(db).obtener_calendario(desde, hasta)
+    except Exception as e:
+        logger.exception("Error en /calendario/: desde=%s hasta=%s error=%s", desde, hasta, e)
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {e}")
 
 
 @router.post(
