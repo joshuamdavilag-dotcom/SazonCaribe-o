@@ -22,6 +22,7 @@ const state = {
   token: localStorage.getItem('pos_token') || null,
   user: JSON.parse(localStorage.getItem('pos_user') || 'null'),
   currentScreen: 'salon',
+  previousScreen: null,
   errorReturnScreen: null,
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
@@ -249,7 +250,8 @@ const ERROR_INTERNO = 'ERROR_INTERNO';
 function mostrarPantallaError() {
   const screen = document.getElementById('app-error-screen');
   if (!screen || !screen.hidden) return;
-  state.errorReturnScreen = state.currentScreen;
+  // Usar previousScreen si existe, si no currentScreen (para errores fuera de navegación)
+  state.errorReturnScreen = state.previousScreen ?? state.currentScreen;
   screen.hidden = false;
   document.getElementById('app-error-back')?.focus();
 }
@@ -395,6 +397,8 @@ function navigateTo(screenId) {
   if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
     void cerrarTodasCamaras();
   }
+  // Guardar pantalla actual antes de cambiar (para volver en caso de error)
+  state.previousScreen = state.currentScreen;
   document.querySelectorAll('.main-content .screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${screenId}`);
   if (target) target.classList.add('active');
