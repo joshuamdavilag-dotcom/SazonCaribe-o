@@ -1717,12 +1717,14 @@ async function loadCalendario() {
     hasta: calendarDateKey(end),
   });
   try {
-    const data = await api(`/calendario/?${params}`);
+    const data = await api(`/calendario/?${params}`, { silent: true });
     state.calendarEvents = data.eventos || [];
     state.calendarAttendances = data.asistencias || [];
     renderCalendario();
-  } catch {
-    grid.innerHTML = '<div class="calendar-empty calendar-load-error">No se pudo cargar el calendario. Intenta actualizarlo.</div>';
+  } catch (e) {
+    console.error('[Calendario] Error cargando:', e);
+    const msg = e?.message || 'Error desconocido';
+    grid.innerHTML = `<div class="calendar-empty calendar-load-error">No se pudo cargar el calendario: ${escHtml(msg)}. <button type="button" onclick="loadCalendario()" class="btn-retry">Reintentar</button></div>`;
   }
 }
 

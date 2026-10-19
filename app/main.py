@@ -235,8 +235,39 @@ async def startup_event():
 
 def _migrate_calendario_color():
     """Agrega la etiqueta de color a eventos existentes sin alterar sus datos."""
+    from sqlalchemy import inspect, text
     inspector = inspect(engine)
     if not inspector.has_table("eventos_calendario"):
+        # Crear tabla si no existe (fallback por si create_all falló con enums MySQL)
+        with engine.begin() as connection:
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS eventos_calendario (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tipo VARCHAR(30) NOT NULL,
+                    titulo VARCHAR(120) NOT NULL,
+                    color_etiqueta VARCHAR(20) NULL,
+                    descripcion TEXT NULL,
+                    fecha_inicio DATE NOT NULL,
+                    fecha_fin DATE NULL,
+                    hora_inicio TIME NULL,
+                    hora_fin TIME NULL,
+                    estado VARCHAR(20) NOT NULL DEFAULT 'PLANIFICADO',
+                    menu_item_id INT NULL,
+                    insumo_id INT NULL,
+                    proveedor_id INT NULL,
+                    cantidad_esperada DECIMAL(10,2) NULL,
+                    creado_por_id INT NOT NULL,
+                    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    completado_en DATETIME NULL,
+                    CONSTRAINT fk_eventos_calendario_menu_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+                    CONSTRAINT fk_eventos_calendario_insumo FOREIGN KEY (insumo_id) REFERENCES insumos(id),
+                    CONSTRAINT fk_eventos_calendario_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id),
+                    CONSTRAINT fk_eventos_calendario_usuario FOREIGN KEY (creado_por_id) REFERENCES usuarios(id),
+                    INDEX ix_eventos_calendario_fecha_inicio (fecha_inicio)
+                )
+            """))
+        logger.info("Tabla eventos_calendario creada por migración de respaldo")
         return
     columns = {column["name"] for column in inspector.get_columns("eventos_calendario")}
     if "color_etiqueta" in columns:
