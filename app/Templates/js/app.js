@@ -306,8 +306,20 @@ async function api(endpoint, options = {}) {
     });
     if (!res.ok) {
       if (res.status >= 500) {
-        mostrarPantallaError();
-        throw new Error(ERROR_INTERNO);
+        let errDetail = 'Error interno del servidor';
+        try {
+          const err = await res.json();
+          if (err && err.detail) {
+            errDetail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+          }
+        } catch {
+          const raw = await res.text().catch(() => '');
+          if (raw) errDetail = raw.slice(0, 500);
+        }
+        if (!options.silent) {
+          mostrarPantallaError();
+        }
+        throw new Error(errDetail);
       }
       let err;
       try {
