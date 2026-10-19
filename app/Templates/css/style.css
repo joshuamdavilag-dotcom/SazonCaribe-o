@@ -1072,6 +1072,319 @@ input, select, textarea { font: inherit; }
 .menu-item .btn-add:active { transform: scale(0.9); }
 
 /* =========================================================================
+   Order Modal (Tomar Comanda) — lista de platillos + carrusel de categorías
+   ========================================================================= */
+#modal-order .modal-sheet {
+  position: relative;
+  padding: 0;
+  max-width: 860px;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.order-modal-header {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.order-modal-cliente {
+  flex-shrink: 0;
+  padding: 12px 16px 10px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.order-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.order-modal-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+}
+
+#order-modal-search { height: 42px; font-size: 15px; }
+
+/* Carrusel de categorías */
+.cat-carousel {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  padding: 2px 2px 6px;
+}
+.cat-carousel::-webkit-scrollbar { display: none; }
+
+.cat-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.12s;
+}
+.cat-chip:active { transform: scale(0.96); }
+.cat-chip.active {
+  background: var(--azul-marino);
+  border-color: var(--azul-marino);
+  color: var(--text-on-dark);
+}
+
+/* Lista de platillos */
+.order-menu-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 84px;
+}
+
+.order-menu-group {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 6px 0 2px;
+  padding: 4px 2px;
+  background: var(--bg-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.order-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.omi-thumb {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--bg-primary);
+  color: var(--turquesa-ola);
+}
+.omi-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.omi-info { flex: 1; min-width: 0; }
+.omi-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.omi-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.omi-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.omi-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--azul-marino);
+  white-space: nowrap;
+}
+.omi-stepper { display: flex; align-items: center; gap: 4px; }
+.omi-stepper .qty-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.omi-qty {
+  min-width: 20px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+.omi-add {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--rojo-cangrejo);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.3);
+  transition: transform 0.12s;
+}
+.omi-add:active { transform: scale(0.9); }
+
+/* Carrito (bottom sheet dentro del modal) */
+.order-cart-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  max-height: 70%;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-light);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 30, 60, 0.18);
+  animation: slideUpCart 0.25s ease-out;
+}
+
+@keyframes slideUpCart {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.order-cart-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--azul-marino);
+}
+
+.order-cart-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 16px;
+}
+
+.order-cart-foot {
+  flex-shrink: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+.order-cart-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.order-cart-total {
+  margin: 6px 0 12px;
+  font-weight: 700;
+  color: var(--azul-marino);
+  font-size: 16px;
+}
+.order-cart-total .price-lg { font-size: 18px; color: var(--azul-marino); }
+.order-cart-cobrar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--turquesa-ola);
+  cursor: pointer;
+}
+.order-cart-cobrar input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--turquesa-ola);
+}
+.order-cart-actions { display: flex; gap: 8px; }
+.order-cart-actions .btn { min-height: 46px; }
+#cancel-order-modal { flex: 1; }
+#confirm-order-modal { flex: 2; }
+
+/* Botón flotante: ver comanda */
+.order-fab {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 50;
+  width: 54px;
+  height: 54px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--azul-marino);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 51, 102, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.order-fab:active { transform: scale(0.92); }
+.order-fab .material-symbols-outlined { font-size: 24px; }
+.fab-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--rojo-cangrejo);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =========================================================================
    Order Summary Panel (bottom sheet)
    ========================================================================= */
 .order-panel {
@@ -2719,162 +3032,57 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
     flex-direction: column !important;
   }
 
-  /* Order modal: stack layout - MÓVIL */
-  #modal-order .modal-sheet { max-height: calc(100dvh - 16px) !important; }
-
-  /* Contenedor principal del body del modal (el flex:1 con gap:0) */
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] {
-    flex-direction: column !important;
-    overflow: visible !important;
-    height: calc(100dvh - 120px) !important; /* header + padding */
+  /* Order modal (móvil): pantalla completa, lista compacta + carrusel */
+  #modal-order .modal-sheet {
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
   }
-
-  /* Panel IZQUIERDO (menú) - flex:2 */
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] {
-    flex: none !important;
-    height: 55vh !important; /* 55% de la pantalla */
-    max-height: 55vh !important;
-    overflow: visible !important;
-    padding: 8px 12px !important;
-    border-left: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
-  /* Panel DERECHO (carrito) - flex:1 */
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:1"][style*="border-left"] {
-    flex: 1 !important;
-    min-height: 40vh !important;
-    border-left: none !important;
-    border-top: 1px solid #e5e7eb !important;
-    min-width: 0 !important;
-    padding: 12px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: visible !important;
-  }
-
-  /* Dentro del panel izquierdo: search + categories + menu */
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > input#order-modal-search {
-    margin: 8px 0 !important;
-    height: 40px !important;
-    font-size: 16px !important; /* evita zoom iOS */
-  }
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > div#order-modal-categories {
-    flex-shrink: 0 !important;
-    margin-bottom: 8px !important;
-  }
-  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > div#order-modal-menu {
-    flex: 1 !important;
-    overflow-y: auto !important;
-    min-height: 0 !important;
-  }
-
-  /* Mobile: order modal - category select full width */
-  #order-modal-categories select.form-input {
-    width: 100%;
-    margin-bottom: 8px;
-  }
-
-  /* Mobile: order modal search input */
+  #modal-order .order-modal-header { padding: 12px 14px !important; }
+  #modal-order .order-modal-toolbar { padding: 10px 12px !important; }
   #order-modal-search {
-    padding-left: 36px !important;
-    font-size: 16px !important; /* prevents zoom on iOS */
-  }
-
-  /* Mobile: order modal menu items - larger touch targets */
-  #order-modal-menu > div[style*="display:flex"] {
-    padding: 14px 16px !important;
-    gap: 12px !important;
-  }
-  #order-modal-menu button.qty-btn {
-    min-width: 44px !important;
-    min-height: 44px !important;
-    font-size: 20px !important;
-  }
-  #order-modal-menu span[style*="min-width:28px"] {
-    font-size: 18px !important;
-  }
-
-  /* Mobile: menu-grid (Carta/Menu-view) - larger cards & touch targets */
-  .menu-grid .menu-card {
-    min-height: 160px !important;
-  }
-  .menu-grid .menu-card-media {
-    min-height: 100px !important;
-  }
-  .menu-grid .menu-card .btn-add {
-    width: 44px !important;
     height: 44px !important;
-    font-size: 24px !important;
+    font-size: 16px !important; /* evita el zoom en iOS */
   }
-
-  /* Mobile: quantity buttons in order modal cart */
-  #order-modal-cart .qty-btn,
-  #order-modal-cart button[onclick*="changeCartQty"] {
-    min-width: 40px !important;
+  .cat-chip {
     min-height: 40px !important;
+    font-size: 14px !important;
+    padding: 0 16px !important;
+  }
+  .order-menu-item {
+    padding: 10px 12px !important;
+    min-height: 60px !important;
+  }
+  .omi-stepper .qty-btn {
+    width: 38px !important;
+    height: 38px !important;
     font-size: 18px !important;
+  }
+  .omi-add {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  #order-modal-cart .qty-btn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 16px !important;
   }
 
   /* =========================================================================
-     MOBILE — Order Modal: FAB + Bottom Sheet
+     MOBILE — Order Modal: FAB + carrito
      ========================================================================= */
   .order-fab {
-    position: fixed !important;
-    bottom: 90px !important; /* above bottom nav */
+    bottom: calc(18px + env(safe-area-inset-bottom)) !important;
     right: 16px !important;
-    width: 56px !important;
-    height: 56px !important;
-    border-radius: 50% !important;
-    background: var(--azul-marino) !important;
-    color: #fff !important;
-    box-shadow: 0 4px 16px rgba(0, 51, 102, 0.35) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 50 !important;
-    border: none !important;
-    cursor: pointer !important;
-    transition: transform 0.15s, box-shadow 0.15s !important;
+    width: 58px !important;
+    height: 58px !important;
   }
-  .order-fab:active { transform: scale(0.92); }
-  .order-fab .material-symbols-outlined { font-size: 26px !important; }
-  .fab-badge {
-    position: absolute !important;
-    top: -4px !important;
-    right: -4px !important;
-    min-width: 20px !important;
-    height: 20px !important;
-    background: var(--rojo-cangrejo) !important;
-    color: #fff !important;
-    border-radius: 10px !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 0 5px !important;
-  }
+  .order-fab .material-symbols-outlined { font-size: 26px; }
 
-  /* Bottom sheet cart */
-  #order-modal-cart-sheet {
-    animation: slideUp 0.25s ease-out !important;
-  }
-  @keyframes slideUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  #order-modal-cart-sheet > div:first-child {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 10 !important;
-  }
-  #order-modal-cart-sheet > div:last-child {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 10 !important;
-  }
+  #order-modal-cart-sheet { max-height: 74dvh !important; }
+  .order-cart-body { max-height: 42dvh !important; }
 
   /* =========================================================================
      MOBILE — Cierre / Reportes

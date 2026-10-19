@@ -2888,15 +2888,29 @@ async function renderOrderModalCategories() {
     try { state.categories = await api('/menu/categorias'); } catch { state.categories = []; }
   }
 
-  // Chips horizontales con scroll (mejor UX móvil que dropdown)
-  let html = `<button class="category-tab active" data-om-cat="all" role="tab" aria-selected="true">🍽️ Todas</button>`;
+  // Carrusel horizontal de categorías (scroll + snap)
+  let html = `<button type="button" class="cat-chip active" data-om-cat="all" role="tab" aria-selected="true">🍽️ Todas</button>`;
   state.categories.forEach(cat => {
-    html += `<button class="category-tab" data-om-cat="${cat.id}" role="tab" aria-selected="false">${getCategoryEmoji(cat.nombre)} ${cat.nombre}</button>`;
+    html += `<button type="button" class="cat-chip" data-om-cat="${cat.id}" role="tab" aria-selected="false">${getCategoryEmoji(cat.nombre)} ${cat.nombre}</button>`;
   });
   container.innerHTML = html;
-  container.querySelectorAll('.category-tab').forEach(tab => {
-    tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
+  container.querySelectorAll('.cat-chip').forEach(chip => {
+    chip.addEventListener('click', () => filterOrderModalByCategory(chip.dataset.omCat));
   });
+  scrollActiveCategoryChip();
+}
+
+function scrollActiveCategoryChip() {
+  const container = document.getElementById('order-modal-categories');
+  if (!container) return;
+  const active = container.querySelector('.cat-chip.active');
+  if (active && active.scrollIntoView) {
+    try {
+      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    } catch {
+      active.scrollIntoView(false);
+    }
+  }
 }
 
 function openOrderModal(mesaId, mesaNumero) {
@@ -2935,7 +2949,7 @@ function openOrderModal(mesaId, mesaNumero) {
   document.getElementById('order-modal-cart').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
-    '<p class="text-center text-muted" style="grid-column:1/-1;padding:24px;">Cargando menú…</p>';
+    '<p class="text-center text-muted" style="padding:24px;">Cargando menú…</p>';
 
   // Ocultar FAB y bottom sheet al abrir
   const fab = document.getElementById('order-modal-fab');
@@ -2967,12 +2981,14 @@ async function loadOrderModalMenu() {
     renderOrderModalMenu(state.menuItems);
   } catch {
     document.getElementById('order-modal-menu').innerHTML =
-      '<p class="text-center text-muted" style="grid-column:1/-1;padding:24px;">Error al cargar menú</p>';
+      '<p class="text-center text-muted" style="padding:24px;">Error al cargar menú</p>';
   }
 }
 
 function renderOrderModalMenu(items) {
-  const grid = document.getElementById('order-modal-menu');
+  const list = document.getElementById('order-modal-menu');
+  if (!list) return;
+  const prevScroll = list.scrollTop;
   let filtered = items || [];
 
   if (orderModalCategory !== 'all') {
@@ -2986,56 +3002,64 @@ function renderOrderModalMenu(items) {
   }
 
   if (filtered.length === 0) {
-    grid.innerHTML = '<p class="text-center text-muted" style="grid-column:1/-1;padding:24px;">No hay productos disponibles</p>';
+    list.innerHTML = '<p class="text-center text-muted" style="padding:24px;">No hay productos disponibles</p>';
     return;
   }
 
-  const isMobile = window.innerWidth < 768;
+  // Orden estable: por categoría y luego por nombre (lista escaneable)
+  filtered = filtered.slice().sort((a, b) => {
+    const ca = (a.categoria?.nombre || '').localeCompare(b.categoria?.nombre || '', 'es');
+    if (ca !== 0) return ca;
+    return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+  });
 
-  grid.innerHTML = filtered.map(item => {
+  const showCat = orderModalCategory === 'all';
+  let lastCat = null;
+  let html = '';
+
+  filtered.forEach(item => {
     const cat = item.categoria?.nombre || 'Sin categoría';
-    const catTagBg = /bebida/i.test(cat) ? 'bg-brand-turquoise/10 text-brand-turquoise'
-      : /marisco|ceviche|pescado/i.test(cat) ? 'bg-brand-coral/10 text-brand-coral'
-      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600'
-      : 'bg-slate-100 text-slate-500';
+    if (showCat && cat !== lastCat) {
+      html += `<div class="order-menu-group">${cat}</div>`;
+      lastCat = cat;
+    }
 
+    const media = getMenuMedia(cat);
     const inOrder = state.currentOrder.items.find(i => i.producto_id === item.id);
     const qty = inOrder ? inOrder.cantidad : 0;
 
-    const media = getMenuMedia(cat);
     const thumb = item.imagen_url
-      ? `<img src="${item.imagen_url}" alt="${item.nombre}" style="width:100%;height:100%;object-fit:cover;">`
-      : `<span class="material-symbols-outlined ${media.color}" style="font-size:36px;">${media.icon}</span>`;
+      ? `<img src="${item.imagen_url}" alt="" loading="lazy" decoding="async">`
+      : `<span class="material-symbols-outlined ${media.color}" style="font-size:22px;">${media.icon}</span>`;
 
-    const prepTime = item.tiempo_preparacion
-      ? `<div class="card-subtitle" style="margin-top:2px;font-size:11px;">⏱️ ~${item.tiempo_preparacion} min</div>`
-      : '';
+    const metaPrep = item.tiempo_preparacion ? `<span>⏱️ ~${item.tiempo_preparacion} min</span>` : '';
 
-    return `
-      <article class="menu-card animate-in" data-item-id="${item.id}" style="display:flex;flex-direction:column;height:100%;min-height:170px;">
-        <div class="menu-card-media grid place-items-center ${media.bg}" style="aspect-ratio:4/3;min-height:96px;overflow:hidden;border-radius:12px 12px 0 0;" aria-hidden="true">${thumb}</div>
-        <div class="p-3 flex flex-col gap-1.5 flex-1" style="min-height:0;">
-          <span class="inline-flex self-start items-center text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${catTagBg}">${cat}</span>
-          <h3 class="text-[13px] font-bold leading-snug text-brand-navy line-clamp-2">${item.nombre}</h3>
-          ${prepTime}
-          <div class="mt-auto pt-1 flex items-center justify-between">
-            <span class="font-display font-extrabold text-[15px] text-brand-navy">C$${parseFloat(item.precio).toFixed(2)}</span>
-            ${qty > 0 ? `
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" style="width:32px;height:32px;font-size:18px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">−</button>
-                <span style="min-width:24px;text-align:center;font-weight:700;font-size:14px;color:#111827;">${qty}</span>
-                <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" style="width:32px;height:32px;font-size:18px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">+</button>
-              </div>
-            ` : `
-              <button type="button" class="grid place-items-center w-10 h-10 rounded-full bg-brand-coral text-white shadow-sm shadow-brand-coral/30 active:scale-95 transition"
-                      aria-label="Agregar ${item.nombre}" onclick="changeOrderModalQty(${item.id}, 1)">
-                <span class="material-symbols-outlined" style="font-size:22px;">add</span>
-              </button>
-            `}
-          </div>
+    html += `
+      <div class="order-menu-item" data-item-id="${item.id}" role="listitem">
+        <div class="omi-thumb ${media.bg}">${thumb}</div>
+        <div class="omi-info">
+          <div class="omi-name">${item.nombre}</div>
+          ${metaPrep ? `<div class="omi-meta">${metaPrep}</div>` : ''}
         </div>
-      </article>`;
-  }).join('');
+        <div class="omi-actions">
+          <span class="omi-price">C$${parseFloat(item.precio).toFixed(2)}</span>
+          ${qty > 0 ? `
+            <div class="omi-stepper">
+              <button type="button" class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" aria-label="Quitar uno">−</button>
+              <span class="omi-qty">${qty}</span>
+              <button type="button" class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" aria-label="Agregar uno">+</button>
+            </div>
+          ` : `
+            <button type="button" class="omi-add" aria-label="Agregar ${item.nombre}" onclick="changeOrderModalQty(${item.id}, 1)">
+              <span class="material-symbols-outlined" style="font-size:20px;">add</span>
+            </button>
+          `}
+        </div>
+      </div>`;
+  });
+
+  list.innerHTML = html;
+  list.scrollTop = prevScroll;
 }
 
 function changeOrderModalQty(itemId, delta) {
@@ -3097,6 +3121,7 @@ function deleteOrderItem(idx) {
   renderOrderModalMenu(state.menuItems);
   renderOrderModalCart();
   updateOrderModalTotals();
+  updateOrderModalCartUI();
 }
 
 function aplicarDescuentoItemModal(idx) {
@@ -3163,30 +3188,52 @@ function updateOrderModalCartUI() {
   const sheet = document.getElementById('order-modal-cart-sheet');
   const fabCount = document.getElementById('fab-count');
 
-  if (count > 0) {
-    if (fab) fab.style.display = 'flex';
-    if (sheet) sheet.style.display = 'flex';
-    if (fabCount) fabCount.textContent = count;
-  } else {
-    if (fab) fab.style.display = 'none';
+  if (fabCount) fabCount.textContent = count;
+
+  if (count <= 0) {
     if (sheet) sheet.style.display = 'none';
+    if (fab) fab.style.display = 'none';
+    return;
   }
+
+  const sheetOpen = sheet && sheet.style.display === 'flex';
+  if (sheetOpen) {
+    if (fab) fab.style.display = 'none';
+  } else {
+    if (fab) fab.style.display = 'flex';
+  }
+}
+
+function openOrderCartSheet() {
+  const sheet = document.getElementById('order-modal-cart-sheet');
+  const fab = document.getElementById('order-modal-fab');
+  if (sheet) sheet.style.display = 'flex';
+  if (fab) fab.style.display = 'none';
+}
+
+function closeOrderCartSheet() {
+  const sheet = document.getElementById('order-modal-cart-sheet');
+  if (sheet) sheet.style.display = 'none';
+  updateOrderModalCartUI();
 }
 
 function filterOrderModalByCategory(cat) {
   orderModalCategory = cat;
-  // Desktop tabs
-  document.querySelectorAll('#order-modal-categories .category-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.omCat === cat);
+  document.querySelectorAll('#order-modal-categories .cat-chip').forEach(t => {
+    const on = t.dataset.omCat === cat;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-  // Mobile select
-  const select = document.getElementById('order-modal-cat-select');
-  if (select) select.value = cat;
+  scrollActiveCategoryChip();
+  const list = document.getElementById('order-modal-menu');
+  if (list) list.scrollTop = 0;
   renderOrderModalMenu(state.menuItems);
 }
 
 function filterOrderModalBySearch(query) {
   orderModalSearch = query.trim();
+  const list = document.getElementById('order-modal-menu');
+  if (list) list.scrollTop = 0;
   renderOrderModalMenu(state.menuItems);
 }
 
@@ -6795,14 +6842,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirm-order-modal')?.addEventListener('click', submitOrder);
 
   // Order modal - FAB & bottom sheet
-  document.getElementById('order-modal-fab')?.addEventListener('click', () => {
-    const sheet = document.getElementById('order-modal-cart-sheet');
-    if (sheet) sheet.style.display = 'flex';
-  });
-  document.getElementById('close-cart-sheet')?.addEventListener('click', () => {
-    const sheet = document.getElementById('order-modal-cart-sheet');
-    if (sheet) sheet.style.display = 'none';
-  });
+  document.getElementById('order-modal-fab')?.addEventListener('click', openOrderCartSheet);
+  document.getElementById('close-cart-sheet')?.addEventListener('click', closeOrderCartSheet);
 
   // Order modal search
   document.getElementById('order-modal-search')?.addEventListener('input', (e) => {
