@@ -2719,28 +2719,55 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
     flex-direction: column !important;
   }
 
-  /* Order modal: stack layout */
+  /* Order modal: stack layout - MÓVIL */
   #modal-order .modal-sheet { max-height: calc(100dvh - 16px) !important; }
 
-  #modal-order .modal-sheet > div[style*="display:flex"][style*="gap:0"] {
+  /* Contenedor principal del body del modal (el flex:1 con gap:0) */
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] {
     flex-direction: column !important;
     overflow: visible !important;
+    height: calc(100dvh - 120px) !important; /* header + padding */
   }
 
-  #modal-order .modal-sheet > div[style*="display:flex"][style*="gap:0"] > div:first-child {
+  /* Panel IZQUIERDO (menú) - flex:2 */
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] {
     flex: none !important;
-    max-height: 45vh;
-    overflow-y: auto !important;
-    border-left: none !important;
+    height: 55vh !important; /* 55% de la pantalla */
+    max-height: 55vh !important;
+    overflow: visible !important;
     padding: 8px 12px !important;
+    border-left: none !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  #modal-order .modal-sheet > div[style*="display:flex"][style*="gap:0"] > div:last-child {
+  /* Panel DERECHO (carrito) - flex:1 */
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:1"][style*="border-left"] {
     flex: 1 !important;
+    min-height: 40vh !important;
     border-left: none !important;
     border-top: 1px solid #e5e7eb !important;
     min-width: 0 !important;
     padding: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+  }
+
+  /* Dentro del panel izquierdo: search + categories + menu */
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > input#order-modal-search {
+    margin: 8px 0 !important;
+    height: 40px !important;
+    font-size: 16px !important; /* evita zoom iOS */
+  }
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > div#order-modal-categories {
+    flex-shrink: 0 !important;
+    margin-bottom: 8px !important;
+  }
+  #modal-order .modal-sheet > div[style*="flex:1"][style*="gap:0"] > div[style*="flex:2"] > div#order-modal-menu {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
   }
 
   /* Mobile: order modal - category select full width */
@@ -2788,11 +2815,6 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
     min-width: 40px !important;
     min-height: 40px !important;
     font-size: 18px !important;
-  }
-    min-width: 0 !important;
-    border-left: none !important;
-    padding: 8px 12px !important;
-    overflow-y: auto !important;
   }
 
   /* =========================================================================
