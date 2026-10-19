@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Entorno
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Migraciones
+alembic/versions/*.pyc
+
+# Logs
+*.log
+
+# Clips de cámaras (datos sensibles, nunca versionar)
+app/data/camera-clips/

@@ -1,0 +1,1110 @@
+import asyncio
+import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from datetime import datetime
+from typing import Dict
+
+from app.core.config import get_settings
+from app.core.database import engine, Base, get_db
+from app.models import (
+    Puesto, Empleado, Usuario, Turno, Asistencia, Nomina, AdelantoSalario,
+    Proveedor, Ingrediente, Insumo, MovimientoInventario,
+    CategoriaMenu, MenuItem, Receta,
+    Zona, Mesa, EstadoMesa,
+    Orden, DetalleOrden, EstadoOrden,
+    CierreCaja,
+    Gasto, CategoriaGasto,
+    PagoOnline, EstadoPago,
+    EventoCalendario,
+    Camera, CameraAccess, CameraClip,
+    RegistroAuditoria,
+)
+from app.api.endpoints.personal import router as personal_router
+from app.api.endpoints.asistencia import router as asistencia_router
+from app.api.endpoints.nomina import router as nomina_router
+from app.api.endpoints.inventario import router as inventario_router
+from app.api.endpoints.menu import router as menu_router
+from app.api.endpoints.menu_publico import router as menu_publico_router
+from app.api.endpoints.salon import router as salon_router
+from app.api.endpoints.orden import router as orden_router
+from app.api.endpoints.analitica import router as analitica_router
+from app.api.endpoints.auth import router as auth_router
+from app.api.endpoints.reportes import router as reportes_router
+from app.api.endpoints.caja import router as caja_router
+from app.api.endpoints.gasto import router as gasto_router
+from app.api.endpoints.pagos import router as pagos_router
+from app.api.endpoints.calendario import router as calendario_router
+from app.api.endpoints.cameras import router as cameras_router
+from app.api.auditoria import router as auditoria_router
+from app.api.endpoints.backups import router as backups_router
+
+
+settings = get_settings()
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Sazón Caribeño API",
+    description="Sistema Integral de Gestión para Restaurantes",
+    version="1.0.0",
+    debug=False,
+)
+
+
+@app.exception_handler(Exception)
+async def manejador_error_no_controlado(request: Request, exc: Exception) -> JSONResponse:
+    """Registra el detalle internamente y devuelve un error genérico al cliente."""
+    logger.error(
+        "Error no controlado en %s %s: %s",
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Ocurrió un error inesperado. Intenta nuevamente."},
+    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Incluir routers de la API
+app.include_router(
+    personal_router,
+    prefix="/api/v1/personal",
+    tags=["Personal & Usuarios"]
+)
+
+app.include_router(
+    asistencia_router,
+    prefix="/api/v1/asistencia",
+    tags=["Asistencias & Horarios"]
+)
+
+app.include_router(
+    nomina_router,
+    prefix="/api/v1/nomina",
+    tags=["Nóminas & Pagos"]
+)
+
+app.include_router(
+    inventario_router,
+    prefix="/api/v1/inventario",
+    tags=["Inventario & Proveedores"]
+)
+
+app.include_router(
+    menu_router,
+    prefix="/api/v1/menu",
+    tags=["Menú y Recetas"]
+)
+
+app.include_router(
+    salon_router,
+    prefix="/api/v1/salon",
+    tags=["Salón y Mesas"]
+)
+
+app.include_router(
+    orden_router,
+    prefix="/api/v1/ordenes",
+    tags=["Órdenes y Facturación"]
+)
+
+app.include_router(
+    analitica_router,
+    prefix="/api/v1/analitica",
+    tags=["Analítica y Finanzas"]
+)
+
+app.include_router(
+    reportes_router,
+    prefix="/api/v1/reportes",
+    tags=["Reportes y Cierres"]
+)
+
+app.include_router(
+    auth_router,
+    prefix="/api/v1/auth",
+    tags=["Autenticación"]
+)
+
+app.include_router(
+    caja_router,
+    prefix="/api/v1/caja",
+    tags=["Caja y Cierres"]
+)
+
+app.include_router(
+    gasto_router,
+    prefix="/api/v1/gastos",
+    tags=["Gastos"]
+)
+
+app.include_router(
+    pagos_router,
+    prefix="/api/v1/pagos",
+    tags=["Pagos en línea"]
+)
+
+app.include_router(
+    calendario_router,
+    prefix="/api/v1/calendario",
+    tags=["Calendario"]
+)
+
+app.include_router(
+    cameras_router,
+    prefix="/api/v1/cameras",
+    tags=["Cámaras de seguridad"]
+)
+
+app.include_router(
+    auditoria_router,
+    prefix="/api/v1/auditoria",
+    tags=["Auditoría"]
+)
+
+app.include_router(
+    backups_router,
+    prefix="/api/v1/backups",
+    tags=["Copias de Seguridad"]
+)
+
+app.include_router(
+    menu_publico_router,
+    prefix="/api/public",
+    tags=["Carta Pública (Menú Digital)"]
+)
+
+app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates")
+
+# Carta Digital pública (menú para clientes). Se sirve en /carta/ y consume
+# la API pública /api/public (sin autenticación).
+app.mount(
+    "/carta",
+    StaticFiles(directory="app/Templates/carta", html=True),
+    name="carta",
+)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Evento de inicio de la aplicación."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        _migrate_calendario_color()
+        _migrate_constraints()
+        _migrate_unidades_medida()
+        _migrate_recetas_unidad()
+        _migrate_insumos_empaque()
+        _migrate_orden_mesa_nullable()
+        _migrate_recetas_descuento_lote()
+        _migrate_orden_descuentos()
+        _migrate_orden_nombre_cliente()
+        _migrate_gastos_cierre_caja_id()
+        _migrate_adelantos_salario()
+        _migrate_menu_item_imagen_tiempo()
+        _migrate_asistencia_utc_a_local()
+        _migrate_asistencias_anulada()
+        _migrate_usuarios_turno_habilitado()
+        _migrate_mesas_apodo()
+        _migrate_nombres_archivados()
+        _fix_unidades_medida()
+        _auto_seed_admin()
+        _fix_joshi_password()
+        _seed_harca27_admin()
+        _auditar_hashes()
+        _fix_orphaned_mesas()
+        _sancar_turnos_huerfanos()
+    except Exception as e:
+        logger.error("Error durante las migraciones o inicio de BD: %s", e, exc_info=True)
+
+    asyncio.create_task(_heartbeat_watcher())
+    asyncio.create_task(_camera_clip_retention_watcher())
+
+
+def _migrate_calendario_color():
+    """Agrega la etiqueta de color a eventos existentes sin alterar sus datos."""
+    inspector = inspect(engine)
+    if not inspector.has_table("eventos_calendario"):
+        return
+    columns = {column["name"] for column in inspector.get_columns("eventos_calendario")}
+    if "color_etiqueta" in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE eventos_calendario ADD COLUMN color_etiqueta VARCHAR(20) NULL")
+        )
+    logger.info("Migración de color_etiqueta aplicada a eventos_calendario")
+
+
+def _migrate_constraints():
+    """Aplica migraciones de constraints que create_all no actualiza."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE puestos DROP CHECK ck_puestos_salario_positivo"
+            ))
+        except Exception:
+            pass
+        try:
+            db.execute(text(
+                "ALTER TABLE puestos ADD CONSTRAINT ck_puestos_salario_positivo "
+                "CHECK (salario_base >= 0)"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+
+def _migrate_unidades_medida():
+    """Agrega columnas de conversión a unidades_medida si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    cols = [
+        ("tipo_magnitud", "ALTER TABLE unidades_medida ADD COLUMN tipo_magnitud VARCHAR(20) NOT NULL DEFAULT 'UNIDAD'"),
+        ("unidad_base_id", "ALTER TABLE unidades_medida ADD COLUMN unidad_base_id INT NULL"),
+        ("factor_conversion", "ALTER TABLE unidades_medida ADD COLUMN factor_conversion FLOAT NULL"),
+    ]
+    with Session(engine) as db:
+        for col_name, ddl in cols:
+            try:
+                db.execute(text(ddl))
+                db.commit()
+                print(f"  [~] Columna '{col_name}' agregada a unidades_medida")
+            except Exception:
+                db.rollback()
+
+
+def _migrate_recetas_unidad():
+    """Agrega columna unidad_medida_id a recetas si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE recetas ADD COLUMN unidad_medida_id INT NULL"
+            ))
+            db.commit()
+            print("  [~] Columna 'unidad_medida_id' agregada a recetas")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_insumos_empaque():
+    """Agrega columnas de empaque a insumos si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        for col, typedef in [
+            ("unidad_empaque_id", "INT NULL"),
+            ("factor_empaque", "DOUBLE NULL"),
+        ]:
+            try:
+                db.execute(text(f"ALTER TABLE insumos ADD COLUMN {col} {typedef}"))
+                db.commit()
+                print(f"  [~] Columna '{col}' agregada a insumos")
+            except Exception:
+                db.rollback()
+
+
+def _migrate_orden_mesa_nullable():
+    """Hace nullable la columna mesa_id en ordenes para ventas directas."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE ordenes MODIFY COLUMN mesa_id INT NULL"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+
+def _migrate_recetas_descuento_lote():
+    """Agrega columna descuento_por_lote a recetas si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE recetas ADD COLUMN descuento_por_lote BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            db.commit()
+            print("  [~] Columna 'descuento_por_lote' agregada a recetas")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_orden_descuentos():
+    """Agrega columnas de descuento a ordenes y detalles_orden si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    orden_cols = [
+        ("subtotal", "ALTER TABLE ordenes ADD COLUMN subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
+        ("descuento_total", "ALTER TABLE ordenes ADD COLUMN descuento_total DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
+    ]
+    detalle_cols = [
+        ("descuento_porcentaje", "ALTER TABLE detalles_orden ADD COLUMN descuento_porcentaje DECIMAL(5,2) NULL"),
+        ("descuento_monto", "ALTER TABLE detalles_orden ADD COLUMN descuento_monto DECIMAL(10,2) NULL"),
+        ("motivo_descuento", "ALTER TABLE detalles_orden ADD COLUMN motivo_descuento VARCHAR(255) NULL"),
+    ]
+    with Session(engine) as db:
+        for col_name, ddl in orden_cols + detalle_cols:
+            try:
+                db.execute(text(ddl))
+                db.commit()
+                print(f"  [~] Columna '{col_name}' agregada")
+            except Exception:
+                db.rollback()
+
+        db.execute(text("UPDATE ordenes SET subtotal = total WHERE subtotal = 0 AND total > 0"))
+        db.execute(text("UPDATE ordenes SET descuento_total = 0 WHERE descuento_total IS NULL"))
+        db.commit()
+
+
+def _migrate_orden_nombre_cliente():
+    """Agrega columna nombre_cliente a ordenes si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL"
+            ))
+            db.commit()
+            print("  [~] Columna 'nombre_cliente' agregada a ordenes")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_gastos_cierre_caja_id():
+    """Agrega la columna cierre_caja_id a gastos y su FK si no existen.
+
+    Idempotente: verifica contra information_schema antes de cada ALTER para
+    evitar errores silenciosos y garantizar que la columna exista siempre.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists_col = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
+                "AND COLUMN_NAME = 'cierre_caja_id'"
+            )).scalar()
+            if not exists_col:
+                db.execute(text(
+                    "ALTER TABLE gastos ADD COLUMN cierre_caja_id INT NULL"
+                ))
+                db.commit()
+                print("  [~] Columna 'cierre_caja_id' agregada a gastos")
+            else:
+                print("  [~] Columna 'cierre_caja_id' ya existe en gastos")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'cierre_caja_id' a gastos: {e}")
+
+        try:
+            exists_fk = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
+                "AND CONSTRAINT_TYPE = 'FOREIGN KEY' "
+                "AND CONSTRAINT_NAME = 'fk_gastos_cierre_caja_id'"
+            )).scalar()
+            if not exists_fk:
+                db.execute(text(
+                    "ALTER TABLE gastos ADD CONSTRAINT fk_gastos_cierre_caja_id "
+                    "FOREIGN KEY (cierre_caja_id) REFERENCES cierres_caja(id)"
+                ))
+                db.commit()
+                print("  [~] FK 'fk_gastos_cierre_caja_id' agregada a gastos")
+            else:
+                print("  [~] FK 'fk_gastos_cierre_caja_id' ya existe")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar FK 'fk_gastos_cierre_caja_id': {e}")
+
+
+def _migrate_adelantos_salario():
+    """Crea la tabla adelantos_salario y agrega columna total_adelantos a nominas si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS adelantos_salario (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    empleado_id INT NOT NULL,
+                    monto DECIMAL(10,2) NOT NULL,
+                    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    observacion VARCHAR(255) NULL,
+                    registrado_por_id INT NULL,
+                    gasto_id INT NULL,
+                    CONSTRAINT fk_adelantos_empleado_id FOREIGN KEY (empleado_id) REFERENCES empleados(id),
+                    CONSTRAINT fk_adelantos_registrado_por FOREIGN KEY (registrado_por_id) REFERENCES usuarios(id),
+                    CONSTRAINT fk_adelantos_gasto_id FOREIGN KEY (gasto_id) REFERENCES gastos(id)
+                )
+            """))
+            db.commit()
+            print("  [~] Tabla 'adelantos_salario' creada")
+        except Exception:
+            db.rollback()
+
+        try:
+            db.execute(text(
+                "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00"
+            ))
+            db.commit()
+            print("  [~] Columna 'total_adelantos' agregada a nominas")
+        except Exception:
+            db.rollback()
+
+
+def _migrate_menu_item_imagen_tiempo():
+    """Agrega columnas imagen_url y tiempo_preparacion a menu_items si no existen."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        for col, ddl in [
+            ("imagen_url", "ALTER TABLE menu_items ADD COLUMN imagen_url VARCHAR(500) NULL"),
+            ("tiempo_preparacion", "ALTER TABLE menu_items ADD COLUMN tiempo_preparacion INT NULL"),
+        ]:
+            try:
+                exists = db.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_items' "
+                    "AND COLUMN_NAME = :c"
+                ), {"c": col}).scalar()
+                if not exists:
+                    db.execute(text(ddl))
+                    db.commit()
+                    print(f"  [~] Columna '{col}' agregada a menu_items")
+                else:
+                    print(f"  [~] Columna '{col}' ya existe en menu_items")
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Error al agregar '{col}' a menu_items: {e}")
+
+
+def _migrate_asistencia_utc_a_local():
+    """Migración one-time: convierte timestamps de asistencia de UTC naive a hora local Managua (+6h).
+
+    Los registros previos al fix se guardaban restando 6h (UTC). Se suman 6h para
+    dejarlos en hora local fija de Nicaragua. Excluye los datos sembrados de julio
+    (fecha <= 2026-07-13), que ya estaban en hora local. La tabla _data_migrations
+    garantiza que solo se ejecute una vez por base de datos.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    MARCA = "asistencia_utc_a_local"
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "CREATE TABLE IF NOT EXISTS _data_migrations ("
+                "nombre VARCHAR(100) PRIMARY KEY, "
+                "aplicado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+            ))
+            db.commit()
+            ya_aplicada = db.execute(
+                text("SELECT 1 FROM _data_migrations WHERE nombre = :n"),
+                {"n": MARCA},
+            ).scalar()
+            if ya_aplicada:
+                return
+            resultado = db.execute(text(
+                "UPDATE asistencias SET "
+                "hora_entrada_real = DATE_ADD(hora_entrada_real, INTERVAL 6 HOUR), "
+                "hora_salida_real = DATE_ADD(hora_salida_real, INTERVAL 6 HOUR), "
+                "ultimo_heartbeat = DATE_ADD(ultimo_heartbeat, INTERVAL 6 HOUR), "
+                "fecha = DATE(hora_entrada_real) "
+                "WHERE fecha > '2026-07-13'"
+            ))
+            db.execute(text("INSERT IGNORE INTO _data_migrations (nombre) VALUES (:n)"), {"n": MARCA})
+            db.commit()
+            print(f"  [~] Asistencias UTC→local: {resultado.rowcount} registros corregidos (+6h)")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error en migración de asistencias UTC→local: {e}")
+
+
+def _migrate_asistencias_anulada():
+    """Agrega la columna anulada a asistencias si no existe."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asistencias' "
+                "AND COLUMN_NAME = 'anulada'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE asistencias ADD COLUMN anulada TINYINT(1) "
+                    "NOT NULL DEFAULT 0"
+                ))
+                db.commit()
+                print("  [~] Columna 'anulada' agregada a asistencias")
+            else:
+                print("  [~] Columna 'anulada' ya existe en asistencias")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'anulada' a asistencias: {e}")
+
+
+def _migrate_usuarios_turno_habilitado():
+    """Agrega la columna turno_habilitado a usuarios si no existe.
+
+    Solo en la primera ejecución habilita a los Vendedores ya registrados
+    (turno_habilitado = 1) para que el despliegue no los bloquee de golpe;
+    en reinicios posteriores la columna ya existe y no se toca el estado.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' "
+                "AND COLUMN_NAME = 'turno_habilitado'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE usuarios ADD COLUMN turno_habilitado TINYINT(1) "
+                    "NOT NULL DEFAULT 0"
+                ))
+                db.execute(text(
+                    "UPDATE usuarios SET turno_habilitado = 1 WHERE rol = 'Vendedor'"
+                ))
+                db.commit()
+                print(
+                    "  [~] Columna 'turno_habilitado' agregada a usuarios y "
+                    "Vendedores existentes habilitados"
+                )
+            else:
+                print("  [~] Columna 'turno_habilitado' ya existe en usuarios")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'turno_habilitado' a usuarios: {e}")
+
+
+def _migrate_mesas_apodo():
+    """Agrega la columna apodo a mesas si no existe (apodo temporal de cliente)."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            exists = db.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mesas' "
+                "AND COLUMN_NAME = 'apodo'"
+            )).scalar()
+            if not exists:
+                db.execute(text(
+                    "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL"
+                ))
+                db.commit()
+                print("  [~] Columna 'apodo' agregada a mesas")
+            else:
+                print("  [~] Columna 'apodo' ya existe en mesas")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error al agregar 'apodo' a mesas: {e}")
+
+
+def _migrate_nombres_archivados():
+    """Libera nombres retenidos por registros inactivos/eliminados.
+
+    - Platillos inactivos (``disponible = False``):
+        * Sin ventas → se eliminan físicamente (receta incluida vía cascada).
+        * Con ventas → se renombran a ``{nombre}_deleted_{id}`` liberando el
+          nombre original para un plato nuevo.
+    - Usuarios inactivos (``activo = False``):
+        * Se renombran username y la cédula de su empleado vinculado a
+          ``{valor}_deleted_{id}``. En la migración NUNCA se borran usuarios:
+          el borrado físico solo ocurre vía DELETE /personal/usuarios/{id}.
+
+    Idempotente: los registros que ya tienen el sufijo ``_deleted_{id}`` se
+    omiten, por lo que en reinicios posteriores el costo es mínimo.
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import Session
+
+    from app.models.menu import MenuItem
+    from app.models.orden import DetalleOrden
+    from app.models.personal import Usuario, Empleado
+
+    with Session(engine) as db:
+        # --- Platillos inactivos -------------------------------------------------
+        items = db.execute(
+            select(MenuItem).where(MenuItem.disponible == False)  # noqa: E712
+        ).scalars().all()
+        for item in items:
+            try:
+                ventas = db.execute(
+                    select(func.count())
+                    .select_from(DetalleOrden)
+                    .where(DetalleOrden.producto_id == item.id)
+                ).scalar_one()
+                if ventas == 0:
+                    db.delete(item)
+                    db.commit()
+                    print(
+                        "  [~] Platillo inactivo "
+                        f"'#{item.id} {item.nombre}' eliminado (sin ventas)"
+                    )
+                else:
+                    sufijo = f"_deleted_{item.id}"
+                    if not item.nombre.endswith(sufijo):
+                        nombre_archivo = (
+                            f"{item.nombre[: 100 - len(sufijo)]}{sufijo}"
+                        )
+                        item.nombre = nombre_archivo
+                        db.commit()
+                        print(
+                            "  [~] Platillo inactivo "
+                            f"'#{item.id} {nombre_archivo}' renombrado (con ventas)"
+                        )
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Migración nombre plato #{item.id}: {e}")
+
+        # --- Usuarios inactivos ---------------------------------------------------
+        usuarios = db.execute(
+            select(Usuario).where(Usuario.activo == False)  # noqa: E712
+        ).scalars().all()
+        for usuario in usuarios:
+            try:
+                sufijo = f"_deleted_{usuario.id}"
+                if not usuario.username.endswith(sufijo):
+                    usuario.username = (
+                        f"{usuario.username[: 50 - len(sufijo)].strip()}{sufijo}"
+                    )
+                    db.commit()
+                    print(
+                        "  [~] Usuario inactivo "
+                        f"'#{usuario.id}' renombrado a '{usuario.username}'"
+                    )
+                if usuario.empleado_id:
+                    empleado = db.get(Empleado, usuario.empleado_id)
+                    if empleado is not None and empleado.activo:
+                        sufijo_emp = f"_deleted_{empleado.id}"
+                        if empleado.cedula_identidad and not empleado.cedula_identidad.endswith(sufijo_emp):
+                            empleado.cedula_identidad = (
+                                f"{empleado.cedula_identidad[: 20 - len(sufijo_emp)].strip()}"
+                                f"{sufijo_emp}"
+                            )
+                        empleado.activo = False
+                        db.commit()
+                        print(
+                            "  [~] Empleado vinculado al usuario "
+                            f"'#{usuario.id}' desactivado (cédula liberada si aplicaba)"
+                        )
+            except Exception as e:
+                db.rollback()
+                print(f"  [X] Migración nombre usuario #{usuario.id}: {e}")
+
+
+def _fix_unidades_medida():
+    """Corrige magnitudes y cadenas de conversión de unidades existentes.
+
+    - Actualiza tipo_magnitud para unidades conocidas que pudieran tener el valor incorrecto.
+    - Establece unidad_base_id y factor_conversion donde falten.
+    - Agrega unidades estándar que no existan (Onza, Libra, Botella, Lata, Par, Bolsa, Porción).
+    """
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import Session
+    from app.models.inventario import UnidadMedida
+
+    CORRECCIONES = {
+        "Kilogramo":  {"tipo_magnitud": "PESO"},
+        "Gramo":      {"tipo_magnitud": "PESO"},
+        "Libra":      {"tipo_magnitud": "PESO"},
+        "Onza":       {"tipo_magnitud": "PESO"},
+        "Litro":      {"tipo_magnitud": "VOLUMEN"},
+        "Mililitro":  {"tipo_magnitud": "VOLUMEN"},
+        "Botella":    {"tipo_magnitud": "VOLUMEN"},
+        "Lata":       {"tipo_magnitud": "VOLUMEN"},
+        "Unidad":     {"tipo_magnitud": "UNIDAD"},
+        "Docena":     {"tipo_magnitud": "UNIDAD"},
+        "Par":        {"tipo_magnitud": "UNIDAD"},
+        "Paquete":    {"tipo_magnitud": "UNIDAD"},
+        "Bolsa":      {"tipo_magnitud": "UNIDAD"},
+        "Porción":    {"tipo_magnitud": "UNIDAD"},
+    }
+
+    CONVERSIONES = {
+        "Kilogramo": {"base": "Gramo",  "factor": 1000.0},
+        "Libra":     {"base": "Gramo",  "factor": 453.592},
+        "Onza":      {"base": "Gramo",  "factor": 28.3495},
+        "Litro":     {"base": "Mililitro", "factor": 1000.0},
+        "Botella":   {"base": "Mililitro", "factor": 1000.0},
+        "Lata":      {"base": "Mililitro", "factor": 355.0},
+        "Docena":    {"base": "Unidad", "factor": 12.0},
+        "Par":       {"base": "Unidad", "factor": 2.0},
+    }
+
+    NUEVAS = {
+        "Onza":    {"abreviatura": "oz",  "tipo_magnitud": "PESO"},
+        "Libra":   {"abreviatura": "lb",  "tipo_magnitud": "PESO"},
+        "Botella": {"abreviatura": "Bot", "tipo_magnitud": "VOLUMEN"},
+        "Lata":    {"abreviatura": "Lta", "tipo_magnitud": "VOLUMEN"},
+        "Par":     {"abreviatura": "Pr",  "tipo_magnitud": "UNIDAD"},
+        "Bolsa":   {"abreviatura": "Bol", "tipo_magnitud": "UNIDAD"},
+        "Porción": {"abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
+    }
+
+    with Session(engine) as db:
+        all_units = db.execute(select(UnidadMedida)).scalars().all()
+        existing = {u.nombre: u for u in all_units}
+        existing_abrev = {u.abreviatura.lower(): u for u in all_units}
+
+        for nombre, data in NUEVAS.items():
+            if nombre not in existing and data["abreviatura"].lower() not in existing_abrev:
+                unit = UnidadMedida(nombre=nombre, abreviatura=data["abreviatura"], tipo_magnitud=data["tipo_magnitud"])
+                db.add(unit)
+                db.flush()
+                existing[nombre] = unit
+                existing_abrev[data["abreviatura"].lower()] = unit
+                print(f"  [+] Unidad creada: {nombre} ({data['abreviatura']}) [{data['tipo_magnitud']}]")
+
+        for nombre, corr in CORRECCIONES.items():
+            if nombre in existing:
+                unit = existing[nombre]
+                new_mag = corr.get("tipo_magnitud")
+                if new_mag and unit.tipo_magnitud != new_mag:
+                    old = unit.tipo_magnitud
+                    unit.tipo_magnitud = new_mag
+                    print(f"  [~] {nombre}: magnitud {old} → {new_mag}")
+
+        for nombre, conv in CONVERSIONES.items():
+            if nombre in existing:
+                unit = existing[nombre]
+                base_name = conv["base"]
+                if base_name in existing:
+                    base_id = existing[base_name].id
+                    needs_update = (
+                        unit.unidad_base_id != base_id
+                        or unit.factor_conversion != conv["factor"]
+                    )
+                    if needs_update:
+                        unit.unidad_base_id = base_id
+                        unit.factor_conversion = conv["factor"]
+                        print(f"  [~] {nombre} → base: {base_name} (factor: {conv['factor']})")
+
+        db.commit()
+
+
+def _auto_seed_admin():
+    """Crea un usuario administrador si la tabla usuarios está vacía."""
+    from datetime import date
+    from decimal import Decimal
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+    from app.models.personal import Puesto, Empleado, Usuario
+
+    with Session(engine) as db:
+        try:
+            existe = db.execute(select(Usuario).limit(1)).scalar_one_or_none()
+            if existe:
+                return
+
+            print("  ▸ Tabla 'usuarios' vacía — creando administrador automático...")
+
+            stmt = select(Puesto).where(Puesto.nombre == "Administrador")
+            puesto = db.execute(stmt).scalar_one_or_none()
+            if not puesto:
+                puesto = Puesto(nombre="Administrador", salario_base=Decimal("1200.00"))
+                db.add(puesto)
+                db.flush()
+
+            empleado = Empleado(
+                cedula_identidad="ADMIN-001",
+                nombre="Administrador",
+                apellido="Sistema",
+                puesto_id=puesto.id,
+                salario_base=puesto.salario_base,
+                fecha_ingreso=date.today(),
+                activo=True,
+            )
+            db.add(empleado)
+            db.flush()
+
+            usuario = Usuario(
+                username="joshi_0211",
+                password_hash=obtener_password_hash("@0420311001000V"),
+                rol="Administrador",
+                empleado_id=empleado.id,
+                activo=True,
+            )
+            db.add(usuario)
+            db.commit()
+
+            print("    [+] Administrador creado: joshi_0211")
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al crear administrador automático: {e}")
+
+
+def _fix_joshi_password():
+    """TEMP: Re-hashea la contraseña de joshi_0211 con bcrypt directo (fix passlib migration)."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+
+    with Session(engine) as db:
+        try:
+            row = db.execute(
+                text("SELECT id FROM usuarios WHERE username = 'joshi_0211' LIMIT 1")
+            ).fetchone()
+            if not row:
+                return
+            new_hash = obtener_password_hash("@0420311001000V")
+            db.execute(
+                text("UPDATE usuarios SET password_hash = :h WHERE username = 'joshi_0211'"),
+                {"h": new_hash},
+            )
+            db.commit()
+            print("  [AUTH FIX] Contraseña de joshi_0211 actualizada")
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error en auth fix: {e}")
+
+
+def _seed_harca27_admin():
+    """Crea la cuenta Harca27 una sola vez cuando se configura su secreto."""
+    if not settings.HARCA27_PASSWORD:
+        return
+
+    from datetime import date
+    from decimal import Decimal
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session
+    from app.core.security import obtener_password_hash
+
+    with Session(engine) as db:
+        existente = db.execute(
+            select(Usuario).where(
+                func.lower(func.trim(Usuario.username)) == "harca27"
+            )
+        ).scalar_one_or_none()
+        if existente:
+            logger.info("Cuenta administradora Harca27 ya existe; no se modificó.")
+            return
+
+        cedula = "HARCA27-ADMIN"
+        empleado_existente = db.execute(
+            select(Empleado).where(Empleado.cedula_identidad == cedula)
+        ).scalar_one_or_none()
+        if empleado_existente:
+            raise RuntimeError(
+                "No se pudo crear Harca27: la cédula de empleado reservada ya existe."
+            )
+
+        puesto = db.execute(
+            select(Puesto).where(Puesto.nombre == "Administrador")
+        ).scalar_one_or_none()
+        if not puesto:
+            puesto = Puesto(
+                nombre="Administrador",
+                salario_base=Decimal("1200.00"),
+            )
+            db.add(puesto)
+            db.flush()
+
+        empleado = Empleado(
+            cedula_identidad=cedula,
+            nombre="Harca",
+            apellido="27",
+            puesto_id=puesto.id,
+            salario_base=puesto.salario_base,
+            fecha_ingreso=date.today(),
+            activo=True,
+        )
+        db.add(empleado)
+        db.flush()
+
+        usuario = Usuario(
+            username="Harca27",
+            password_hash=obtener_password_hash(settings.HARCA27_PASSWORD),
+            rol="Administrador",
+            empleado_id=empleado.id,
+            activo=True,
+        )
+        db.add(usuario)
+        db.commit()
+        logger.info("Cuenta administradora Harca27 creada.")
+
+
+def _auditar_hashes():
+    """Audita hashes de contraseña legacy (no-bcrypt) para diagnóstico en producción."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            rows = db.execute(
+                text("SELECT username, LEFT(password_hash, 11) as prefix FROM usuarios")
+            ).fetchall()
+            problematicos = [
+                row for row in rows if not (row.prefix or "").startswith("$2")
+            ]
+            if problematicos:
+                detalle = ", ".join(
+                    f"{r.username} ({r.prefix})" for r in problematicos
+                )
+                print(f"  [!] [AUTH AUDIT] {len(problematicos)} usuarios con hash no-bcrypt: {detalle}")
+            else:
+                print(f"  [AUTH AUDIT] {len(rows)} usuarios, todos con hash bcrypt válido")
+        except Exception as e:
+            print(f"  [!] Error en auditoría de hashes: {e}")
+
+
+def _fix_orphaned_mesas():
+    """Libera mesas OCUPADA que no tienen orden activa asociada."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as db:
+        try:
+            result = db.execute(text("""
+                UPDATE mesas
+                SET estado = 'LIBRE', apodo = NULL
+                WHERE estado = 'OCUPADA'
+                  AND id NOT IN (
+                    SELECT DISTINCT ordenes.mesa_id
+                    FROM ordenes
+                    WHERE ordenes.mesa_id IS NOT NULL
+                      AND ordenes.estado IN ('PENDIENTE', 'PREPARANDO', 'ENTREGADA')
+                  )
+            """))
+            if result.rowcount > 0:
+                db.commit()
+                print(f"  [SALON] {result.rowcount} mesa(s) huérfana(s) liberada(s) automáticamente")
+            else:
+                db.rollback()
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al liberar mesas huérfanas: {e}")
+
+
+def _sancar_turnos_huerfanos():
+    """Cierra turnos de asistencia huérfanos (sin salida) de días anteriores.
+
+    Reutiliza la lógica de saneamiento de ``app/db/cerrar_turnos_huerfanos.py``:
+    para cada asistencia abierta cuya entrada es de un día anterior al de hoy,
+    fija la salida a las 18:00 (6:00 PM) del día de la entrada, recalcula las
+    horas extras (con tope de columna NUMERIC(4,2)) y deja el motivo de
+    auditoría. Es idempotente: solo toca registros sin salida; los turnos de
+    hoy no se modifican.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.db.cerrar_turnos_huerfanos import sancar_turnos_huerfanos
+
+    with Session(engine) as db:
+        try:
+            cerrados = sancar_turnos_huerfanos(db)
+            if cerrados:
+                db.commit()
+                print(
+                    "  [ASISTENCIA] "
+                    f"{len(cerrados)} turno(s) huérfano(s) cerrado(s) "
+                    "automáticamente (salida 6:00 PM del día de entrada)"
+                )
+            else:
+                db.rollback()
+        except Exception as e:
+            db.rollback()
+            print(f"  [!] Error al sanear turnos huérfanos: {e}")
+
+
+async def _heartbeat_watcher():
+    """Tarea en segundo plano: cierra automáticamente turnos sin heartbeat."""
+    from app.services.asistencia_service import AsistenciaService
+    while True:
+        await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SECONDS)
+        try:
+            db = next(get_db())
+            try:
+                svc = AsistenciaService(db)
+                svc.cerrar_turnos_stale(settings.HEARTBEAT_TIMEOUT_SECONDS)
+            except Exception:
+                pass
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+
+async def _camera_clip_retention_watcher():
+    """Elimina clips vencidos y grabaciones abandonadas del almacenamiento persistente."""
+    from sqlalchemy.orm import Session
+    from app.services.camera_service import CameraService
+
+    while True:
+        try:
+            with Session(engine) as db:
+                CameraService(db).limpiar_clips_vencidos()
+        except Exception:
+            logger.exception("Falló la limpieza automática de clips de cámaras")
+        await asyncio.sleep(3600)
+
+
+@app.get(
+    "/healthcheck",
+    tags=["Sistema"],
+    summary="Verificar estado del sistema"
+)
+def healthcheck() -> Dict[str, str]:
+    """
+    Endpoint de verificación de salud del sistema.
+
+    Retorna el estado del servidor y la marca de tiempo.
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "Sazón Caribeño API",
+        "version": "1.0.0"
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG
+    )

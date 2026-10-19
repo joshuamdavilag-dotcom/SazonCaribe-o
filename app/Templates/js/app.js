@@ -22,6 +22,7 @@ const state = {
   token: localStorage.getItem('pos_token') || null,
   user: JSON.parse(localStorage.getItem('pos_user') || 'null'),
   currentScreen: 'salon',
+  errorReturnScreen: null,
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
   tables: [],
@@ -40,9 +41,36 @@ const state = {
   empleados: [],
   nominaActual: null,
   currentAsistencia: JSON.parse(localStorage.getItem('pos_asistencia') || 'null'),
+  attendanceSynced: false,
   currentOcupada: null,
+  paymentOrder: null,
+  paymentBusy: false,
   heartbeatInterval: null,
   sessionPollInterval: null,
+  attendanceReminderInterval: null,
+  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  calendarSelectedDay: calendarDateKey(new Date()),
+  calendarMultiSelecting: false,
+  calendarSelectedDays: new Set(),
+  calendarPressTimer: null,
+  calendarSuppressClickDate: null,
+  calendarBulkDates: [],
+  calendarEvents: [],
+  calendarAttendances: [],
+  calendarMenuItems: [],
+  calendarInsumos: [],
+  calendarProveedores: [],
+  calendarCatalogsLoaded: false,
+  cameras: [],
+  cameraUsers: [],
+  cameraPeers: new Map(),
+  cameraRecordings: new Map(),
+  cameraClips: [],
+  cameraClipObjectUrl: null,
+  notificationsLoading: false,
+  auditOffset: 0,
+  auditLimit: 50,
+  auditPage: null,
 };
 
 /* =========================================================================
@@ -59,9 +87,183 @@ function formatLocalTime(isoStr) {
 }
 
 /* =========================================================================
+   Operational notifications
+   ========================================================================= */
+function actualizarContadoresNotificaciones(count) {
+  document.querySelectorAll('button[aria-label="Notificaciones"]').forEach(button => {
+    let badge = button.querySelector('.notification-count');
+    if (!badge) {
+      button.querySelector('span.absolute')?.remove();
+      badge = document.createElement('span');
+      badge.className = 'notification-count';
+      button.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.hidden = count === 0;
+    button.setAttribute('aria-expanded', String(!document.getElementById('notifications-panel')?.hidden));
+    button.setAttribute('aria-haspopup', 'dialog');
+  });
+}
+
+function renderNotifications(notifications, errors = []) {
+  const list = document.getElementById('notifications-list');
+  const summary = document.getElementById('notifications-summary');
+  if (!list || !summary) return;
+
+  const count = notifications.length;
+  summary.textContent = count
+    ? `${count} aviso${count === 1 ? '' : 's'} para revisar`
+    : 'Todo tranquilo por ahora';
+  actualizarContadoresNotificaciones(count);
+
+  const errorMarkup = errors.map(error => `
+    <div class="notification-entry notification-entry-error" role="status">
+      <span class="notification-entry-icon material-symbols-outlined" aria-hidden="true">cloud_off</span>
+      <span class="notification-entry-copy">
+        <strong>${escHtml(error.title)}</strong>
+        <span>${escHtml(error.message)}</span>
+      </span>
+    </div>`).join('');
+  const noticesMarkup = notifications.map(item => `
+    <button class="notification-entry ${item.urgent ? 'notification-entry-urgent' : ''}" type="button"
+            data-notification-screen="${item.screen}">
+      <span class="notification-entry-icon material-symbols-outlined" aria-hidden="true">${item.icon}</span>
+      <span class="notification-entry-copy">
+        <strong>${escHtml(item.title)}</strong>
+        <span>${escHtml(item.description)}</span>
+      </span>
+      <span class="material-symbols-outlined notification-entry-arrow" aria-hidden="true">chevron_right</span>
+    </button>`).join('');
+
+  list.innerHTML = errorMarkup + (noticesMarkup || (!errors.length
+    ? `<div class="notifications-empty">
+         <span class="material-symbols-outlined" aria-hidden="true">task_alt</span>
+         <strong>Todo en orden</strong>
+         <span>No hay comandas pendientes ni alertas de inventario.</span>
+       </div>`
+    : ''));
+}
+
+async function cargarNotificaciones() {
+  const list = document.getElementById('notifications-list');
+  if (!list || state.notificationsLoading) return;
+  state.notificationsLoading = true;
+  const refreshButton = document.getElementById('notifications-refresh');
+  if (refreshButton) refreshButton.disabled = true;
+  list.setAttribute('aria-busy', 'true');
+  list.innerHTML = `
+    <div class="notifications-loading" role="status">
+      <span class="notification-spinner" aria-hidden="true"></span>
+      Cargando avisos del turno…
+    </div>`;
+
+  const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
+  const requests = [
+    ['pending', api('/ordenes/?estado=PENDIENTE')],
+    ['preparing', api('/ordenes/?estado=PREPARANDO')],
+    ['ready', api('/ordenes/?estado=ENTREGADA')],
+  ];
+  if (esGestor) requests.push(['stock', api('/inventario/insumos/alertas')]);
+
+  const results = await Promise.allSettled(requests.map(([, request]) => request));
+  const data = {};
+  const errors = [];
+  results.forEach((result, index) => {
+    const [key] = requests[index];
+    if (result.status === 'fulfilled') {
+      data[key] = result.value;
+    } else {
+      const title = key === 'stock' ? 'No se pudo consultar el inventario' : 'No se pudieron consultar las comandas';
+      if (!errors.some(error => error.title === title)) errors.push({
+        title,
+        message: result.reason?.message || 'Intenta actualizar de nuevo.',
+      });
+    }
+  });
+
+  const notifications = [];
+  [['pending', 'Nueva comanda', 'schedule'], ['preparing', 'Comanda en preparación', 'soup_kitchen'], ['ready', 'Lista para servir', 'room_service']]
+    .forEach(([key, title, icon]) => {
+      (data[key] || []).forEach(order => {
+        const mesa = order.mesa_id ? `Mesa ${order.mesa?.numero || order.mesa_id}` : 'Para llevar';
+        const minutes = getMinutosTranscurrido(order.fecha_creacion);
+        notifications.push({
+          screen: 'comandero',
+          title: `${title} #${order.id} · ${mesa}`,
+          description: `Hace ${getTiempoTranscurrido(order.fecha_creacion)} · ${order.detalles?.length || 0} artículo${order.detalles?.length === 1 ? '' : 's'}`,
+          icon,
+          urgent: key !== 'ready' && minutes >= 20,
+        });
+      });
+    });
+  (data.stock || []).forEach(item => {
+    notifications.push({
+      screen: 'inventory',
+      title: `Stock bajo: ${item.nombre}`,
+      description: `${item.cantidad_actual} ${item.unidad_medida} · mínimo ${item.stock_minimo}`,
+      icon: 'inventory_2',
+      urgent: Number(item.cantidad_actual) <= 0,
+    });
+  });
+  notifications.sort((a, b) => Number(b.urgent) - Number(a.urgent));
+
+  renderNotifications(notifications, errors);
+  list.setAttribute('aria-busy', 'false');
+  state.notificationsLoading = false;
+  if (refreshButton) refreshButton.disabled = false;
+}
+
+function cerrarNotificaciones({ devolverFoco = false } = {}) {
+  const panel = document.getElementById('notifications-panel');
+  if (!panel || panel.hidden) return;
+  panel.hidden = true;
+  actualizarContadoresNotificaciones(
+    panel.querySelectorAll('.notification-entry[data-notification-screen]').length
+  );
+  if (devolverFoco) {
+    [...document.querySelectorAll('button[aria-label="Notificaciones"]')]
+      .find(button => button.offsetParent !== null)
+      ?.focus();
+  }
+}
+
+function alternarNotificaciones() {
+  const panel = document.getElementById('notifications-panel');
+  if (!panel) return;
+  if (!panel.hidden) {
+    cerrarNotificaciones();
+    return;
+  }
+  panel.hidden = false;
+  actualizarContadoresNotificaciones(panel.querySelectorAll('.notification-entry[data-notification-screen]').length);
+  void cargarNotificaciones();
+  document.getElementById('notifications-close')?.focus();
+}
+
+/* =========================================================================
    API Helpers
    ========================================================================= */
 const ERRORES_SESION = ['Sesión expirada', 'TURNO_DESHABILITADO', 'USUARIO_DESACTIVADO'];
+const ERROR_INTERNO = 'ERROR_INTERNO';
+
+function mostrarPantallaError() {
+  const screen = document.getElementById('app-error-screen');
+  if (!screen || !screen.hidden) return;
+  state.errorReturnScreen = state.currentScreen;
+  screen.hidden = false;
+  document.getElementById('app-error-back')?.focus();
+}
+
+function volverDePantallaError() {
+  const screen = document.getElementById('app-error-screen');
+  if (!screen || screen.hidden) return;
+  screen.hidden = true;
+  const returnScreen = state.errorReturnScreen;
+  state.errorReturnScreen = null;
+  if (returnScreen && document.getElementById(`screen-${returnScreen}`)) {
+    navigateTo(returnScreen);
+  }
+}
 
 function _jwtExpirado(token) {
   if (!token) return false;
@@ -103,6 +305,10 @@ async function api(endpoint, options = {}) {
       cache: 'no-store',
     });
     if (!res.ok) {
+      if (res.status >= 500) {
+        mostrarPantallaError();
+        throw new Error(ERROR_INTERNO);
+      }
       let err;
       try {
         err = await res.json();
@@ -138,7 +344,7 @@ async function api(endpoint, options = {}) {
     if (!options.silent) {
       if (esRed) {
         showToast('Sin conexión a internet — reintentando…', 'error');
-      } else if (!ERRORES_SESION.includes(e.message)) {
+      } else if (!ERRORES_SESION.includes(e.message) && e.message !== ERROR_INTERNO) {
         showToast(e.message, 'error');
       }
     }
@@ -174,6 +380,9 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
+  if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
+    void cerrarTodasCamaras();
+  }
   document.querySelectorAll('.main-content .screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${screenId}`);
   if (target) target.classList.add('active');
@@ -205,6 +414,559 @@ function navigateTo(screenId) {
     loadHistorialOrdenesDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
+  if (screenId === 'auditoria') { state.auditOffset = 0; loadAuditoria(); }
+  if (screenId === 'calendario') loadCalendario();
+  if (screenId === 'cameras') loadCameras();
+}
+
+/* =========================================================================
+   Cameras
+   ========================================================================= */
+function cameraEsGestor() {
+  return ['Administrador', 'Gerente'].includes(state.user?.rol);
+}
+
+function formatearBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+async function loadCameras() {
+  const grid = document.getElementById('camera-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="camera-empty">Cargando cámaras…</div>';
+  try {
+    const [cameras, clips] = await Promise.all([
+      api('/cameras/'),
+      api('/cameras/clips'),
+    ]);
+    state.cameras = cameras;
+    state.cameraClips = clips;
+    if (cameraEsGestor()) {
+      const [usersResult, storageResult] = await Promise.allSettled([
+        api('/cameras/eligible-users'),
+        api('/cameras/storage'),
+      ]);
+      state.cameraUsers = usersResult.status === 'fulfilled' ? usersResult.value : [];
+      if (usersResult.status === 'rejected') {
+        showToast(`No se pudieron cargar los usuarios para permisos: ${usersResult.reason.message}`, 'error');
+      }
+      if (storageResult.status === 'fulfilled') {
+        renderCameraStorage(storageResult.value);
+      } else {
+        const storage = document.getElementById('camera-storage-status');
+        if (storage) storage.textContent = `No se pudo consultar el almacenamiento: ${storageResult.reason.message}`;
+      }
+    } else {
+      state.cameraUsers = [];
+    }
+    renderCameras();
+  } catch {
+    grid.innerHTML = '<div class="camera-empty">No se pudieron cargar las cámaras. Revisa tu conexión y vuelve a intentarlo.</div>';
+  }
+}
+
+function renderCameraStorage(storage) {
+  const target = document.getElementById('camera-storage-status');
+  if (!target) return;
+  const total = Number(storage.bytes_totales) || 0;
+  const used = Number(storage.bytes_usados) || 0;
+  const free = Number(storage.bytes_libres) || 0;
+  const usedPercent = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  target.innerHTML = `<div class="camera-storage-copy">
+      <span class="camera-storage-icon"><span class="material-symbols-outlined">cloud_done</span></span>
+      <div><strong>Almacenamiento de clips</strong><span>${storage.clips} momentos guardados · ${formatearBytes(used)} utilizados</span></div>
+    </div>
+    <div class="camera-storage-capacity">
+      <div class="camera-storage-capacity-label"><span>Espacio disponible</span><strong>${formatearBytes(free)}</strong></div>
+      <div class="camera-storage-track" role="progressbar" aria-label="Espacio utilizado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(usedPercent)}"><span style="width:${usedPercent}%"></span></div>
+    </div>`;
+}
+
+function updateCameraStats() {
+  const totalStat = document.getElementById('camera-stat-total');
+  const activeStat = document.getElementById('camera-stat-active');
+  const clipsStat = document.getElementById('camera-stat-clips');
+  if (totalStat) totalStat.textContent = state.cameras.length;
+  if (activeStat) activeStat.textContent = state.cameras.filter(camera => camera.activa).length;
+  if (clipsStat) clipsStat.textContent = state.cameraClips.length;
+}
+
+function renderCameras() {
+  const grid = document.getElementById('camera-grid');
+  if (!grid) return;
+  updateCameraStats();
+  if (!state.cameras.length) {
+    grid.innerHTML = cameraEsGestor()
+      ? '<div class="camera-empty"><span class="camera-empty-icon"><span class="material-symbols-outlined">videocam_off</span></span><strong>Aún no hay cámaras</strong><span>Configura el puente seguro y agrega tu primera cámara para comenzar el monitoreo.</span></div>'
+      : '<div class="camera-empty"><span class="camera-empty-icon"><span class="material-symbols-outlined">lock</span></span><strong>No tienes cámaras asignadas</strong><span>Solicita a Gerencia acceso a las cámaras que necesitas consultar.</span></div>';
+    return;
+  }
+  grid.innerHTML = state.cameras.map(camera => {
+    const clips = state.cameraClips.filter(clip => clip.camara_id === camera.id);
+    const users = cameraEsGestor()
+      ? `<details class="camera-access"><summary><span class="material-symbols-outlined">group</span><span>Acceso del equipo</span><span class="camera-access-count">${camera.usuario_ids.length}</span><span class="material-symbols-outlined camera-access-chevron">expand_more</span></summary>
+        <p class="camera-access-hint">Selecciona los vendedores que podrán ver esta cámara.</p>
+        <div class="camera-user-list">${state.cameraUsers.length
+          ? state.cameraUsers.map(user => `<label><input type="checkbox" data-camera-access="${camera.id}" value="${user.id}" ${camera.usuario_ids.includes(user.id) ? 'checked' : ''}>
+              <span>${escHtml(user.nombre_completo)} <small>@${escHtml(user.username)}</small></span></label>`).join('')
+          : '<p>No hay vendedores activos para autorizar.</p>'}
+        </div>
+        <button type="button" class="camera-secondary-btn camera-save-access" onclick="guardarAccesosCamara(${camera.id})"><span class="material-symbols-outlined">save</span> Guardar accesos</button>
+      </details>
+      <div class="camera-admin-actions">
+        <button type="button" class="camera-secondary-btn" onclick="editarCamara(${camera.id})"><span class="material-symbols-outlined">edit</span> Editar</button>
+        <button type="button" class="camera-secondary-btn ${camera.activa ? 'camera-disable-action' : ''}" onclick="cambiarEstadoCamara(${camera.id}, ${!camera.activa})"><span class="material-symbols-outlined">${camera.activa ? 'videocam_off' : 'videocam'}</span> ${camera.activa ? 'Desactivar' : 'Activar'}</button>
+      </div>`
+      : '';
+    return `<article class="camera-card" data-camera-card="${camera.id}">
+      <div class="camera-card-heading">
+      <div class="camera-card-title">
+        <span class="camera-card-icon"><span class="material-symbols-outlined">videocam</span></span>
+        <div><h3>${escHtml(camera.nombre)}</h3><p><span class="material-symbols-outlined">link</span> ${escHtml(camera.slug)}</p></div>
+      </div>
+      <span class="camera-state ${camera.activa ? 'is-active' : 'is-disabled'}"><i></i>${camera.activa ? 'Activa' : 'Desactivada'}</span>
+      </div>
+      <div class="camera-feed${state.cameraPeers.has(camera.id) ? ' is-live' : ''}" id="camera-feed-${camera.id}">
+      <div class="camera-feed-placeholder" id="camera-placeholder-${camera.id}">
+        <span class="camera-feed-placeholder-icon"><span class="material-symbols-outlined">${camera.activa && camera.stream_url ? 'videocam' : 'videocam_off'}</span></span>
+        <strong>${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Vista en espera' : 'Puente pendiente de configurar'}</strong>
+        <span>${!camera.activa ? 'Actívala para volver a conectarla.' : camera.stream_url ? 'Conéctate para iniciar la transmisión en vivo.' : 'Configura CAMERA_BRIDGE_BASE_URL para habilitar el video.'}</span>
+      </div>
+      <video id="camera-video-${camera.id}" class="camera-video" controls autoplay muted playsinline hidden></video>
+      <span class="camera-live-badge" id="camera-live-${camera.id}" hidden><i></i> EN VIVO</span>
+      </div>
+      <div class="camera-stream-row"><span class="material-symbols-outlined">sensors</span><p class="camera-stream-status" id="camera-status-${camera.id}" aria-live="polite">${!camera.activa ? 'Cámara desactivada' : camera.stream_url ? 'Lista para conectar' : 'Puente sin configurar'}</p></div>
+      <div class="camera-actions">
+      ${camera.activa && camera.stream_url
+        ? `<button type="button" class="camera-primary-btn" id="camera-connect-${camera.id}" onclick="conectarCamara(${camera.id})"><span class="material-symbols-outlined">play_arrow</span> Ver en vivo</button>
+           <button type="button" class="camera-secondary-btn" id="camera-record-${camera.id}" onclick="alternarGrabacionCamara(${camera.id})" disabled><span class="material-symbols-outlined">radio_button_checked</span> Grabar momento</button>
+           <button type="button" class="camera-secondary-btn camera-disconnect-btn" id="camera-disconnect-${camera.id}" onclick="desconectarCamara(${camera.id})" hidden><span class="material-symbols-outlined">stop</span> Desconectar</button>`
+        : ''}
+      </div>
+      ${users}
+      ${cameraClipsMarkup(clips)}
+    </article>`;
+  }).join('');
+}
+
+function cameraClipsMarkup(clips) {
+  return `<section class="camera-clips"><h3>Momentos guardados <span>(${clips.length})</span></h3>
+    ${clips.length ? `<ul>${clips.map(clip => {
+      const puedeEliminar = cameraEsGestor() || clip.usuario_nombre === state.user?.username;
+      return `<li><div><strong>${escHtml(new Date(clip.creado_en).toLocaleString('es-NI'))}</strong>
+          <small>${escHtml(clip.usuario_nombre)} · ${formatearBytes(clip.bytes_guardados)}</small></div>
+        <div class="camera-clip-actions">
+          <button type="button" class="camera-secondary-btn" onclick="verClipCamara('${escHtml(clip.id)}')"><span class="material-symbols-outlined">play_arrow</span> Ver</button>
+          ${puedeEliminar ? `<button type="button" class="camera-danger-btn" onclick="eliminarClipCamara('${escHtml(clip.id)}')"><span class="material-symbols-outlined">delete</span> Borrar</button>` : ''}
+        </div></li>`;
+    }).join('')}</ul>` : '<p class="camera-clips-empty">Todavía no hay momentos guardados. Conéctate y pulsa “Grabar momento” para conservar uno.</p>'}
+  </section>`;
+}
+
+async function guardarCamara(event) {
+  event.preventDefault();
+  const cameraId = document.getElementById('camera-id').value;
+  const nombre = document.getElementById('camera-name').value.trim();
+  const slug = document.getElementById('camera-slug').value.trim().toLowerCase();
+  try {
+    if (cameraId && state.cameraPeers.has(Number(cameraId))) {
+      await desconectarCamara(Number(cameraId));
+    }
+    await api(cameraId ? `/cameras/${cameraId}` : '/cameras/', {
+      method: cameraId ? 'PATCH' : 'POST',
+      body: JSON.stringify({ nombre, slug }),
+    });
+    resetCameraForm();
+    showToast(cameraId ? 'Cámara actualizada' : 'Cámara agregada');
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+function editarCamara(cameraId) {
+  const camera = state.cameras.find(item => item.id === cameraId);
+  if (!camera) return showToast('Cámara no encontrada', 'error');
+  document.getElementById('camera-id').value = camera.id;
+  document.getElementById('camera-name').value = camera.nombre;
+  document.getElementById('camera-slug').value = camera.slug;
+  document.getElementById('camera-form-title').textContent = `Editar cámara: ${camera.nombre}`;
+  document.getElementById('camera-submit').textContent = 'Guardar cambios';
+  document.getElementById('camera-cancel-edit').hidden = false;
+  document.getElementById('camera-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetCameraForm() {
+  document.getElementById('camera-form').reset();
+  document.getElementById('camera-id').value = '';
+  document.getElementById('camera-form-title').textContent = 'Configurar una cámara';
+  document.getElementById('camera-submit').textContent = 'Agregar cámara';
+  document.getElementById('camera-cancel-edit').hidden = true;
+}
+
+async function guardarAccesosCamara(cameraId) {
+  const usuario_ids = [...document.querySelectorAll(`[data-camera-access="${cameraId}"]:checked`)]
+    .map(input => Number(input.value));
+  try {
+    await api(`/cameras/${cameraId}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ usuario_ids }),
+    });
+    showToast('Accesos actualizados');
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+async function cambiarEstadoCamara(cameraId, activa) {
+  const accion = activa ? 'activar' : 'desactivar';
+  if (!confirm(`¿Deseas ${accion} esta cámara?`)) return;
+  try {
+    await api(`/cameras/${cameraId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activa }),
+    });
+    if (!activa) await desconectarCamara(cameraId);
+    showToast(`Cámara ${activa ? 'activada' : 'desactivada'}`);
+    await loadCameras();
+  } catch { /* api() shows the error */ }
+}
+
+function setCameraStatus(cameraId, message, isError = false) {
+  const target = document.getElementById(`camera-status-${cameraId}`);
+  if (target) {
+    target.textContent = message;
+    target.classList.toggle('is-error', isError);
+  }
+  const isLive = message === 'En vivo';
+  const feed = document.getElementById(`camera-feed-${cameraId}`);
+  const liveBadge = document.getElementById(`camera-live-${cameraId}`);
+  const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+  if (feed) feed.classList.toggle('is-live', isLive);
+  if (liveBadge) liveBadge.hidden = !isLive;
+  if (placeholder && isLive) placeholder.hidden = true;
+  if (placeholder && !isLive && !state.cameraPeers.has(cameraId)) placeholder.hidden = false;
+}
+
+function esperarFinIce(peer) {
+  if (peer.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise(resolve => {
+    const terminar = () => {
+      clearTimeout(timeout);
+      peer.removeEventListener('icegatheringstatechange', alCambiar);
+      resolve();
+    };
+    const alCambiar = () => {
+      if (peer.iceGatheringState === 'complete') {
+        terminar();
+      }
+    };
+    const timeout = setTimeout(terminar, 8000);
+    peer.addEventListener('icegatheringstatechange', alCambiar);
+    alCambiar();
+  });
+}
+
+async function conectarCamara(cameraId) {
+  const camera = state.cameras.find(item => item.id === cameraId);
+  if (!camera?.stream_url || !camera.activa) return;
+  if (state.cameraPeers.has(cameraId)) return;
+  const video = document.getElementById(`camera-video-${cameraId}`);
+  const connectButton = document.getElementById(`camera-connect-${cameraId}`);
+  try {
+    setCameraStatus(cameraId, 'Conectando al puente…');
+    connectButton.disabled = true;
+    const streamToken = await api(`/cameras/${cameraId}/stream-token`, { method: 'POST' });
+    const authorization = `Basic ${btoa(`${camera.slug}:${streamToken.token}`)}`;
+    const peer = new RTCPeerConnection({ iceServers: streamToken.ice_servers });
+    const connection = { peer, authorization, resourceUrl: null, stream: null };
+    state.cameraPeers.set(cameraId, connection);
+    peer.ontrack = event => {
+      const stream = event.streams[0] || new MediaStream([event.track]);
+      connection.stream = stream;
+      video.srcObject = stream;
+      video.hidden = false;
+      const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+      if (placeholder) placeholder.hidden = true;
+      document.getElementById(`camera-record-${cameraId}`).disabled = false;
+      setCameraStatus(cameraId, 'En vivo');
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
+        setCameraStatus(cameraId, 'Conexión interrumpida. Verifica el puente y la red.', true);
+      }
+    };
+    peer.addTransceiver('video', { direction: 'recvonly' });
+    await peer.setLocalDescription(await peer.createOffer());
+    await esperarFinIce(peer);
+    const response = await fetch(camera.stream_url, {
+      method: 'POST',
+      headers: {
+        Authorization: authorization,
+        'Content-Type': 'application/sdp',
+        Accept: 'application/sdp',
+      },
+      body: peer.localDescription.sdp,
+    });
+    if (!response.ok) {
+      throw new Error(`El puente rechazó la conexión (HTTP ${response.status})`);
+    }
+    const answer = await response.text();
+    const location = response.headers.get('Location');
+    if (!location) {
+      throw new Error('El puente no expuso la cabecera Location necesaria para cerrar la sesión WHEP');
+    }
+    const resourceUrl = new URL(location, camera.stream_url);
+    if (resourceUrl.origin !== new URL(camera.stream_url).origin) {
+      throw new Error('El puente devolvió una URL de sesión en otro origen');
+    }
+    connection.resourceUrl = resourceUrl.toString();
+    await peer.setRemoteDescription({ type: 'answer', sdp: answer });
+    document.getElementById(`camera-disconnect-${cameraId}`).hidden = false;
+  } catch (error) {
+    await desconectarCamara(cameraId, false);
+    setCameraStatus(cameraId, error.message || 'No se pudo conectar al puente', true);
+    showToast(error.message || 'No se pudo conectar al puente', 'error', 5000);
+  } finally {
+    const button = document.getElementById(`camera-connect-${cameraId}`);
+    if (button) button.disabled = state.cameraPeers.has(cameraId);
+  }
+}
+
+function mimeGrabacionDisponible() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  return [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4',
+  ].find(type => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+async function alternarGrabacionCamara(cameraId) {
+  if (state.cameraRecordings.has(cameraId)) {
+    await detenerGrabacionCamara(cameraId);
+  } else {
+    await iniciarGrabacionCamara(cameraId);
+  }
+}
+
+async function iniciarGrabacionCamara(cameraId) {
+  const connection = state.cameraPeers.get(cameraId);
+  if (!connection?.stream) return showToast('Conecta la cámara antes de grabar', 'warning');
+  const mimeType = mimeGrabacionDisponible();
+  if (!mimeType) return showToast('Este navegador no permite grabar video', 'error');
+  let clip;
+  let recording;
+  try {
+    clip = await api(`/cameras/${cameraId}/clips`, {
+      method: 'POST',
+      body: JSON.stringify({ mime_type: mimeType }),
+    });
+    const recorder = new MediaRecorder(connection.stream, { mimeType });
+    const authHeaders = { Authorization: `Bearer ${state.token}` };
+    let resolveFinished;
+    recording = {
+      clipId: clip.id,
+      recorder,
+      sequence: 0,
+      uploadQueue: Promise.resolve(),
+      authHeaders,
+      finished: new Promise(resolve => { resolveFinished = resolve; }),
+    };
+    state.cameraRecordings.set(cameraId, recording);
+    recorder.ondataavailable = event => {
+      if (!event.data.size || recording.error) return;
+      const sequence = recording.sequence++;
+      recording.uploadQueue = recording.uploadQueue.then(() => api(
+        `/cameras/${cameraId}/clips/${recording.clipId}/chunks/${sequence}`,
+        {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/octet-stream' },
+          body: event.data,
+          silent: true,
+        },
+      )).catch(error => {
+        recording.error = error;
+        showToast(`La grabación se interrumpió: ${error.message}`, 'error', 6000);
+        if (recorder.state === 'recording') recorder.stop();
+      });
+    };
+    recorder.onstop = async () => {
+      try {
+        if (recording.error) throw recording.error;
+        await recording.uploadQueue;
+        await api(`/cameras/${cameraId}/clips/${recording.clipId}/finish`, {
+          method: 'POST',
+          headers: authHeaders,
+          silent: true,
+        });
+        showToast('Clip guardado; se conservará 7 días');
+      } catch (error) {
+        try {
+          await api(`/cameras/clips/${recording.clipId}`, {
+            method: 'DELETE',
+            headers: authHeaders,
+            silent: true,
+          });
+        } catch (deleteError) {
+          showToast(`No se pudo finalizar ni limpiar el clip: ${deleteError.message}`, 'error', 6000);
+        }
+        if (!recording.error) {
+          showToast(`No se pudo guardar el clip: ${error.message}`, 'error', 6000);
+        }
+      } finally {
+        state.cameraRecordings.delete(cameraId);
+        updateCameraRecordButton(cameraId);
+        resolveFinished();
+        await loadCameraClips();
+      }
+    };
+    recorder.start(5000);
+    updateCameraRecordButton(cameraId);
+    showToast('Grabación iniciada. Deténla para guardar el clip.');
+  } catch (error) {
+    if (recording) {
+      state.cameraRecordings.delete(cameraId);
+      updateCameraRecordButton(cameraId);
+    }
+    if (clip?.id) {
+      try {
+        await api(`/cameras/clips/${clip.id}`, { method: 'DELETE', silent: true });
+      } catch (cleanupError) {
+        showToast(`No se pudo limpiar la grabación incompleta: ${cleanupError.message}`, 'error', 6000);
+      }
+    }
+    showToast(`No se pudo iniciar la grabación: ${error.message}`, 'error', 5000);
+  }
+}
+
+function updateCameraRecordButton(cameraId) {
+  const button = document.getElementById(`camera-record-${cameraId}`);
+  if (!button) return;
+  const recording = state.cameraRecordings.has(cameraId);
+  button.innerHTML = recording
+    ? '<span class="material-symbols-outlined">stop_circle</span> Detener y guardar'
+    : '<span class="material-symbols-outlined">radio_button_checked</span> Grabar momento';
+  button.classList.toggle('is-recording', recording);
+}
+
+async function detenerGrabacionCamara(cameraId) {
+  const recording = state.cameraRecordings.get(cameraId);
+  if (!recording) return;
+  if (recording.recorder.state !== 'inactive') recording.recorder.stop();
+  await recording.finished;
+}
+
+async function desconectarCamara(cameraId, stopRecording = true) {
+  if (stopRecording && state.cameraRecordings.has(cameraId)) {
+    await detenerGrabacionCamara(cameraId);
+  }
+  const connection = state.cameraPeers.get(cameraId);
+  if (connection) {
+    connection.peer.close();
+    connection.stream?.getTracks().forEach(track => track.stop());
+    if (connection.resourceUrl) {
+      try {
+        const response = await fetch(connection.resourceUrl, {
+          method: 'DELETE',
+          headers: { Authorization: connection.authorization },
+        });
+        if (!response.ok && response.status !== 404) {
+          showToast(`El puente no pudo cerrar la sesión (HTTP ${response.status})`, 'error');
+        }
+      } catch {
+        showToast('Se cerró el video localmente, pero no se confirmó el cierre en el puente.', 'error');
+      }
+    }
+    state.cameraPeers.delete(cameraId);
+  }
+  const video = document.getElementById(`camera-video-${cameraId}`);
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+    video.hidden = true;
+  }
+  const connectButton = document.getElementById(`camera-connect-${cameraId}`);
+  if (connectButton) connectButton.disabled = false;
+  const disconnectButton = document.getElementById(`camera-disconnect-${cameraId}`);
+  if (disconnectButton) disconnectButton.hidden = true;
+  const recordButton = document.getElementById(`camera-record-${cameraId}`);
+  if (recordButton) recordButton.disabled = true;
+  updateCameraRecordButton(cameraId);
+  const liveBadge = document.getElementById(`camera-live-${cameraId}`);
+  const feed = document.getElementById(`camera-feed-${cameraId}`);
+  const placeholder = document.getElementById(`camera-placeholder-${cameraId}`);
+  if (liveBadge) liveBadge.hidden = true;
+  if (feed) feed.classList.remove('is-live');
+  if (placeholder) placeholder.hidden = false;
+  setCameraStatus(cameraId, 'Desconectada');
+}
+
+async function cerrarTodasCamaras() {
+  const cameraIds = new Set([
+    ...state.cameraPeers.keys(),
+    ...state.cameraRecordings.keys(),
+  ]);
+  for (const cameraId of cameraIds) {
+    await desconectarCamara(cameraId);
+  }
+}
+
+async function loadCameraClips() {
+  if (!state.token) return;
+  try {
+    state.cameraClips = await api('/cameras/clips');
+    updateCameraStats();
+    document.querySelectorAll('[data-camera-card]').forEach(card => {
+      const camera = state.cameras.find(item => item.id === Number(card.dataset.cameraCard));
+      if (!camera) return;
+      const clips = state.cameraClips.filter(clip => clip.camara_id === camera.id);
+      const section = card.querySelector('.camera-clips');
+      if (section) section.outerHTML = cameraClipsMarkup(clips);
+    });
+  } catch { /* api() reports the error */ }
+}
+
+async function verClipCamara(clipId) {
+  try {
+    const response = await fetch(`${API_BASE}/cameras/clips/${encodeURIComponent(clipId)}/video`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Error ${response.status}`);
+    }
+    const blob = await response.blob();
+    if (state.cameraClipObjectUrl) URL.revokeObjectURL(state.cameraClipObjectUrl);
+    state.cameraClipObjectUrl = URL.createObjectURL(blob);
+    document.getElementById('camera-clip-player').src = state.cameraClipObjectUrl;
+    document.getElementById('camera-clip-modal').classList.add('show');
+  } catch (error) {
+    showToast(`No se pudo abrir el clip: ${error.message}`, 'error');
+  }
+}
+
+async function eliminarClipCamara(clipId) {
+  if (!confirm('¿Eliminar este clip permanentemente?')) return;
+  try {
+    await api(`/cameras/clips/${encodeURIComponent(clipId)}`, { method: 'DELETE' });
+    showToast('Clip eliminado');
+    await loadCameraClips();
+  } catch { /* api() shows the error */ }
+}
+
+function cerrarClipModal() {
+  const player = document.getElementById('camera-clip-player');
+  player.pause();
+  player.removeAttribute('src');
+  player.load();
+  document.getElementById('camera-clip-modal').classList.remove('show');
+  if (state.cameraClipObjectUrl) {
+    URL.revokeObjectURL(state.cameraClipObjectUrl);
+    state.cameraClipObjectUrl = null;
+  }
 }
 
 /* =========================================================================
@@ -257,8 +1019,14 @@ async function login(username, password) {
     iniciarIntervalosSesion();
     showToast(`Bienvenido, ${state.user.username}`);
   } catch (e) {
+    const esErrorDeConexion = e?.name === 'TypeError'
+      || e?.message === 'SIN_CONEXION'
+      || /fetch|network|load failed|net::/i.test(e?.message || '');
+    if (esErrorDeConexion) {
+      showToast('No se pudo conectar con el sistema. Revisa tu conexión e inténtalo de nuevo.', 'error');
+      return;
+    }
     const serverMsg = e && typeof e.message === 'string'
-      && e.message !== 'Failed to fetch'
       && e.message !== 'Error del servidor'
       ? e.message : null;
     showToast(serverMsg || 'Usuario o contraseña incorrectos', 'error');
@@ -267,11 +1035,15 @@ async function login(username, password) {
 }
 
 function logout() {
+  void cerrarTodasCamaras();
+  if (state.cameraClipObjectUrl) cerrarClipModal();
   if (state.heartbeatInterval) { clearInterval(state.heartbeatInterval); state.heartbeatInterval = null; }
   if (state.sessionPollInterval) { clearInterval(state.sessionPollInterval); state.sessionPollInterval = null; }
+  if (state.attendanceReminderInterval) { clearInterval(state.attendanceReminderInterval); state.attendanceReminderInterval = null; }
   state.token = null;
   state.user = null;
   state.currentAsistencia = null;
+  state.attendanceSynced = false;
   state.turnos = [];
   localStorage.removeItem('pos_token');
   localStorage.removeItem('pos_user');
@@ -304,9 +1076,11 @@ async function iniciarTurno(turnoId) {
     });
     state.currentAsistencia = data;
     localStorage.setItem('pos_asistencia', JSON.stringify(data));
+    marcarInicioTurnoNotificado(turnoId);
     renderAttendanceStatus();
     showToast('Turno iniciado con éxito', 'success');
     enviarHeartbeat();
+    verificarAvisosTurno();
     return data;
   } catch (e) {
     if (!ERRORES_SESION.includes(e.message)) showToast(e.message, 'error');
@@ -324,6 +1098,7 @@ async function finalizarTurno() {
     localStorage.removeItem('pos_asistencia');
     renderAttendanceStatus();
     showToast('Turno finalizado con éxito', 'success');
+    verificarAvisosTurno();
     return null;
   } catch (e) {
     const msg = (e && typeof e.message === 'string') ? e.message : '';
@@ -390,9 +1165,170 @@ async function loadTurnos() {
     data.forEach(t => {
       select.innerHTML += `<option value="${t.id}">${t.nombre} (${t.hora_entrada}–${t.hora_salida})</option>`;
     });
-    if (current) select.value = current;
+    const savedTurno = localStorage.getItem(`pos_turno_seleccionado_${state.user?.id}`);
+    select.value = current || savedTurno || '';
+    verificarAvisosTurno();
   } catch {
     state.turnos = [];
+  }
+}
+
+function leerHoraTurno(value) {
+  const [hours, minutes] = String(value || '').split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)
+      || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function obtenerAhoraManagua() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const fecha = `${values.year}-${values.month}-${values.day}`;
+  const minutos = Number(values.hour) * 60 + Number(values.minute);
+  const [year, month, day] = fecha.split('-').map(Number);
+  return {
+    fecha,
+    minutos,
+    absoluto: Math.floor(Date.UTC(year, month - 1, day) / 60_000) + minutos,
+  };
+}
+
+function desplazarFecha(fecha, dias) {
+  const [year, month, day] = fecha.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + dias)).toISOString().slice(0, 10);
+}
+
+function fechaInicioTurnoActual(turno, ahora) {
+  const entrada = leerHoraTurno(turno.hora_entrada);
+  const salida = leerHoraTurno(turno.hora_salida);
+  if (entrada === null || salida === null) return ahora.fecha;
+  const cruzaMedianoche = salida <= entrada;
+  return cruzaMedianoche && ahora.minutos < entrada && ahora.minutos < salida
+    ? desplazarFecha(ahora.fecha, -1)
+    : ahora.fecha;
+}
+
+function claveAvisoInicio(turnoId, fecha) {
+  return `pos_aviso_inicio_turno_${state.user?.id}_${turnoId}_${fecha}`;
+}
+
+function marcarInicioTurnoNotificado(turnoId) {
+  const turno = state.turnos.find(item => item.id === turnoId);
+  if (!turno) return;
+  const fecha = fechaInicioTurnoActual(turno, obtenerAhoraManagua());
+  localStorage.setItem(claveAvisoInicio(turnoId, fecha), '1');
+}
+
+function emitirAvisoTurno(key, title, body) {
+  if (localStorage.getItem(key)) return;
+  new Notification(title, { body, tag: key });
+  localStorage.setItem(key, '1');
+}
+
+function verificarAvisosTurno() {
+  if (!state.token || !state.user || !state.attendanceSynced
+      || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+  const ahora = obtenerAhoraManagua();
+  if (state.currentAsistencia) {
+    const asistencia = state.currentAsistencia;
+    const turno = state.turnos.find(item => item.id === asistencia.turno_id);
+    const entrada = leerHoraTurno(turno?.hora_entrada);
+    const salida = leerHoraTurno(turno?.hora_salida);
+    const fechaEntrada = String(asistencia.hora_entrada_real || '').slice(0, 10);
+    if (turno && entrada !== null && salida !== null && /^\d{4}-\d{2}-\d{2}$/.test(fechaEntrada)) {
+      const fechaSalida = desplazarFecha(fechaEntrada, salida <= entrada ? 1 : 0);
+      const [year, month, day] = fechaSalida.split('-').map(Number);
+      const salidaAbsoluta = Math.floor(Date.UTC(year, month - 1, day) / 60_000) + salida;
+      const key = `pos_aviso_salida_turno_${state.user.id}_${asistencia.id}`;
+      if (ahora.absoluto >= salidaAbsoluta) {
+        emitirAvisoTurno(
+          key,
+          'Es hora de finalizar tu turno',
+          `El turno ${turno.nombre} terminó a las ${String(turno.hora_salida).slice(0, 5)}. Recuerda registrar tu salida.`,
+        );
+      }
+    }
+    return;
+  }
+
+  const select = document.getElementById('turno-select');
+  const turno = state.turnos.find(item => item.id === Number(select?.value));
+  const entrada = leerHoraTurno(turno?.hora_entrada);
+  const salida = leerHoraTurno(turno?.hora_salida);
+  if (!turno || entrada === null || salida === null) return;
+
+  let fechaInicio = ahora.fecha;
+  let inicioAbsoluto = Math.floor(Date.UTC(
+    Number(fechaInicio.slice(0, 4)),
+    Number(fechaInicio.slice(5, 7)) - 1,
+    Number(fechaInicio.slice(8, 10)),
+  ) / 60_000) + entrada;
+  if (inicioAbsoluto > ahora.absoluto) {
+    fechaInicio = desplazarFecha(fechaInicio, -1);
+    inicioAbsoluto -= 24 * 60;
+  }
+  const duracion = (salida - entrada + 24 * 60) % (24 * 60) || 24 * 60;
+  const transcurrido = ahora.absoluto - inicioAbsoluto;
+  if (transcurrido >= 0 && transcurrido < duracion) {
+    const key = claveAvisoInicio(turno.id, fechaInicio);
+    emitirAvisoTurno(
+      key,
+      'Tu turno ya comenzó',
+      `El turno ${turno.nombre} inicia a las ${String(turno.hora_entrada).slice(0, 5)}. Recuerda registrar tu entrada.`,
+    );
+  }
+}
+
+function actualizarBotonAvisosTurno() {
+  const button = document.getElementById('btn-enable-attendance-notifications');
+  if (!button) return;
+  if (typeof Notification === 'undefined') {
+    button.hidden = true;
+    return;
+  }
+  button.hidden = false;
+  if (Notification.permission === 'granted') {
+    button.textContent = 'Avisos de turno activados';
+    button.disabled = true;
+  } else {
+    button.textContent = Notification.permission === 'denied'
+      ? 'Permite avisos en el navegador'
+      : 'Activar avisos de turno';
+    button.disabled = false;
+  }
+}
+
+async function activarAvisosTurno() {
+  if (typeof Notification === 'undefined') {
+    showToast('Este navegador no admite notificaciones del sistema.', 'error');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Los avisos están bloqueados. Permítelos desde la configuración del navegador para este sitio.', 'warning', 5000);
+    return;
+  }
+  try {
+    const permission = Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission();
+    actualizarBotonAvisosTurno();
+    if (permission === 'granted') {
+      showToast('Avisos de turno activados', 'success');
+      verificarAvisosTurno();
+    } else {
+      showToast('No se activaron los avisos de turno.', 'warning');
+    }
+  } catch (error) {
+    showToast(`No se pudieron activar los avisos: ${error.message}`, 'error', 5000);
   }
 }
 
@@ -530,7 +1466,9 @@ async function syncAsistenciaActiva() {
       state.currentAsistencia = null;
       localStorage.removeItem('pos_asistencia');
     }
+    state.attendanceSynced = true;
     renderAttendanceStatus();
+    verificarAvisosTurno();
   } catch { /* el interceptor ya maneja 403/401; silencio */ }
 }
 
@@ -549,8 +1487,12 @@ async function verificarSesionTurno() {
 function iniciarIntervalosSesion() {
   if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
   if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
+  if (state.attendanceReminderInterval) clearInterval(state.attendanceReminderInterval);
+  state.attendanceSynced = false;
   state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
   state.sessionPollInterval = setInterval(verificarSesionTurno, 60_000);
+  state.attendanceReminderInterval = setInterval(verificarAvisosTurno, 30_000);
+  actualizarBotonAvisosTurno();
   syncAsistenciaActiva();
 }
 
@@ -576,6 +1518,65 @@ async function loadGastos() {
   } catch {
     tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-[#E63946]">Error al cargar gastos</td></tr>';
   }
+}
+
+async function loadAuditoria() {
+  const tbody = document.getElementById('auditoria-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">Cargando bitácora…</td></tr>';
+  const params = new URLSearchParams({
+    limit: String(state.auditLimit),
+    offset: String(state.auditOffset),
+  });
+  const desde = document.getElementById('auditoria-desde')?.value;
+  const hasta = document.getElementById('auditoria-hasta')?.value;
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  try {
+    state.auditPage = await api(`/auditoria/?${params.toString()}`);
+    renderAuditoria();
+  } catch (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-[#E63946]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
+  }
+}
+
+function renderAuditoria() {
+  const tbody = document.getElementById('auditoria-tbody');
+  if (!tbody || !state.auditPage) return;
+  const { items, total, limit, offset } = state.auditPage;
+  const totalEl = document.getElementById('auditoria-total');
+  const pageEl = document.getElementById('auditoria-pagina');
+  const previous = document.getElementById('btn-auditoria-anterior');
+  const next = document.getElementById('btn-auditoria-siguiente');
+  if (totalEl) totalEl.textContent = `${total} registro${total === 1 ? '' : 's'}`;
+  if (pageEl) pageEl.textContent = total
+    ? `Mostrando ${offset + 1}–${Math.min(offset + items.length, total)} de ${total}`
+    : 'Sin registros';
+  if (previous) previous.disabled = offset <= 0;
+  if (next) next.disabled = offset + limit >= total;
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">No hay cambios registrados en este período.</td></tr>';
+    return;
+  }
+  const labels = {
+    PRECIO_ASIGNADO: 'Precio asignado',
+    PRECIO_ACTUALIZADO: 'Precio actualizado',
+    DESCUENTO_APLICADO: 'Descuento aplicado',
+    DESCUENTO_GLOBAL_APLICADO: 'Descuento global',
+    DESCUENTO_RETIRADO: 'Descuento retirado',
+  };
+  tbody.innerHTML = items.map(event => {
+    const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
+    const before = event.antes ? JSON.stringify(event.antes, null, 2) : '—';
+    const after = event.despues ? JSON.stringify(event.despues, null, 2) : '—';
+    return `<tr class="border-b border-slate-100 align-top">
+      <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escHtml(stamp)}</td>
+      <td class="px-4 py-3 whitespace-nowrap"><strong class="text-slate-800">${escHtml(event.actor_username)}</strong><span class="block text-xs text-slate-500">${escHtml(event.actor_rol)}</span></td>
+      <td class="px-4 py-3 whitespace-nowrap"><span class="rounded-full bg-sky-50 text-sky-800 px-2 py-1 text-xs font-semibold">${escHtml(labels[event.accion] || event.accion)}</span></td>
+      <td class="px-4 py-3 text-slate-700">${escHtml(event.descripcion)}</td>
+      <td class="px-4 py-3"><details><summary class="cursor-pointer text-[#0F3B66] font-semibold">Ver datos</summary><div class="grid md:grid-cols-2 gap-2 mt-2"><div><strong class="text-xs text-slate-500">Antes</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(before)}</pre></div><div><strong class="text-xs text-slate-500">Después</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(after)}</pre></div></div></details></td>
+    </tr>`;
+  }).join('');
 }
 
 const CATEGORIA_BADGE = {
@@ -649,6 +1650,461 @@ function openGastosModal() {
 
 function closeGastosModal() {
   document.getElementById('modal-registrar-gasto')?.classList.remove('show');
+}
+
+/* =========================================================================
+   Calendar — planning events + real attendance
+   ========================================================================= */
+function calendarDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function calendarDateFromKey(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function calendarTimeLabel(value) {
+  if (!value) return '';
+  return formatLocalTime(`2000-01-01T${value}`);
+}
+
+function calendarManager() {
+  return ['Administrador', 'Gerente'].includes(state.user?.rol);
+}
+
+function calendarEventColor(event) {
+  const colors = ['azul', 'turquesa', 'ambar', 'rosa', 'violeta', 'gris'];
+  return colors.includes(event.color_etiqueta)
+    ? event.color_etiqueta
+    : event.tipo === 'LLEGADA_INSUMO' ? 'ambar' : 'azul';
+}
+
+function toggleCalendarSelectedDate(dateKey) {
+  if (state.calendarSelectedDays.has(dateKey)) {
+    state.calendarSelectedDays.delete(dateKey);
+  } else {
+    state.calendarSelectedDays.add(dateKey);
+  }
+  state.calendarSelectedDay = dateKey;
+}
+
+function exitCalendarMultiSelect() {
+  clearTimeout(state.calendarPressTimer);
+  state.calendarMultiSelecting = false;
+  state.calendarSelectedDays.clear();
+  state.calendarBulkDates = [];
+  renderCalendario();
+}
+
+function calendarGridRange(month) {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7;
+  const start = new Date(first.getFullYear(), first.getMonth(), first.getDate() - offset);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const endOffset = 6 - ((last.getDay() + 6) % 7);
+  const end = new Date(last.getFullYear(), last.getMonth(), last.getDate() + endOffset);
+  return { start, end };
+}
+
+async function loadCalendario() {
+  const grid = document.getElementById('calendar-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="calendar-loading">Cargando calendario…</div>';
+  const { start, end } = calendarGridRange(state.calendarMonth);
+  const params = new URLSearchParams({
+    desde: calendarDateKey(start),
+    hasta: calendarDateKey(end),
+  });
+  try {
+    const data = await api(`/calendario/?${params}`);
+    state.calendarEvents = data.eventos || [];
+    state.calendarAttendances = data.asistencias || [];
+    renderCalendario();
+  } catch {
+    grid.innerHTML = '<div class="calendar-empty calendar-load-error">No se pudo cargar el calendario. Intenta actualizarlo.</div>';
+  }
+}
+
+function renderCalendario() {
+  const title = document.getElementById('calendar-month-title');
+  const grid = document.getElementById('calendar-grid');
+  const summary = document.getElementById('calendar-summary');
+  if (!grid || !title || !summary) return;
+
+  title.textContent = state.calendarMonth.toLocaleDateString('es-NI', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const manager = calendarManager();
+  const readOnlyNotice = document.getElementById('calendar-readonly-notice');
+  if (readOnlyNotice) readOnlyNotice.hidden = manager;
+  const dayEvents = new Map();
+  const dayAttendances = new Map();
+  state.calendarEvents.forEach(event => {
+    const start = calendarDateFromKey(event.fecha_inicio);
+    const end = calendarDateFromKey(event.fecha_fin || event.fecha_inicio);
+    for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+      const key = calendarDateKey(day);
+      if (!dayEvents.has(key)) dayEvents.set(key, []);
+      dayEvents.get(key).push(event);
+    }
+  });
+  state.calendarAttendances.forEach(attendance => {
+    if (!dayAttendances.has(attendance.fecha)) dayAttendances.set(attendance.fecha, []);
+    dayAttendances.get(attendance.fecha).push(attendance);
+  });
+
+  const range = calendarGridRange(state.calendarMonth);
+  const rangeStart = calendarDateKey(range.start);
+  const rangeEnd = calendarDateKey(range.end);
+  if (state.calendarSelectedDay < rangeStart || state.calendarSelectedDay > rangeEnd) {
+    state.calendarSelectedDay = calendarDateKey(new Date(
+      state.calendarMonth.getFullYear(),
+      state.calendarMonth.getMonth(),
+      1,
+    ));
+  }
+  const dayHeaders = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    .map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+  const dayCells = [];
+  for (const day = new Date(range.start); day <= range.end; day.setDate(day.getDate() + 1)) {
+    const key = calendarDateKey(day);
+    const isCurrentMonth = day.getMonth() === state.calendarMonth.getMonth();
+    const isToday = key === calendarDateKey(new Date());
+    const events = dayEvents.get(key) || [];
+    const attendances = dayAttendances.get(key) || [];
+    const eventMarkup = events.slice(0, 3).map(event => {
+      const kind = event.tipo === 'LLEGADA_INSUMO' ? 'delivery' : 'dish';
+      const color = calendarEventColor(event);
+      const related = event.tipo === 'LLEGADA_INSUMO' ? event.insumo_nombre : event.menu_item_nombre;
+      const time = event.hora_inicio ? `${calendarTimeLabel(event.hora_inicio)} ` : '';
+      const status = event.estado === 'CANCELADO' ? ' · Cancelado' : event.estado === 'REALIZADO' ? ' · Realizado' : '';
+      const text = `${time}${event.titulo}${related ? ` · ${related}` : ''}${status}`;
+      const safeText = escHtml(text);
+      return manager
+        ? `<button type="button" class="calendar-event-chip ${kind} color-${color} ${event.estado.toLowerCase()}" data-calendar-event="${event.id}" title="${safeText}">${safeText}</button>`
+        : `<div class="calendar-event-chip ${kind} color-${color} ${event.estado.toLowerCase()}" title="${safeText}">${safeText}</div>`;
+    }).join('');
+    const attendanceMarkup = attendances.slice(0, 2).map(attendance => {
+      const time = formatLocalTime(attendance.hora_entrada_real);
+      const text = `${time} ${attendance.empleado_nombre} · ${attendance.turno_nombre}`;
+      return `<div class="calendar-attendance-chip" title="${escHtml(text)}">${escHtml(text)}</div>`;
+    }).join('');
+    const hiddenCount = Math.max(0, events.length - 3) + Math.max(0, attendances.length - 2);
+    const more = hiddenCount
+      ? `<span class="calendar-more">+${hiddenCount} más</span>` : '';
+    const dayAction = manager
+      ? `<button type="button" class="calendar-day-add" data-calendar-date="${key}" aria-label="Crear evento el ${key}">+</button>`
+      : '';
+    const isSelected = state.calendarMultiSelecting
+      ? state.calendarSelectedDays.has(key)
+      : key === state.calendarSelectedDay;
+    dayCells.push(`
+      <div class="calendar-day ${isCurrentMonth ? '' : 'outside-month'} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${state.calendarMultiSelecting ? 'multi-selecting' : ''}">
+        <div class="calendar-day-header">
+          <button type="button" class="calendar-day-select" data-calendar-detail-date="${key}" aria-label="${state.calendarMultiSelecting ? 'Seleccionar' : 'Ver detalles del'} ${key}" aria-pressed="${isSelected}">${day.getDate()}</button>${dayAction}
+        </div>
+        <div class="calendar-day-items">${eventMarkup}${attendanceMarkup}${more}</div>
+      </div>
+    `);
+  }
+  grid.innerHTML = `${dayHeaders}${dayCells.join('')}`;
+  const monthEvents = state.calendarEvents.filter(event => {
+    const start = calendarDateFromKey(event.fecha_inicio);
+    const end = calendarDateFromKey(event.fecha_fin || event.fecha_inicio);
+    return start.getMonth() === state.calendarMonth.getMonth()
+      || end.getMonth() === state.calendarMonth.getMonth()
+      || (start < range.start && end > range.start);
+  });
+  summary.innerHTML = `
+    <span><strong>${monthEvents.length}</strong> evento${monthEvents.length === 1 ? '' : 's'} de planificación</span>
+    <span><strong>${state.calendarAttendances.length}</strong> asistencia${state.calendarAttendances.length === 1 ? '' : 's'} registrada${state.calendarAttendances.length === 1 ? '' : 's'} en la vista</span>
+  `;
+  const selectionToolbar = document.getElementById('calendar-selection-toolbar');
+  const selectionCount = document.getElementById('calendar-selection-count');
+  const createSelectionButton = document.getElementById('calendar-selection-create');
+  if (selectionToolbar && selectionCount && createSelectionButton) {
+    const count = state.calendarSelectedDays.size;
+    selectionToolbar.hidden = !state.calendarMultiSelecting;
+    selectionCount.textContent = `${count} día${count === 1 ? '' : 's'} seleccionado${count === 1 ? '' : 's'}`;
+    createSelectionButton.disabled = count < 2;
+  }
+  grid.querySelectorAll('[data-calendar-event]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(Number(button.dataset.calendarEvent)));
+  });
+  grid.querySelectorAll('[data-calendar-date]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(null, button.dataset.calendarDate));
+  });
+  grid.querySelectorAll('[data-calendar-detail-date]').forEach(button => {
+    const dateKey = button.dataset.calendarDetailDate;
+    button.addEventListener('pointerdown', () => {
+      state.calendarSuppressClickDate = null;
+      if (!manager || state.calendarMultiSelecting) return;
+      clearTimeout(state.calendarPressTimer);
+      state.calendarPressTimer = setTimeout(() => {
+        state.calendarMultiSelecting = true;
+        state.calendarSelectedDays.add(dateKey);
+        state.calendarSelectedDay = dateKey;
+        state.calendarSuppressClickDate = dateKey;
+        renderCalendario();
+      }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(type => {
+      button.addEventListener(type, () => clearTimeout(state.calendarPressTimer));
+    });
+    button.addEventListener('click', event => {
+      if (state.calendarSuppressClickDate === dateKey) {
+        state.calendarSuppressClickDate = null;
+        return;
+      }
+      if (state.calendarMultiSelecting || (manager && event.shiftKey)) {
+        state.calendarMultiSelecting = true;
+        toggleCalendarSelectedDate(dateKey);
+        renderCalendario();
+        return;
+      }
+      state.calendarSelectedDay = button.dataset.calendarDetailDate;
+      renderCalendario();
+    });
+  });
+  renderCalendarDayDetails(state.calendarSelectedDay);
+}
+
+function renderCalendarDayDetails(dateKey) {
+  const details = document.getElementById('calendar-day-details');
+  const title = document.getElementById('calendar-day-title');
+  const content = document.getElementById('calendar-day-content');
+  if (!details || !title || !content) return;
+  details.hidden = false;
+  if (state.calendarMultiSelecting) {
+    details.hidden = true;
+    return;
+  }
+  title.textContent = calendarDateFromKey(dateKey).toLocaleDateString('es-NI', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const events = state.calendarEvents.filter(event =>
+    event.fecha_inicio <= dateKey && (event.fecha_fin || event.fecha_inicio) >= dateKey
+  );
+  const attendances = state.calendarAttendances.filter(item => item.fecha === dateKey);
+  const eventRows = events.map(event => {
+    const arrival = event.tipo === 'LLEGADA_INSUMO';
+    const color = calendarEventColor(event);
+    const related = arrival ? event.insumo_nombre : event.menu_item_nombre;
+    const time = event.hora_inicio
+      ? `${calendarTimeLabel(event.hora_inicio)}–${calendarTimeLabel(event.hora_fin)}`
+      : 'Todo el día';
+    const dateRange = event.fecha_fin && event.fecha_fin !== event.fecha_inicio
+      ? `${calendarDateFromKey(event.fecha_inicio).toLocaleDateString('es-NI')} – ${calendarDateFromKey(event.fecha_fin).toLocaleDateString('es-NI')}`
+      : '';
+    const quantity = event.cantidad_esperada
+      ? `${event.cantidad_esperada} ${event.insumo_unidad_medida || ''}`.trim()
+      : '';
+    const status = event.estado === 'REALIZADO' ? 'Realizado' : event.estado === 'CANCELADO' ? 'Cancelado' : 'Planificado';
+    const item = `
+      <span class="calendar-detail-icon ${arrival ? 'delivery' : 'dish'} color-${color} material-symbols-outlined">${arrival ? 'local_shipping' : 'restaurant'}</span>
+      <span class="calendar-detail-copy">
+        <strong>${escHtml(event.titulo)}</strong>
+        <span>${escHtml(related || '')}${quantity ? ` · ${escHtml(quantity)}` : ''}${event.proveedor_nombre ? ` · ${escHtml(event.proveedor_nombre)}` : ''}</span>
+        <span>${escHtml(time)}${dateRange ? ` · ${escHtml(dateRange)}` : ''} · ${status}</span>
+        ${event.descripcion ? `<span class="calendar-detail-note">${escHtml(event.descripcion)}</span>` : ''}
+      </span>`;
+    return calendarManager()
+      ? `<button type="button" class="calendar-detail-row calendar-event-detail" data-calendar-event="${event.id}">${item}</button>`
+      : `<div class="calendar-detail-row">${item}</div>`;
+  }).join('');
+  const attendanceRows = attendances.map(attendance => `
+    <div class="calendar-detail-row attendance">
+      <span class="calendar-detail-icon attendance material-symbols-outlined">badge</span>
+      <span class="calendar-detail-copy">
+        <strong>${escHtml(attendance.empleado_nombre)}</strong>
+        <span>Turno ${escHtml(attendance.turno_nombre)}</span>
+        <span>Entrada ${escHtml(formatLocalTime(attendance.hora_entrada_real))} · Salida ${attendance.hora_salida_real ? escHtml(formatLocalTime(attendance.hora_salida_real)) : 'En curso'}</span>
+      </span>
+    </div>
+  `).join('');
+  content.innerHTML = eventRows + attendanceRows
+    || '<p class="calendar-day-empty">No hay eventos ni asistencias registrados para este día.</p>';
+  content.querySelectorAll('[data-calendar-event]').forEach(button => {
+    button.addEventListener('click', () => openCalendarEventModal(Number(button.dataset.calendarEvent)));
+  });
+}
+
+async function loadCalendarCatalogs() {
+  if (state.calendarCatalogsLoaded) return;
+  const [menuItems, insumos, proveedores] = await Promise.all([
+    api('/menu/items?incluir_inactivos=true'),
+    api('/inventario/insumos'),
+    api('/inventario/proveedores'),
+  ]);
+  state.calendarMenuItems = menuItems;
+  state.calendarInsumos = insumos;
+  state.calendarProveedores = proveedores;
+  state.calendarCatalogsLoaded = true;
+}
+
+function fillCalendarSelect(id, rows, placeholder) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.innerHTML = `<option value="">${escHtml(placeholder)}</option>`
+    + rows.map(row => `<option value="${row.id}">${escHtml(row.nombre)}</option>`).join('');
+}
+
+function setCalendarEventTypeFields() {
+  const arrival = document.getElementById('calendar-event-type')?.value === 'LLEGADA_INSUMO';
+  document.querySelectorAll('.calendar-arrival-fields').forEach(el => { el.hidden = !arrival; });
+  document.querySelectorAll('.calendar-dish-field').forEach(el => { el.hidden = arrival; });
+}
+
+function updateCalendarQuantityUnit() {
+  const select = document.getElementById('calendar-event-insumo');
+  const hint = document.getElementById('calendar-quantity-unit');
+  if (!select || !hint) return;
+  const insumo = state.calendarInsumos.find(item => item.id === Number(select.value));
+  hint.textContent = insumo?.unidad_medida
+    ? `La cantidad se registra en ${insumo.unidad_medida}.`
+    : 'La cantidad se registra en la unidad base del insumo.';
+}
+
+async function openCalendarEventModal(eventId = null, dateKey = null, bulkDates = []) {
+  if (!calendarManager()) return;
+  try {
+    await loadCalendarCatalogs();
+  } catch {
+    return;
+  }
+  if (!eventId && bulkDates.length < 2 && state.calendarMultiSelecting) {
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
+    renderCalendario();
+  }
+  fillCalendarSelect('calendar-event-dish', state.calendarMenuItems, 'Selecciona un platillo');
+  fillCalendarSelect('calendar-event-insumo', state.calendarInsumos, 'Selecciona un insumo');
+  fillCalendarSelect('calendar-event-provider', state.calendarProveedores, 'Sin proveedor asignado');
+
+  const form = document.getElementById('calendar-event-form');
+  form.reset();
+  const existing = eventId
+    ? state.calendarEvents.find(event => event.id === eventId)
+    : null;
+  document.getElementById('calendar-event-id').value = existing?.id || '';
+  document.getElementById('calendar-event-title').textContent = existing ? 'Editar evento' : 'Nuevo evento';
+  state.calendarBulkDates = existing ? [] : [...bulkDates].sort();
+  const bulkHint = document.getElementById('calendar-bulk-hint');
+  const dateRange = document.getElementById('calendar-event-date-range');
+  bulkHint.hidden = state.calendarBulkDates.length < 2;
+  bulkHint.textContent = state.calendarBulkDates.length >= 2
+    ? `Se creará una copia del evento únicamente en estos ${state.calendarBulkDates.length} días seleccionados.`
+    : '';
+  dateRange.hidden = state.calendarBulkDates.length >= 2;
+  document.querySelector(`input[name="calendar-event-color"][value="${calendarEventColor(existing || {})}"]`).checked = true;
+  document.getElementById('calendar-event-type').value = existing?.tipo || 'DISPONIBILIDAD_PLATILLO';
+  document.getElementById('calendar-event-dish').value = existing?.menu_item_id || '';
+  document.getElementById('calendar-event-insumo').value = existing?.insumo_id || '';
+  updateCalendarQuantityUnit();
+  document.getElementById('calendar-event-provider').value = existing?.proveedor_id || '';
+  document.getElementById('calendar-event-quantity').value = existing?.cantidad_esperada || '';
+  document.getElementById('calendar-event-name').value = existing?.titulo || '';
+  document.getElementById('calendar-event-start').value = existing?.fecha_inicio || state.calendarBulkDates[0] || dateKey || calendarDateKey(new Date());
+  document.getElementById('calendar-event-end').value = existing?.fecha_fin || '';
+  document.getElementById('calendar-event-time-start').value = existing?.hora_inicio?.slice(0, 5) || '';
+  document.getElementById('calendar-event-time-end').value = existing?.hora_fin?.slice(0, 5) || '';
+  document.getElementById('calendar-event-status').value = existing?.estado || 'PLANIFICADO';
+  document.getElementById('calendar-event-description').value = existing?.descripcion || '';
+  document.getElementById('delete-calendar-event').style.display = existing ? 'inline-flex' : 'none';
+  setCalendarEventTypeFields();
+  document.getElementById('modal-calendar-event').classList.add('show');
+}
+
+function closeCalendarEventModal() {
+  document.getElementById('modal-calendar-event')?.classList.remove('show');
+  state.calendarBulkDates = [];
+  const bulkHint = document.getElementById('calendar-bulk-hint');
+  const dateRange = document.getElementById('calendar-event-date-range');
+  if (bulkHint) bulkHint.hidden = true;
+  if (dateRange) dateRange.hidden = false;
+}
+
+async function saveCalendarEvent(event) {
+  event.preventDefault();
+  const id = document.getElementById('calendar-event-id').value;
+  const tipo = document.getElementById('calendar-event-type').value;
+  const fechaInicio = document.getElementById('calendar-event-start').value;
+  const fechaFin = document.getElementById('calendar-event-end').value;
+  const horaInicio = document.getElementById('calendar-event-time-start').value;
+  const horaFin = document.getElementById('calendar-event-time-end').value;
+  const titulo = document.getElementById('calendar-event-name').value.trim();
+  if (!titulo || !fechaInicio) return showToast('Completa el título y la fecha inicial', 'warning');
+  if (Boolean(horaInicio) !== Boolean(horaFin)) return showToast('Indica ambas horas o deja el evento sin horario', 'warning');
+  if (fechaFin && fechaFin < fechaInicio) return showToast('La fecha final no puede ser anterior a la inicial', 'warning');
+  if (horaInicio && (!fechaFin || fechaFin === fechaInicio) && horaFin <= horaInicio) {
+    return showToast('La hora final debe ser posterior a la inicial', 'warning');
+  }
+  const menuItemId = document.getElementById('calendar-event-dish').value;
+  const insumoId = document.getElementById('calendar-event-insumo').value;
+  const proveedorId = document.getElementById('calendar-event-provider').value;
+  if (tipo === 'DISPONIBILIDAD_PLATILLO' && !menuItemId) return showToast('Selecciona el platillo', 'warning');
+  if (tipo === 'LLEGADA_INSUMO' && !insumoId) return showToast('Selecciona el insumo', 'warning');
+
+  const quantity = document.getElementById('calendar-event-quantity').value;
+  const body = {
+    tipo,
+    titulo,
+    color_etiqueta: document.querySelector('input[name="calendar-event-color"]:checked')?.value || 'azul',
+    descripcion: document.getElementById('calendar-event-description').value.trim() || null,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin || null,
+    hora_inicio: horaInicio || null,
+    hora_fin: horaFin || null,
+    estado: document.getElementById('calendar-event-status').value,
+    menu_item_id: tipo === 'DISPONIBILIDAD_PLATILLO' ? Number(menuItemId) : null,
+    insumo_id: tipo === 'LLEGADA_INSUMO' ? Number(insumoId) : null,
+    proveedor_id: tipo === 'LLEGADA_INSUMO' && proveedorId ? Number(proveedorId) : null,
+    cantidad_esperada: tipo === 'LLEGADA_INSUMO' && quantity ? Number(quantity) : null,
+  };
+  const button = document.getElementById('save-calendar-event');
+  button.disabled = true;
+  try {
+    const bulk = !id && state.calendarBulkDates.length >= 2;
+    if (bulk) {
+      body.fecha_inicio = state.calendarBulkDates[0];
+      body.fecha_fin = null;
+      body.fechas = state.calendarBulkDates;
+    }
+    await api(id ? `/calendario/eventos/${id}` : bulk ? '/calendario/eventos/masivo' : '/calendario/eventos', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(body),
+    });
+    closeCalendarEventModal();
+    if (bulk) exitCalendarMultiSelect();
+    showToast(id ? 'Evento actualizado' : bulk ? `Evento creado en ${body.fechas.length} días` : 'Evento creado', 'success');
+    await loadCalendario();
+  } catch {
+    // api() reports the request error.
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deleteCalendarEvent() {
+  const id = document.getElementById('calendar-event-id').value;
+  if (!id || !window.confirm('¿Eliminar este evento del calendario?')) return;
+  const button = document.getElementById('delete-calendar-event');
+  button.disabled = true;
+  try {
+    await api(`/calendario/eventos/${id}`, { method: 'DELETE' });
+    closeCalendarEventModal();
+    showToast('Evento eliminado', 'success');
+    await loadCalendario();
+  } catch {
+    // api() reports the request error.
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function guardarGasto() {
@@ -1229,12 +2685,120 @@ async function cambiarEstadoKDS(ordenId, nuevoEstado) {
 }
 
 async function cobrarOrden(ordenId) {
-  if (!confirm(`¿Confirmar pago de la Orden #${ordenId}?`)) return;
+  const orden = cocinaOrdenes.find(item => item.id === ordenId);
+  openMetodoPago(orden || { id: ordenId, total: 0 }, 'kds');
+}
+
+function openMetodoPago(orden, origen) {
+  if (!orden?.id) return showToast('No se encontró la orden que deseas cobrar', 'error');
+  state.paymentOrder = { id: orden.id, total: Number(orden.total || 0), origen };
+  state.paymentBusy = false;
+  document.getElementById('payment-order-total').textContent =
+    `C$${state.paymentOrder.total.toFixed(2)}`;
+  const onlineButton = document.getElementById('btn-pago-online');
+  onlineButton.disabled = true;
+  document.getElementById('payment-online-status').textContent =
+    'Verificando disponibilidad…';
+  document.getElementById('btn-pago-local').disabled = false;
+  document.getElementById('modal-metodo-pago').classList.add('show');
+  verificarDisponibilidadPagoOnline();
+}
+
+async function verificarDisponibilidadPagoOnline() {
+  const button = document.getElementById('btn-pago-online');
+  const statusText = document.getElementById('payment-online-status');
   try {
-    await api(`/ordenes/${ordenId}/pagar`, { method: 'PUT' });
-    showToast(`Orden #${ordenId} pagada con éxito`, 'success');
-    await loadCocinaOrdenes();
-  } catch { /* handled by api() */ }
+    const disponibilidad = await api('/pagos/disponibilidad', { silent: true });
+    button.disabled = !disponibilidad.habilitado;
+    statusText.textContent = disponibilidad.habilitado
+      ? `Disponible${disponibilidad.proveedor_configurado ? ` · ${disponibilidad.proveedor_configurado}` : ''}`
+      : 'Aún no está configurado el proveedor de pagos.';
+  } catch {
+    button.disabled = true;
+    statusText.textContent = 'No se pudo verificar. Intenta de nuevo.';
+  }
+}
+
+function cerrarMetodoPago() {
+  document.getElementById('modal-metodo-pago').classList.remove('show');
+  state.paymentOrder = null;
+  state.paymentBusy = false;
+  document.getElementById('btn-pago-local').disabled = false;
+  document.getElementById('btn-pago-online').disabled = true;
+}
+
+async function confirmarPagoLocal() {
+  const orden = state.paymentOrder;
+  if (!orden || state.paymentBusy) return;
+  if (!confirm(`¿Confirmas que recibiste el pago de la Orden #${orden.id} en el local?`)) return;
+  state.paymentBusy = true;
+  document.getElementById('btn-pago-local').disabled = true;
+  try {
+    await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+    showToast(`Orden #${orden.id} pagada con éxito`, 'success');
+    cerrarMetodoPago();
+    if (orden.origen === 'mesa' && state.currentOcupada?.orden?.id === orden.id) {
+      closeDetalleMesaOcupada();
+      await loadTables();
+    } else {
+      await loadCocinaOrdenes();
+    }
+  } catch {
+    state.paymentBusy = false;
+    document.getElementById('btn-pago-local').disabled = false;
+  }
+}
+
+function crearClaveIdempotencia(ordenId) {
+  const random = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `pos-${ordenId}-${random}`;
+}
+
+async function iniciarPagoOnline() {
+  const orden = state.paymentOrder;
+  if (!orden || state.paymentBusy) return;
+  const checkoutWindow = window.open('about:blank', '_blank');
+  if (!checkoutWindow) {
+    showToast('Permite las ventanas emergentes para abrir el pago en línea.', 'warning', 5000);
+    return;
+  }
+
+  state.paymentBusy = true;
+  document.getElementById('btn-pago-online').disabled = true;
+  document.getElementById('btn-pago-local').disabled = true;
+  document.getElementById('payment-online-status').textContent =
+    'Preparando el checkout seguro…';
+  try {
+    const result = await api(`/pagos/ordenes/${orden.id}/checkout`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crearClaveIdempotencia(orden.id) },
+    });
+    const checkoutUrl = result?.pago?.checkout_url;
+    let checkoutAddress;
+    try {
+      checkoutAddress = new URL(checkoutUrl);
+    } catch {
+      showToast('El proveedor no devolvió una dirección de pago válida.', 'error', 5000);
+      throw new Error('URL de checkout inválida');
+    }
+    if (checkoutAddress.protocol !== 'https:') {
+      showToast('El proveedor no devolvió una dirección de pago segura.', 'error', 5000);
+      throw new Error('El proveedor no devolvió una dirección de pago segura.');
+    }
+    checkoutWindow.location.replace(checkoutAddress.href);
+    cerrarMetodoPago();
+    showToast(
+      'Checkout abierto. La orden se marcará pagada solo al confirmar el proveedor.',
+      'success',
+      6000,
+    );
+  } catch {
+    checkoutWindow.close();
+    state.paymentBusy = false;
+    document.getElementById('btn-pago-online').disabled = false;
+    document.getElementById('btn-pago-local').disabled = false;
+  }
 }
 window.cobrarOrden = cobrarOrden;
 
@@ -1566,6 +3130,7 @@ async function submitOrder() {
   btn.disabled = true;
   btn.textContent = '⏳ Enviando…';
 
+  let ordenParaCobrar = null;
   try {
     if (state.currentOrder._addToExisting && state.currentOrder._ordenId) {
       await api(`/ordenes/${state.currentOrder._ordenId}/items`, {
@@ -1602,8 +3167,7 @@ async function submitOrder() {
       if (!mesaId && orden && orden.id) {
         const cobrarNow = document.getElementById('order-modal-cobrar-now')?.checked;
         if (cobrarNow) {
-          await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
-          showToast('¡Orden para llevar cobrada con éxito!', 'success');
+          ordenParaCobrar = orden;
         } else {
           showToast('¡Comanda para llevar guardada!', 'success');
         }
@@ -1612,8 +3176,13 @@ async function submitOrder() {
       }
     }
 
+    if (ordenParaCobrar) {
+      showToast('Orden creada. Selecciona cómo se recibió el pago.', 'success');
+    }
+
     const mesaId = state.currentOrder.mesaId;
     closeOrderModal();
+    if (ordenParaCobrar) openMetodoPago(ordenParaCobrar, 'kds');
 
     if (mesaId) {
       const mesa = state.tables.find(t => t.id === mesaId);
@@ -4445,32 +6014,7 @@ function closePreCuenta() {
 async function cerrarCuenta() {
   const oc = state.currentOcupada;
   if (!oc || !oc.orden) return;
-
-  if (!confirm('¿Cerrar cuenta y liberar esta mesa?')) return;
-
-  try {
-    await api(`/ordenes/${oc.orden.id}/estado`, {
-      method: 'PATCH',
-      body: JSON.stringify({ estado: 'PAGADA' }),
-    });
-
-    await api(`/salon/mesas/${oc.mesaId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ estado: 'LIBRE' }),
-    });
-
-    const mesa = state.tables.find(t => t.id === oc.mesaId);
-    if (mesa) {
-      mesa.estado = 'LIBRE';
-      mesa.apodo = null;
-    }
-
-    showToast('Cuenta cerrada y mesa liberada', 'success');
-    closeDetalleMesaOcupada();
-    renderTables(state.tables);
-  } catch (err) {
-    showToast(err.message || 'Error al cerrar cuenta', 'error');
-  }
+  openMetodoPago(oc.orden, 'mesa');
 }
 
 /* =========================================================================
@@ -4800,6 +6344,8 @@ function updateClock() {
   const el11 = document.getElementById('personal-clock-m');
   const el12 = document.getElementById('cuenta-clock-m');
   const el13 = document.getElementById('gastos-clock-m');
+  const el14 = document.getElementById('desktop-clock');
+  const el15 = document.getElementById('desktop-date');
   if (el1) el1.textContent = time;
   if (el2) el2.textContent = time;
   if (el3) el3.textContent = time;
@@ -4813,12 +6359,57 @@ function updateClock() {
   if (el11) el11.textContent = time;
   if (el12) el12.textContent = time;
   if (el13) el13.textContent = time;
+  if (el14) el14.textContent = time;
+  if (el15) el15.textContent = dateStr;
 }
 
 /* =========================================================================
    Event Listeners
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button[aria-label="Notificaciones"]')
+      : null;
+    if (target) alternarNotificaciones();
+  });
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button[aria-label="Buscar"], button[aria-label="Buscar platillo"]')
+      : null;
+    if (!target) return;
+    if (state.currentScreen !== 'menu-view') navigateTo('menu-view');
+    setTimeout(() => document.getElementById('menu-search')?.focus(), 0);
+  });
+  document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
+  document.getElementById('notifications-refresh')?.addEventListener('click', () => {
+    void cargarNotificaciones();
+  });
+  document.getElementById('notifications-panel')?.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target.closest('[data-notification-screen]') : null;
+    if (!target) return;
+    cerrarNotificaciones();
+    navigateTo(target.dataset.notificationScreen);
+  });
+  document.addEventListener('click', event => {
+    const panel = document.getElementById('notifications-panel');
+    const target = event.target;
+    if (panel && !panel.hidden && target instanceof Element
+        && !panel.contains(target) && !target.closest('button[aria-label="Notificaciones"]')) {
+      cerrarNotificaciones();
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') cerrarNotificaciones({ devolverFoco: true });
+  });
+
+  document.getElementById('app-error-back')?.addEventListener('click', volverDePantallaError);
+
+  window.addEventListener('error', event => {
+    if (event instanceof ErrorEvent) mostrarPantallaError();
+  });
+  window.addEventListener('unhandledrejection', () => mostrarPantallaError());
+
   // Login
   document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -4884,6 +6475,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  document.getElementById('calendar-prev')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
+    state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
+    loadCalendario();
+  });
+  document.getElementById('calendar-next')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
+    state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
+    state.calendarSelectedDay = calendarDateKey(state.calendarMonth);
+    loadCalendario();
+  });
+  document.getElementById('calendar-today')?.addEventListener('click', () => {
+    clearTimeout(state.calendarPressTimer);
+    state.calendarMultiSelecting = false;
+    state.calendarSelectedDays.clear();
+    const today = new Date();
+    state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    state.calendarSelectedDay = calendarDateKey(today);
+    loadCalendario();
+  });
+  document.getElementById('calendar-selection-clear')?.addEventListener('click', () => {
+    state.calendarSelectedDays.clear();
+    renderCalendario();
+  });
+  document.getElementById('calendar-selection-cancel')?.addEventListener('click', exitCalendarMultiSelect);
+  document.getElementById('calendar-selection-create')?.addEventListener('click', () => {
+    if (state.calendarSelectedDays.size < 2) return;
+    openCalendarEventModal(null, null, [...state.calendarSelectedDays]);
+  });
+  document.getElementById('btn-calendar-add')?.addEventListener('click', () => openCalendarEventModal());
+  document.getElementById('calendar-event-type')?.addEventListener('change', setCalendarEventTypeFields);
+  document.getElementById('calendar-event-insumo')?.addEventListener('change', updateCalendarQuantityUnit);
+  document.getElementById('calendar-event-form')?.addEventListener('submit', saveCalendarEvent);
+  document.getElementById('close-calendar-event')?.addEventListener('click', closeCalendarEventModal);
+  document.getElementById('cancel-calendar-event')?.addEventListener('click', closeCalendarEventModal);
+  document.getElementById('delete-calendar-event')?.addEventListener('click', deleteCalendarEvent);
+  document.getElementById('modal-calendar-event')?.addEventListener('click', event => {
+    if (event.target.id === 'modal-calendar-event') closeCalendarEventModal();
+  });
+  document.getElementById('camera-form')?.addEventListener('submit', guardarCamara);
+  document.getElementById('camera-cancel-edit')?.addEventListener('click', resetCameraForm);
+  document.getElementById('camera-clip-modal')?.addEventListener('click', event => {
+    if (event.target.id === 'camera-clip-modal') cerrarClipModal();
+  });
+
   // KDS refresh
   document.getElementById('btn-refresh-cocina')?.addEventListener('click', loadCocinaOrdenes);
 
@@ -4891,6 +6532,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-logout')?.addEventListener('click', logout);
 
   // Attendance toggle (iniciar / finalizar)
+  document.getElementById('btn-enable-attendance-notifications')?.addEventListener('click', activarAvisosTurno);
+  document.getElementById('turno-select')?.addEventListener('change', (event) => {
+    const turnoId = event.currentTarget.value;
+    const key = `pos_turno_seleccionado_${state.user?.id}`;
+    if (turnoId) localStorage.setItem(key, turnoId);
+    else localStorage.removeItem(key);
+    verificarAvisosTurno();
+  });
   document.getElementById('btn-attendance-toggle')?.addEventListener('click', async () => {
     const toggle = document.getElementById('btn-attendance-toggle');
     if (state.currentAsistencia) {
@@ -5184,6 +6833,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirm-editar-horarios')?.addEventListener('click', confirmEditarHorarios);
 
   // Gastos modal
+  document.getElementById('btn-refresh-auditoria')?.addEventListener('click', loadAuditoria);
+  document.getElementById('btn-filtrar-auditoria')?.addEventListener('click', () => {
+    state.auditOffset = 0;
+    loadAuditoria();
+  });
+  document.getElementById('btn-auditoria-anterior')?.addEventListener('click', () => {
+    state.auditOffset = Math.max(0, state.auditOffset - state.auditLimit);
+    loadAuditoria();
+  });
+  document.getElementById('btn-auditoria-siguiente')?.addEventListener('click', () => {
+    state.auditOffset += state.auditLimit;
+    loadAuditoria();
+  });
   document.getElementById('btn-nuevo-gasto')?.addEventListener('click', openGastosModal);
   document.getElementById('close-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('cancel-gasto-modal')?.addEventListener('click', closeGastosModal);
@@ -5207,6 +6869,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-pre-cuenta')?.addEventListener('click', openPreCuenta);
   document.getElementById('btn-cerrar-cuenta')?.addEventListener('click', cerrarCuenta);
   document.getElementById('btn-forzar-librar')?.addEventListener('click', forzarLibrarMesa);
+
+  // Método de pago
+  document.getElementById('close-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
+  document.getElementById('cancel-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
+  document.getElementById('btn-pago-local')?.addEventListener('click', confirmarPagoLocal);
+  document.getElementById('btn-pago-online')?.addEventListener('click', iniciarPagoOnline);
+  document.getElementById('modal-metodo-pago')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) cerrarMetodoPago();
+  });
 
   // Apodo de mesa ocupada
   document.getElementById('btn-save-apodo')?.addEventListener('click', guardarApodo);
@@ -5235,6 +6906,7 @@ document.addEventListener('DOMContentLoaded', () => {
     verificarSesionTurno();
     enviarHeartbeat();
     syncAsistenciaActiva();
+    verificarAvisosTurno();
   };
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) alVolverPestana();

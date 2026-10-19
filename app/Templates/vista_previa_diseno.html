@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vista Previa — Sazón Caribeño POS (Rediseño Visual)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Epilogue', 'sans-serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              coral: '#E64A2E',
+              coralHover: '#CF3B20',
+              navy: '#0F3B66',
+              navyDark: '#0D233A',
+              navyDeep: '#081726',
+              turquoise: '#1EB8B8',
+              turquoiseLight: '#E6F9F9',
+              sun: '#F8B319',
+              sand: '#FBF8F3',
+            }
+          },
+          boxShadow: {
+            'card-tropical': '0 20px 40px -15px rgba(8, 23, 38, 0.45), 0 0 25px rgba(30, 184, 184, 0.12)',
+            'btn-coral': '0 10px 20px -5px rgba(230, 74, 46, 0.45)',
+            'glow-turquoise': '0 8px 20px rgba(30, 184, 184, 0.25)',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; }
+    h1, h2, h3, .font-display { font-family: 'Epilogue', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex">
+
+  <!-- Sidebar Lateral -->
+  <aside class="w-[260px] bg-[#0D233A] text-white flex flex-col min-h-screen fixed left-0 top-0 bottom-0 z-50 shadow-xl">
+    <!-- Brand -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+      <div class="w-10 h-10 rounded-full bg-white p-0.5 border border-brand-sun flex items-center justify-center overflow-hidden shrink-0">
+        <img src="./Imagenes/Logo.jpeg" alt="Logo" class="w-full h-full object-cover rounded-full" onerror="this.src='https://via.placeholder.com/40'">
+      </div>
+      <div>
+        <h1 class="text-[16px] font-extrabold tracking-tight text-white leading-tight font-display">Sazón Caribeño</h1>
+        <p class="text-[10px] uppercase tracking-widest text-brand-turquoise font-semibold">POS Restaurante</p>
+      </div>
+    </div>
+
+    <!-- Navegación -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-semibold text-sm border-l-4 border-brand-turquoise shadow-glow-turquoise transition">
+        <span class="material-symbols-outlined text-[20px] text-brand-turquoise">table_restaurant</span>
+        <span>Mapa de Mesas</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">soup_kitchen</span>
+        <span>Panel de Cocina (KDS)</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">restaurant_menu</span>
+        <span>Carta POS</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+        <span>Almacén Digital</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">badge</span>
+        <span>Personal y Nóminas</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">point_of_sale</span>
+        <span>Cierre de Caja</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white font-medium text-sm transition">
+        <span class="material-symbols-outlined text-[20px]">cloud_download</span>
+        <span>Copias de Seguridad</span>
+      </a>
+    </nav>
+
+    <!-- Panel de Usuario -->
+    <div class="p-4 border-t border-white/10 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-brand-turquoise flex items-center justify-center font-bold text-white text-sm shadow-md">
+          A
+        </div>
+        <div class="leading-tight">
+          <p class="text-sm font-bold text-white truncate max-w-[120px]">Administrador</p>
+          <p class="text-[10px] text-white/50 uppercase tracking-wider font-medium">Gerencia</p>
+        </div>
+      </div>
+      <span class="material-symbols-outlined text-white/50 hover:text-brand-coral cursor-pointer transition">logout</span>
+    </div>
+  </aside>
+
+  <!-- Contenido Principal -->
+  <main class="ml-[260px] flex-1 p-6 space-y-6">
+    <!-- Header de la pantalla -->
+    <header class="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+      <div>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Sistema En Línea
+        </span>
+        <h1 class="text-2xl font-extrabold text-brand-navy font-display tracking-tight">Mapa de Mesas — Salón Principal</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Gestión en tiempo real de comandas, pedidos y ocupación</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="text-right pr-3 border-r border-slate-200">
+          <p class="font-display font-extrabold text-lg text-brand-navy leading-none">15:59 PM</p>
+          <p class="text-[11px] font-medium text-slate-400 mt-0.5">Viernes, 9 de Octubre</p>
+        </div>
+        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-turquoise hover:bg-teal-600 text-white font-bold text-xs shadow-glow-turquoise active:scale-95 transition">
+          <span class="material-symbols-outlined text-[18px]">takeout_dining</span>
+          <span>Para Llevar</span>
+        </button>
+        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-coral hover:bg-brand-coralHover text-white font-bold text-xs shadow-btn-coral active:scale-95 transition">
+          <span class="material-symbols-outlined text-[18px]">add</span>
+          <span>Nueva Comanda</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Barra de Filtros e Indicadores -->
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2 overflow-x-auto">
+        <button class="px-4 py-2 rounded-full bg-brand-navy text-white text-xs font-bold shadow-sm">Todas (12)</button>
+        <button class="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-700 hover:border-emerald-500 text-xs font-semibold flex items-center gap-1.5 transition">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Libres (7)
+        </button>
+        <button class="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-700 hover:border-brand-coral text-xs font-semibold flex items-center gap-1.5 transition">
+          <span class="w-2 h-2 rounded-full bg-brand-coral"></span> Ocupadas (4)
+        </button>
+        <button class="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-700 hover:border-brand-sun text-xs font-semibold flex items-center gap-1.5 transition">
+          <span class="w-2 h-2 rounded-full bg-brand-sun"></span> Reservadas (1)
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">
+        <span class="text-slate-400">Ocupación:</span>
+        <span class="text-brand-coral font-extrabold text-sm">33%</span>
+        <div class="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full bg-brand-coral rounded-full w-[33%]"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid de Tarjetas de Mesa -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <!-- Mesa 1 - Ocupada -->
+      <div class="bg-white rounded-2xl border-2 border-brand-coral/30 p-5 shadow-lg relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-brand-coral font-extrabold text-[10px] uppercase tracking-wider border border-rose-200">
+              🔴 OCUPADA
+            </span>
+            <h3 class="font-display font-extrabold text-2xl text-brand-navy mt-2">Mesa 01</h3>
+            <p class="text-xs text-slate-400 font-medium">Terraza Mar · 4 personas</p>
+          </div>
+          <span class="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">24 min</span>
+        </div>
+
+        <div class="my-4 py-3 border-y border-slate-100 space-y-1">
+          <p class="text-xs text-slate-500 flex justify-between"><span>Atendido por:</span> <strong class="text-slate-800">Carlos M.</strong></p>
+          <p class="text-xs text-slate-500 flex justify-between"><span>Items en comanda:</span> <strong class="text-slate-800">3 platillos</strong></p>
+          <p class="text-xs text-slate-500 flex justify-between"><span>Acumulado:</span> <strong class="text-brand-coral font-bold">C$ 850.00</strong></p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button class="py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-brand-navy font-bold text-xs transition">Ver Pedido</button>
+          <button class="py-2 rounded-xl bg-brand-coral hover:bg-brand-coralHover text-white font-bold text-xs shadow-btn-coral transition">Pre-Cuenta</button>
+        </div>
+      </div>
+
+      <!-- Mesa 2 - Libre -->
+      <div class="bg-white rounded-2xl border-2 border-emerald-500/30 p-5 shadow-md relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-[10px] uppercase tracking-wider border border-emerald-200">
+              🟢 LIBRE
+            </span>
+            <h3 class="font-display font-extrabold text-2xl text-brand-navy mt-2">Mesa 02</h3>
+            <p class="text-xs text-slate-400 font-medium">Salón Principal · 2 personas</p>
+          </div>
+          <span class="material-symbols-outlined text-emerald-500 text-[28px]">check_circle</span>
+        </div>
+
+        <div class="my-6 text-center py-2">
+          <p class="text-xs text-slate-400 font-medium">Lista para recibir clientes</p>
+        </div>
+
+        <button class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition">Abrir Comanda</button>
+      </div>
+
+      <!-- Mesa 3 - Ocupada -->
+      <div class="bg-white rounded-2xl border-2 border-brand-coral/30 p-5 shadow-lg relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-brand-coral font-extrabold text-[10px] uppercase tracking-wider border border-rose-200">
+              🔴 OCUPADA
+            </span>
+            <h3 class="font-display font-extrabold text-2xl text-brand-navy mt-2">Mesa 03</h3>
+            <p class="text-xs text-slate-400 font-medium">VIP Caribe · 6 personas</p>
+          </div>
+          <span class="font-mono text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-md border border-rose-200">42 min</span>
+        </div>
+
+        <div class="my-4 py-3 border-y border-slate-100 space-y-1">
+          <p class="text-xs text-slate-500 flex justify-between"><span>Atendido por:</span> <strong class="text-slate-800">Ana L.</strong></p>
+          <p class="text-xs text-slate-500 flex justify-between"><span>Items en comanda:</span> <strong class="text-slate-800">6 platillos</strong></p>
+          <p class="text-xs text-slate-500 flex justify-between"><span>Acumulado:</span> <strong class="text-brand-coral font-bold">C$ 1,420.00</strong></p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button class="py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-brand-navy font-bold text-xs transition">Ver Pedido</button>
+          <button class="py-2 rounded-xl bg-brand-coral hover:bg-brand-coralHover text-white font-bold text-xs shadow-btn-coral transition">Pre-Cuenta</button>
+        </div>
+      </div>
+
+      <!-- Mesa 4 - Reservada -->
+      <div class="bg-white rounded-2xl border-2 border-brand-sun/40 p-5 shadow-md relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-extrabold text-[10px] uppercase tracking-wider border border-amber-200">
+              🟡 RESERVADA
+            </span>
+            <h3 class="font-display font-extrabold text-2xl text-brand-navy mt-2">Mesa 04</h3>
+            <p class="text-xs text-slate-400 font-medium">Bar Caribe · 2 personas</p>
+          </div>
+          <span class="material-symbols-outlined text-brand-sun text-[28px]">event_seat</span>
+        </div>
+
+        <div class="my-4 py-3 border-y border-slate-100 text-center">
+          <p class="text-xs font-bold text-slate-700">Reserva: Familia Pérez</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Hora: 18:30 PM</p>
+        </div>
+
+        <button class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition">Confirmar Llegada</button>
+      </div>
+    </section>
+  </main>
+
+</body>
+</html>

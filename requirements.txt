@@ -1,28 +1,28 @@
 # Backend
-fastapi==0.115.0
+fastapi==0.138.0
 uvicorn[standard]==0.34.0
-pydantic==2.10.6
+pydantic==2.11.0
 pydantic-settings==2.9.0
 
 # Base de datos
-sqlalchemy==2.0.38
-alembic==1.16.1
-pymysql==1.1.1
-cryptography==43.0.0
+sqlalchemy==2.0.41
+alembic==1.18.0
+pymysql==1.2.0
+cryptography==45.0.0
 
 # Seguridad
 python-jose[cryptography]==3.5.0
 bcrypt==4.2.0
-python-multipart==0.0.20
+python-multipart==0.0.32
 
 # Utilidades
-python-dotenv==1.0.1
+python-dotenv==1.1.0
 
-# Zona horaria America/Managua
-tzdata==2024.2
+# Zona horaria America/Managua (zoneinfo en Windows/contenedores sin tzdata del sistema)
+tzdata>=2024.1
 
 # HTTP client (ImgBB image uploads)
 httpx==0.28.1
 
 # Procesamiento de imágenes (resize + compresión WebP antes de ImgBB)
-Pillow==11.0.0
+Pillow>=10.0.0

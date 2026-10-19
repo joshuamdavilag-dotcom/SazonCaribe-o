@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0D233A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sazón Caribeño — POS</title>
+  <link rel="stylesheet" href="css/style.css?v=6.1">
+  <script src="https://cdn.tailwindc ss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          screens: {
+            xs: '400px',     
+          },
+          fontFamily: {
+            display: ['Epilogue', 'sans-serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              coral: '#E64A2E',
+              coralHover: '#CF3B20',
+              coralLight: '#FFF0ED',
+              orange: '#F2784B',
+              navy: '#0F3B66',
+              navyDark: '#0D233A',
+              navyDeep: '#081726',
+              turquoise: '#1EB8B8',
+              turquoiseLight: '#E6F9F9',
+              sun: '#F8B319',
+              sand: '#FBF8F3',
+            }
+          },
+          boxShadow: {
+            'card-tropical': '0 20px 40px -15px rgba(8, 23, 38, 0.45), 0 0 25px rgba(30, 184, 184, 0.12)',
+            'btn-coral': '0 10px 20px -5px rgba(230, 74, 46, 0.45)',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+</head>
+<body>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <section id="app-error-screen" class="app-error-screen" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title" aria-describedby="app-error-description" hidden>
+    <div class="app-error-card">
+      <span class="app-error-icon material-symbols-outlined" aria-hidden="true">error</span>
+      <p class="app-error-eyebrow">Sazón Caribeño</p>
+      <h1 id="app-error-title">Algo salió mal</h1>
+      <p id="app-error-description">No pudimos completar esta acción. Puedes volver a la pantalla anterior e intentarlo de nuevo.</p>
+      <button id="app-error-back" type="button" class="app-error-back">
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        Volver a la pantalla anterior
+      </button>
+    </div>
+  </section>
+
+  <!-- =================================================================
+       SCREEN: LOGIN
+       ================================================================= -->
+  <section id="screen-login" class="screen active relative w-full min-h-screen hidden justify-between items-center p-6 bg-gradient-to-b from-[#0D233A] via-[#0C3C60] to-[#091B2E] overflow-hidden" aria-label="Inicio de sesión">
+    <!-- Elementos decorativos de fondo con tinte caribeño -->
+    <div class="absolute -top-24 -right-20 w-64 h-64 rounded-full bg-[#1EB8B8]/15 blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-[#E64A2E]/15 blur-3xl pointer-events-none"></div>
+    <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F8B319]/10 blur-3xl pointer-events-none"></div>
+    <!-- Contenedor central / Tarjeta de login -->
+    <div class="w-full my-auto flex justify-center items-center z-10 py-4">
+      <div class="login-card w-full max-w-[380px] bg-white rounded-3xl p-7 shadow-card-tropical border border-white/80 relative">
+        <!-- 1. Branding: Logo, Título y Subtítulo -->
+        <div class="flex flex-col items-center text-center mb-7">
+          <div class="relative w-24 h-24 mb-3 rounded-full bg-white shadow-md p-1 border-2 border-brand-sun/40 flex items-center justify-center overflow-hidden transition-transform duration-300 hover:scale-105">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="w-full h-full object-contain drop-shadow-sm">
+          </div>
+          <h1 class="font-display font-extrabold text-[28px] leading-tight text-brand-navy tracking-tight">
+            Sazón <span class="text-brand-coral">Caribeño</span>
+          </h1>
+          <div class="flex items-center space-x-1.5 mt-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-brand-turquoise"></span>
+            <p class="text-xs font-medium text-slate-500 tracking-wide uppercase">Sistema de Gestión Restaurante</p>
+            <span class="w-1.5 h-1.5 rounded-full bg-brand-turquoise"></span>
+          </div>
+        </div>
+        <!-- 2. Formulario -->
+        <form id="login-form" class="space-y-4" autocomplete="on" novalidate>
+          <!-- Campo Usuario -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-700 tracking-wider" for="login-username">USUARIO</label>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined absolute left-3.5 text-slate-400 pointer-events-none text-[20px]">person</span>
+              <input autocomplete="username" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#091E33] placeholder-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white focus:border-brand-turquoise focus:ring-4 focus:ring-brand-turquoise/20" id="login-username" name="username" placeholder="Usuario" required type="text">
+            </div>
+          </div>
+          <!-- Campo Contraseña -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center">
+              <label class="block text-xs font-semibold text-slate-700 tracking-wider" for="login-password">CONTRASEÑA</label>
+              <a class="text-xs font-medium text-brand-turquoise hover:text-[#0F3B66] transition-colors" href="#">¿Olvidó su PIN?</a>
+            </div>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined absolute left-3.5 text-slate-400 pointer-events-none text-[20px]">lock</span>
+              <input autocomplete="current-password" class="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#091E33] placeholder-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white focus:border-brand-turquoise focus:ring-4 focus:ring-brand-turquoise/20" id="login-password" name="password" placeholder="Contraseña" required type="password">
+              <button class="absolute right-3.5 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none" type="button" tabindex="-1" onclick="const p = document.getElementById('login-password'); const isP = p.type === 'password'; p.type = isP ? 'text' : 'password'; this.firstElementChild.innerText = isP ? 'visibility_off' : 'visibility';" aria-label="Mostrar contraseña">
+                <span class="material-symbols-outlined text-[20px]">visibility</span>
+              </button>
+            </div>
+          </div>
+          <!-- Botón Iniciar Sesión -->
+          <div class="pt-2">
+            <button type="submit" class="w-full py-3.5 px-4 bg-brand-coral hover:bg-brand-coralHover active:scale-[0.98] text-white font-bold text-sm tracking-wide rounded-xl shadow-btn-coral transition-all duration-200 flex items-center justify-center space-x-2 group" id="login-btn">
+              <span>Iniciar Sesión</span>
+              <span class="material-symbols-outlined text-[18px] transition-transform duration-200 group-hover:translate-x-1">arrow_forward</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- Footer interno -->
+    <div class="w-full pb-3 text-center z-10">
+      <p class="text-xs font-medium text-white/50 tracking-wider">v1.0.0 — Caribe</p>
+    </div>
+  </section>
+
+  <!-- =================================================================
+       APP SHELL
+       ================================================================= -->
+  <div id="app-shell" class="app-shell">
+    <section id="notifications-panel" class="notifications-panel" role="dialog" aria-modal="false" aria-labelledby="notifications-title" hidden>
+      <header class="notifications-header">
+        <div>
+          <p class="notifications-eyebrow">Sazón Caribeño</p>
+          <h2 id="notifications-title">Notificaciones</h2>
+          <p id="notifications-summary">Alertas y actividad del turno</p>
+        </div>
+        <div class="notifications-header-actions">
+          <button id="notifications-refresh" class="notifications-icon-button" type="button" aria-label="Actualizar notificaciones" title="Actualizar">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          </button>
+          <button id="notifications-close" class="notifications-icon-button" type="button" aria-label="Cerrar notificaciones" title="Cerrar">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+      </header>
+      <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
+      <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
+    </section>
+    <!-- SIDEBAR -->
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand w-full flex flex-row items-center gap-3 px-5 py-4 border-b border-white/10">
+        <span class="material-symbols-outlined text-[26px] text-[#1EB8B8]">restaurant</span>
+        <div class="text-left">
+          <h1 class="text-[17px] font-extrabold leading-tight tracking-tight">Sazón Caribeño</h1>
+          <p class="text-[10px] uppercase tracking-[0.18em] text-white/50">POS Restaurante</p>
+        </div>
+      </div>
+
+      <!-- Nav -->
+      <nav class="sidebar-nav flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5" aria-label="Navegación principal">
+        <a class="nav-item active" data-screen="salon">
+          <span class="material-symbols-outlined nav-icon text-[20px]">table_restaurant</span>
+          <span class="nav-label">Salón</span>
+        </a>
+        <a class="nav-item" data-screen="comandero">
+          <span class="material-symbols-outlined nav-icon text-[20px]">soup_kitchen</span>
+          <span class="nav-label">Comandas</span>
+        </a>
+        <a class="nav-item" data-screen="menu-view">
+          <span class="material-symbols-outlined nav-icon text-[20px]">restaurant_menu</span>
+          <span class="nav-label">Carta</span>
+        </a>
+        <a class="nav-item" data-screen="calendario">
+          <span class="material-symbols-outlined nav-icon text-[20px]">calendar_month</span>
+          <span class="nav-label">Calendario</span>
+        </a>
+        <a class="nav-item" data-screen="cameras">
+          <span class="material-symbols-outlined nav-icon text-[20px]">videocam</span>
+          <span class="nav-label">Cámaras</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">edit_note</span>
+          <span class="nav-label">Gestión Menú</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="inventory" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">inventory_2</span>
+          <span class="nav-label">Almacén Digital</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="personal" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">badge</span>
+          <span class="nav-label">Personal y Nóminas</span>
+        </a>
+        <a class="nav-item" data-screen="cuenta">
+          <span class="material-symbols-outlined nav-icon text-[20px]">point_of_sale</span>
+          <span class="nav-label">Cierre de Caja</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
+          <span class="nav-label">Gastos</span>
+        </a>
+      </nav>
+
+      <!-- Attendance Control -->
+      <div id="attendance-panel" class="attendance-panel bg-white/5 rounded-xl p-3 mx-3 mb-2 flex flex-col gap-2" style="display:none;">
+        <div class="flex items-center justify-between text-[11px] text-white/60">
+          <span>Turno Actual</span>
+          <span id="attendance-clock" class="font-mono">--:--</span>
+        </div>
+        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:#fff;color:#0F3B66;">
+          <option value="">Seleccionar turno…</option>
+        </select>
+        <button id="btn-enable-attendance-notifications" class="w-full py-1.5 text-[11px] rounded-lg font-semibold text-white/80 border border-white/20" type="button">
+          Activar avisos de turno
+        </button>
+        <button id="btn-attendance-toggle" class="btn-turquoise w-full py-1.5 text-xs rounded-lg font-semibold flex items-center justify-center gap-1">
+          <span class="material-symbols-outlined text-sm">schedule</span> Iniciar Turno
+        </button>
+        <div id="attendance-status" style="font-size:10px;color:#94a3b8;text-align:center;"></div>
+      </div>
+
+      <!-- User -->
+      <div class="sidebar-user w-full" id="user-card">
+        <div class="avatar" id="user-avatar">U</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name">Usuario</div>
+          <div class="user-role" id="user-role">Rol</div>
+        </div>
+        <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">⏻</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content lg:ml-[260px] min-h-screen pb-20 lg:pb-6 bg-slate-50">
+      <div class="desktop-app-topbar" aria-label="Herramientas del sistema">
+        <div class="desktop-app-clock">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          <span class="desktop-app-clock-copy">
+            <strong id="desktop-clock">--:--</strong>
+            <span id="desktop-date">---</span>
+          </span>
+        </div>
+        <div class="desktop-app-actions">
+          <button class="desktop-search-toggle" type="button" aria-label="Buscar platillo">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <span>Buscar platillo</span>
+          </button>
+          <button id="desktop-notifications-toggle" class="desktop-notifications-toggle" type="button"
+                  aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+            <span>Notificaciones</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SCREEN: SALÓN -->
+      <section id="screen-salon" class="screen active w-full max-w-full overflow-x-hidden" aria-label="Salón">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="salon-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Mapa de Mesas</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Gestión de atención y comandas en tiempo real</p>
+            </div>
+            <div id="occupancy-card" class="shrink-0 w-[104px] bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <p class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ocupación</p>
+              <p class="font-display font-extrabold text-xl text-brand-navy leading-none mt-0.5"><span id="occupancy-pct">0%</span></p>
+              <div class="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div id="occupancy-bar" class="h-full rounded-full bg-brand-coral transition-all duration-500" style="width:0%"></div>
+              </div>
+              <p class="text-[10px] font-medium text-slate-500 mt-1"><span id="occupancy-count">0/0</span> mesas</p>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2.5">
+            <button type="button" id="btn-para-llevar" class="flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-turquoise text-white font-semibold text-sm shadow-sm shadow-brand-turquoise/30 active:scale-[0.98] transition">
+              <span class="material-symbols-outlined text-[20px]">takeout_dining</span> Para Llevar
+            </button>
+            <button type="button" id="btn-gestion-mesas" class="admin-only flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-brand-navy/15 bg-white text-brand-navy font-semibold text-sm active:scale-[0.98] transition">
+              <span class="material-symbols-outlined text-[20px]">table_restaurant</span> Mesas
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 space-y-3 lg:px-6 w-full max-w-full min-w-0">
+          <!-- Filtros por estado -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar mesas">
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="all" role="tab" aria-selected="true">
+              Todas <span id="cnt-all" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="LIBRE" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Libres <span id="cnt-libre" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="OCUPADA" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-coral"></span> Ocupadas <span id="cnt-ocupada" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="RESERVADA" role="tab" aria-selected="false">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Reservadas <span id="cnt-reservada" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">0</span>
+            </button>
+          </div>
+
+          <!-- Filtros dinámicos por zona -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" id="zona-filters" role="tablist" aria-label="Filtrar por zona">
+            <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-coral aria-selected:text-white aria-selected:border-brand-coral" data-zona="all" role="tab" aria-selected="true">🗺️ Todas las Zonas</button>
+          </div>
+
+          <!-- Encabezado de la distribución -->
+          <div class="flex items-center justify-between gap-2 pt-1">
+            <div class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px] text-slate-400">grid_view</span>
+              <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Distribución en Planta</h2>
+            </div>
+            <div class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+              <span class="material-symbols-outlined text-[14px]">schedule</span>
+              <span id="salon-clock">--:-- --</span>
+              <span class="text-slate-300">·</span>
+              <span id="salon-date">---</span>
+            </div>
+          </div>
+
+          <!-- Grid principal renderizado por renderTables() -->
+          <main id="table-grid" class="grid grid-cols-2 gap-3" aria-label="Mapa de mesas"></main>
+        </div>
+
+        <!-- FAB: Nueva comanda rápida -->
+        <button id="btn-nueva-comanda" type="button" aria-label="Nueva comanda rápida"
+                class="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-40 grid place-items-center w-14 h-14 rounded-full bg-brand-coral text-white shadow-lg shadow-brand-coral/30 active:scale-95 transition">
+          <span class="material-symbols-outlined text-[26px]">add</span>
+        </button>
+      </section>
+
+      <!-- SCREEN: COMANDERO / KDS -->
+      <section id="screen-comandero" class="screen w-full max-w-full overflow-x-hidden" aria-label="Panel de Cocina">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="kds-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Panel de Cocina</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Monitoreo de comandas en tiempo real</p>
+            </div>
+            <div class="shrink-0 flex items-center gap-2.5">
+              <div class="text-right">
+                <p id="comandero-clock" class="font-display font-extrabold text-xl text-brand-navy leading-none">--:-- --</p>
+                <p id="comandero-date" class="text-[11px] font-semibold text-slate-400 mt-0.5">---</p>
+              </div>
+              <button id="btn-refresh-cocina" type="button" aria-label="Actualizar comandas"
+                      class="grid place-items-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-90 transition">
+                <span class="material-symbols-outlined text-[19px]">refresh</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Pestañas KDS -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar comandas">
+            <button type="button" class="kds-tab active" data-cocina-tab="cocina" role="tab" aria-selected="true">🔥 En Cocina <span class="kds-count" id="kc-count-cocina">0</span></button>
+            <button type="button" class="kds-tab" data-cocina-tab="lista" role="tab" aria-selected="false">✅ Listas p/ Servir <span class="kds-count" id="kc-count-lista">0</span></button>
+            <button type="button" class="kds-tab" data-cocina-tab="historial" role="tab" aria-selected="false">📜 Historial</button>
+          </div>
+
+          <!-- Grid de comandas renderizado por renderCocinaCards() -->
+          <main id="cocina-grid" class="cocina-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" aria-label="Órdenes activas">
+            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando órdenes…</p>
+          </main>
+        </div>
+      </section>
+
+      <!-- SCREEN: CARTA (Browse Only) -->
+      <section id="screen-menu-view" class="screen w-full max-w-full overflow-x-hidden" aria-label="Carta">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="carta-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-4 pt-4 lg:px-6">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Carta</h1>
+              <p class="text-[13px] text-slate-500 mt-1">Selecciona platillos o bebidas para agregar a la orden</p>
+            </div>
+          </div>
+          <!-- Búsqueda rápida -->
+          <div class="mt-3 flex items-center gap-2 h-11 px-3.5 rounded-xl bg-[#F0EAE1] border border-transparent focus-within:border-brand-turquoise focus-within:ring-4 focus-within:ring-brand-turquoise/15 transition">
+            <span class="material-symbols-outlined text-[20px] text-slate-400">search</span>
+            <input id="menu-search" type="search" placeholder="Buscar platillo o bebida…" autocomplete="off"
+                   class="flex-1 bg-transparent outline-none text-sm text-brand-navy placeholder-slate-400 font-medium">
+            <button type="button" id="menu-search-clear" aria-label="Limpiar búsqueda"
+                    class="hidden grid place-items-center w-7 h-7 rounded-full bg-white text-slate-500 active:scale-90 transition">
+              <span class="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo de la pantalla -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Filtros por categoría (render dinámico en renderCartaCatFilters) -->
+          <div id="carta-cat-filters" class="category-tabs !flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría">
+            <button class="category-tab active" data-cat="all" role="tab" aria-selected="true">🍽️ Todos <span class="cat-count">0</span></button>
+          </div>
+
+          <!-- Grid de productos renderizado por renderMenuItems() -->
+          <main id="menu-grid" class="menu-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-0" aria-label="Productos">
+            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando carta…</p>
+          </main>
+        </div>
+      </section>
+
+      <!-- SCREEN: GESTIÓN MENÚ (Admin/Gerente) -->
+      <section id="screen-menu-mgmt" class="screen w-full max-w-full overflow-x-hidden" aria-label="Gestión de Menú">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="menu-mgmt-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Gestión Menú -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Gestión de Menú</h1>
+            <p class="text-sm text-slate-500 mt-1">Configuración de catálogo, precios y recetas de cocina</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-preparacion" type="button"
+                    class="admin-only btn-turquoise flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px]">skillet</span> Producción del Día
+            </button>
+            <button id="btn-nuevo-platillo" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">add</span> Nuevo Platillo
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo Gestión Menú -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-3">
+          <!-- Filtros de Categoría -->
+          <div id="menu-mgmt-cat-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-cat="all" role="tab" aria-selected="true">Todas <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Filtros de Estado -->
+          <div id="menu-mgmt-status-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por estado">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-status="activos" role="tab" aria-selected="true">Activos <span class="chip-count">(0)</span></button>
+            <button class="chip px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-status="inactivos" role="tab" aria-selected="false">Inactivos <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Grid de tarjetas de administración (renderizado por renderMenuMgmt) -->
+          <div id="menu-mgmt-grid" class="data-card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-0" aria-label="Platillos"></div>
+        </div>
+      </section>
+
+      <!-- SCREEN: INVENTARIO / ALMACÉN DIGITAL (Admin/Gerente) -->
+      <section id="screen-inventory" class="screen w-full max-w-full overflow-x-hidden" aria-label="Inventario">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="inventory-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Almacén Digital -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Almacén Digital</h1>
+            <p class="text-sm text-slate-500 mt-1">Control de stock, insumos y unidades de medida</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-unidades" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">balance</span> Unidades
+            </button>
+            <button id="btn-nuevo-insumo" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">add</span> Nuevo Insumo
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo Almacén Digital -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-4 w-full max-w-full min-w-0">
+          <!-- Filtros de Categoría de Insumos -->
+          <div id="insumo-cat-filters" class="chips-row flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar por categoría de insumo">
+            <button class="chip active px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap" data-cat="all" role="tab" aria-selected="true" onclick="applyInsumoFilter(null)">Todas <span class="chip-count">(0)</span></button>
+          </div>
+
+          <!-- Franja para Alertas de Stock Bajo -->
+          <div id="stock-alerts" class="space-y-2 w-full min-w-0" aria-label="Alertas de stock">
+            <div class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-semibold w-full min-w-0">
+              <span class="material-symbols-outlined shrink-0 text-[16px] text-amber-600 animate-pulse">warning</span>
+              <span class="min-w-0">3 insumos con stock crítico</span>
+            </div>
+          </div>
+
+          <!-- Grid de Insumos (renderizado por renderInsumos) -->
+          <div id="insumo-grid" class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 w-full" aria-label="Insumos"></div>
+        </div>
+      </section>
+
+      <!-- SCREEN: PERSONAL Y NÓMINAS -->
+      <section id="screen-personal" class="screen w-full max-w-full overflow-x-hidden" aria-label="Personal y Nóminas">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="personal-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Personal y Nóminas -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-200">
+          <div>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Personal y Nóminas</h1>
+            <p class="text-sm text-slate-500 mt-1">Empleados, roles, asistencias y pagos del equipo</p>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-turnos" type="button"
+                    class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">schedule</span> Gestión de Turnos
+            </button>
+            <button id="btn-toggle-all-turnos" type="button" data-enabled="false"
+                    class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">toggle_off</span>
+              <span>Habilitar Todos los Turnos</span>
+            </button>
+            <button id="btn-nuevo-empleado" type="button"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
+              <span class="material-symbols-outlined text-[18px]">person_add</span> Agregar Empleado
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo Personal -->
+        <div class="px-4 pt-3 pb-24 lg:px-6 lg:pb-6 space-y-4 w-full max-w-full min-w-0">
+          <!-- Contenedor del Directorio de Empleados (renderizado por renderPersonalTable) -->
+          <div id="personal-table-container" class="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div>
+                <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Directorio de Empleados</h3>
+                <p class="text-xs text-slate-500 mt-1">0 empleados registrados</p>
+              </div>
+              <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+                <span class="material-symbols-outlined text-[15px]">groups</span> Equipo
+              </span>
+            </div>
+            <div>
+              <table id="personal-table" class="employee-table w-full text-sm min-w-[600px]">
+                <thead>
+                  <tr>
+                    <th>Empleado</th>
+                    <th>Puesto</th>
+                    <th>Salario</th>
+                    <th>Teléfono</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CUENTA / DASHBOARD -->
+      <section id="screen-cuenta" class="screen w-full max-w-full overflow-x-hidden" aria-label="Caja actual y cierre">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="cuenta-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Cierre de Caja -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <div>
+              <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Cierre de Caja</h1>
+              <p class="text-sm text-slate-500 mt-1">Resumen de ventas, costos, utilidad e historial</p>
+            </div>
+            <span class="hidden lg:inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[#E8F1F1] text-[11px] font-bold text-[#006B6B]" id="cuenta-role-badge"></span>
+          </div>
+          <div class="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+            <button id="btn-venta-retroactiva" type="button" class="admin-only w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs py-2 px-3 rounded-xl bg-[#2A9D8F] text-white font-semibold active:scale-95 transition shadow-sm shadow-emerald-500/20">
+              <span class="material-symbols-outlined text-[18px]">history_toggle_off</span> Venta Retroactiva
+            </button>
+            <button id="btn-cerrar-caja" type="button" class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs py-2 px-3 rounded-xl bg-[#E63946] text-white font-semibold active:scale-95 transition shadow-sm shadow-red-500/20">
+              <span class="material-symbols-outlined text-[18px]">lock</span> Cerrar Caja
+            </button>
+          </div>
+        </header>
+
+        <!-- Cuerpo -->
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4" id="panel-reportes-cierre">
+
+          <!-- Filtros de Periodo -->
+          <div class="period-tabs flex items-center gap-1.5 overflow-x-auto whitespace-nowrap w-full pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button class="period-tab active" data-periodo="diario">Hoy</button>
+            <button class="period-tab" data-periodo="semanal">Semana</button>
+            <button class="period-tab" data-periodo="quincenal">Quincenal</button>
+            <button class="period-tab" data-periodo="mensual">Mes</button>
+          </div>
+
+          <!-- Summary Cards -->
+          <div id="cierre-summary" class="cierre-summary-grid grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 w-full">
+            <div class="cierre-card cierre-card--ingresos">
+              <span class="cc-icon ic-turquesa"><span class="material-symbols-outlined">payments</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Ingresos Totales</div>
+                <div class="cc-value" id="cc-ingresos">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--nomina">
+              <span class="cc-icon ic-rojo"><span class="material-symbols-outlined">groups</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Gastos Nómina</div>
+                <div class="cc-value" id="cc-nomina">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--insumos">
+              <span class="cc-icon ic-amarillo"><span class="material-symbols-outlined">inventory_2</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Costo Insumos</div>
+                <div class="cc-value" id="cc-insumos">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--gastos">
+              <span class="cc-icon ic-naranja"><span class="material-symbols-outlined">receipt_long</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Gastos Operativos</div>
+                <div class="cc-value" id="cc-gastos-op">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card">
+              <span class="cc-icon ic-rosa"><span class="material-symbols-outlined">percent</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Descuentos</div>
+                <div class="cc-value" id="cc-descuentos">C$0.00</div>
+              </div>
+            </div>
+            <div class="cierre-card cierre-card--utilidad">
+              <span class="cc-icon ic-verde"><span class="material-symbols-outlined">trending_up</span></span>
+              <div class="cc-body">
+                <div class="cc-label">Utilidad Neta</div>
+                <div class="cc-value" id="cc-utilidad">C$0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Period Info + Orders Count -->
+          <div class="cierre-meta" id="cierre-meta">
+            <span id="cierre-periodo-label"></span>
+            <span id="cierre-ordenes-info"></span>
+          </div>
+
+          <!-- Charts Row -->
+          <div id="cierre-charts" class="cierre-charts-row grid grid-cols-1 lg:grid-cols-2 gap-4 w-full min-w-0">
+            <div class="cierre-chart-box w-full overflow-hidden relative min-w-0">
+              <h4 class="cierre-chart-title">Distribución de Costos</h4>
+              <div class="cierre-chart-canvas-wrap">
+                <canvas id="chart-pie-costos" class="max-w-full w-full block"></canvas>
+              </div>
+            </div>
+            <div class="cierre-chart-box w-full overflow-hidden relative min-w-0">
+              <h4 class="cierre-chart-title">Top 5 Platillos Más Vendidos</h4>
+              <div class="cierre-chart-canvas-wrap">
+                <canvas id="chart-bar-platillos" class="max-w-full w-full block"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Platillos List -->
+          <div id="cierre-top-list"></div>
+
+          <!-- Historial de Órdenes del día -->
+          <div id="historial-ordenes" class="table-container overflow-x-auto bg-white rounded-2xl shadow-sm border border-slate-200 w-full min-w-0">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Historial de Órdenes</h3>
+              <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+                <span class="material-symbols-outlined text-[15px]">receipt_long</span> Caja abierta
+              </span>
+            </div>
+            <div id="historial-ordenes-list" class="p-1"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCREEN: GASTOS (Admin/Gerente) -->
+      <section id="screen-gastos" class="screen w-full max-w-full overflow-x-hidden" aria-label="Gestión de Gastos Operativos">
+        <!-- Topbar Móvil -->
+        <div class="flex items-center justify-between px-4 py-2.5 lg:hidden bg-white border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño Logo" class="restaurant-logo" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            <div class="min-w-0 leading-tight">
+              <p class="text-[13px] font-display font-extrabold text-brand-navy truncate">Sazón Caribeño</p>
+              <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EN LÍNEA
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 h-8 px-2.5 rounded-full bg-slate-100 text-[12px] font-bold text-brand-navy">
+              <span class="material-symbols-outlined text-[15px] text-slate-500">schedule</span><span id="gastos-clock-m">--:--</span>
+            </span>
+            <button class="material-symbols-outlined grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Buscar">search</button>
+            <button class="material-symbols-outlined relative grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-[18px]" type="button" aria-label="Notificaciones">notifications
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-coral"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header Gestión de Gastos -->
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="min-w-0">
+            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#0F3B66]">Módulo de Finanzas · Auditoría</span>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Gestión de Gastos Operativos</h1>
+            <p class="text-sm text-slate-500 mt-1">Registro, auditoría y control de compras y servicios del negocio</p>
+          </div>
+          <button id="btn-nuevo-gasto" type="button" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F3B66] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-blue-900/20">
+            <span class="material-symbols-outlined text-[18px]">add</span> Registrar Gasto
+          </button>
+        </header>
+
+        <!-- Cuerpo -->
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4 w-full min-w-0">
+          <!-- Resumen -->
+          <div class="grid grid-cols-1 xs:grid-cols-2 gap-3 w-full min-w-0">
+            <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="grid place-items-center w-9 h-9 rounded-xl bg-red-50 text-[#E63946] shrink-0"><span class="material-symbols-outlined text-[18px]">payments</span></span>
+                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total Hoy</span>
+              </div>
+              <p class="mt-2.5 font-display text-xl font-extrabold text-[#E63946] break-words" id="gasto-total-hoy">C$0.00</p>
+            </div>
+            <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="grid place-items-center w-9 h-9 rounded-xl bg-teal-50 text-[#006B6B] shrink-0"><span class="material-symbols-outlined text-[18px]">receipt_long</span></span>
+                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Movimientos</span>
+              </div>
+              <p class="mt-2.5 font-display text-xl font-extrabold text-brand-navy break-words" id="gasto-movimientos">0</p>
+            </div>
+          </div>
+
+          <!-- Filtros por categoría -->
+          <div id="gasto-cat-filters" class="flex items-center gap-2 overflow-x-auto pb-1 w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"></div>
+
+          <!-- Tabla de egresos -->
+          <div class="rounded-2xl bg-white border border-slate-100 overflow-x-auto shadow-sm w-full min-w-0">
+            <table id="gastos-table" class="w-full text-sm min-w-[600px]">
+              <thead>
+                <tr class="text-left text-[11px] font-bold uppercase tracking-wide text-slate-400 bg-slate-50">
+                  <th class="px-4 py-3">ID</th>
+                  <th class="px-4 py-3">Fecha</th>
+                  <th class="px-4 py-3">Categoría</th>
+                  <th class="px-4 py-3">Descripción</th>
+                  <th class="px-4 py-3 text-right">Monto</th>
+                  <th class="px-4 py-3">Registrado Por</th>
+                </tr>
+              </thead>
+              <tbody id="gastos-tbody">
+                <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CÁMARAS -->
+      <section id="screen-cameras" class="screen w-full max-w-full overflow-x-hidden" aria-label="Cámaras de seguridad">
+        <header class="screen-header camera-screen-header">
+          <div class="camera-hero-copy">
+            <span class="camera-hero-eyebrow"><span class="material-symbols-outlined">shield</span> SEGURIDAD DEL LOCAL</span>
+            <h1>Centro de cámaras</h1>
+            <p>Supervisa tus espacios en tiempo real y guarda los momentos importantes.</p>
+            <div class="camera-hero-note"><span class="material-symbols-outlined">lock</span> Conexión privada · Video sin audio · Clips por 7 días</div>
+          </div>
+          <div class="camera-hero-visual" aria-hidden="true">
+            <div class="camera-hero-orbit"></div>
+            <span class="material-symbols-outlined">videocam</span>
+            <span class="camera-hero-live"><i></i> MONITOREO</span>
+          </div>
+        </header>
+        <div class="camera-page">
+          <div class="camera-overview" aria-label="Resumen de cámaras">
+            <article class="camera-stat">
+              <span class="camera-stat-icon"><span class="material-symbols-outlined">videocam</span></span>
+              <div><span class="camera-stat-label">Cámaras registradas</span><strong id="camera-stat-total">—</strong></div>
+            </article>
+            <article class="camera-stat">
+              <span class="camera-stat-icon camera-stat-icon-green"><span class="material-symbols-outlined">sensors</span></span>
+              <div><span class="camera-stat-label">Cámaras activas</span><strong id="camera-stat-active">—</strong></div>
+            </article>
+            <article class="camera-stat">
+              <span class="camera-stat-icon camera-stat-icon-amber"><span class="material-symbols-outlined">movie</span></span>
+              <div><span class="camera-stat-label">Momentos guardados</span><strong id="camera-stat-clips">—</strong></div>
+            </article>
+          </div>
+          <div id="camera-storage-status" class="camera-storage-status admin-only" aria-live="polite"></div>
+          <section class="camera-management admin-only" aria-label="Administrar cámaras">
+            <div class="camera-section-heading">
+              <span class="camera-section-icon"><span class="material-symbols-outlined">tune</span></span>
+              <div>
+                <span class="camera-section-kicker">ADMINISTRACIÓN</span>
+                <h2 id="camera-form-title">Configurar una cámara</h2>
+                <p>Agrega todas las cámaras que necesites y asigna quién puede ver cada una.</p>
+              </div>
+            </div>
+            <form id="camera-form" class="camera-form">
+              <input id="camera-id" type="hidden">
+              <label>
+                <span>Nombre visible</span>
+                <input id="camera-name" type="text" maxlength="100" required placeholder="Ej. Entrada principal">
+              </label>
+              <label>
+                <span>Identificador del puente</span>
+                <input id="camera-slug" type="text" maxlength="50" pattern="[a-z0-9][a-z0-9_-]*" required placeholder="entrada-principal">
+              </label>
+              <div class="camera-form-actions">
+                <button type="submit" id="camera-submit" class="camera-primary-btn"><span class="material-symbols-outlined">add</span> Agregar cámara</button>
+                <button type="button" id="camera-cancel-edit" class="camera-secondary-btn" hidden>Cancelar</button>
+              </div>
+            </form>
+            <p class="camera-setup-hint"><span class="material-symbols-outlined">info</span><span>El identificador debe coincidir con la ruta de MediaMTX. No ingreses aquí contraseñas RTSP. <a href="docs/CAMARAS.md" target="_blank" rel="noopener">Ver guía de configuración</a></span></p>
+          </section>
+          <div class="camera-list-heading">
+            <div><span class="camera-section-kicker">MONITOREO</span><h2>Tus cámaras</h2></div>
+            <span class="camera-live-key"><i></i> Vista privada</span>
+          </div>
+          <div id="camera-grid" class="camera-grid" aria-live="polite">
+            <div class="camera-empty">Cargando cámaras…</div>
+          </div>
+        </div>
+        <div id="camera-clip-modal" class="modal-overlay" aria-label="Reproducir clip">
+          <div class="modal-sheet camera-clip-sheet">
+            <div class="modal-header">
+              <h3 class="modal-title" id="camera-clip-title">Clip guardado</h3>
+              <button type="button" class="modal-close" onclick="cerrarClipModal()" aria-label="Cerrar">✕</button>
+            </div>
+            <video id="camera-clip-player" controls playsinline></video>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN: CALENDARIO -->
+      <section id="screen-calendario" class="screen w-full max-w-full overflow-x-hidden" aria-label="Calendario de planificación">
+        <header class="screen-header calendar-screen-header">
+          <div>
+            <span class="calendar-eyebrow">Planificación del restaurante</span>
+            <h1>Calendario</h1>
+            <p>Disponibilidad de platillos, llegadas de insumos y asistencias registradas</p>
+            <p id="calendar-readonly-notice" class="calendar-readonly-notice" hidden>Vista de consulta: puedes ver los eventos, pero solo Administración y Gerencia pueden crearlos o modificarlos.</p>
+          </div>
+          <button id="btn-calendar-add" type="button" class="calendar-add-btn admin-only" data-roles="Administrador,Gerente">
+            <span class="material-symbols-outlined">add</span> Nuevo evento
+          </button>
+        </header>
+        <div class="calendar-page">
+          <div class="calendar-toolbar">
+            <div class="calendar-month-controls">
+              <button id="calendar-prev" type="button" aria-label="Mes anterior" class="calendar-nav-btn">‹</button>
+              <button id="calendar-today" type="button" class="calendar-today-btn">Hoy</button>
+              <button id="calendar-next" type="button" aria-label="Mes siguiente" class="calendar-nav-btn">›</button>
+              <h2 id="calendar-month-title"></h2>
+            </div>
+            <div class="calendar-legend" aria-label="Leyenda">
+              <span><i class="calendar-dot dish"></i> Platillo</span>
+              <span><i class="calendar-dot delivery"></i> Insumo</span>
+              <span><i class="calendar-dot attendance"></i> Asistencia</span>
+            </div>
+          </div>
+          <div id="calendar-summary" class="calendar-summary" aria-live="polite"></div>
+          <div id="calendar-selection-toolbar" class="calendar-selection-toolbar" hidden>
+            <div>
+              <strong id="calendar-selection-count">0 días seleccionados</strong>
+              <span>Mantén pulsado un día para iniciar; luego toca los demás días.</span>
+            </div>
+            <div class="calendar-selection-actions">
+              <button id="calendar-selection-clear" class="btn btn-secondary" type="button">Limpiar</button>
+              <button id="calendar-selection-cancel" class="btn btn-secondary" type="button">Cancelar</button>
+              <button id="calendar-selection-create" class="btn btn-primary admin-only" data-roles="Administrador,Gerente" type="button">Crear evento</button>
+            </div>
+          </div>
+          <div id="calendar-grid" class="calendar-grid" aria-live="polite">
+            <div class="calendar-loading">Cargando calendario…</div>
+          </div>
+          <section id="calendar-day-details" class="calendar-day-details" aria-live="polite" hidden>
+            <h3 id="calendar-day-title"></h3>
+            <div id="calendar-day-content"></div>
+          </section>
+          <p class="calendar-footnote">Las asistencias son registros reales y solo se muestran para consulta. Los eventos planificados no cambian automáticamente el menú ni el inventario.</p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="bottom-nav" id="bottom-nav" aria-label="Navegación móvil">
+      <a class="bottom-nav-item nav-item active" data-screen="salon">
+        <span class="material-symbols-outlined nav-icon">table_restaurant</span>
+        <span class="nav-label">Salón</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="comandero">
+        <span class="material-symbols-outlined nav-icon">soup_kitchen</span>
+        <span class="nav-label">Comandas</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="menu-view">
+        <span class="material-symbols-outlined nav-icon">restaurant_menu</span>
+        <span class="nav-label">Carta</span>
+      </a>
+      <a class="bottom-nav-item nav-item" data-screen="cuenta">
+        <span class="material-symbols-outlined nav-icon">point_of_sale</span>
+        <span class="nav-label">Caja</span>
+      </a>
+      <a class="bottom-nav-item bottom-nav-more" id="bottom-nav-more">
+        <span class="material-symbols-outlined nav-icon">menu</span>
+        <span class="nav-label">Más</span>
+      </a>
+    </nav>
+  </div>
+
+  <!-- =================================================================
+       MODALS
+       ================================================================= -->
+
+  <!-- Modal: Crear/Editar Platillo -->
+  <div id="modal-dish" class="modal-overlay" aria-label="Formulario de platillo">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dish-modal-title">Nuevo Platillo</h3>
+        <button class="modal-close" id="close-dish-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="dish-form" novalidate>
+        <input type="hidden" id="dish-id">
+        <div class="form-group">
+          <label class="form-label" for="dish-name">Nombre</label>
+          <input type="text" id="dish-name" class="form-input" placeholder="Ej: Arroz con Camarón" required>
+        </div>
+          <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="dish-price">Precio (C$)</label>
+            <input type="number" id="dish-price" class="form-input" step="0.01" min="0.01" placeholder="15.99" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dish-category">Categoría</label>
+            <div style="display:flex;gap:6px;">
+              <select id="dish-category" class="form-input" style="flex:1;" required>
+                <option value="">Seleccionar…</option>
+              </select>
+              <button type="button" class="btn btn-secondary" id="btn-toggle-cat-panel" title="Administrar categorías" style="padding:0 10px;font-size:16px;height:38px;">⚙️</button>
+            </div>
+          </div>
+        </div>
+        <!-- Panel de Gestión de Categorías (colapsable) -->
+        <div id="cat-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Categorías</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input type="text" id="cat-nueva-nombre" class="form-input" placeholder="Nombre de la nueva categoría…" style="flex:1;height:36px;font-size:13px;">
+            <button class="btn btn-turquoise" id="btn-guardar-cat" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;">+ Guardar</button>
+          </div>
+          <div id="cat-list" style="max-height:160px;overflow-y:auto;"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dish-desc">Descripción</label>
+          <input type="text" id="dish-desc" class="form-input" placeholder="Descripción del plato">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dish-prep-time">Tiempo de preparación (min)</label>
+          <input type="number" id="dish-prep-time" class="form-input" min="1" max="600" placeholder="Ej: 15" title="Se muestra en la Carta Digital">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dish-image">Imagen del plato</label>
+          <input type="file" id="dish-image" class="form-input" accept="image/png,image/jpeg,image/webp,image/gif" style="padding:6px;">
+          <div style="margin-top:8px;">
+            <img id="dish-image-preview" alt="Vista previa de la imagen del plato" style="display:none;width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
+            <div id="dish-image-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">Se comprime en el navegador (WebP). Si no eliges imagen se usará el placeholder.</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <div class="toggle-row">
+            <button type="button" class="toggle-btn active" id="dish-active-btn" data-val="true">✅ Activo</button>
+            <button type="button" class="toggle-btn" id="dish-inactive-btn" data-val="false">🚫 Inactivo</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label class="form-label" style="font-weight:700;">🧾 Receta / Ingredientes</label>
+          <div id="dish-recipe-rows"></div>
+          <button type="button" class="btn btn-secondary" id="btn-add-recipe-row" style="margin-top:6px;font-size:13px;padding:6px 12px;">➕ Añadir Ingrediente</button>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-dish-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-dish-btn" style="flex:1;">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ajustar Stock -->
+  <div id="modal-stock" class="modal-overlay" aria-label="Ajustar stock">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="stock-modal-title">Ajustar Stock</h3>
+        <button class="modal-close" id="close-stock-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="period-tabs" id="stock-tabs">
+        <button type="button" class="period-tab active" data-stock-tab="movimiento">Movimiento</button>
+        <button type="button" class="period-tab" data-stock-tab="detalles">Detalles</button>
+      </div>
+
+      <div id="stock-tab-movimiento" class="stock-tab-panel">
+        <form id="stock-form" novalidate>
+          <input type="hidden" id="stock-insumo-id">
+          <input type="hidden" id="stock-insumo-unidad-base-id">
+          <input type="hidden" id="stock-insumo-empaque-id">
+          <input type="hidden" id="stock-insumo-factor-empaque">
+          <div class="stock-info" id="stock-info"></div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Movimiento</label>
+            <div class="toggle-row">
+              <button type="button" class="toggle-btn toggle-entrada active" id="stock-entrada-btn" data-val="ENTRADA">📥 Entrada</button>
+              <button type="button" class="toggle-btn toggle-salida" id="stock-salida-btn" data-val="SALIDA">📤 Salida</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="stock-qty">Cantidad</label>
+              <input type="number" id="stock-qty" class="form-input" step="0.01" min="0.01" placeholder="25.00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="stock-mov-unidad">Unidad</label>
+              <select id="stock-mov-unidad" class="form-input"></select>
+            </div>
+          </div>
+          <div id="stock-conversion-preview" class="conversion-preview" style="display:none;"></div>
+          <div class="form-group">
+            <label class="form-label" for="stock-motivo">Motivo</label>
+            <input type="text" id="stock-motivo" class="form-input" placeholder="Compra a proveedor" value="Ajuste de inventario">
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="cancel-stock-modal" style="flex:1;">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="save-stock-btn" style="flex:1;">Confirmar</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="stock-tab-detalles" class="stock-tab-panel" style="display:none;">
+        <form id="stock-details-form" novalidate>
+          <input type="hidden" id="stock-detalles-insumo-id">
+          <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <div class="select-with-gear">
+              <select id="stock-cat-select" class="form-select"></select>
+              <button type="button" class="icon-btn-sm" id="stock-cat-toggle" title="Nueva categoría">⚙️</button>
+            </div>
+            <div id="stock-cat-panel" class="inline-subpanel" style="display:none;">
+              <input type="text" id="stock-cat-nombre" class="form-input" placeholder="Nombre categoría">
+              <div class="form-actions" style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="stock-cat-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="stock-cat-save">Guardar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad de Uso / Receta <span style="font-weight:normal;font-size:12px;color:var(--text-muted);">(Ej: Gramos, Unidades, Onzas)</span></label>
+            <div class="select-with-gear">
+              <select id="stock-unidad-select" class="form-select"></select>
+              <button type="button" class="icon-btn-sm" id="stock-unidad-toggle" title="Nueva unidad">⚙️</button>
+            </div>
+            <div id="stock-unidad-panel" class="inline-subpanel" style="display:none;">
+              <input type="text" id="stock-unidad-nombre" class="form-input" placeholder="Nombre (ej: Kilogramo)">
+              <input type="text" id="stock-unidad-abrev" class="form-input" placeholder="Abreviatura (ej: kg)" style="margin-top:6px;">
+              <div class="form-actions" style="display:flex; gap:6px; margin-top:6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="stock-unidad-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="stock-unidad-save">Guardar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="stock-minimo">Stock Mínimo</label>
+            <input type="number" id="stock-minimo" class="form-input" step="0.01" min="0" placeholder="5.00">
+          </div>
+          <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;" id="stock-empaque-section">
+            <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Presentación de Compra (opcional)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="stock-empaque-select">Se compra por (Empaque)</label>
+                <select id="stock-empaque-select" class="form-input">
+                  <option value="">Sin empaque</option>
+                </select>
+              </div>
+              <div class="form-group" id="stock-empaque-factor-group">
+                <label class="form-label" for="stock-empaque-factor">¿Cuánto trae cada empaque?</label>
+                <input type="number" id="stock-empaque-factor" class="form-input" step="0.01" min="0" placeholder="Ej: 5">
+              </div>
+            </div>
+            <div id="stock-details-empaque-preview" class="conversion-preview" style="display:none;"></div>
+            <div id="stock-details-empaque-helper" class="conversion-preview" style="display:none;color:var(--turquesa-ola);font-weight:500;"></div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary stock-cancel-details" style="flex:1;">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="save-stock-details-btn" style="flex:1;">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Equivalencia de Unidad (cambio de unidad base) -->
+  <div id="modal-unit-equiv" class="modal-overlay" aria-label="Equivalencia de unidad">
+    <div class="modal-sheet" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Cambio de Unidad Base</h3>
+        <button class="modal-close" onclick="closeUnitEquivModal()" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:16px;">
+        <p style="font-size:14px;color:#374151;margin-bottom:12px;line-height:1.5;">
+          Está cambiando la unidad base del insumo. Para actualizar las existencias y recetas correctamente, indique la equivalencia:
+        </p>
+        <p style="font-size:14px;font-weight:700;color:var(--azul-marino);margin-bottom:16px;" id="unit-equiv-question"></p>
+        <div class="form-group">
+          <label class="form-label" for="unit-equiv-factor">Factor de conversión</label>
+          <input type="number" id="unit-equiv-factor" class="form-input" step="0.0001" min="0.0001" placeholder="Ej: 5" style="font-size:18px;text-align:center;">
+        </div>
+        <p style="font-size:12px;color:#6b7280;margin-top:4px;" id="unit-equiv-hint"></p>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn btn-secondary" onclick="cancelUnitEquiv()" style="flex:1;">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmUnitEquiv()" style="flex:1;">Convertir y Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestión de Unidades de Medida -->
+  <div id="modal-unidades" class="modal-overlay" aria-label="Gestión de unidades de medida">
+    <div class="modal-sheet" style="max-width:640px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="unidades-modal-title">Unidades de Medida</h3>
+        <button class="modal-close" id="close-unidades-modal" aria-label="Cerrar">✕</button>
+      </div>
+
+      <!-- Panel Lista -->
+      <div id="unidades-list-panel">
+        <div class="form-actions" style="justify-content:flex-end;margin-bottom:12px;">
+          <button class="btn btn-turquoise btn-sm" id="btn-create-unidad" style="height:36px;padding:0 14px;font-size:13px;">+ Nueva Unidad</button>
+        </div>
+        <div id="unidades-table-wrapper">
+          <table class="unidades-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Abrev.</th>
+                <th>Magnitud</th>
+                <th>Base</th>
+                <th>Equivalencia / Contenido</th>
+                <th style="width:80px;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="unidades-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Panel Crear/Editar -->
+      <div id="unidades-form-panel" style="display:none;">
+        <input type="hidden" id="unidad-edit-id">
+        <div class="form-group">
+          <label class="form-label" for="unidad-form-nombre">Nombre</label>
+          <input type="text" id="unidad-form-nombre" class="form-input" placeholder="Ej: Bolsa 5lb" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="unidad-form-abrev">Abreviatura</label>
+            <input type="text" id="unidad-form-abrev" class="form-input" placeholder="Ej: b5lb" maxlength="10" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="unidad-form-magnitud">Tipo de Magnitud</label>
+            <select id="unidad-form-magnitud" class="form-input">
+              <option value="PESO">⚖️ Peso</option>
+              <option value="VOLUMEN">🧪 Volumen</option>
+              <option value="UNIDAD" selected>📦 Unidad</option>
+              <option value="PERSONALIZADO">✏️ Personalizado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="unidad-derivada-toggle">
+            <input type="checkbox" id="unidad-form-derivada">
+            <span>¿Es una unidad derivada/convertible?</span>
+          </label>
+        </div>
+        <div id="unidad-conversion-fields" style="display:none;">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="unidad-form-base">Unidad Base</label>
+              <select id="unidad-form-base" class="form-input">
+                <option value="">Seleccionar base...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="unidad-form-factor">Factor de Conversión</label>
+              <input type="number" id="unidad-form-factor" class="form-input" step="0.001" min="0.001" placeholder="Ej: 1000">
+            </div>
+          </div>
+          <div id="unidad-conversion-preview" class="conversion-preview"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-unidad-form" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="save-unidad-form" style="flex:1;">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Insumo -->
+  <div id="modal-insumo" class="modal-overlay" aria-label="Formulario de insumo">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title">Nuevo Insumo</h3>
+        <button class="modal-close" id="close-insumo-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="insumo-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="insumo-name">Nombre</label>
+          <input type="text" id="insumo-name" class="form-input" placeholder="Ej: Servilletas" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="insumo-qty">Cantidad Inicial</label>
+            <input type="number" id="insumo-qty" class="form-input" step="0.01" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <label class="form-label" for="insumo-unit" style="flex:1;">Unidad</label>
+              <button type="button" class="icon-btn-sm" id="btn-toggle-unidad-panel" title="Gestionar unidades">⚙️</button>
+            </div>
+            <select id="insumo-unit" class="form-input" required></select>
+            <div id="unidad-panel" class="inline-subpanel" style="display:none;">
+              <div class="form-row" style="gap:4px;">
+                <input type="text" id="new-unidad-nombre" class="form-input" placeholder="Nombre" style="flex:1;">
+                <input type="text" id="new-unidad-abrev" class="form-input" placeholder="Abrev." style="width:60px;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-save-unidad" style="font-size:12px;padding:4px 8px;">+</button>
+              </div>
+              <div id="unidad-list" class="inline-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <label class="form-label" for="insumo-cat" style="flex:1;">Categoría</label>
+            <button type="button" class="icon-btn-sm" id="btn-toggle-cat-insumo-panel" title="Gestionar categorías">⚙️</button>
+          </div>
+          <select id="insumo-cat" class="form-input">
+            <option value="">Sin categoría</option>
+          </select>
+          <div id="cat-insumo-panel" class="inline-subpanel" style="display:none;">
+            <div class="form-row" style="gap:4px;">
+              <input type="text" id="new-cat-insumo-nombre" class="form-input" placeholder="Nueva categoría" style="flex:1;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-save-cat-insumo" style="font-size:12px;padding:4px 8px;">+</button>
+            </div>
+            <div id="cat-insumo-list" class="inline-list"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="insumo-min">Stock Mínimo</label>
+          <input type="number" id="insumo-min" class="form-input" step="0.01" min="0.01" value="5">
+        </div>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;" id="insumo-empaque-section">
+          <div class="form-label" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Presentación de Compra (opcional)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="insumo-empaque-unit">Se compra por (Empaque)</label>
+              <select id="insumo-empaque-unit" class="form-input">
+                <option value="">Sin empaque</option>
+              </select>
+            </div>
+            <div class="form-group" id="insumo-empaque-factor-group">
+              <label class="form-label" for="insumo-empaque-factor">¿Cuánto trae cada empaque?</label>
+              <input type="number" id="insumo-empaque-factor" class="form-input" step="0.01" min="0" placeholder="Ej: 5" disabled>
+            </div>
+          </div>
+          <div id="insumo-empaque-preview" class="conversion-preview" style="display:none;"></div>
+          <div id="insumo-empaque-helper" class="conversion-preview" style="display:none;color:var(--turquesa-ola);font-weight:500;"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-insumo-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Crear Insumo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Tomar Comanda -->
+  <div id="modal-order" class="modal-overlay" aria-label="Tomar comanda">
+    <div class="modal-sheet" style="max-width:920px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">Nueva Comanda — <span id="order-modal-mesa"></span></h3>
+        <button class="modal-close" id="close-order-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="display:none;padding:0 16px 8px;" id="order-modal-cliente-row">
+        <input type="text" id="order-modal-cliente" class="form-input" placeholder="Nombre del cliente (opcional)" style="height:36px;font-size:13px;">
+      </div>
+      <div style="flex:1;display:flex;gap:0;overflow:hidden;">
+        <!-- Left: Menú + buscador -->
+        <div style="flex:2;display:flex;flex-direction:column;overflow:hidden;padding:0 16px;">
+          <input type="text" id="order-modal-search" placeholder="🔍 Buscar platillo…" class="form-input" style="margin:8px 0;height:36px;font-size:13px;">
+          <div id="order-modal-categories" class="category-tabs" role="tablist" style="margin-bottom:8px;flex-shrink:0;"></div>
+          <div id="order-modal-menu" class="menu-grid" style="grid-template-columns:1fr;overflow-y:auto;flex:1;padding-bottom:8px;"></div>
+        </div>
+        <!-- Right: Carrito / Resumen -->
+        <div style="flex:1;display:flex;flex-direction:column;border-left:1px solid #e5e7eb;padding:12px 16px;overflow:hidden;min-width:240px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🛒 Resumen</div>
+          <div id="order-modal-cart" style="flex:1;overflow-y:auto;margin-bottom:8px;"></div>
+          <div style="border-top:1px solid #e5e7eb;padding-top:8px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="caption">Ítems</span>
+              <span class="caption" id="order-modal-count">0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="caption">Subtotal</span>
+              <span class="price" id="order-modal-subtotal">C$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:var(--rojo-cangrejo);display:none;" id="order-modal-descuento-row">
+              <span class="caption">Descuento</span>
+              <span class="price" id="order-modal-descuento" style="color:var(--rojo-cangrejo);">-C$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-weight:700;color:var(--azul-marino);">Total</span>
+              <span class="price-lg" style="color:var(--azul-marino);" id="order-modal-total">C$0.00</span>
+            </div>
+            <div style="display:none;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--turquesa-ola);" id="order-modal-cobrar-row">
+              <input type="checkbox" id="order-modal-cobrar-now" checked style="accent-color:var(--turquesa-ola);width:16px;height:16px;cursor:pointer;">
+              <label for="order-modal-cobrar-now" style="cursor:pointer;user-select:none;">✅ Cobrar ahora (elegir método de pago)</label>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" id="cancel-order-modal" style="flex:1;">Cancelar</button>
+              <button class="btn btn-primary" id="confirm-order-modal" style="flex:2;">📤 Confirmar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Detalle Mesa Ocupada -->
+  <div id="modal-detalle-mesa-ocupada" class="modal-overlay" aria-label="Detalle de mesa ocupada">
+    <div class="modal-sheet" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔴 Mesa <span id="oc-mesa-numero"></span> — Orden #<span id="oc-orden-id"></span></h3>
+        <button class="modal-close" id="close-detalle-mesa-ocupada" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <!-- Apodo temporal de la mesa -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span class="caption" style="white-space:nowrap;">👤 Apodo</span>
+          <input type="text" id="oc-apodo-input" class="form-input" maxlength="100" placeholder="Ej: Cliente movido a esta mesa (Juan)" style="flex:1;height:34px;font-size:12px;">
+          <button class="btn btn-turquoise" id="btn-save-apodo" style="height:34px;padding:0 14px;font-size:12px;white-space:nowrap;">Guardar</button>
+        </div>
+        <div id="oc-items-list" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="caption">Subtotal</span>
+            <span class="price" id="oc-subtotal">C$0.00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;display:none;" id="oc-descuento-row">
+            <span class="caption">Descuento</span>
+            <span class="price" style="color:var(--rojo-cangrejo);" id="oc-descuento">-C$0.00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-weight:700;color:var(--azul-marino);">Total</span>
+            <span class="price-lg" style="color:var(--azul-marino);" id="oc-total">C$0.00</span>
+          </div>
+        </div>
+        <!-- Discount Controls -->
+        <div style="margin-bottom:12px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#f8fafc;">
+          <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--azul-marino);">🏷️ Aplicar Descuento</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="oc-discount-type" class="form-input" style="flex:1;height:34px;font-size:12px;">
+              <option value="porcentaje">% Porcentaje</option>
+              <option value="monto">C$ Monto Fijo</option>
+            </select>
+            <input type="number" id="oc-discount-value" class="form-input" style="width:80px;height:34px;font-size:12px;" step="0.01" min="0.01" placeholder="10">
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="oc-discount-target" class="form-input" style="flex:1;height:34px;font-size:12px;">
+              <option value="global">🌐 Toda la orden</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="oc-discount-motivo" class="form-input" style="flex:1;height:34px;font-size:12px;" placeholder="Motivo (opcional)">
+            <button class="btn btn-turquoise" id="btn-aplicar-descuento" style="height:34px;padding:0 12px;font-size:12px;white-space:nowrap;">Aplicar</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="btn-agregar-pedido" style="flex:1;">➕ Agregar al Pedido</button>
+          <button class="btn btn-secondary" id="btn-pre-cuenta" style="flex:1;">🧾 Pre-Cuenta</button>
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:#fff;padding:12px;font-weight:700;border-radius:10px;">💰 Cerrar Cuenta y Liberar Mesa</button>
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:#000;padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Método de pago -->
+  <div id="modal-metodo-pago" class="modal-overlay" aria-label="Método de pago">
+    <div class="modal-sheet payment-method-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title">💳 Método de pago</h3>
+        <button class="modal-close" id="close-metodo-pago" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="payment-method-content">
+        <p class="payment-method-total">
+          Total de la orden: <strong id="payment-order-total">C$0.00</strong>
+        </p>
+        <button type="button" class="payment-method-option" id="btn-pago-local">
+          <span class="payment-method-icon" aria-hidden="true">🏪</span>
+          <span class="payment-method-copy">
+            <strong>Pago recibido en el local</strong>
+            <small>Efectivo o terminal externa. Registra la orden como pagada.</small>
+          </span>
+        </button>
+        <button type="button" class="payment-method-option payment-method-option-online" id="btn-pago-online" disabled>
+          <span class="payment-method-icon" aria-hidden="true">🌐</span>
+          <span class="payment-method-copy">
+            <strong>Pago en línea</strong>
+            <small id="payment-online-status">Verificando disponibilidad…</small>
+          </span>
+        </button>
+        <button type="button" class="btn btn-secondary payment-method-cancel" id="cancel-metodo-pago">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Pre-Cuenta (Ticket) -->
+  <div id="modal-pre-cuenta" class="modal-overlay" aria-label="Pre-cuenta">
+    <div class="modal-sheet" style="max-width:380px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🧾 Pre-Cuenta</h3>
+        <button class="modal-close" id="close-pre-cuenta" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <div id="pre-cuenta-content" style="background:#f8fafc;border:1px dashed #d1d5db;border-radius:12px;padding:20px;font-family:monospace;font-size:13px;"></div>
+        <div style="text-align:center;margin-top:16px;">
+          <button class="btn btn-secondary" id="close-pre-cuenta-btn" style="padding:10px 24px;">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestionar Mesas -->
+  <div id="modal-gestion-mesas" class="modal-overlay" aria-label="Gestionar mesas">
+    <div class="modal-sheet" style="max-width:800px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Gestionar Mesas</h3>
+        <button class="modal-close" id="close-gestion-mesas" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 16px 16px;">
+        <!-- Formulario crear/editar mesa -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;" id="gestion-form-title">Nueva Mesa</div>
+          <input type="hidden" id="gestion-mesa-id">
+          <div class="grid grid-cols-1 xs:grid-cols-3 gap-2 w-full">
+            <div>
+              <label class="label" for="gestion-mesa-numero">Número</label>
+              <input type="number" id="gestion-mesa-numero" class="form-input w-full" min="1" placeholder="Ej: 5">
+            </div>
+            <div>
+              <label class="label" for="gestion-mesa-capacidad">Capacidad</label>
+              <input type="number" id="gestion-mesa-capacidad" class="form-input w-full" min="1" value="4">
+            </div>
+            <div>
+              <label class="label" for="gestion-mesa-zona">Zona</label>
+              <div class="flex w-full min-w-0 gap-1.5">
+                <select id="gestion-mesa-zona" class="form-input" style="flex:1;min-width:0;"></select>
+                <button type="button" class="btn btn-secondary" id="btn-toggle-zonas-panel" title="Administrar zonas" style="padding:0 10px;font-size:16px;height:38px;flex-shrink:0;">⚙️</button>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-col xs:flex-row gap-2 mt-2.5 w-full">
+            <button class="btn btn-primary w-full xs:flex-1" id="gestion-guardar-mesa">💾 Guardar</button>
+            <button class="btn btn-secondary xs:w-auto" id="gestion-cancelar-edicion" style="display:none;">Cancelar</button>
+          </div>
+        </div>
+
+        <!-- Panel de Gestión de Zonas (colapsable) -->
+        <div id="zonas-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Zonas</div>
+          <div class="flex w-full min-w-0 gap-2 mb-2.5">
+            <input type="text" id="zona-nueva-nombre" class="form-input" placeholder="Nombre de la nueva zona…" style="flex:1;min-width:0;height:36px;font-size:13px;">
+            <button class="btn btn-turquoise" id="btn-guardar-zona" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;flex-shrink:0;">+ Guardar</button>
+          </div>
+          <div id="zonas-list" style="max-height:160px;overflow-y:auto;"></div>
+        </div>
+
+        <!-- Lista de mesas existentes -->
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Mesas Existentes</div>
+        <div id="gestion-mesas-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Empleado -->
+  <div id="modal-nuevo-empleado" class="modal-overlay" aria-label="Agregar nuevo empleado">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Nuevo Empleado</h3>
+        <button class="modal-close" id="close-nuevo-empleado" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="nuevo-empleado-form" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ne-nombre">Nombre</label>
+            <input type="text" id="ne-nombre" class="form-input" placeholder="Juan" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ne-apellido">Apellido</label>
+            <input type="text" id="ne-apellido" class="form-input" placeholder="Pérez" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-cedula">Cédula de Identidad</label>
+          <input type="text" id="ne-cedula" class="form-input" placeholder="12345678" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-telefono">Teléfono</label>
+          <input type="text" id="ne-telefono" class="form-input" placeholder="3001234567">
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <label class="form-label" for="ne-puesto" style="flex:1;">Puesto</label>
+            <button type="button" class="icon-btn-sm" id="btn-toggle-puesto-panel" title="Crear puesto">⚙️</button>
+          </div>
+          <select id="ne-puesto" class="form-input" required>
+            <option value="">Seleccionar puesto…</option>
+          </select>
+          <div id="puesto-panel" class="inline-subpanel" style="display:none;">
+            <div class="form-group" style="margin-bottom:6px;">
+              <input type="text" id="new-puesto-nombre" class="form-input" placeholder="Nombre del puesto" style="font-size:13px;">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-puesto" style="width:100%;font-size:12px;padding:5px 0;">Guardar Puesto</button>
+          </div>
+         </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-salario">Salario Base (C$)</label>
+          <input type="number" id="ne-salario" class="form-input" step="0.01" min="0.01" placeholder="1500.00" required>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;margin:12px 0;padding-top:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#374151;">Credenciales de Acceso</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-username">Nombre de Usuario</label>
+          <input type="text" id="ne-username" class="form-input" placeholder="jperez" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-password">Contraseña Temporal</label>
+          <input type="password" id="ne-password" class="form-input" placeholder="Mínimo 6 caracteres; máximo 72 bytes" required>
+          <small>El límite es de 72 bytes UTF-8; los caracteres acentuados pueden ocupar más de un byte.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ne-rol">Rol</label>
+          <select id="ne-rol" class="form-input" required>
+            <option value="">Seleccionar rol…</option>
+            <option value="Administrador">Administrador</option>
+            <option value="Gerente">Gerente</option>
+            <option value="Vendedor">Vendedor</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-nuevo-empleado" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Crear Empleado y Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Restablecer Contraseña -->
+  <div id="modal-reset-password" class="modal-overlay" aria-label="Restablecer contraseña">
+    <div class="modal-sheet" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Restablecer Contraseña</h3>
+        <button class="modal-close" id="close-reset-password" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#6b7280;margin-bottom:12px;">
+          Establece una nueva contraseña temporal para <strong id="reset-pwd-username"></strong>.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="reset-pwd-new">Nueva Contraseña</label>
+          <input type="password" id="reset-pwd-new" class="form-input" placeholder="Mínimo 6 caracteres; máximo 72 bytes" required>
+          <small>El límite es de 72 bytes UTF-8; los caracteres acentuados pueden ocupar más de un byte.</small>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-reset-password" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-reset-password" style="flex:1;">Guardar Contraseña</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Dar de Baja Empleado -->
+  <div id="modal-eliminar-empleado" class="modal-overlay" aria-label="Dar de baja empleado">
+    <div class="modal-sheet" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Dar de Baja Empleado</h3>
+        <button class="modal-close" id="close-eliminar-empleado" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#374151;margin-bottom:12px;">
+          ¿Estás seguro de que deseas eliminar/desactivar al empleado <strong id="baja-empleado-nombre"></strong>?
+        </p>
+        <div style="padding:10px 12px;background:#fdf2f2;border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:#b91c1c;margin-bottom:14px;">
+          El empleado quedará en estado <strong>Inactivo</strong> y su usuario ya no podrá iniciar sesión. Su historial de asistencias y nóminas se conservará.
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="baja-empleado-password">Contraseña (Autorización)</label>
+          <input type="password" id="baja-empleado-password" class="form-input" placeholder="Tu contraseña actual" required autocomplete="off">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-eliminar-empleado" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-eliminar-empleado" style="flex:1;">Dar de Baja</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Eliminar Usuario -->
+  <div id="modal-eliminar-usuario" class="modal-overlay" aria-label="Eliminar usuario">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Eliminar Usuario</h3>
+        <button class="modal-close" id="close-eliminar-usuario" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#374151;margin-bottom:12px;">
+          ¿Estás seguro de que deseas eliminar al usuario <strong id="eliminar-usuario-username"></strong>
+          (<strong id="eliminar-usuario-nombre"></strong>)?
+        </p>
+        <div style="padding:10px 12px;background:#fdf2f2;border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:#b91c1c;margin-bottom:14px;">
+          <strong>Sin registros asociados:</strong> el usuario y su empleado se borrarán permanentemente.<br>
+          <strong>Con registros contables:</strong> se conservarán archivados (username y cédula renombrados) y quedarán disponibles para recontratar.
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="eliminar-usuario-password">Contraseña (Autorización)</label>
+          <input type="password" id="eliminar-usuario-password" class="form-input" placeholder="Tu contraseña actual" required autocomplete="off">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-eliminar-usuario" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-eliminar-usuario" style="flex:1;">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestión de Turnos -->
+  <div id="modal-turnos" class="modal-overlay" aria-label="Gestión de turnos">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⏱️ Gestión de Turnos</h3>
+        <button class="modal-close" id="close-turnos-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:0 20px 20px;">
+        <div id="turnos-table-container" style="margin-bottom:16px;"></div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--text-secondary);" id="turno-form-title">Nuevo Turno</div>
+          <input type="hidden" id="turno-edit-id" value="">
+          <div class="form-row">
+            <div class="form-group" style="flex:2;">
+              <label class="form-label" for="turno-nombre">Nombre</label>
+              <input type="text" id="turno-nombre" class="form-input" placeholder="Ej: Vespertino" required>
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label" for="turno-horas">Horas</label>
+              <input type="number" id="turno-horas" class="form-input" value="8" min="1" step="1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="turno-entrada">Hora Entrada</label>
+              <input type="time" id="turno-entrada" class="form-input" value="08:00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="turno-salida">Hora Salida <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(calculada)</span></label>
+              <input type="time" id="turno-salida" class="form-input" value="16:00" readonly style="background:var(--bg-secondary);color:var(--text-muted);cursor:not-allowed;">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="turno-cancel-edit" style="flex:1;display:none;">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="turno-save-btn" style="flex:1;">Crear Turno</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Preparación de Cocina -->
+  <div id="modal-preparacion" class="modal-overlay" aria-label="Preparación de cocina">
+    <div class="modal-sheet" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">🍳 Producción del Día</h3>
+        <button class="modal-close" id="close-preparacion" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:14px;">
+          Selecciona los insumos y cantidades consumidos en la producción de hoy. El stock se descontará automáticamente.
+        </p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px;">
+          <label class="toggle-switch" style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;">
+            <input type="checkbox" id="prep-lote-toggle" style="opacity:0;width:0;height:0;">
+            <span class="slider" style="position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:20px;transition:.3s;"></span>
+          </label>
+          <span style="font-size:13px;color:#374151;">Solo ingredientes de Lote</span>
+        </div>
+        <div id="preparacion-rows"></div>
+        <button type="button" class="btn btn-secondary" id="btn-add-prep-row" style="margin-top:8px;font-size:13px;padding:6px 12px;">➕ Agregar Insumo</button>
+        <div class="form-group" style="margin-top:14px;">
+          <label class="form-label" for="prep-notas">Notas (opcional)</label>
+          <textarea id="prep-notas" class="form-input" rows="2" placeholder="Ej: Producción matutina de tajadas y ensaladas…" style="resize:vertical;"></textarea>
+        </div>
+        <div style="margin-top:14px;padding:10px;background:#f0fdfa;border-radius:8px;font-size:13px;color:#374151;" id="prep-summary">Total insumos: 0</div>
+        <div class="form-actions" style="margin-top:14px;">
+          <button type="button" class="btn btn-secondary" id="cancel-preparacion" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-preparacion" style="flex:1;">Registrar Producción</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Asistencias del Empleado -->
+  <div id="modal-asistencias" class="modal-overlay" aria-label="Asistencias del empleado">
+    <div class="modal-sheet" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕒 Asistencias — <span id="asis-employee-name"></span></h3>
+        <button class="modal-close" id="close-asistencias" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+        <div id="asis-table-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Anular Asistencia -->
+  <div id="modal-anular-asistencia" class="modal-overlay" aria-label="Anular asistencia">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Eliminar/Anular Registro de Asistencia</h3>
+        <button class="modal-close" id="close-anular-asistencia" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:16px;">
+          ¿Estás seguro de que deseas eliminar este registro de asistencia
+          (<strong>#<span id="anular-asis-id"></span></strong> — <span id="anular-asis-fecha"></span>)?
+          Esta acción recalculará o descartará las horas para la nómina.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:#E63946;">*</span></label>
+          <input type="text" id="anular-asis-motivo" class="form-input" maxlength="500"
+                 placeholder="Ej: Asistencia duplicada al iniciar turno dos veces" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El motivo queda registrado para auditoría. El registro se conserva en el historial marcado como anulado.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-anular-asistencia" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-anular-asistencia" style="flex:1;">Eliminar Registro</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Horas Extras -->
+  <div id="modal-edit-ot" class="modal-overlay" aria-label="Editar horas extras">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕒 Editar Horas Extras</h3>
+        <button class="modal-close" id="close-edit-ot" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+          Asistencia del <strong id="edit-ot-fecha"></strong> — Actual: <strong id="edit-ot-current"></strong>h
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="edit-ot-valor">Nuevas Horas Extras</label>
+          <input type="number" id="edit-ot-valor" class="form-input" step="0.01" min="0" placeholder="2.50" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <textarea id="edit-ot-motivo" class="form-input" rows="3" placeholder="Ej: Turno extendido autorizado por gerente…" required style="resize:vertical;"></textarea>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-edit-ot" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-edit-ot" style="flex:1;" disabled>Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Horarios de Asistencia -->
+  <div id="modal-editar-horarios" class="modal-overlay" aria-label="Editar horarios de asistencia">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕐 Editar Horarios</h3>
+        <button class="modal-close" id="close-editar-horarios" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+          Asistencia del <strong id="editar-horarios-fecha"></strong> — Empleado: <strong id="editar-horarios-empleado"></strong>
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:#E63946;">*</span></label>
+          <input type="datetime-local" id="editar-hora-entrada" class="form-input" required>
+          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editar-hora-salida">Fecha y Hora de Salida (Local)</label>
+          <input type="datetime-local" id="editar-hora-salida" class="form-input">
+          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado. Para turnos nocturnos, elige la fecha del día siguiente (ej. salida a las 3:00 AM → día siguiente).</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <textarea id="editar-horarios-motivo" class="form-input" rows="3" placeholder="Ej: Corrección de horario por error de registro…" required style="resize:vertical;"></textarea>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-editar-horarios" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-editar-horarios" style="flex:1;" disabled>Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nómina del Empleado -->
+  <div id="modal-nomina" class="modal-overlay" aria-label="Nómina del empleado">
+    <div class="modal-sheet" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h3 class="modal-title">📊 Nómina — <span id="nomina-employee-name"></span></h3>
+        <button class="modal-close" id="close-nomina-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+
+        <!-- Date Range + Calculate -->
+        <div class="nomina-calc-section">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Calcular Nómina del Período</div>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:150px;">
+              <label class="form-label" for="nomina-fecha-inicio">Fecha Inicio</label>
+              <input type="date" id="nomina-fecha-inicio" class="form-input" style="height:40px;">
+            </div>
+            <div style="flex:1;min-width:150px;">
+              <label class="form-label" for="nomina-fecha-fin">Fecha Fin</label>
+              <input type="date" id="nomina-fecha-fin" class="form-input" style="height:40px;">
+            </div>
+            <button class="btn btn-primary" id="btn-calcular-nomina" style="height:40px;padding:0 20px;white-space:nowrap;">🧮 Calcular Nómina</button>
+          </div>
+        </div>
+
+        <!-- Calculation Result -->
+        <div id="nomina-result" style="display:none;" class="nomina-result-card">
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Período</div>
+            <div style="font-size:14px;font-weight:500;color:#374151;" id="nomina-periodo-text"></div>
+          </div>
+          <div class="nomina-breakdown">
+            <div class="nomina-row" id="nomina-asistencia-row" style="cursor:pointer;" onclick="toggleNominaDetalle()" title="Asistencia registrada en el período (informativo, no afecta el salario base)">
+              <span class="nomina-label">⏱️ Asistencia del Período <span style="font-size:11px;color:var(--turquesa-ola);">▸ Ver detalle</span></span>
+              <span class="nomina-value" id="nomina-asistencia-dias">—</span>
+            </div>
+            <div id="nomina-detalle-panel" style="display:none;background:#f8fafc;border-left:3px solid var(--turquesa-ola);margin:4px 0 8px 12px;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#374151;">
+              <div id="nomina-detalle-content"></div>
+            </div>
+            <div class="nomina-row">
+              <span class="nomina-label">💰 Salario Base (Fijo)</span>
+              <span class="nomina-value" id="nomina-salario-base">—</span>
+            </div>
+            <div class="nomina-divider"></div>
+            <div class="nomina-row">
+              <span class="nomina-label">⚡ Horas Extras (Acumuladas)</span>
+              <span class="nomina-value" id="nomina-horas-extras">—</span>
+            </div>
+            <div class="nomina-row">
+              <span class="nomina-label">💰 Monto por Horas Extras (1.0x)</span>
+              <span class="nomina-value" id="nomina-pago-extras">—</span>
+            </div>
+            <div class="nomina-row nomina-row--deduction" id="nomina-adelantos-row" style="display:none;">
+              <span class="nomina-label">💸 Adelantos / Deducciones</span>
+              <span class="nomina-value" id="nomina-adelantos-display" style="color:var(--rojo-cangrejo);">—</span>
+            </div>
+            <div class="nomina-divider" style="border-top:2px solid var(--azul-marino);"></div>
+            <div class="nomina-row nomina-total">
+              <span>💵 Total a Pagar</span>
+              <span id="nomina-neto-display">C$0.00</span>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:16px;">
+            <button class="btn btn-primary nomina-pay-btn" id="btn-pagar-nomina" style="height:48px;padding:0 32px;font-size:16px;font-weight:700;">
+              💵 Registrar Pago
+            </button>
+          </div>
+          <div style="text-align:center;margin-top:8px;">
+            <button class="btn" id="btn-registrar-adelanto" style="background:var(--amarillo-solar);color:#1f2937;height:40px;padding:0 20px;font-weight:600;border-radius:8px;">
+              💸 Registrar Adelanto
+            </button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div style="margin-top:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Historial de Nóminas</div>
+          <div id="nomina-history-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar Adelanto -->
+  <div id="modal-registrar-adelanto" class="modal-overlay" aria-label="Registrar adelanto de salario">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💸 Registrar Adelanto de Salario</h3>
+        <button class="modal-close" id="close-adelanto-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="adelanto-form" style="padding:20px;">
+        <div style="margin-bottom:16px;">
+          <label class="form-label" for="adelanto-monto">Monto (C$)</label>
+          <input type="number" id="adelanto-monto" class="form-input" step="0.01" min="0.01" placeholder="500.00" required>
+        </div>
+        <div style="margin-bottom:20px;">
+          <label class="form-label" for="adelanto-observacion">Observación / Motivo</label>
+          <textarea id="adelanto-observacion" class="form-input" style="resize:vertical;min-height:60px;" placeholder="Opcional: motivo del adelanto" rows="2"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:end;">
+          <button type="button" class="btn" id="cancel-adelanto-btn" style="background:#e5e7eb;color:#374151;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-guardar-adelanto" style="font-weight:700;">✅ Guardar Adelanto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar Gasto -->
+  <div id="modal-registrar-gasto" class="modal-overlay" aria-label="Registrar gasto operativo">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💸 Registrar Gasto</h3>
+        <button class="modal-close" id="close-gasto-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="gasto-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="gasto-fecha">Fecha</label>
+          <input type="date" id="gasto-fecha" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="gasto-categoria">Categoría</label>
+          <select id="gasto-categoria" class="form-input" required>
+            <option value="">Seleccionar categoría…</option>
+            <option value="OPERATIVO">🔧 Operativo</option>
+            <option value="MANTENIMIENTO">🛠️ Mantenimiento</option>
+            <option value="SUMINISTROS">📦 Suministros</option>
+            <option value="SERVICIOS">⚙️ Servicios</option>
+            <option value="IMPUESTOS">🏛️ Impuestos</option>
+            <option value="OTROS">📋 Otros</option>
+          </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="gasto-monto">Monto (C$)</label>
+          <input type="number" id="gasto-monto" class="form-input" step="0.01" min="0.01" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="gasto-descripcion">Descripción</label>
+          <textarea id="gasto-descripcion" class="form-input" rows="3" placeholder="Detalle del gasto…" required style="resize:vertical;"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-gasto-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-gasto-btn" style="flex:1;">Guardar Gasto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Venta Retroactiva -->
+  <div id="modal-venta-retroactiva" class="modal-overlay" aria-label="Registrar venta de días pasados">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🕐 Registrar Venta Pasada</h3>
+        <button class="modal-close" id="close-venta-retroactiva" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="venta-retroactiva-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="vr-fecha">Fecha de la Venta</label>
+          <input type="date" id="vr-fecha" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="vr-mesa">Mesa (opcional — dejar vacío para venta directa / para llevar)</label>
+          <select id="vr-mesa" class="form-input">
+            <option value="">Venta directa / Para llevar</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platillos / Productos</label>
+          <div id="vr-items-list"></div>
+          <button type="button" class="btn btn-secondary" id="vr-add-item" style="margin-top:8px;width:100%;">+ Agregar Plato</button>
+        </div>
+        <div id="vr-total-preview" style="text-align:right;font-weight:700;font-size:16px;color:var(--azul-marino);margin:12px 0;">Total: C$0.00</div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-venta-retroactiva" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-venta-retroactiva" style="flex:1;">Registrar Venta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-calendar-event" class="modal-overlay" aria-label="Evento del calendario">
+    <div class="modal-sheet calendar-event-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="calendar-event-title">Nuevo evento</h3>
+        <button class="modal-close" id="close-calendar-event" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="calendar-event-form" novalidate>
+        <input type="hidden" id="calendar-event-id">
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-type">Tipo de evento</label>
+          <select id="calendar-event-type" class="form-input" required>
+            <option value="DISPONIBILIDAD_PLATILLO">Disponibilidad de platillo</option>
+            <option value="LLEGADA_INSUMO">Llegada de insumo</option>
+          </select>
+        </div>
+        <div class="form-group calendar-dish-field">
+          <label class="form-label" for="calendar-event-dish">Platillo</label>
+          <select id="calendar-event-dish" class="form-input"></select>
+        </div>
+        <div class="calendar-arrival-fields">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-insumo">Insumo</label>
+            <select id="calendar-event-insumo" class="form-input"></select>
+          </div>
+          <div class="calendar-form-row">
+            <div class="form-group">
+              <label class="form-label" for="calendar-event-provider">Proveedor (opcional)</label>
+              <select id="calendar-event-provider" class="form-input"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="calendar-event-quantity">Cantidad esperada (opcional)</label>
+              <input id="calendar-event-quantity" class="form-input" type="number" min="0.01" step="0.01" placeholder="Ej. 5">
+              <small id="calendar-quantity-unit" class="calendar-field-hint">La cantidad se registra en la unidad base del insumo.</small>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-name">Título</label>
+          <input id="calendar-event-name" class="form-input" type="text" maxlength="120" required placeholder="Ej. Disponible para el almuerzo">
+        </div>
+        <fieldset class="form-group calendar-color-field">
+          <legend class="form-label">Color de etiqueta</legend>
+          <div class="calendar-color-options">
+            <label class="calendar-color-option azul"><input type="radio" name="calendar-event-color" value="azul" checked><span>Azul</span></label>
+            <label class="calendar-color-option turquesa"><input type="radio" name="calendar-event-color" value="turquesa"><span>Turquesa</span></label>
+            <label class="calendar-color-option ambar"><input type="radio" name="calendar-event-color" value="ambar"><span>Ámbar</span></label>
+            <label class="calendar-color-option rosa"><input type="radio" name="calendar-event-color" value="rosa"><span>Rosa</span></label>
+            <label class="calendar-color-option violeta"><input type="radio" name="calendar-event-color" value="violeta"><span>Violeta</span></label>
+            <label class="calendar-color-option gris"><input type="radio" name="calendar-event-color" value="gris"><span>Gris</span></label>
+          </div>
+        </fieldset>
+        <p id="calendar-bulk-hint" class="calendar-bulk-hint" hidden></p>
+        <div class="calendar-form-row" id="calendar-event-date-range">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-start">Fecha inicial</label>
+            <input id="calendar-event-start" class="form-input" type="date" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-end">Fecha final (opcional)</label>
+            <input id="calendar-event-end" class="form-input" type="date">
+          </div>
+        </div>
+        <div class="calendar-form-row">
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-time-start">Hora inicial (opcional)</label>
+            <input id="calendar-event-time-start" class="form-input" type="time">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="calendar-event-time-end">Hora final (opcional)</label>
+            <input id="calendar-event-time-end" class="form-input" type="time">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-status">Estado</label>
+          <select id="calendar-event-status" class="form-input">
+            <option value="PLANIFICADO">Planificado</option>
+            <option value="REALIZADO">Realizado</option>
+            <option value="CANCELADO">Cancelado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="calendar-event-description">Notas (opcional)</label>
+          <textarea id="calendar-event-description" class="form-input" rows="3" maxlength="2000" placeholder="Detalles del plan"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-calendar-event" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger calendar-delete-btn" id="delete-calendar-event" style="display:none;">Eliminar</button>
+          <button type="submit" class="btn btn-primary" id="save-calendar-event" style="flex:1;">Guardar evento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="js/app.js?v=6.1"></script>
+</body>
+</html>
