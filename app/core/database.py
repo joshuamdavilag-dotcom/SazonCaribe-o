@@ -30,6 +30,10 @@ else:
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
         connect_args = {"ssl": ssl_ctx}
+    elif settings.DATABASE_URL.startswith("postgres"):
+        # Render exige SSL. Si la URL no lo pide explícitamente, lo forzamos.
+        if "sslmode=" not in settings.DATABASE_URL:
+            connect_args = {"sslmode": "require"}
     engine = create_engine(
         settings.DATABASE_URL,
         poolclass=QueuePool,

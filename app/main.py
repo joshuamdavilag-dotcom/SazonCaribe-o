@@ -1000,13 +1000,19 @@ def healthcheck() -> Dict[str, str]:
     from app.core.database import engine
     
     db_status = "connected"
+    db_error = None
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-    except Exception:
+    except Exception as e:
         db_status = "disconnected"
+        # Detalle del error sin exponer credenciales (útil para diagnóstico)
+        import re
+        msg = str(e)
+        msg = re.sub(r"://[^@]*@", "://***@", msg)
+        db_error = msg[:300]
     
-    return {
+    result = {
         "status": "healthy" if db_status == "connected" else "degraded",
         "timestamp": datetime.now().isoformat(),
         "service": "Sazón Caribeño API",
@@ -1014,6 +1020,9 @@ def healthcheck() -> Dict[str, str]:
         "database": db_status,
         "engine": "sqlite" if _is_sqlite() else "postgresql",
     }
+    if db_error:
+        result["database_error"] = db_error
+    return result
 
 
 if __name__ == "__main__":

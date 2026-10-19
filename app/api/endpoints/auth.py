@@ -35,7 +35,18 @@ def login(
     """
     usuario_repo = UsuarioRepository(db)
     username_norm = data.username.strip().lower()
-    usuario = usuario_repo.get_by_username(username_norm)
+    try:
+        usuario = usuario_repo.get_by_username(username_norm)
+    except Exception as e:
+        logger.error("Error de base de datos en login: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "No hay conexión con la base de datos. "
+                "Verifica la variable DATABASE_URL en Render "
+                "(usa la Internal Database URL de PostgreSQL)."
+            ),
+        )
 
     logger.info(
         "Login intent username=%r usuario_existe=%s",
