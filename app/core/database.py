@@ -1,7 +1,8 @@
 import os
+import ssl
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import QueuePool, StaticPool
 from typing import Generator
 
 from app.core.config import get_settings
@@ -9,17 +10,36 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Solo SQLite: check_same_thread=False para FastAPI + StaticPool para hilos
-connect_args = {"check_same_thread": False}
-engine = create_engine(
-    settings.DATABASE_URL,
-    poolclass=StaticPool,
-    connect_args=connect_args,
-    echo=settings.DEBUG
-)
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
-# Crear directorio de datos si no existe
-os.makedirs(os.path.dirname(settings.SQLITE_PATH) or ".", exist_ok=True)
+if is_sqlite:
+    # SQLite: check_same_thread=False para FastAPI + StaticPool para hilos
+    engine = create_engine(
+        settings.DATABASE_URL,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+        echo=settings.DEBUG,
+    )
+    # Crear directorio de datos si no existe
+    os.makedirs(os.path.dirname(settings.SQLITE_PATH) or ".", exist_ok=True)
+else:
+    # PostgreSQL (Render) u otro motor por URL
+    connect_args = {}
+    if settings.DATABASE_URL.startswith("mysql") and settings.ENVIRONMENT == "production":
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        connect_args = {"ssl": ssl_ctx}
+    engine = create_engine(
+        settings.DATABASE_URL,
+        poolclass=QueuePool,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        connect_args=connect_args,
+        echo=settings.DEBUG,
+    )
 
 SessionLocal = sessionmaker(
     autocommit=False,

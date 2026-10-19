@@ -6,15 +6,11 @@ services:
     buildCommand: PIP_ONLY_BINARY=1 pip install --prefer-binary -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthcheck
-    # Persistent Disk para SQLite (1 GB gratis)
-    disk:
-      name: data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
     envVars:
-      # SQLite config
-      - key: SQLITE_PATH
-        value: "/opt/render/project/src/data/sazon_caribeno.db"
+      # PostgreSQL: Render inyecta DATABASE_URL al vincular la base de datos.
+      # Si no existe, la app usa SQLite local (solo desarrollo).
+      - key: DATABASE_URL
+        sync: false
       - key: SECRET_KEY
         sync: false
       - key: DEBUG
@@ -31,3 +27,9 @@ services:
         value: "300"
       - key: HEARTBEAT_TIMEOUT_SECONDS
         value: "900"
+
+databases:
+  - name: sazon-caribeno-db
+    databaseName: sazon_caribeno
+    user: sazon_user
+    plan: free

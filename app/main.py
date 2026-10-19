@@ -274,6 +274,25 @@ def _migrate_constraints():
     from sqlalchemy.orm import Session
 
     with Session(engine) as db:
+        if not _is_sqlite():
+            # PostgreSQL: el constraint se define en el modelo; create_all ya lo aplica.
+            # Solo elimina la versión previa si existe con otro nombre/forma.
+            try:
+                db.execute(text(
+                    "ALTER TABLE puestos DROP CONSTRAINT IF EXISTS ck_puestos_salario_positivo"
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
+            try:
+                db.execute(text(
+                    "ALTER TABLE puestos ADD CONSTRAINT ck_puestos_salario_positivo "
+                    "CHECK (salario_base >= 0)"
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
+            return
         try:
             db.execute(text(
                 "ALTER TABLE puestos DROP CHECK ck_puestos_salario_positivo"
@@ -416,7 +435,7 @@ def _migrate_asistencia_utc_a_local():
             db.execute(text(
                 "CREATE TABLE IF NOT EXISTS _data_migrations ("
                 "nombre VARCHAR(100) PRIMARY KEY, "
-                "aplicado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+                "aplicado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
             ))
             db.commit()
             ya_aplicada = db.execute(
@@ -435,16 +454,26 @@ def _migrate_asistencia_utc_a_local():
                     "fecha = date(hora_entrada_real) "
                     "WHERE fecha > '2026-07-13'"
                 ))
+                db.execute(
+                    text("INSERT OR IGNORE INTO _data_migrations (nombre) VALUES (:n)"),
+                    {"n": MARCA},
+                )
             else:
                 resultado = db.execute(text(
                     "UPDATE asistencias SET "
-                    "hora_entrada_real = DATE_ADD(hora_entrada_real, INTERVAL 6 HOUR), "
-                    "hora_salida_real = DATE_ADD(hora_salida_real, INTERVAL 6 HOUR), "
-                    "ultimo_heartbeat = DATE_ADD(ultimo_heartbeat, INTERVAL 6 HOUR), "
-                    "fecha = DATE(hora_entrada_real) "
+                    "hora_entrada_real = hora_entrada_real + INTERVAL '6 hours', "
+                    "hora_salida_real = hora_salida_real + INTERVAL '6 hours', "
+                    "ultimo_heartbeat = ultimo_heartbeat + INTERVAL '6 hours', "
+                    "fecha = CAST(hora_entrada_real AS DATE) "
                     "WHERE fecha > '2026-07-13'"
                 ))
-            db.execute(text("INSERT IGNORE INTO _data_migrations (nombre) VALUES (:n)"), {"n": MARCA})
+                db.execute(
+                    text(
+                        "INSERT INTO _data_migrations (nombre) VALUES (:n) "
+                        "ON CONFLICT (nombre) DO NOTHING"
+                    ),
+                    {"n": MARCA},
+                )
             db.commit()
             print(f"  [~] Asistencias UTC→local: {resultado.rowcount} registros corregidos (+6h)")
         except Exception as e:
@@ -692,7 +721,7 @@ def _auto_seed_admin():
             if existe:
                 return
 
-            print("  ▸ Tabla 'usuarios' vacía — creando administrador automático...")
+            print("  > Tabla 'usuarios' vacia - creando administrador automatico...")
 
             stmt = select(Puesto).where(Puesto.nombre == "Administrador")
             puesto = db.execute(stmt).scalar_one_or_none()
@@ -827,7 +856,7 @@ def _auditar_hashes():
     with Session(engine) as db:
         try:
             rows = db.execute(
-                text("SELECT username, LEFT(password_hash, 11) as prefix FROM usuarios")
+                text("SELECT username, SUBSTRING(password_hash, 1, 11) as prefix FROM usuarios")
             ).fetchall()
             problematicos = [
                 row for row in rows if not (row.prefix or "").startswith("$2")
@@ -960,7 +989,8 @@ def healthcheck() -> Dict[str, str]:
         "timestamp": datetime.now().isoformat(),
         "service": "Sazón Caribeño API",
         "version": "1.0.0",
-        "database": db_status
+        "database": db_status,
+        "engine": "sqlite" if _is_sqlite() else "postgresql",
     }
 
 

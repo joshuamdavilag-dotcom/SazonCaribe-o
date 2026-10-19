@@ -2,26 +2,29 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, model_validator
 from functools import lru_cache
 from typing import Optional
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 class Settings(BaseSettings):
     """Configuración del sistema Sazón Caribeño."""
 
-    # Base de datos — solo SQLite (archivo local, sin MySQL)
+    # Base de datos — PostgreSQL en Render (DATABASE_URL) o SQLite como fallback local.
     SQLITE_PATH: str = Field(
         default="./data/sazon_caribeno.db",
-        description="Ruta del archivo SQLite (relativa al directorio de trabajo)"
+        description="Ruta del archivo SQLite (solo si DATABASE_URL está vacía)"
     )
 
     DATABASE_URL: str = Field(
         default="",
-        description="URL de conexión (se genera automáticamente desde SQLITE_PATH)"
+        description="URL de conexión a PostgreSQL (Render). Si está vacía se usa SQLite"
     )
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
-        if not self.DATABASE_URL:
+        if self.DATABASE_URL:
+            # Render entrega a veces el esquema 'postgres://'; SQLAlchemy exige 'postgresql://'
+            if self.DATABASE_URL.startswith("postgres://"):
+                self.DATABASE_URL = "postgresql://" + self.DATABASE_URL[len("postgres://"):]
+        else:
             self.DATABASE_URL = f"sqlite:///{self.SQLITE_PATH}"
         return self
 
@@ -132,7 +135,9 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
-        "case_sensitive": True
+        "case_sensitive": True,
+        # Tolerar variables DB_* legacy (MySQL antiguo) sin romper el arranque
+        "extra": "ignore",
     }
 
 

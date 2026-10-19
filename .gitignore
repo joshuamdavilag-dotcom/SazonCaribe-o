@@ -29,3 +29,7 @@ alembic/versions/*.pyc
 
 # Clips de cámaras (datos sensibles, nunca versionar)
 app/data/camera-clips/
+
+# Base de datos SQLite local (fallback de desarrollo; en producción se usa PostgreSQL)
+data/
+*.db
