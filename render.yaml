@@ -17,11 +17,13 @@ services:
         value: "3306"
       - key: SECRET_KEY
         generateValue: true
+      - key: HARCA27_PASSWORD
+        sync: false
       - key: DEBUG
         value: "false"
       - key: ENVIRONMENT
         value: "production"
       - key: CORS_ORIGINS
         sync: false
-      - key: PYTHON_VERSION
-        value: "3.14"
+      -  key: PYTHON_VERSION
+         value: "3.13.5"
