@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.models.caja import CierreCaja, total_ventas, total_ordenes
 from app.models.asistencia import Asistencia
 from app.models.calendario import EventoCalendario
 from app.models.inventario import Insumo, Proveedor, UnidadMedida
@@ -47,6 +48,7 @@ class CalendarioRepository:
                     Insumo.nombre,
                     Proveedor.nombre,
                     UnidadMedida.nombre,
+
                 )
                 .outerjoin(MenuItem, EventoCalendario.menu_item_id == MenuItem.id)
                 .outerjoin(Insumo, EventoCalendario.insumo_id == Insumo.id)
@@ -101,4 +103,42 @@ class CalendarioRepository:
                 "hora_salida_real": asistencia.hora_salida_real,
             }
             for asistencia, nombre, apellido, turno_nombre in filas
+        ]
+
+def obtener_cierres_caja(self, desde: date, hasta: date) -> list[dict]:
+        """Obtiene cierres de caja dentro del rango de fechas.
+
+        Args:
+            desde: Primer día inclusivo.
+            hasta: Último día inclusivo.
+            cantidad de pagos, ventas, total de efectivo, tarjeta y ordenes.
+            
+        returns:
+            Lista de diccionarios con información de cada cierre de caja.
+        """
+        filas = self.db.execute(
+            select(
+                CierreCaja.id,
+                CierreCaja.fecha,
+                CierreCaja.total_efectivo,
+                CierreCaja.total_tarjeta,
+                total_ventas(CierreCaja.id).label("total_ventas"),
+                total_ordenes(CierreCaja.id).label("total_ordenes"),
+            )
+            .where(
+                CierreCaja.fecha >= desde,
+                CierreCaja.fecha <= hasta,
+            )
+            .order_by(CierreCaja.fecha)
+        )
+        return [
+            {
+                "id": cierre_id,
+                "fecha": fecha,
+                "total_efectivo": total_efectivo,
+                "total_tarjeta": total_tarjeta,
+                "total_ventas": total_ventas,
+                "total_ordenes": total_ordenes,
+            }
+            for cierre_id, fecha, total_efectivo, total_tarjeta, total_ventas, total_ordenes in filas
         ]
