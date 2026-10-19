@@ -8,36 +8,21 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 class Settings(BaseSettings):
     """Configuración del sistema Sazón Caribeño."""
 
-    # Base de datos — individual vars (Render, etc.) o URL directa
-    DB_HOST: str = Field(default="localhost", description="Host de la base de datos")
-    DB_USER: str = Field(default="root", description="Usuario de la base de datos")
-    DB_PASSWORD: str = Field(default="password", description="Contraseña de la base de datos")
-    DB_NAME: str = Field(default="sazon_caribeno", description="Nombre de la base de datos")
-    DB_PORT: str = Field(default="3306", description="Puerto de la base de datos")
+    # Base de datos — solo SQLite (archivo local, sin MySQL)
+    SQLITE_PATH: str = Field(
+        default="./data/sazon_caribeno.db",
+        description="Ruta del archivo SQLite (relativa al directorio de trabajo)"
+    )
 
-    DATABASE_URL: Optional[str] = Field(
-        default=None,
-        description="URL de conexión directa a MySQL (sobreescribe DB_* si se define)"
+    DATABASE_URL: str = Field(
+        default="",
+        description="URL de conexión (se genera automáticamente desde SQLITE_PATH)"
     )
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if not self.DATABASE_URL:
-            from urllib.parse import quote_plus
-            # URL-encode password to handle special chars (@, :, /, %, etc.)
-            encoded_password = quote_plus(self.DB_PASSWORD)
-            self.DATABASE_URL = (
-                f"mysql+pymysql://{self.DB_USER}:{encoded_password}"
-                f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-            )
-        parsed = urlparse(self.DATABASE_URL)
-        params = parse_qs(parsed.query)
-        params.pop("ssl-mode", None)
-        params.pop("ssl_ca", None)
-        params.pop("ssl_cert", None)
-        params.pop("ssl_key", None)
-        new_query = urlencode(params, doseq=True) if params else ""
-        self.DATABASE_URL = urlunparse(parsed._replace(query=new_query))
+            self.DATABASE_URL = f"sqlite:///{self.SQLITE_PATH}"
         return self
 
     # Seguridad

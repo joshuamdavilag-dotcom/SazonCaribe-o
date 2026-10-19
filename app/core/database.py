@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import StaticPool
 from typing import Generator
 
 from app.core.config import get_settings
@@ -9,28 +9,17 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# SSL configuration for Render MySQL (managed databases require SSL)
-connect_args = {}
-if settings.ENVIRONMENT == "production":
-    # Use dict-based SSL config for PyMySQL - more reliable than SSLContext in containers
-    # Render's managed MySQL uses standard SSL; verify_cert=False allows connection without CA bundle
-    connect_args = {
-        "ssl": {
-            "verify_cert": False,
-            "verify_identity": False,
-        }
-    }
-
+# Solo SQLite: check_same_thread=False para FastAPI + StaticPool para hilos
+connect_args = {"check_same_thread": False}
 engine = create_engine(
     settings.DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,
-    pool_recycle=3600,
+    poolclass=StaticPool,
     connect_args=connect_args,
     echo=settings.DEBUG
 )
+
+# Crear directorio de datos si no existe
+os.makedirs(os.path.dirname(settings.SQLITE_PATH) or ".", exist_ok=True)
 
 SessionLocal = sessionmaker(
     autocommit=False,

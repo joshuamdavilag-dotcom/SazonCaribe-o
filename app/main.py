@@ -233,49 +233,38 @@ async def startup_event():
     asyncio.create_task(_camera_clip_retention_watcher())
 
 
+def _is_sqlite() -> bool:
+    """Detecta si estamos usando SQLite."""
+    return settings.DATABASE_URL.startswith("sqlite")
+
+
+def _column_exists(table: str, column: str) -> bool:
+    """Verifica si una columna existe (compatible MySQL/SQLite)."""
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    if not inspector.has_table(table):
+        return False
+    cols = {col["name"] for col in inspector.get_columns(table)}
+    return column in cols
+
+
+def _table_exists(table: str) -> bool:
+    """Verifica si una tabla existe."""
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    return inspector.has_table(table)
+
+
 def _migrate_calendario_color():
     """Agrega la etiqueta de color a eventos existentes sin alterar sus datos."""
-    from sqlalchemy import inspect, text
-    inspector = inspect(engine)
-    if not inspector.has_table("eventos_calendario"):
-        # Crear tabla si no existe (fallback por si create_all falló con enums MySQL)
-        with engine.begin() as connection:
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS eventos_calendario (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    tipo VARCHAR(30) NOT NULL,
-                    titulo VARCHAR(120) NOT NULL,
-                    color_etiqueta VARCHAR(20) NULL,
-                    descripcion TEXT NULL,
-                    fecha_inicio DATE NOT NULL,
-                    fecha_fin DATE NULL,
-                    hora_inicio TIME NULL,
-                    hora_fin TIME NULL,
-                    estado VARCHAR(20) NOT NULL DEFAULT 'PLANIFICADO',
-                    menu_item_id INT NULL,
-                    insumo_id INT NULL,
-                    proveedor_id INT NULL,
-                    cantidad_esperada DECIMAL(10,2) NULL,
-                    creado_por_id INT NOT NULL,
-                    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    completado_en DATETIME NULL,
-                    CONSTRAINT fk_eventos_calendario_menu_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
-                    CONSTRAINT fk_eventos_calendario_insumo FOREIGN KEY (insumo_id) REFERENCES insumos(id),
-                    CONSTRAINT fk_eventos_calendario_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id),
-                    CONSTRAINT fk_eventos_calendario_usuario FOREIGN KEY (creado_por_id) REFERENCES usuarios(id),
-                    INDEX ix_eventos_calendario_fecha_inicio (fecha_inicio)
-                )
-            """))
-        logger.info("Tabla eventos_calendario creada por migración de respaldo")
+    from sqlalchemy import text
+    if not _table_exists("eventos_calendario"):
+        # create_all ya debería haberla creado, pero por si acaso
         return
-    columns = {column["name"] for column in inspector.get_columns("eventos_calendario")}
-    if "color_etiqueta" in columns:
+    if _column_exists("eventos_calendario", "color_etiqueta"):
         return
     with engine.begin() as connection:
-        connection.execute(
-            text("ALTER TABLE eventos_calendario ADD COLUMN color_etiqueta VARCHAR(20) NULL")
-        )
+        connection.execute(text("ALTER TABLE eventos_calendario ADD COLUMN color_etiqueta VARCHAR(20) NULL"))
     logger.info("Migración de color_etiqueta aplicada a eventos_calendario")
 
 
@@ -301,245 +290,113 @@ def _migrate_constraints():
             db.rollback()
 
 
-def _migrate_unidades_medida():
-    """Agrega columnas de conversión a unidades_medida si no existen."""
+def _add_column_if_not_exists(table: str, column: str, ddl: str):
+    """Agrega columna si no existe (compatible SQLite/MySQL)."""
     from sqlalchemy import text
     from sqlalchemy.orm import Session
-
-    cols = [
-        ("tipo_magnitud", "ALTER TABLE unidades_medida ADD COLUMN tipo_magnitud VARCHAR(20) NOT NULL DEFAULT 'UNIDAD'"),
-        ("unidad_base_id", "ALTER TABLE unidades_medida ADD COLUMN unidad_base_id INT NULL"),
-        ("factor_conversion", "ALTER TABLE unidades_medida ADD COLUMN factor_conversion FLOAT NULL"),
-    ]
+    if _column_exists(table, column):
+        print(f"  [~] Columna '{column}' ya existe en {table}")
+        return
     with Session(engine) as db:
-        for col_name, ddl in cols:
-            try:
-                db.execute(text(ddl))
-                db.commit()
-                print(f"  [~] Columna '{col_name}' agregada a unidades_medida")
-            except Exception:
-                db.rollback()
+        try:
+            db.execute(text(ddl))
+            db.commit()
+            print(f"  [~] Columna '{column}' agregada a {table}")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error agregando '{column}' a {table}: {e}")
+
+
+def _migrate_unidades_medida():
+    """Agrega columnas de conversión a unidades_medida si no existen."""
+    _add_column_if_not_exists("unidades_medida", "tipo_magnitud",
+        "ALTER TABLE unidades_medida ADD COLUMN tipo_magnitud VARCHAR(20) NOT NULL DEFAULT 'UNIDAD'")
+    _add_column_if_not_exists("unidades_medida", "unidad_base_id",
+        "ALTER TABLE unidades_medida ADD COLUMN unidad_base_id INT NULL")
+    _add_column_if_not_exists("unidades_medida", "factor_conversion",
+        "ALTER TABLE unidades_medida ADD COLUMN factor_conversion FLOAT NULL")
 
 
 def _migrate_recetas_unidad():
     """Agrega columna unidad_medida_id a recetas si no existe."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            db.execute(text(
-                "ALTER TABLE recetas ADD COLUMN unidad_medida_id INT NULL"
-            ))
-            db.commit()
-            print("  [~] Columna 'unidad_medida_id' agregada a recetas")
-        except Exception:
-            db.rollback()
+    _add_column_if_not_exists("recetas", "unidad_medida_id",
+        "ALTER TABLE recetas ADD COLUMN unidad_medida_id INT NULL")
 
 
 def _migrate_insumos_empaque():
     """Agrega columnas de empaque a insumos si no existen."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        for col, typedef in [
-            ("unidad_empaque_id", "INT NULL"),
-            ("factor_empaque", "DOUBLE NULL"),
-        ]:
-            try:
-                db.execute(text(f"ALTER TABLE insumos ADD COLUMN {col} {typedef}"))
-                db.commit()
-                print(f"  [~] Columna '{col}' agregada a insumos")
-            except Exception:
-                db.rollback()
+    _add_column_if_not_exists("insumos", "unidad_empaque_id",
+        "ALTER TABLE insumos ADD COLUMN unidad_empaque_id INT NULL")
+    _add_column_if_not_exists("insumos", "factor_empaque",
+        "ALTER TABLE insumos ADD COLUMN factor_empaque FLOAT NULL")
 
 
 def _migrate_orden_mesa_nullable():
-    """Hace nullable la columna mesa_id en ordenes para ventas directas."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            db.execute(text(
-                "ALTER TABLE ordenes MODIFY COLUMN mesa_id INT NULL"
-            ))
-            db.commit()
-        except Exception:
-            db.rollback()
+    """En SQLite no se puede MODIFY COLUMN, create_all ya lo crea nullable si el modelo lo define.
+    Esta migración es solo para MySQL legacy. En SQLite no hace nada."""
+    pass  # SQLite no requiere esta migración
 
 
 def _migrate_recetas_descuento_lote():
     """Agrega columna descuento_por_lote a recetas si no existe."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            db.execute(text(
-                "ALTER TABLE recetas ADD COLUMN descuento_por_lote BOOLEAN NOT NULL DEFAULT FALSE"
-            ))
-            db.commit()
-            print("  [~] Columna 'descuento_por_lote' agregada a recetas")
-        except Exception:
-            db.rollback()
+    _add_column_if_not_exists("recetas", "descuento_por_lote",
+        "ALTER TABLE recetas ADD COLUMN descuento_por_lote BOOLEAN NOT NULL DEFAULT FALSE")
 
 
 def _migrate_orden_descuentos():
     """Agrega columnas de descuento a ordenes y detalles_orden si no existen."""
+    _add_column_if_not_exists("ordenes", "subtotal",
+        "ALTER TABLE ordenes ADD COLUMN subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00")
+    _add_column_if_not_exists("ordenes", "descuento_total",
+        "ALTER TABLE ordenes ADD COLUMN descuento_total DECIMAL(10,2) NOT NULL DEFAULT 0.00")
+    _add_column_if_not_exists("detalles_orden", "descuento_porcentaje",
+        "ALTER TABLE detalles_orden ADD COLUMN descuento_porcentaje DECIMAL(5,2) NULL")
+    _add_column_if_not_exists("detalles_orden", "descuento_monto",
+        "ALTER TABLE detalles_orden ADD COLUMN descuento_monto DECIMAL(10,2) NULL")
+    _add_column_if_not_exists("detalles_orden", "motivo_descuento",
+        "ALTER TABLE detalles_orden ADD COLUMN motivo_descuento VARCHAR(255) NULL")
+
+    # Migración de datos (compatible SQLite/MySQL)
     from sqlalchemy import text
     from sqlalchemy.orm import Session
-
-    orden_cols = [
-        ("subtotal", "ALTER TABLE ordenes ADD COLUMN subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
-        ("descuento_total", "ALTER TABLE ordenes ADD COLUMN descuento_total DECIMAL(10,2) NOT NULL DEFAULT 0.00"),
-    ]
-    detalle_cols = [
-        ("descuento_porcentaje", "ALTER TABLE detalles_orden ADD COLUMN descuento_porcentaje DECIMAL(5,2) NULL"),
-        ("descuento_monto", "ALTER TABLE detalles_orden ADD COLUMN descuento_monto DECIMAL(10,2) NULL"),
-        ("motivo_descuento", "ALTER TABLE detalles_orden ADD COLUMN motivo_descuento VARCHAR(255) NULL"),
-    ]
     with Session(engine) as db:
-        for col_name, ddl in orden_cols + detalle_cols:
-            try:
-                db.execute(text(ddl))
-                db.commit()
-                print(f"  [~] Columna '{col_name}' agregada")
-            except Exception:
-                db.rollback()
-
-        db.execute(text("UPDATE ordenes SET subtotal = total WHERE subtotal = 0 AND total > 0"))
-        db.execute(text("UPDATE ordenes SET descuento_total = 0 WHERE descuento_total IS NULL"))
-        db.commit()
+        try:
+            db.execute(text("UPDATE ordenes SET subtotal = total WHERE subtotal = 0 AND total > 0"))
+            db.execute(text("UPDATE ordenes SET descuento_total = 0 WHERE descuento_total IS NULL"))
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def _migrate_orden_nombre_cliente():
     """Agrega columna nombre_cliente a ordenes si no existe."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            db.execute(text(
-                "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL"
-            ))
-            db.commit()
-            print("  [~] Columna 'nombre_cliente' agregada a ordenes")
-        except Exception:
-            db.rollback()
+    _add_column_if_not_exists("ordenes", "nombre_cliente",
+        "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL")
 
 
 def _migrate_gastos_cierre_caja_id():
-    """Agrega la columna cierre_caja_id a gastos y su FK si no existen.
+    """Agrega la columna cierre_caja_id a gastos y su FK si no existen."""
+    _add_column_if_not_exists("gastos", "cierre_caja_id",
+        "ALTER TABLE gastos ADD COLUMN cierre_caja_id INT NULL")
 
-    Idempotente: verifica contra information_schema antes de cada ALTER para
-    evitar errores silenciosos y garantizar que la columna exista siempre.
-    """
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            exists_col = db.execute(text(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
-                "AND COLUMN_NAME = 'cierre_caja_id'"
-            )).scalar()
-            if not exists_col:
-                db.execute(text(
-                    "ALTER TABLE gastos ADD COLUMN cierre_caja_id INT NULL"
-                ))
-                db.commit()
-                print("  [~] Columna 'cierre_caja_id' agregada a gastos")
-            else:
-                print("  [~] Columna 'cierre_caja_id' ya existe en gastos")
-        except Exception as e:
-            db.rollback()
-            print(f"  [X] Error al agregar 'cierre_caja_id' a gastos: {e}")
-
-        try:
-            exists_fk = db.execute(text(
-                "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos' "
-                "AND CONSTRAINT_TYPE = 'FOREIGN KEY' "
-                "AND CONSTRAINT_NAME = 'fk_gastos_cierre_caja_id'"
-            )).scalar()
-            if not exists_fk:
-                db.execute(text(
-                    "ALTER TABLE gastos ADD CONSTRAINT fk_gastos_cierre_caja_id "
-                    "FOREIGN KEY (cierre_caja_id) REFERENCES cierres_caja(id)"
-                ))
-                db.commit()
-                print("  [~] FK 'fk_gastos_cierre_caja_id' agregada a gastos")
-            else:
-                print("  [~] FK 'fk_gastos_cierre_caja_id' ya existe")
-        except Exception as e:
-            db.rollback()
-            print(f"  [X] Error al agregar FK 'fk_gastos_cierre_caja_id': {e}")
+    # FK en SQLite se crea en create_all si el modelo lo define
+    # En MySQL legacy, esta migración la agregaba; en SQLite no hace falta
+    pass
 
 
 def _migrate_adelantos_salario():
     """Crea la tabla adelantos_salario y agrega columna total_adelantos a nominas si no existen."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            db.execute(text("""
-                CREATE TABLE IF NOT EXISTS adelantos_salario (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    empleado_id INT NOT NULL,
-                    monto DECIMAL(10,2) NOT NULL,
-                    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    observacion VARCHAR(255) NULL,
-                    registrado_por_id INT NULL,
-                    gasto_id INT NULL,
-                    CONSTRAINT fk_adelantos_empleado_id FOREIGN KEY (empleado_id) REFERENCES empleados(id),
-                    CONSTRAINT fk_adelantos_registrado_por FOREIGN KEY (registrado_por_id) REFERENCES usuarios(id),
-                    CONSTRAINT fk_adelantos_gasto_id FOREIGN KEY (gasto_id) REFERENCES gastos(id)
-                )
-            """))
-            db.commit()
-            print("  [~] Tabla 'adelantos_salario' creada")
-        except Exception:
-            db.rollback()
-
-        try:
-            db.execute(text(
-                "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00"
-            ))
-            db.commit()
-            print("  [~] Columna 'total_adelantos' agregada a nominas")
-        except Exception:
-            db.rollback()
+    # create_all ya crea la tabla si el modelo está definido
+    _add_column_if_not_exists("nominas", "total_adelantos",
+        "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00")
 
 
 def _migrate_menu_item_imagen_tiempo():
     """Agrega columnas imagen_url y tiempo_preparacion a menu_items si no existen."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        for col, ddl in [
-            ("imagen_url", "ALTER TABLE menu_items ADD COLUMN imagen_url VARCHAR(500) NULL"),
-            ("tiempo_preparacion", "ALTER TABLE menu_items ADD COLUMN tiempo_preparacion INT NULL"),
-        ]:
-            try:
-                exists = db.execute(text(
-                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_items' "
-                    "AND COLUMN_NAME = :c"
-                ), {"c": col}).scalar()
-                if not exists:
-                    db.execute(text(ddl))
-                    db.commit()
-                    print(f"  [~] Columna '{col}' agregada a menu_items")
-                else:
-                    print(f"  [~] Columna '{col}' ya existe en menu_items")
-            except Exception as e:
-                db.rollback()
-                print(f"  [X] Error al agregar '{col}' a menu_items: {e}")
+    _add_column_if_not_exists("menu_items", "imagen_url",
+        "ALTER TABLE menu_items ADD COLUMN imagen_url VARCHAR(500) NULL")
+    _add_column_if_not_exists("menu_items", "tiempo_preparacion",
+        "ALTER TABLE menu_items ADD COLUMN tiempo_preparacion INT NULL")
 
 
 def _migrate_asistencia_utc_a_local():
@@ -568,14 +425,25 @@ def _migrate_asistencia_utc_a_local():
             ).scalar()
             if ya_aplicada:
                 return
-            resultado = db.execute(text(
-                "UPDATE asistencias SET "
-                "hora_entrada_real = DATE_ADD(hora_entrada_real, INTERVAL 6 HOUR), "
-                "hora_salida_real = DATE_ADD(hora_salida_real, INTERVAL 6 HOUR), "
-                "ultimo_heartbeat = DATE_ADD(ultimo_heartbeat, INTERVAL 6 HOUR), "
-                "fecha = DATE(hora_entrada_real) "
-                "WHERE fecha > '2026-07-13'"
-            ))
+            # SQLite usa datetime(..., '+6 hours') en lugar de DATE_ADD
+            if _is_sqlite():
+                resultado = db.execute(text(
+                    "UPDATE asistencias SET "
+                    "hora_entrada_real = datetime(hora_entrada_real, '+6 hours'), "
+                    "hora_salida_real = datetime(hora_salida_real, '+6 hours'), "
+                    "ultimo_heartbeat = datetime(ultimo_heartbeat, '+6 hours'), "
+                    "fecha = date(hora_entrada_real) "
+                    "WHERE fecha > '2026-07-13'"
+                ))
+            else:
+                resultado = db.execute(text(
+                    "UPDATE asistencias SET "
+                    "hora_entrada_real = DATE_ADD(hora_entrada_real, INTERVAL 6 HOUR), "
+                    "hora_salida_real = DATE_ADD(hora_salida_real, INTERVAL 6 HOUR), "
+                    "ultimo_heartbeat = DATE_ADD(ultimo_heartbeat, INTERVAL 6 HOUR), "
+                    "fecha = DATE(hora_entrada_real) "
+                    "WHERE fecha > '2026-07-13'"
+                ))
             db.execute(text("INSERT IGNORE INTO _data_migrations (nombre) VALUES (:n)"), {"n": MARCA})
             db.commit()
             print(f"  [~] Asistencias UTC→local: {resultado.rowcount} registros corregidos (+6h)")
@@ -586,28 +454,8 @@ def _migrate_asistencia_utc_a_local():
 
 def _migrate_asistencias_anulada():
     """Agrega la columna anulada a asistencias si no existe."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            exists = db.execute(text(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asistencias' "
-                "AND COLUMN_NAME = 'anulada'"
-            )).scalar()
-            if not exists:
-                db.execute(text(
-                    "ALTER TABLE asistencias ADD COLUMN anulada TINYINT(1) "
-                    "NOT NULL DEFAULT 0"
-                ))
-                db.commit()
-                print("  [~] Columna 'anulada' agregada a asistencias")
-            else:
-                print("  [~] Columna 'anulada' ya existe en asistencias")
-        except Exception as e:
-            db.rollback()
-            print(f"  [X] Error al agregar 'anulada' a asistencias: {e}")
+    _add_column_if_not_exists("asistencias", "anulada",
+        "ALTER TABLE asistencias ADD COLUMN anulada BOOLEAN NOT NULL DEFAULT FALSE")
 
 
 def _migrate_usuarios_turno_habilitado():
@@ -619,29 +467,22 @@ def _migrate_usuarios_turno_habilitado():
     """
     from sqlalchemy import text
     from sqlalchemy.orm import Session
-
+    if _column_exists("usuarios", "turno_habilitado"):
+        print("  [~] Columna 'turno_habilitado' ya existe en usuarios")
+        return
     with Session(engine) as db:
         try:
-            exists = db.execute(text(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' "
-                "AND COLUMN_NAME = 'turno_habilitado'"
-            )).scalar()
-            if not exists:
-                db.execute(text(
-                    "ALTER TABLE usuarios ADD COLUMN turno_habilitado TINYINT(1) "
-                    "NOT NULL DEFAULT 0"
-                ))
-                db.execute(text(
-                    "UPDATE usuarios SET turno_habilitado = 1 WHERE rol = 'Vendedor'"
-                ))
-                db.commit()
-                print(
-                    "  [~] Columna 'turno_habilitado' agregada a usuarios y "
-                    "Vendedores existentes habilitados"
-                )
-            else:
-                print("  [~] Columna 'turno_habilitado' ya existe en usuarios")
+            db.execute(text(
+                "ALTER TABLE usuarios ADD COLUMN turno_habilitado BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            db.execute(text(
+                "UPDATE usuarios SET turno_habilitado = 1 WHERE rol = 'Vendedor'"
+            ))
+            db.commit()
+            print(
+                "  [~] Columna 'turno_habilitado' agregada a usuarios y "
+                "Vendedores existentes habilitados"
+            )
         except Exception as e:
             db.rollback()
             print(f"  [X] Error al agregar 'turno_habilitado' a usuarios: {e}")
@@ -649,27 +490,8 @@ def _migrate_usuarios_turno_habilitado():
 
 def _migrate_mesas_apodo():
     """Agrega la columna apodo a mesas si no existe (apodo temporal de cliente)."""
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as db:
-        try:
-            exists = db.execute(text(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mesas' "
-                "AND COLUMN_NAME = 'apodo'"
-            )).scalar()
-            if not exists:
-                db.execute(text(
-                    "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL"
-                ))
-                db.commit()
-                print("  [~] Columna 'apodo' agregada a mesas")
-            else:
-                print("  [~] Columna 'apodo' ya existe en mesas")
-        except Exception as e:
-            db.rollback()
-            print(f"  [X] Error al agregar 'apodo' a mesas: {e}")
+    _add_column_if_not_exists("mesas", "apodo",
+        "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL")
 
 
 def _migrate_nombres_archivados():
