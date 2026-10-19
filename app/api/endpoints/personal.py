@@ -103,7 +103,7 @@ def registrar_empleado(
 
     - **nombre**: Nombre del empleado
     - **apellido**: Apellido del empleado
-    - **cedula_identidad**: Cédula única de identidad
+    - **cedula_identidad**: Cédula única de identidad (opcional)
     - **puesto_id**: ID del puesto a asignar
     """
     return service.registrar_empleado(empleado_in)

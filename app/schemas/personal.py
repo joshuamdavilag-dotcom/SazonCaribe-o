@@ -78,11 +78,11 @@ class EmpleadoBase(BaseModel):
         description="Apellido del empleado",
         examples=["Pérez"]
     )
-    cedula_identidad: str = Field(
-        ...,
+    cedula_identidad: Optional[str] = Field(
+        default=None,
         min_length=5,
         max_length=20,
-        description="Cédula de identidad única",
+        description="Cédula de identidad única (opcional)",
         examples=["12345678"]
     )
     telefono: Optional[str] = Field(

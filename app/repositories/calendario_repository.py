@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.caja import CierreCaja, total_ventas, total_ordenes
+from app.models.caja import CierreCaja
 from app.models.asistencia import Asistencia
 from app.models.calendario import EventoCalendario
 from app.models.inventario import Insumo, Proveedor, UnidadMedida

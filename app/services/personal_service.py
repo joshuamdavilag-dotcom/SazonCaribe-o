@@ -136,7 +136,7 @@ class PersonalService:
                 detail=f"No se encontró el puesto con ID {empleado_in.puesto_id}"
             )
 
-        if self.empleado_repo.exists_by_cedula(empleado_in.cedula_identidad):
+        if empleado_in.cedula_identidad and self.empleado_repo.exists_by_cedula(empleado_in.cedula_identidad):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Ya existe un empleado con la cédula '{empleado_in.cedula_identidad}'"

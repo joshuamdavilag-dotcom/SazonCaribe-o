@@ -718,7 +718,7 @@ def _migrate_nombres_archivados():
                     empleado = db.get(Empleado, usuario.empleado_id)
                     if empleado is not None and empleado.activo:
                         sufijo_emp = f"_deleted_{empleado.id}"
-                        if not empleado.cedula_identidad.endswith(sufijo_emp):
+                        if empleado.cedula_identidad and not empleado.cedula_identidad.endswith(sufijo_emp):
                             empleado.cedula_identidad = (
                                 f"{empleado.cedula_identidad[: 20 - len(sufijo_emp)].strip()}"
                                 f"{sufijo_emp}"

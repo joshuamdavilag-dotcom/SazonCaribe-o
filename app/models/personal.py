@@ -63,10 +63,10 @@ class Empleado(Base):
         String(100),
         nullable=False
     )
-    cedula_identidad: Mapped[str] = mapped_column(
+    cedula_identidad: Mapped[Optional[str]] = mapped_column(
         String(20),
         unique=True,
-        nullable=False
+        nullable=True
     )
     telefono: Mapped[Optional[str]] = mapped_column(
         String(20),
