@@ -25,17 +25,20 @@ if is_sqlite:
 else:
     # PostgreSQL (Render) u otro motor por URL
     connect_args = {}
-    if settings.DATABASE_URL.startswith("mysql") and settings.ENVIRONMENT == "production":
+    db_url = settings.DATABASE_URL
+    if db_url.startswith("mysql") and settings.ENVIRONMENT == "production":
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
         connect_args = {"ssl": ssl_ctx}
-    elif settings.DATABASE_URL.startswith("postgres"):
-        # Render exige SSL. Si la URL no lo pide explícitamente, lo forzamos.
-        if "sslmode=" not in settings.DATABASE_URL:
-            connect_args = {"sslmode": "require"}
+    elif db_url.startswith("postgres"):
+        # Render exige SSL. psycopg2 espera sslmode DENTRO de la URL, no en
+        # connect_args (pasarlo por connect_args revienta con 'ssl-mode').
+        if "sslmode=" not in db_url:
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}sslmode=require"
     engine = create_engine(
-        settings.DATABASE_URL,
+        db_url,
         poolclass=QueuePool,
         pool_size=5,
         max_overflow=10,
