@@ -203,6 +203,7 @@ async def startup_event():
     try:
         Base.metadata.create_all(bind=engine)
         _migrate_calendario_color()
+        _migrate_calendario_columnas()
         _migrate_constraints()
         _migrate_unidades_medida()
         _migrate_recetas_unidad()
@@ -485,6 +486,27 @@ def _migrate_asistencias_anulada():
     """Agrega la columna anulada a asistencias si no existe."""
     _add_column_if_not_exists("asistencias", "anulada",
         "ALTER TABLE asistencias ADD COLUMN anulada BOOLEAN NOT NULL DEFAULT FALSE")
+    _add_column_if_not_exists("asistencias", "ultimo_heartbeat",
+        "ALTER TABLE asistencias ADD COLUMN ultimo_heartbeat TIMESTAMP NULL")
+    _add_column_if_not_exists("asistencias", "horas_extras_originales",
+        "ALTER TABLE asistencias ADD COLUMN horas_extras_originales NUMERIC(6,2) NULL")
+    _add_column_if_not_exists("asistencias", "motivo_modificacion",
+        "ALTER TABLE asistencias ADD COLUMN motivo_modificacion VARCHAR(255) NULL")
+    _add_column_if_not_exists("asistencias", "modificado_por",
+        "ALTER TABLE asistencias ADD COLUMN modificado_por INT NULL")
+
+
+def _migrate_calendario_columnas():
+    """Agrega columnas faltantes a eventos_calendario si no existen.
+
+    Bases de datos antiguas pudieron crearse antes de que el modelo incluyera
+    estas columnas; el calendario selecciona la entidad completa y fallaría
+    con un 500 si alguna falta.
+    """
+    _add_column_if_not_exists("eventos_calendario", "completado_en",
+        "ALTER TABLE eventos_calendario ADD COLUMN completado_en TIMESTAMP NULL")
+    _add_column_if_not_exists("eventos_calendario", "cantidad_esperada",
+        "ALTER TABLE eventos_calendario ADD COLUMN cantidad_esperada NUMERIC(12,2) NULL")
 
 
 def _migrate_usuarios_turno_habilitado():

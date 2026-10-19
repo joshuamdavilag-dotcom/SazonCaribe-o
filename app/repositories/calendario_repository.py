@@ -3,7 +3,6 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.caja import CierreCaja
 from app.models.asistencia import Asistencia
 from app.models.calendario import EventoCalendario
 from app.models.inventario import Insumo, Proveedor, UnidadMedida
@@ -82,7 +81,16 @@ class CalendarioRepository:
             ``None``.
         """
         filas = self.db.execute(
-            select(Asistencia, Empleado.nombre, Empleado.apellido, Turno.nombre)
+            select(
+                Asistencia.id,
+                Asistencia.empleado_id,
+                Asistencia.fecha,
+                Asistencia.hora_entrada_real,
+                Asistencia.hora_salida_real,
+                Empleado.nombre,
+                Empleado.apellido,
+                Turno.nombre,
+            )
             .join(Empleado, Asistencia.empleado_id == Empleado.id)
             .join(Turno, Asistencia.turno_id == Turno.id)
             .where(
@@ -94,51 +102,13 @@ class CalendarioRepository:
         )
         return [
             {
-                "id": asistencia.id,
-                "empleado_id": asistencia.empleado_id,
+                "id": asistencia_id,
+                "empleado_id": empleado_id,
                 "empleado_nombre": f"{nombre} {apellido}".strip(),
                 "turno_nombre": turno_nombre,
-                "fecha": asistencia.fecha,
-                "hora_entrada_real": asistencia.hora_entrada_real,
-                "hora_salida_real": asistencia.hora_salida_real,
-            }
-            for asistencia, nombre, apellido, turno_nombre in filas
-        ]
-
-def obtener_cierres_caja(self, desde: date, hasta: date) -> list[dict]:
-        """Obtiene cierres de caja dentro del rango de fechas.
-
-        Args:
-            desde: Primer día inclusivo.
-            hasta: Último día inclusivo.
-            cantidad de pagos, ventas, total de efectivo, tarjeta y ordenes.
-            
-        returns:
-            Lista de diccionarios con información de cada cierre de caja.
-        """
-        filas = self.db.execute(
-            select(
-                CierreCaja.id,
-                CierreCaja.fecha,
-                CierreCaja.total_efectivo,
-                CierreCaja.total_tarjeta,
-                total_ventas(CierreCaja.id).label("total_ventas"),
-                total_ordenes(CierreCaja.id).label("total_ordenes"),
-            )
-            .where(
-                CierreCaja.fecha >= desde,
-                CierreCaja.fecha <= hasta,
-            )
-            .order_by(CierreCaja.fecha)
-        )
-        return [
-            {
-                "id": cierre_id,
                 "fecha": fecha,
-                "total_efectivo": total_efectivo,
-                "total_tarjeta": total_tarjeta,
-                "total_ventas": total_ventas,
-                "total_ordenes": total_ordenes,
+                "hora_entrada_real": hora_entrada_real,
+                "hora_salida_real": hora_salida_real,
             }
-            for cierre_id, fecha, total_efectivo, total_tarjeta, total_ventas, total_ordenes in filas
+            for asistencia_id, empleado_id, fecha, hora_entrada_real, hora_salida_real, nombre, apellido, turno_nombre in filas
         ]
