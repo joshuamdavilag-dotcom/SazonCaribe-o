@@ -3,7 +3,7 @@ services:
     name: sazon-caribeno
     runtime: python
     pythonVersion: "3.12"
-    buildCommand: pip install --only-binary :all: -r requirements.txt
+    buildCommand: pip install --only-binary=pydantic-core,pydantic,cryptography,bcrypt,python-jose -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthcheck
     envVars:
