@@ -23,7 +23,6 @@ const state = {
   user: JSON.parse(localStorage.getItem('pos_user') || 'null'),
   currentScreen: 'salon',
   previousScreen: null,
-  errorReturnScreen: null,
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
   tables: [],
@@ -247,26 +246,6 @@ function alternarNotificaciones() {
 const ERRORES_SESION = ['Sesión expirada', 'TURNO_DESHABILITADO', 'USUARIO_DESACTIVADO'];
 const ERROR_INTERNO = 'ERROR_INTERNO';
 
-function mostrarPantallaError() {
-  const screen = document.getElementById('app-error-screen');
-  if (!screen || !screen.hidden) return;
-  // Usar previousScreen si existe, si no currentScreen (para errores fuera de navegación)
-  state.errorReturnScreen = state.previousScreen ?? state.currentScreen;
-  screen.hidden = false;
-  document.getElementById('app-error-back')?.focus();
-}
-
-function volverDePantallaError() {
-  const screen = document.getElementById('app-error-screen');
-  if (!screen || screen.hidden) return;
-  screen.hidden = true;
-  const returnScreen = state.errorReturnScreen;
-  state.errorReturnScreen = null;
-  if (returnScreen && document.getElementById(`screen-${returnScreen}`)) {
-    navigateTo(returnScreen);
-  }
-}
-
 function _jwtExpirado(token) {
   if (!token) return false;
   try {
@@ -319,7 +298,7 @@ async function api(endpoint, options = {}) {
           if (raw) errDetail = raw.slice(0, 500);
         }
         if (!options.silent) {
-          mostrarPantallaError();
+          showToast(errDetail, 'error', 6000);
         }
         throw new Error(errDetail);
       }
@@ -6658,13 +6637,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') cerrarNotificaciones({ devolverFoco: true });
   });
-
-  document.getElementById('app-error-back')?.addEventListener('click', volverDePantallaError);
-
-  window.addEventListener('error', event => {
-    if (event instanceof ErrorEvent) mostrarPantallaError();
-  });
-  window.addEventListener('unhandledrejection', () => mostrarPantallaError());
 
   // Login
   document.getElementById('login-form')?.addEventListener('submit', async (e) => {
