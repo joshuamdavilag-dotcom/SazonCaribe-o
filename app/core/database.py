@@ -23,10 +23,12 @@ if is_sqlite:
     # Crear directorio de datos si no existe
     os.makedirs(os.path.dirname(settings.SQLITE_PATH) or ".", exist_ok=True)
 else:
-    # PostgreSQL (Render) u otro motor por URL
+    # MySQL (Aiven), PostgreSQL (Render) u otro motor por URL
     connect_args = {}
     db_url = settings.DATABASE_URL
-    if db_url.startswith("mysql") and settings.ENVIRONMENT == "production":
+    if db_url.startswith("mysql"):
+        # Aiven exige SSL. Se pasa por connect_args (PyMySQL no entiende
+        # 'ssl-mode' en la URL; ver normalización en config.py).
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE

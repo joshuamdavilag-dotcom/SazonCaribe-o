@@ -21,9 +21,23 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if self.DATABASE_URL:
+            url = self.DATABASE_URL
             # Render entrega a veces el esquema 'postgres://'; SQLAlchemy exige 'postgresql://'
-            if self.DATABASE_URL.startswith("postgres://"):
-                self.DATABASE_URL = "postgresql://" + self.DATABASE_URL[len("postgres://"):]
+            if url.startswith("postgres://"):
+                url = "postgresql://" + url[len("postgres://"):]
+
+            # MySQL/Aiven usa el parámetro '?ssl-mode=REQUIRED', que SQLAlchemy +
+            # PyMySQL NO reconocen (rompen con "unexpected keyword argument
+            # 'ssl-mode'"). Se elimina de la URL y el SSL se aplica vía
+            # connect_args en database.py.
+            if url.startswith("mysql"):
+                import re
+                url = re.sub(r"([?&])ssl-mode=[^&]*", r"\1", url)
+                url = re.sub(r"([?&])ssl_mode=[^&]*", r"\1", url)
+                # Limpiar '?' o '&' colgantes que hayan quedado
+                url = re.sub(r"[?&]+$", "", url)
+                url = re.sub(r"\?&", "?", url)
+            self.DATABASE_URL = url
         else:
             self.DATABASE_URL = f"sqlite:///{self.SQLITE_PATH}"
         return self
