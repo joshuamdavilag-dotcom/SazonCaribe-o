@@ -2888,15 +2888,29 @@ async function renderOrderModalCategories() {
     try { state.categories = await api('/menu/categorias'); } catch { state.categories = []; }
   }
 
-  let html = `<button class="category-tab active" data-om-cat="all">Todo</button>`;
-  state.categories.forEach(cat => {
-    html += `<button class="category-tab" data-om-cat="${cat.id}">${cat.nombre}</button>`;
-  });
-  container.innerHTML = html;
-
-  container.querySelectorAll('.category-tab').forEach(tab => {
-    tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
-  });
+  // Responsive: dropdown en móvil, tabs en desktop
+  const isMobile = window.innerWidth < 768;
+  if (isMobile) {
+    let html = `<select id="order-modal-cat-select" class="form-input" style="height:38px;font-size:14px;">`;
+    html += `<option value="all">🍽️ Todas las categorías</option>`;
+    state.categories.forEach(cat => {
+      html += `<option value="${cat.id}">${cat.nombre}</option>`;
+    });
+    html += `</select>`;
+    container.innerHTML = html;
+    document.getElementById('order-modal-cat-select')?.addEventListener('change', (e) => {
+      filterOrderModalByCategory(e.target.value);
+    });
+  } else {
+    let html = `<button class="category-tab active" data-om-cat="all">Todo</button>`;
+    state.categories.forEach(cat => {
+      html += `<button class="category-tab" data-om-cat="${cat.id}">${cat.nombre}</button>`;
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.category-tab').forEach(tab => {
+      tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
+    });
+  }
 }
 
 function openOrderModal(mesaId, mesaNumero) {
@@ -2983,6 +2997,11 @@ function renderOrderModalMenu(items) {
     return;
   }
 
+  const isMobile = window.innerWidth < 768;
+  const btnSize = isMobile ? '44px' : '36px';
+  const fontSize = isMobile ? '18px' : '16px';
+  const gap = isMobile ? '10px' : '6px';
+
   grid.innerHTML = filtered.map(item => {
     const cat = (item.categoria?.nombre || '').toLowerCase();
     let emoji = '🍽️';
@@ -2995,16 +3014,16 @@ function renderOrderModalMenu(items) {
     const qty = inOrder ? inOrder.cantidad : 0;
 
     return `
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #e5e7eb;border-radius:12px;">
-        <span style="font-size:24px;">${emoji}</span>
-        <div style="flex:1;">
-          <div style="font-weight:600;font-size:14px;">${item.nombre}</div>
-          <div style="font-size:13px;color:#6b7280;">C$${parseFloat(item.precio).toFixed(2)}</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
+        <span style="font-size:28px;">${emoji}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:${isMobile ? '16px' : '14px'};white-space:normal;word-break:break-word;">${item.nombre}</div>
+          <div style="font-size:${isMobile ? '14px' : '13px'};color:#6b7280;">C$${parseFloat(item.precio).toFixed(2)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" style="width:30px;height:30px;font-size:16px;">−</button>
-          <span style="min-width:24px;text-align:center;font-weight:700;font-size:15px;">${qty}</span>
-          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" style="width:30px;height:30px;font-size:16px;">+</button>
+        <div style="display:flex;align-items:center;gap:${gap};flex-shrink:0;">
+          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" style="width:${btnSize};height:${btnSize};font-size:${fontSize};border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">−</button>
+          <span style="min-width:28px;text-align:center;font-weight:700;font-size:${isMobile ? '17px' : '15px'};color:#111827;">${qty}</span>
+          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" style="width:${btnSize};height:${btnSize};font-size:${fontSize};border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">+</button>
         </div>
       </div>`;
   }).join('');
@@ -3129,9 +3148,13 @@ function updateOrderModalTotals() {
 
 function filterOrderModalByCategory(cat) {
   orderModalCategory = cat;
+  // Desktop tabs
   document.querySelectorAll('#order-modal-categories .category-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.omCat === cat);
   });
+  // Mobile select
+  const select = document.getElementById('order-modal-cat-select');
+  if (select) select.value = cat;
   renderOrderModalMenu(state.menuItems);
 }
 
@@ -3388,22 +3411,39 @@ async function deleteDish(itemId, nombre) {
 function renderCartaCatFilters(categorias) {
   const container = document.getElementById('carta-cat-filters');
   if (!container) return;
-  container.innerHTML = `
-    <button class="category-tab active" data-cat="all" role="tab" aria-selected="true">🍽️ Todos <span class="cat-count">0</span></button>
-    ${categorias.map(c => `<button class="category-tab" data-cat="${c.id}" role="tab" aria-selected="false">${getCategoryEmoji(c.nombre)} ${c.nombre} <span class="cat-count">0</span></button>`).join('')}
-  `;
-  container.querySelectorAll('.category-tab[data-cat]').forEach(chip => {
-    chip.addEventListener('click', () => {
-      container.querySelectorAll('.category-tab[data-cat]').forEach(c => {
-        c.classList.remove('active');
-        c.setAttribute('aria-selected', 'false');
-      });
-      chip.classList.add('active');
-      chip.setAttribute('aria-selected', 'true');
-      activeCartaCatFilter = chip.dataset.cat;
+
+  const isMobile = window.innerWidth < 768;
+
+  if (isMobile) {
+    let html = `<select id="carta-cat-select" class="form-input" style="height:40px;font-size:14px;width:100%;">`;
+    html += `<option value="all">🍽️ Todas las categorías</option>`;
+    categorias.forEach(c => {
+      html += `<option value="${c.id}">${getCategoryEmoji(c.nombre)} ${c.nombre}</option>`;
+    });
+    html += `</select>`;
+    container.innerHTML = html;
+    document.getElementById('carta-cat-select')?.addEventListener('change', (e) => {
+      activeCartaCatFilter = e.target.value;
       applyCartaFilter();
     });
-  });
+  } else {
+    container.innerHTML = `
+      <button class="category-tab active" data-cat="all" role="tab" aria-selected="true">🍽️ Todos <span class="cat-count">0</span></button>
+      ${categorias.map(c => `<button class="category-tab" data-cat="${c.id}" role="tab" aria-selected="false">${getCategoryEmoji(c.nombre)} ${c.nombre} <span class="cat-count">0</span></button>`).join('')}
+    `;
+    container.querySelectorAll('.category-tab[data-cat]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        container.querySelectorAll('.category-tab[data-cat]').forEach(c => {
+          c.classList.remove('active');
+          c.setAttribute('aria-selected', 'false');
+        });
+        chip.classList.add('active');
+        chip.setAttribute('aria-selected', 'true');
+        activeCartaCatFilter = chip.dataset.cat;
+        applyCartaFilter();
+      });
+    });
+  }
   aplicarContadoresCarta();
 }
 
@@ -3437,6 +3477,10 @@ function applyCartaFilter() {
     );
   }
   renderMenuItems(filtered, 'menu-grid');
+
+  // Sync mobile select if exists
+  const select = document.getElementById('carta-cat-select');
+  if (select) select.value = activeCartaCatFilter;
 }
 
 /* --- Dish Modal --- */
