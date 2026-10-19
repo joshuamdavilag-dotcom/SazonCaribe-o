@@ -23,8 +23,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if not self.DATABASE_URL:
+            from urllib.parse import quote_plus
+            # URL-encode password to handle special chars (@, :, /, %, etc.)
+            encoded_password = quote_plus(self.DB_PASSWORD)
             self.DATABASE_URL = (
-                f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
+                f"mysql+pymysql://{self.DB_USER}:{encoded_password}"
                 f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
             )
         parsed = urlparse(self.DATABASE_URL)

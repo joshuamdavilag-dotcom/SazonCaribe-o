@@ -2,8 +2,10 @@ services:
   - type: web
     name: sazon-caribeno
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    pythonVersion: "3.12"
+    buildCommand: pip install --only-binary :all: -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthcheck
     envVars:
       - key: DB_HOST
         sync: false
@@ -16,7 +18,7 @@ services:
       - key: DB_PORT
         value: "3306"
       - key: SECRET_KEY
-        generateValue: true
+        sync: false
       - key: HARCA27_PASSWORD
         sync: false
       - key: DEBUG
@@ -25,5 +27,11 @@ services:
         value: "production"
       - key: CORS_ORIGINS
         sync: false
-      - key: PYTHON_VERSION
-        value: "3.12"
+      - key: IMGBB_API_KEY
+        sync: false
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "525600"
+      - key: HEARTBEAT_INTERVAL_SECONDS
+        value: "300"
+      - key: HEARTBEAT_TIMEOUT_SECONDS
+        value: "900"

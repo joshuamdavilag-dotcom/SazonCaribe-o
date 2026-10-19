@@ -7,16 +7,19 @@ from typing import Generator
 from app.core.config import get_settings
 
 
-import ssl
-
 settings = get_settings()
 
+# SSL configuration for Render MySQL (managed databases require SSL)
 connect_args = {}
 if settings.ENVIRONMENT == "production":
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-    connect_args = {"ssl": ssl_ctx}
+    # Use dict-based SSL config for PyMySQL - more reliable than SSLContext in containers
+    # Render's managed MySQL uses standard SSL; verify_cert=False allows connection without CA bundle
+    connect_args = {
+        "ssl": {
+            "verify_cert": False,
+            "verify_identity": False,
+        }
+    }
 
 engine = create_engine(
     settings.DATABASE_URL,

@@ -1090,13 +1090,24 @@ def healthcheck() -> Dict[str, str]:
     """
     Endpoint de verificación de salud del sistema.
 
-    Retorna el estado del servidor y la marca de tiempo.
+    Retorna el estado del servidor, la marca de tiempo y conectividad a BD.
     """
+    from sqlalchemy import text
+    from app.core.database import engine
+    
+    db_status = "connected"
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        db_status = "disconnected"
+    
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "connected" else "degraded",
         "timestamp": datetime.now().isoformat(),
         "service": "Sazón Caribeño API",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "database": db_status
     }
 
 
