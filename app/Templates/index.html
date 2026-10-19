@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.2">
+  <link rel="stylesheet" href="css/style.css?v=6.3">
   <script src="https://cdn.tailwindc ss.com"></script>
   <script>
     tailwind.config = {
@@ -1432,13 +1432,39 @@
         <input type="text" id="order-modal-cliente" class="form-input" placeholder="Nombre del cliente (opcional)">
       </div>
 
-      <!-- Menú: búsqueda + carrusel de categorías + lista de platillos -->
+      <!-- Menú: búsqueda + carrusel de categorías + grid de platillos -->
       <div class="order-modal-body">
         <div class="order-modal-toolbar">
-          <input type="text" id="order-modal-search" class="form-input" placeholder="🔍 Buscar platillo…">
+          <div class="om-search-wrap">
+            <span class="material-symbols-outlined om-search-icon">search</span>
+            <input type="text" id="order-modal-search" class="form-input" placeholder="Buscar platillo…">
+            <button type="button" id="order-modal-search-clear" class="om-search-clear" aria-label="Limpiar búsqueda" style="display:none;">✕</button>
+          </div>
           <div id="order-modal-categories" class="cat-carousel" role="tablist" aria-label="Categorías"></div>
         </div>
-        <div id="order-modal-menu" class="order-menu-list" role="list"></div>
+        <div id="order-modal-menu" class="order-card-grid" role="list"></div>
+      </div>
+
+      <!-- Detalle de platillo (sheet dentro del modal) -->
+      <div id="order-dish-sheet" class="dish-sheet" style="display:none;">
+        <div class="dish-sheet-media" id="dish-sheet-media"></div>
+        <button type="button" id="dish-sheet-close" class="dish-sheet-close" aria-label="Cerrar detalle">✕</button>
+        <div class="dish-sheet-body">
+          <div class="dish-sheet-cat" id="dish-sheet-cat"></div>
+          <h4 class="dish-sheet-name" id="dish-sheet-name"></h4>
+          <p class="dish-sheet-desc" id="dish-sheet-desc"></p>
+          <div class="dish-sheet-meta" id="dish-sheet-meta"></div>
+          <label class="dish-sheet-notes-label" for="dish-sheet-notes">Notas para cocina (opcional)</label>
+          <textarea id="dish-sheet-notes" class="form-input dish-sheet-notes" rows="2" placeholder="Ej: sin cebolla, poco cocido…"></textarea>
+          <div class="dish-sheet-foot">
+            <div class="dish-sheet-stepper">
+              <button type="button" class="qty-btn" id="dish-sheet-minus" aria-label="Menos">−</button>
+              <span class="dish-sheet-qty" id="dish-sheet-qty">1</span>
+              <button type="button" class="qty-btn" id="dish-sheet-plus" aria-label="Más">+</button>
+            </div>
+            <button type="button" class="btn btn-primary dish-sheet-add" id="dish-sheet-add">Agregar</button>
+          </div>
+        </div>
       </div>
 
       <!-- Carrito: bottom sheet (oculto hasta tener items) -->
@@ -1476,10 +1502,14 @@
         </div>
       </div>
 
-      <!-- Botón flotante: ver comanda -->
-      <button type="button" id="order-modal-fab" class="order-fab" style="display:none;" aria-label="Ver comanda">
-        <span class="material-symbols-outlined">shopping_cart</span>
-        <span id="fab-count" class="fab-badge">0</span>
+      <!-- Barra inferior fija: resumen de la comanda -->
+      <button type="button" id="order-modal-fab" class="order-cartbar" style="display:none;" aria-label="Ver comanda">
+        <span class="order-cartbar-icon material-symbols-outlined">shopping_cart</span>
+        <span class="order-cartbar-info">
+          <span class="order-cartbar-count"><span id="fab-count">0</span> ítem(s)</span>
+          <span class="order-cartbar-total" id="order-cartbar-total">C$0.00</span>
+        </span>
+        <span class="order-cartbar-cta">Ver comanda</span>
       </button>
     </div>
   </div>
@@ -2248,6 +2278,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.2"></script>
+  <script src="js/app.js?v=6.3"></script>
 </body>
 </html>

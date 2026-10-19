@@ -2874,11 +2874,24 @@ function getMenuMedia(cat) {
   return { bg: 'bg-brand-sun/15', color: 'text-amber-500', icon: 'restaurant_menu' };
 }
 
+// Tinte e ícono del platillo con clases CSS reales (la carta del POS no usa Tailwind)
+function getDishTint(cat) {
+  const n = (cat || '').toLowerCase();
+  if (n.includes('bebida') || n.includes('café') || n.includes('jugo')) return { cls: 'tint-turquoise', icon: 'local_cafe' };
+  if (n.includes('marisco') || n.includes('ceviche') || n.includes('pescado')) return { cls: 'tint-coral', icon: 'set_meal' };
+  if (n.includes('postre')) return { cls: 'tint-amber', icon: 'icecream' };
+  if (n.includes('entrada') || n.includes('ensalada')) return { cls: 'tint-emerald', icon: 'eco' };
+  if (n.includes('carne') || n.includes('res') || n.includes('cerdo') || n.includes('pollo') || n.includes('parrilla')) return { cls: 'tint-coral', icon: 'outdoor_grill' };
+  return { cls: 'tint-navy', icon: 'restaurant_menu' };
+}
+
 /* =========================================================================
    Order Modal (Tomar Comanda)
    ========================================================================= */
 let orderModalCategory = 'all';
 let orderModalSearch = '';
+let dishSheetItemId = null;
+let dishSheetQty = 1;
 
 async function renderOrderModalCategories() {
   const container = document.getElementById('order-modal-categories');
@@ -2940,6 +2953,8 @@ function openOrderModal(mesaId, mesaNumero) {
 
   const searchInput = document.getElementById('order-modal-search');
   if (searchInput) searchInput.value = '';
+  const searchClear = document.getElementById('order-modal-search-clear');
+  if (searchClear) searchClear.style.display = 'none';
   const clienteInput = document.getElementById('order-modal-cliente');
   if (clienteInput) {
     clienteInput.value = '';
@@ -2949,13 +2964,15 @@ function openOrderModal(mesaId, mesaNumero) {
   document.getElementById('order-modal-cart').innerHTML =
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
-    '<p class="text-center text-muted" style="padding:24px;">Cargando menú…</p>';
+    '<p class="order-card-empty">Cargando menú…</p>';
 
-  // Ocultar FAB y bottom sheet al abrir
-  const fab = document.getElementById('order-modal-fab');
+  // Ocultar barra de comanda, carrito y detalle de platillo al abrir
+  const cartbar = document.getElementById('order-modal-fab');
   const sheet = document.getElementById('order-modal-cart-sheet');
-  if (fab) fab.style.display = 'none';
+  const dishSheet = document.getElementById('order-dish-sheet');
+  if (cartbar) cartbar.style.display = 'none';
   if (sheet) sheet.style.display = 'none';
+  if (dishSheet) dishSheet.style.display = 'none';
 
   document.getElementById('modal-order').classList.add('show');
   renderOrderModalCategories();
@@ -2972,6 +2989,9 @@ function openParaLlevarModal() {
 
 function closeOrderModal() {
   document.getElementById('modal-order').classList.remove('show');
+  const dishSheet = document.getElementById('order-dish-sheet');
+  if (dishSheet) dishSheet.style.display = 'none';
+  dishSheetItemId = null;
   state.currentOrder = { mesaId: null, items: [], _addToExisting: false, _ordenId: null };
 }
 
@@ -2981,7 +3001,7 @@ async function loadOrderModalMenu() {
     renderOrderModalMenu(state.menuItems);
   } catch {
     document.getElementById('order-modal-menu').innerHTML =
-      '<p class="text-center text-muted" style="padding:24px;">Error al cargar menú</p>';
+      '<p class="order-card-empty">Error al cargar menú</p>';
   }
 }
 
@@ -3002,11 +3022,11 @@ function renderOrderModalMenu(items) {
   }
 
   if (filtered.length === 0) {
-    list.innerHTML = '<p class="text-center text-muted" style="padding:24px;">No hay productos disponibles</p>';
+    list.innerHTML = '<p class="order-card-empty">No hay productos disponibles</p>';
     return;
   }
 
-  // Orden estable: por categoría y luego por nombre (lista escaneable)
+  // Orden estable: por categoría y luego por nombre (grid escaneable)
   filtered = filtered.slice().sort((a, b) => {
     const ca = (a.categoria?.nombre || '').localeCompare(b.categoria?.nombre || '', 'es');
     if (ca !== 0) return ca;
@@ -3020,50 +3040,141 @@ function renderOrderModalMenu(items) {
   filtered.forEach(item => {
     const cat = item.categoria?.nombre || 'Sin categoría';
     if (showCat && cat !== lastCat) {
-      html += `<div class="order-menu-group">${cat}</div>`;
+      html += `<div class="order-card-group">${escHtml(cat)}</div>`;
       lastCat = cat;
     }
 
-    const media = getMenuMedia(cat);
+    const tint = getDishTint(cat);
     const inOrder = state.currentOrder.items.find(i => i.producto_id === item.id);
     const qty = inOrder ? inOrder.cantidad : 0;
 
     const thumb = item.imagen_url
-      ? `<img src="${item.imagen_url}" alt="" loading="lazy" decoding="async">`
-      : `<span class="material-symbols-outlined ${media.color}" style="font-size:22px;">${media.icon}</span>`;
+      ? `<img src="${escHtml(item.imagen_url)}" alt="" loading="lazy" decoding="async">`
+      : `<span class="material-symbols-outlined">${tint.icon}</span>`;
 
-    const metaPrep = item.tiempo_preparacion ? `<span>⏱️ ~${item.tiempo_preparacion} min</span>` : '';
+    const badge = qty > 0
+      ? `<span class="oc-badge qty">${qty}</span>`
+      : (item.tiempo_preparacion ? `<span class="oc-badge">${item.tiempo_preparacion}m</span>` : '');
 
     html += `
-      <div class="order-menu-item" data-item-id="${item.id}" role="listitem">
-        <div class="omi-thumb ${media.bg}">${thumb}</div>
-        <div class="omi-info">
-          <div class="omi-name">${item.nombre}</div>
-          ${metaPrep ? `<div class="omi-meta">${metaPrep}</div>` : ''}
+      <article class="order-card ${qty > 0 ? 'selected' : ''}" data-item-id="${item.id}" role="listitem" onclick="openDishSheet(${item.id})">
+        <div class="oc-media ${tint.cls}">
+          ${thumb}
+          ${badge}
         </div>
-        <div class="omi-actions">
-          <span class="omi-price">C$${parseFloat(item.precio).toFixed(2)}</span>
-          ${qty > 0 ? `
-            <div class="omi-stepper">
-              <button type="button" class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" aria-label="Quitar uno">−</button>
-              <span class="omi-qty">${qty}</span>
-              <button type="button" class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" aria-label="Agregar uno">+</button>
-            </div>
-          ` : `
-            <button type="button" class="omi-add" aria-label="Agregar ${item.nombre}" onclick="changeOrderModalQty(${item.id}, 1)">
-              <span class="material-symbols-outlined" style="font-size:20px;">add</span>
+        <div class="oc-body">
+          <div class="oc-name">${escHtml(item.nombre)}</div>
+          <div class="oc-foot">
+            <span class="oc-price">C$${parseFloat(item.precio).toFixed(2)}</span>
+            <button type="button" class="oc-add" aria-label="Agregar ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
+              <span class="material-symbols-outlined">add</span>
             </button>
-          `}
+          </div>
         </div>
-      </div>`;
+      </article>`;
   });
 
   list.innerHTML = html;
   list.scrollTop = prevScroll;
 }
 
+/* --- Detalle de platillo (sheet) --- */
+function openDishSheet(itemId) {
+  const item = (state.menuItems || []).find(i => i.id === itemId);
+  if (!item) return;
+  const dishSheet = document.getElementById('order-dish-sheet');
+  if (!dishSheet) return;
+
+  dishSheetItemId = itemId;
+  const existing = state.currentOrder.items.find(i => i.producto_id === itemId);
+  dishSheetQty = existing ? existing.cantidad : 1;
+
+  const cat = item.categoria?.nombre || 'Sin categoría';
+  const tint = getDishTint(cat);
+
+  const mediaEl = document.getElementById('dish-sheet-media');
+  mediaEl.className = `dish-sheet-media ${tint.cls}`;
+  mediaEl.innerHTML = item.imagen_url
+    ? `<img src="${escHtml(item.imagen_url)}" alt="" loading="lazy" decoding="async">`
+    : `<span class="material-symbols-outlined">${tint.icon}</span>`;
+
+  document.getElementById('dish-sheet-cat').textContent = cat;
+  document.getElementById('dish-sheet-name').textContent = item.nombre;
+  document.getElementById('dish-sheet-desc').textContent = item.descripcion || '';
+
+  const meta = [];
+  meta.push(`<span>💵 C$${parseFloat(item.precio).toFixed(2)}</span>`);
+  if (item.tiempo_preparacion) meta.push(`<span>⏱️ ~${item.tiempo_preparacion} min</span>`);
+  document.getElementById('dish-sheet-meta').innerHTML = meta.join('');
+
+  const notesEl = document.getElementById('dish-sheet-notes');
+  notesEl.value = (existing && existing.notas) || '';
+
+  updateDishSheetQty();
+  dishSheet.style.display = 'flex';
+  const bar = document.getElementById('order-modal-fab');
+  if (bar) bar.style.display = 'none';
+}
+
+function updateDishSheetQty() {
+  const qtyEl = document.getElementById('dish-sheet-qty');
+  if (qtyEl) qtyEl.textContent = dishSheetQty;
+  const addBtn = document.getElementById('dish-sheet-add');
+  if (addBtn) {
+    const item = (state.menuItems || []).find(i => i.id === dishSheetItemId);
+    const precio = item ? parseFloat(item.precio) : 0;
+    addBtn.textContent = `Agregar · C$${(precio * dishSheetQty).toFixed(2)}`;
+  }
+}
+
+function changeDishSheetQty(delta) {
+  dishSheetQty = Math.max(1, dishSheetQty + delta);
+  updateDishSheetQty();
+}
+
+function closeDishSheet() {
+  const dishSheet = document.getElementById('order-dish-sheet');
+  if (dishSheet) dishSheet.style.display = 'none';
+  dishSheetItemId = null;
+  updateOrderModalCartUI();
+}
+
+function confirmDishSheet() {
+  const itemId = dishSheetItemId;
+  if (itemId == null) return;
+  const item = (state.menuItems || []).find(i => i.id === itemId);
+  if (!item) return;
+
+  const notes = (document.getElementById('dish-sheet-notes')?.value || '').trim() || null;
+  const existing = state.currentOrder.items.find(i => i.producto_id === itemId);
+
+  if (existing) {
+    existing.cantidad = dishSheetQty;
+    existing.notas = notes;
+    if (existing._descuentoMonto) {
+      const linea = existing.precio_unitario * existing.cantidad;
+      if (existing._descuentoMonto > linea) existing._descuentoMonto = linea;
+    }
+  } else {
+    state.currentOrder.items.push({
+      producto_id: itemId, nombre: item.nombre,
+      precio_unitario: parseFloat(item.precio), cantidad: dishSheetQty, notas,
+    });
+  }
+
+  closeDishSheet();
+  renderOrderModalMenu(state.menuItems);
+  renderOrderModalCart();
+  updateOrderModalTotals();
+  updateOrderModalCartUI();
+}
+window.openDishSheet = openDishSheet;
+window.changeDishSheetQty = changeDishSheetQty;
+window.closeDishSheet = closeDishSheet;
+window.confirmDishSheet = confirmDishSheet;
+
 function changeOrderModalQty(itemId, delta) {
-  const item = state.menuItems.find(i => i.id === itemId);
+  const item = (state.menuItems || []).find(i => i.id === itemId);
   if (!item) return;
 
   const existing = state.currentOrder.items.find(i => i.producto_id === itemId);
@@ -3184,31 +3295,35 @@ function updateOrderModalTotals() {
 function updateOrderModalCartUI() {
   const items = state.currentOrder.items;
   const count = items.reduce((s, i) => s + i.cantidad, 0);
-  const fab = document.getElementById('order-modal-fab');
+  const total = items.reduce((s, i) => s + i.precio_unitario * i.cantidad - (i._descuentoMonto || 0), 0);
+  const bar = document.getElementById('order-modal-fab');
   const sheet = document.getElementById('order-modal-cart-sheet');
-  const fabCount = document.getElementById('fab-count');
+  const dishSheet = document.getElementById('order-dish-sheet');
 
-  if (fabCount) fabCount.textContent = count;
+  const countEl = document.getElementById('fab-count');
+  const totalEl = document.getElementById('order-cartbar-total');
+  if (countEl) countEl.textContent = count;
+  if (totalEl) totalEl.textContent = `C$${Math.max(total, 0).toFixed(2)}`;
 
   if (count <= 0) {
     if (sheet) sheet.style.display = 'none';
-    if (fab) fab.style.display = 'none';
+    if (bar) bar.style.display = 'none';
+    if (dishSheet) dishSheet.style.display = 'none';
     return;
   }
 
   const sheetOpen = sheet && sheet.style.display === 'flex';
-  if (sheetOpen) {
-    if (fab) fab.style.display = 'none';
-  } else {
-    if (fab) fab.style.display = 'flex';
-  }
+  const dishOpen = dishSheet && dishSheet.style.display === 'flex';
+  if (bar) bar.style.display = (sheetOpen || dishOpen) ? 'none' : 'flex';
 }
 
 function openOrderCartSheet() {
   const sheet = document.getElementById('order-modal-cart-sheet');
-  const fab = document.getElementById('order-modal-fab');
+  const bar = document.getElementById('order-modal-fab');
+  const dishSheet = document.getElementById('order-dish-sheet');
+  if (dishSheet) dishSheet.style.display = 'none';
   if (sheet) sheet.style.display = 'flex';
-  if (fab) fab.style.display = 'none';
+  if (bar) bar.style.display = 'none';
 }
 
 function closeOrderCartSheet() {
@@ -6841,13 +6956,28 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancel-order-modal')?.addEventListener('click', closeOrderModal);
   document.getElementById('confirm-order-modal')?.addEventListener('click', submitOrder);
 
-  // Order modal - FAB & bottom sheet
+  // Order modal - barra de comanda & bottom sheet
   document.getElementById('order-modal-fab')?.addEventListener('click', openOrderCartSheet);
   document.getElementById('close-cart-sheet')?.addEventListener('click', closeOrderCartSheet);
 
+  // Order modal — detalle de platillo (sheet)
+  document.getElementById('dish-sheet-close')?.addEventListener('click', closeDishSheet);
+  document.getElementById('dish-sheet-minus')?.addEventListener('click', () => changeDishSheetQty(-1));
+  document.getElementById('dish-sheet-plus')?.addEventListener('click', () => changeDishSheetQty(1));
+  document.getElementById('dish-sheet-add')?.addEventListener('click', confirmDishSheet);
+
   // Order modal search
   document.getElementById('order-modal-search')?.addEventListener('input', (e) => {
+    const clearBtn = document.getElementById('order-modal-search-clear');
+    if (clearBtn) clearBtn.style.display = e.target.value ? 'grid' : 'none';
     filterOrderModalBySearch(e.target.value);
+  });
+  document.getElementById('order-modal-search-clear')?.addEventListener('click', () => {
+    const input = document.getElementById('order-modal-search');
+    if (input) { input.value = ''; input.focus(); }
+    const clearBtn = document.getElementById('order-modal-search-clear');
+    if (clearBtn) clearBtn.style.display = 'none';
+    filterOrderModalBySearch('');
   });
 
   // Carta (browse) search
