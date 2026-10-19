@@ -2888,29 +2888,15 @@ async function renderOrderModalCategories() {
     try { state.categories = await api('/menu/categorias'); } catch { state.categories = []; }
   }
 
-  // Responsive: dropdown en móvil, tabs en desktop
-  const isMobile = window.innerWidth < 768;
-  if (isMobile) {
-    let html = `<select id="order-modal-cat-select" class="form-input" style="height:38px;font-size:14px;">`;
-    html += `<option value="all">🍽️ Todas las categorías</option>`;
-    state.categories.forEach(cat => {
-      html += `<option value="${cat.id}">${cat.nombre}</option>`;
-    });
-    html += `</select>`;
-    container.innerHTML = html;
-    document.getElementById('order-modal-cat-select')?.addEventListener('change', (e) => {
-      filterOrderModalByCategory(e.target.value);
-    });
-  } else {
-    let html = `<button class="category-tab active" data-om-cat="all">Todo</button>`;
-    state.categories.forEach(cat => {
-      html += `<button class="category-tab" data-om-cat="${cat.id}">${cat.nombre}</button>`;
-    });
-    container.innerHTML = html;
-    container.querySelectorAll('.category-tab').forEach(tab => {
-      tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
-    });
-  }
+  // Chips horizontales con scroll (mejor UX móvil que dropdown)
+  let html = `<button class="category-tab active" data-om-cat="all" role="tab" aria-selected="true">🍽️ Todas</button>`;
+  state.categories.forEach(cat => {
+    html += `<button class="category-tab" data-om-cat="${cat.id}" role="tab" aria-selected="false">${getCategoryEmoji(cat.nombre)} ${cat.nombre}</button>`;
+  });
+  container.innerHTML = html;
+  container.querySelectorAll('.category-tab').forEach(tab => {
+    tab.addEventListener('click', () => filterOrderModalByCategory(tab.dataset.omCat));
+  });
 }
 
 function openOrderModal(mesaId, mesaNumero) {
@@ -2932,6 +2918,7 @@ function openOrderModal(mesaId, mesaNumero) {
     if (cobrarRow) cobrarRow.style.display = 'flex';
   }
 
+  // Reset UI
   document.getElementById('order-modal-count').textContent = '0';
   document.getElementById('order-modal-subtotal').textContent = 'C$0.00';
   document.getElementById('order-modal-descuento-row').style.display = 'none';
@@ -2949,6 +2936,12 @@ function openOrderModal(mesaId, mesaNumero) {
     '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
     '<p class="text-center text-muted" style="grid-column:1/-1;padding:24px;">Cargando menú…</p>';
+
+  // Ocultar FAB y bottom sheet al abrir
+  const fab = document.getElementById('order-modal-fab');
+  const sheet = document.getElementById('order-modal-cart-sheet');
+  if (fab) fab.style.display = 'none';
+  if (sheet) sheet.style.display = 'none';
 
   document.getElementById('modal-order').classList.add('show');
   renderOrderModalCategories();
@@ -2998,34 +2991,50 @@ function renderOrderModalMenu(items) {
   }
 
   const isMobile = window.innerWidth < 768;
-  const btnSize = isMobile ? '44px' : '36px';
-  const fontSize = isMobile ? '18px' : '16px';
-  const gap = isMobile ? '10px' : '6px';
 
   grid.innerHTML = filtered.map(item => {
-    const cat = (item.categoria?.nombre || '').toLowerCase();
-    let emoji = '🍽️';
-    if (cat.includes('bebida')) emoji = '🥤';
-    else if (cat.includes('ceviche')) emoji = '🐟';
-    else if (cat.includes('fuerte') || cat.includes('plato')) emoji = '🍛';
-    else if (cat.includes('postre')) emoji = '🍰';
+    const cat = item.categoria?.nombre || 'Sin categoría';
+    const catTagBg = /bebida/i.test(cat) ? 'bg-brand-turquoise/10 text-brand-turquoise'
+      : /marisco|ceviche|pescado/i.test(cat) ? 'bg-brand-coral/10 text-brand-coral'
+      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600'
+      : 'bg-slate-100 text-slate-500';
 
     const inOrder = state.currentOrder.items.find(i => i.producto_id === item.id);
     const qty = inOrder ? inOrder.cantidad : 0;
 
+    const media = getMenuMedia(cat);
+    const thumb = item.imagen_url
+      ? `<img src="${item.imagen_url}" alt="${item.nombre}" style="width:100%;height:100%;object-fit:cover;">`
+      : `<span class="material-symbols-outlined ${media.color}" style="font-size:36px;">${media.icon}</span>`;
+
+    const prepTime = item.tiempo_preparacion
+      ? `<div class="card-subtitle" style="margin-top:2px;font-size:11px;">⏱️ ~${item.tiempo_preparacion} min</div>`
+      : '';
+
     return `
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
-        <span style="font-size:28px;">${emoji}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:${isMobile ? '16px' : '14px'};white-space:normal;word-break:break-word;">${item.nombre}</div>
-          <div style="font-size:${isMobile ? '14px' : '13px'};color:#6b7280;">C$${parseFloat(item.precio).toFixed(2)}</div>
+      <article class="menu-card animate-in" data-item-id="${item.id}" style="display:flex;flex-direction:column;height:100%;min-height:170px;">
+        <div class="menu-card-media grid place-items-center ${media.bg}" style="aspect-ratio:4/3;min-height:96px;overflow:hidden;border-radius:12px 12px 0 0;" aria-hidden="true">${thumb}</div>
+        <div class="p-3 flex flex-col gap-1.5 flex-1" style="min-height:0;">
+          <span class="inline-flex self-start items-center text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${catTagBg}">${cat}</span>
+          <h3 class="text-[13px] font-bold leading-snug text-brand-navy line-clamp-2">${item.nombre}</h3>
+          ${prepTime}
+          <div class="mt-auto pt-1 flex items-center justify-between">
+            <span class="font-display font-extrabold text-[15px] text-brand-navy">C$${parseFloat(item.precio).toFixed(2)}</span>
+            ${qty > 0 ? `
+              <div style="display:flex;align-items:center;gap:6px;">
+                <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" style="width:32px;height:32px;font-size:18px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">−</button>
+                <span style="min-width:24px;text-align:center;font-weight:700;font-size:14px;color:#111827;">${qty}</span>
+                <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" style="width:32px;height:32px;font-size:18px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">+</button>
+              </div>
+            ` : `
+              <button type="button" class="grid place-items-center w-10 h-10 rounded-full bg-brand-coral text-white shadow-sm shadow-brand-coral/30 active:scale-95 transition"
+                      aria-label="Agregar ${item.nombre}" onclick="changeOrderModalQty(${item.id}, 1)">
+                <span class="material-symbols-outlined" style="font-size:22px;">add</span>
+              </button>
+            `}
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:${gap};flex-shrink:0;">
-          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, -1)" style="width:${btnSize};height:${btnSize};font-size:${fontSize};border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">−</button>
-          <span style="min-width:28px;text-align:center;font-weight:700;font-size:${isMobile ? '17px' : '15px'};color:#111827;">${qty}</span>
-          <button class="qty-btn" onclick="changeOrderModalQty(${item.id}, 1)" style="width:${btnSize};height:${btnSize};font-size:${fontSize};border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;">+</button>
-        </div>
-      </div>`;
+      </article>`;
   }).join('');
 }
 
@@ -3052,6 +3061,7 @@ function changeOrderModalQty(itemId, delta) {
   renderOrderModalMenu(state.menuItems);
   renderOrderModalCart();
   updateOrderModalTotals();
+  updateOrderModalCartUI();
 }
 
 function renderOrderModalCart() {
@@ -3144,6 +3154,23 @@ function updateOrderModalTotals() {
     descRow.style.display = 'none';
   }
   document.getElementById('order-modal-total').textContent = `C$${total.toFixed(2)}`;
+}
+
+function updateOrderModalCartUI() {
+  const items = state.currentOrder.items;
+  const count = items.reduce((s, i) => s + i.cantidad, 0);
+  const fab = document.getElementById('order-modal-fab');
+  const sheet = document.getElementById('order-modal-cart-sheet');
+  const fabCount = document.getElementById('fab-count');
+
+  if (count > 0) {
+    if (fab) fab.style.display = 'flex';
+    if (sheet) sheet.style.display = 'flex';
+    if (fabCount) fabCount.textContent = count;
+  } else {
+    if (fab) fab.style.display = 'none';
+    if (sheet) sheet.style.display = 'none';
+  }
 }
 
 function filterOrderModalByCategory(cat) {
@@ -6766,6 +6793,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-order-modal')?.addEventListener('click', closeOrderModal);
   document.getElementById('cancel-order-modal')?.addEventListener('click', closeOrderModal);
   document.getElementById('confirm-order-modal')?.addEventListener('click', submitOrder);
+
+  // Order modal - FAB & bottom sheet
+  document.getElementById('order-modal-fab')?.addEventListener('click', () => {
+    const sheet = document.getElementById('order-modal-cart-sheet');
+    if (sheet) sheet.style.display = 'flex';
+  });
+  document.getElementById('close-cart-sheet')?.addEventListener('click', () => {
+    const sheet = document.getElementById('order-modal-cart-sheet');
+    if (sheet) sheet.style.display = 'none';
+  });
 
   // Order modal search
   document.getElementById('order-modal-search')?.addEventListener('input', (e) => {

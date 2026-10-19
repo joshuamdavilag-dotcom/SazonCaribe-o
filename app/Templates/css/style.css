@@ -2818,6 +2818,65 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   }
 
   /* =========================================================================
+     MOBILE — Order Modal: FAB + Bottom Sheet
+     ========================================================================= */
+  .order-fab {
+    position: fixed !important;
+    bottom: 90px !important; /* above bottom nav */
+    right: 16px !important;
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    background: var(--azul-marino) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 16px rgba(0, 51, 102, 0.35) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 50 !important;
+    border: none !important;
+    cursor: pointer !important;
+    transition: transform 0.15s, box-shadow 0.15s !important;
+  }
+  .order-fab:active { transform: scale(0.92); }
+  .order-fab .material-symbols-outlined { font-size: 26px !important; }
+  .fab-badge {
+    position: absolute !important;
+    top: -4px !important;
+    right: -4px !important;
+    min-width: 20px !important;
+    height: 20px !important;
+    background: var(--rojo-cangrejo) !important;
+    color: #fff !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 5px !important;
+  }
+
+  /* Bottom sheet cart */
+  #order-modal-cart-sheet {
+    animation: slideUp 0.25s ease-out !important;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  #order-modal-cart-sheet > div:first-child {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+  }
+  #order-modal-cart-sheet > div:last-child {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 10 !important;
+  }
+
+  /* =========================================================================
      MOBILE — Cierre / Reportes
      ========================================================================= */
   .cierre-summary-grid {
