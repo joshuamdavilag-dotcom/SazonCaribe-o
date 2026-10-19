@@ -2902,9 +2902,12 @@ async function renderOrderModalCategories() {
   }
 
   // Carrusel horizontal de categorías (scroll + snap)
-  let html = `<button type="button" class="cat-chip active" data-om-cat="all" role="tab" aria-selected="true">🍽️ Todas</button>`;
+  const items = state.menuItems || [];
+  const countFor = (id) => items.filter(i => i.categoria_id === id).length;
+  let html = `<button type="button" class="cat-chip active" data-om-cat="all" role="tab" aria-selected="true">🍽️ Todas <span class="cat-chip-count">${items.length}</span></button>`;
   state.categories.forEach(cat => {
-    html += `<button type="button" class="cat-chip" data-om-cat="${cat.id}" role="tab" aria-selected="false">${getCategoryEmoji(cat.nombre)} ${cat.nombre}</button>`;
+    const n = countFor(cat.id);
+    html += `<button type="button" class="cat-chip" data-om-cat="${cat.id}" role="tab" aria-selected="false">${getCategoryEmoji(cat.nombre)} ${cat.nombre}${n ? ` <span class="cat-chip-count">${n}</span>` : ''}</button>`;
   });
   container.innerHTML = html;
   container.querySelectorAll('.cat-chip').forEach(chip => {
@@ -2999,6 +3002,7 @@ async function loadOrderModalMenu() {
   try {
     state.menuItems = await api('/menu/items');
     renderOrderModalMenu(state.menuItems);
+    renderOrderModalCategories();
   } catch {
     document.getElementById('order-modal-menu').innerHTML =
       '<p class="order-card-empty">Error al cargar menú</p>';
@@ -3053,7 +3057,7 @@ function renderOrderModalMenu(items) {
       : `<span class="material-symbols-outlined">${tint.icon}</span>`;
 
     const badge = qty > 0
-      ? `<span class="oc-badge qty">${qty}</span>`
+      ? `<span class="oc-badge qty">×${qty}</span>`
       : (item.tiempo_preparacion ? `<span class="oc-badge">${item.tiempo_preparacion}m</span>` : '');
 
     html += `
@@ -3061,6 +3065,7 @@ function renderOrderModalMenu(items) {
         <div class="oc-media ${tint.cls}">
           ${thumb}
           ${badge}
+          ${showCat ? '' : `<span class="oc-tag">${escHtml(cat)}</span>`}
         </div>
         <div class="oc-body">
           <div class="oc-name">${escHtml(item.nombre)}</div>
