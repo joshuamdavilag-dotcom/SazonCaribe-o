@@ -1378,6 +1378,36 @@ input, select, textarea { font: inherit; }
   justify-content: space-between;
   gap: 6px;
 }
+.oc-cat-inline {
+  display: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oc-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.oc-minus {
+  display: none;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+.oc-minus:active { transform: scale(0.85); background: var(--bg-secondary); }
+.oc-minus .material-symbols-outlined { font-size: 21px; }
 .oc-price {
   font-size: 15px;
   font-weight: 800;
@@ -3338,29 +3368,82 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
     border-radius: 0 !important;
     margin: 0 !important;
   }
-  #modal-order .order-modal-header { padding: 12px 14px !important; }
-  #modal-order .order-modal-toolbar { padding: 10px 12px !important; }
+  #modal-order .order-modal-header { padding: 9px 12px !important; }
+  #modal-order .order-modal-header .modal-title { font-size: 15px !important; }
+  #modal-order .order-modal-cliente { padding: 8px 12px 6px !important; }
+  #modal-order .order-modal-toolbar {
+    padding: 8px 10px 7px !important;
+    gap: 7px !important;
+  }
   #order-modal-search {
-    height: 44px !important;
+    height: 40px !important;
     font-size: 16px !important; /* evita el zoom en iOS */
+    padding-left: 40px !important;
   }
+  .om-search-icon { left: 12px !important; font-size: 18px !important; }
   .cat-chip {
-    min-height: 40px !important;
-    font-size: 14px !important;
-    padding: 0 16px !important;
+    min-height: 32px !important;
+    font-size: 13px !important;
+    padding: 0 13px !important;
   }
+  .cat-chip-count { line-height: 15px !important; }
+  .cat-carousel { gap: 6px !important; padding: 1px 1px 3px !important; }
   .order-card-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 11px !important;
-    padding: 12px 12px 104px !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 10px 10px 104px !important;
   }
-  .oc-name { font-size: 13.5px !important; }
+  /* Tarjeta → fila de lista compacta (miniatura + info + acciones) */
+  .order-card {
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 68px;
+  }
+  .order-card:hover { transform: none; }
+  .oc-media {
+    width: 68px;
+    flex-shrink: 0;
+    aspect-ratio: auto;
+    align-self: stretch;
+  }
+  .oc-media .material-symbols-outlined { font-size: 30px !important; }
+  .oc-media .oc-tag { display: none; }
+  .oc-badge {
+    top: 5px;
+    right: 5px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 10px;
+    border-radius: var(--radius-sm);
+  }
+  .oc-badge.qty { font-size: 11px; }
+  .oc-body {
+    flex: 1;
+    min-width: 0;
+    gap: 2px;
+    padding: 9px 12px;
+    justify-content: center;
+  }
+  .oc-name {
+    font-size: 14px !important;
+    min-height: 0;
+    -webkit-line-clamp: 2;
+  }
+  .oc-cat-inline { display: block; }
+  .oc-foot { margin-top: 3px; }
+  .oc-price { font-size: 14.5px !important; }
+  .oc-minus { display: grid; }
   .oc-add {
     width: 38px !important;
     height: 38px !important;
   }
   .oc-add .material-symbols-outlined { font-size: 22px !important; }
-  .oc-price { font-size: 15.5px !important; }
+  .order-card-group {
+    top: -10px;
+    margin: 2px 0 -2px;
+    padding: 8px 2px 4px;
+  }
   .dish-sheet-media { height: 168px !important; }
   #order-modal-cart .qty-btn {
     width: 34px !important;

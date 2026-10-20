@@ -3048,11 +3048,17 @@ function renderOrderModalMenu(items) {
         </div>
         <div class="oc-body">
           <div class="oc-name">${escHtml(item.nombre)}</div>
+          <div class="oc-cat-inline">${escHtml(cat)}</div>
           <div class="oc-foot">
             <span class="oc-price">C$${parseFloat(item.precio).toFixed(2)}</span>
-            <button type="button" class="oc-add" aria-label="Agregar ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
-              <span class="material-symbols-outlined">add</span>
-            </button>
+            <div class="oc-actions">
+              ${qty > 0 ? `<button type="button" class="oc-minus" aria-label="Quitar uno de ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, -1);">
+                <span class="material-symbols-outlined">remove</span>
+              </button>` : ''}
+              <button type="button" class="oc-add" aria-label="Agregar ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
+                <span class="material-symbols-outlined">add</span>
+              </button>
+            </div>
           </div>
         </div>
       </article>`;
