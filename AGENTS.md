@@ -571,6 +571,15 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - Frontend `renderCocinaCards()` filters by tab: cocina (PENDIENTE/PREPARANDO), lista (ENTREGADA), historial (PAGADA/CANCELADA)
 - `cambiarEstadoKDS(id, estado)` calls `PATCH /ordenes/{id}/estado` — validates against `TRANSICIONES_VALIDAS` state machine
 - `editarOrdenKDS(id)` — botón "✏️ Editar" en tarjetas KDS (PENDIENTE/PREPARANDO/ENTREGADA); con mesa reusa `agregarAlPedido()`, sin mesa (para llevar) abre `openOrderModal(null, null, orden)`; ambas entran al modo edición que hace `PUT /ordenes/{id}/items` con el estado final de la comanda
+- **Auto-refresh**: `iniciarIntervalosSesion()` arranca `state.kdsRefreshInterval` (15 s) que recarga el KDS solo cuando `state.currentScreen === 'comandero'` y la pestaña está visible; se limpia en `logout()`
+- **Botón principal de cocina**: `.kc-btn-principal` (ancho completo, 52px, `order: -1`) domina la tarjeta — `PENDIENTE` → "🔥 Empezar Preparación" (rojo, `local_fire_department`), `PREPARANDO` → "🛎️ ¡Listo! Avisar al Mesero" (turquesa, `room_service`). "Cobrar", "Editar" y "Cancelar" siguen disponibles para el cocinero
+
+### Cocinero/Chef (puesto de cocina)
+- El **cocinero se identifica por su Puesto** (`Puesto.nombre` que contenga "cocin" o "chef", case-insensitive), no por rol — los roles siguen siendo Administrador/Gerente/Vendedor
+- `POST /auth/login` y `GET /auth/me` incluyen `puesto` (nombre del puesto del empleado) en el JWT y en `AuthMeResponse`
+- Frontend: `esUsuarioCocina()` lee `state.user.puesto`; `applyRoleRestrictions()` agrega `body.role-cocina`; `navigateTo()` fuerza `comandero` para el cocinero (no puede salir del Panel de Cocina); login y restauración de sesión aterrizan en `comandero`
+- `sincronizarPuestoUsuario()` refresca `puesto` desde `GET /auth/me` al restaurar sesión (obtiene el valor aunque el `localStorage` viejo no lo tuviera)
+- CSS: `body.role-cocina` oculta `.sidebar-nav`, `.bottom-nav` y `.sidebar-toggle`, y quita el margen del `.main-content` (el Panel de Cocina ocupa toda la pantalla)
 
 ### Reportes financieros query chain
 ```

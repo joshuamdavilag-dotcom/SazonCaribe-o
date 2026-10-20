@@ -373,6 +373,9 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
+  if (esUsuarioCocina() && screenId !== 'comandero') {
+    screenId = 'comandero';
+  }
   if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
     void cerrarTodasCamaras();
   }
@@ -968,14 +971,22 @@ function cerrarClipModal() {
 /* =========================================================================
    Role-Based Nav Restrictions
    ========================================================================= */
+function esUsuarioCocina() {
+  const puesto = (state.user?.puesto || '').toLowerCase();
+  if (!puesto) return false;
+  return puesto.includes('cocin') || puesto.includes('chef');
+}
+
 function applyRoleRestrictions() {
   const rol = state.user?.rol || '';
   const isElevated = rol === 'Administrador' || rol === 'Gerente';
+  const esCocina = esUsuarioCocina();
 
-  document.body.classList.remove('role-administrador', 'role-gerente', 'role-vendedor');
+  document.body.classList.remove('role-administrador', 'role-gerente', 'role-vendedor', 'role-cocina');
   if (rol === 'Administrador') document.body.classList.add('role-administrador');
   else if (rol === 'Gerente') document.body.classList.add('role-gerente');
   else if (rol === 'Vendedor') document.body.classList.add('role-vendedor');
+  if (esCocina) document.body.classList.add('role-cocina');
 
   document.querySelectorAll('.nav-item-admin').forEach(btn => {
     const allowedRoles = (btn.dataset.roles || '').split(',');
@@ -1003,7 +1014,7 @@ async function login(username, password) {
     localStorage.setItem('pos_token', data.access_token);
 
     const payload = JSON.parse(atob(data.access_token.split('.')[1]));
-    state.user = { id: parseInt(payload.sub), username: payload.username, rol: payload.rol };
+    state.user = { id: parseInt(payload.sub), username: payload.username, rol: payload.rol, puesto: payload.puesto || null };
     localStorage.setItem('pos_user', JSON.stringify(state.user));
 
     updateUserBadges();
@@ -1011,7 +1022,7 @@ async function login(username, password) {
     showApp();
     showAttendancePanel();
     loadTurnos();
-    navigateTo('salon');
+    navigateTo(esUsuarioCocina() ? 'comandero' : 'salon');
     iniciarIntervalosSesion();
     showToast(`Bienvenido, ${state.user.username}`);
   } catch (e) {
@@ -1036,6 +1047,7 @@ function logout() {
   if (state.heartbeatInterval) { clearInterval(state.heartbeatInterval); state.heartbeatInterval = null; }
   if (state.sessionPollInterval) { clearInterval(state.sessionPollInterval); state.sessionPollInterval = null; }
   if (state.attendanceReminderInterval) { clearInterval(state.attendanceReminderInterval); state.attendanceReminderInterval = null; }
+  if (state.kdsRefreshInterval) { clearInterval(state.kdsRefreshInterval); state.kdsRefreshInterval = null; }
   state.token = null;
   state.user = null;
   state.currentAsistencia = null;
@@ -1484,10 +1496,14 @@ function iniciarIntervalosSesion() {
   if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
   if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
   if (state.attendanceReminderInterval) clearInterval(state.attendanceReminderInterval);
+  if (state.kdsRefreshInterval) clearInterval(state.kdsRefreshInterval);
   state.attendanceSynced = false;
   state.heartbeatInterval = setInterval(enviarHeartbeat, 120_000);
   state.sessionPollInterval = setInterval(verificarSesionTurno, 60_000);
   state.attendanceReminderInterval = setInterval(verificarAvisosTurno, 30_000);
+  state.kdsRefreshInterval = setInterval(() => {
+    if (state.currentScreen === 'comandero' && !document.hidden) loadCocinaOrdenes();
+  }, 15_000);
   actualizarBotonAvisosTurno();
   syncAsistenciaActiva();
 }
@@ -2745,7 +2761,7 @@ function renderCocinaCards() {
       const editarBtn = `<button type="button" class="kc-btn-editar" onclick="editarOrdenKDS(${o.id})" title="Agregar o modificar ítems"><span class="material-symbols-outlined text-[18px]">edit_note</span>Editar</button>`;
       if (o.estado === 'PENDIENTE') {
         return `<div class="kc-actions">
-            <button type="button" class="kc-btn-entregar kc-btn-coral" onclick="cambiarEstadoKDS(${o.id}, 'PREPARANDO')"><span class="material-symbols-outlined text-[19px]">soup_kitchen</span>En Preparación</button>
+            <button type="button" class="kc-btn-entregar kc-btn-coral kc-btn-principal" onclick="cambiarEstadoKDS(${o.id}, 'PREPARANDO')"><span class="material-symbols-outlined">local_fire_department</span>Empezar Preparación</button>
             ${editarBtn}
             ${cobrarBtn}
             ${cancelBtn}
@@ -2753,7 +2769,7 @@ function renderCocinaCards() {
       }
       if (o.estado === 'PREPARANDO') {
         return `<div class="kc-actions">
-            <button type="button" class="kc-btn-entregar kc-btn-turquoise" onclick="cambiarEstadoKDS(${o.id}, 'ENTREGADA')"><span class="material-symbols-outlined text-[19px]">check_circle</span>Lista p/ Servir</button>
+            <button type="button" class="kc-btn-entregar kc-btn-turquoise kc-btn-principal" onclick="cambiarEstadoKDS(${o.id}, 'ENTREGADA')"><span class="material-symbols-outlined">room_service</span>¡Listo! Avisar al Mesero</button>
             ${editarBtn}
             ${cobrarBtn}
             ${cancelBtn}
@@ -7646,9 +7662,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showApp();
     showAttendancePanel();
     loadTurnos();
-    navigateTo('salon');
+    navigateTo(esUsuarioCocina() ? 'comandero' : 'salon');
     iniciarIntervalosSesion();
+    sincronizarPuestoUsuario();
   } else {
     showLogin();
   }
 });
+
+async function sincronizarPuestoUsuario() {
+  if (!state.token) return;
+  try {
+    const me = await api('/auth/me', { silent: true });
+    if (!me) return;
+    const puesto = me.puesto || null;
+    if (puesto === (state.user?.puesto || null)) return;
+    state.user = { ...state.user, puesto };
+    localStorage.setItem('pos_user', JSON.stringify(state.user));
+    applyRoleRestrictions();
+    if (esUsuarioCocina()) navigateTo('comandero');
+  } catch {
+    /* sesión inválida: el interceptor de api() ya maneja el logout */
+  }
+}

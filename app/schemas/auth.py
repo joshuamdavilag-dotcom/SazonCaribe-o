@@ -49,6 +49,10 @@ class TokenData(BaseModel):
         default=None,
         description="Rol del usuario en el sistema"
     )
+    puesto: Optional[str] = Field(
+        default=None,
+        description="Nombre del puesto del empleado (ej: 'Cocinero/Chef')"
+    )
 
 
 class AuthMeResponse(BaseModel):
@@ -64,6 +68,10 @@ class AuthMeResponse(BaseModel):
     rol: str = Field(
         ...,
         description="Rol del usuario en el sistema"
+    )
+    puesto: Optional[str] = Field(
+        default=None,
+        description="Nombre del puesto del empleado (ej: 'Cocinero/Chef')"
     )
     turno_habilitado: bool = Field(
         ...,

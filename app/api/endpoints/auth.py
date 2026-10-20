@@ -91,7 +91,8 @@ def login(
     payload = {
         "sub": str(usuario.id),
         "username": usuario.username,
-        "rol": usuario.rol
+        "rol": usuario.rol,
+        "puesto": usuario.empleado.puesto.nombre if usuario.empleado and usuario.empleado.puesto else None
     }
     token = crear_access_token(data=payload)
 
@@ -123,6 +124,7 @@ def obtener_usuario_actual(
         id=current_user.id,
         username=current_user.username,
         rol=current_user.rol,
+        puesto=current_user.empleado.puesto.nombre if current_user.empleado and current_user.empleado.puesto else None,
         turno_habilitado=current_user.turno_habilitado,
         activo=current_user.activo,
     )

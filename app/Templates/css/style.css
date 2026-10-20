@@ -626,6 +626,20 @@ input, select, textarea { font: inherit; }
 .kc-btn-editar    { background: #fff; border: 1.5px solid var(--amarillo-solar); color: #B7791F; }
 .kc-btn-cancelar  { background: transparent; border: 1.5px solid rgba(230,57,70,0.35); color: var(--rojo-cangrejo); font-size: 11px; height: 34px; }
 
+/* Acción principal de cocina: Empezar / Listo — botón dominante a ancho completo */
+.kc-card .kc-actions .kc-btn-principal {
+  flex: 1 1 100%;
+  order: -1;
+  height: 52px;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+}
+.kc-card .kc-actions .kc-btn-principal .material-symbols-outlined { font-size: 24px; }
+.kc-btn-principal.kc-btn-coral { background: var(--rojo-cangrejo); }
+.kc-btn-principal.kc-btn-turquoise { background: var(--turquesa-ola); }
+.kc-btn-principal.kc-btn-amber { background: var(--amarillo-solar); color: #7A2E00; }
+
 /* =========================================================================
    Carta POS (Category Tabs + Product Cards)
    ========================================================================= */
@@ -2957,6 +2971,18 @@ select.form-input {
 body:not(.role-administrador):not(.role-gerente) .admin-only {
   display: none !important;
 }
+
+/* Cocinero/Chef: solo el Panel de Cocina (sin navegación lateral ni barra inferior) */
+body.role-cocina .sidebar-nav,
+body.role-cocina .bottom-nav,
+body.role-cocina .sidebar-toggle {
+  display: none !important;
+}
+body.role-cocina .main-content {
+  margin-left: 0 !important;
+  padding-bottom: 0 !important;
+}
+body.role-cocina .sidebar-backdrop { display: none !important; }
 
 /* =========================================================================
    Personal & Nómina
