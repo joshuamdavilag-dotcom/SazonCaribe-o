@@ -29,6 +29,7 @@ settings = get_settings()
 
 
 def get_asistencia_service(db: Session = Depends(get_db)) -> AsistenciaService:
+    """Retorna el servicio de asistencia ligado a la sesión de BD de la petición."""
     return AsistenciaService(db)
 
 
@@ -90,6 +91,7 @@ def actualizar_turno(
     turno_in: TurnoUpdate = ...,
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> TurnoResponse:
+    """Actualiza los datos de un turno laboral existente."""
     return service.actualizar_turno(turno_id, turno_in)
 
 
@@ -105,6 +107,7 @@ def eliminar_turno(
     turno_id: int = Path(..., gt=0, description="ID del turno"),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> None:
+    """Elimina un turno laboral que no tenga asistencias registradas."""
     service.eliminar_turno(turno_id)
 
 
@@ -126,6 +129,7 @@ def iniciar_turno(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AsistenciaResponse:
+    """Registra la entrada del usuario logueado a un turno (check-in)."""
     from app.services.turno_service import _get_ip_cliente
     ip_origen = _get_ip_cliente(request)
 
@@ -156,6 +160,7 @@ def heartbeat_turno(
     current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
+    """Actualiza el último pulso de una asistencia activa para evitar su cierre automático."""
     return service.actualizar_heartbeat(asistencia_id)
 
 
@@ -201,6 +206,7 @@ def registrar_salida(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AsistenciaResponse:
+    """Finaliza el turno activo del empleado logueado y calcula las horas extras."""
     repo = AsistenciaRepository(db)
     asistencias = repo.get_asistencias_por_empleado(current_user.empleado_id)
     activa = next(
@@ -241,6 +247,7 @@ def asistencia_activa(
     current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service),
 ) -> Optional[AsistenciaResponse]:
+    """Devuelve la asistencia abierta del empleado logueado o null si no tiene ninguna."""
     return service.obtener_asistencia_activa(current_user.empleado_id)
 
 
@@ -325,6 +332,7 @@ def editar_horarios(
     current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
+    """Edita manualmente la fecha y hora de entrada y/o salida de una asistencia."""
     return service.editar_horarios(asistencia_id, data, current_user.id)
 
 
@@ -348,4 +356,5 @@ def anular_asistencia(
     current_user: Usuario = Depends(get_current_user),
     service: AsistenciaService = Depends(get_asistencia_service)
 ) -> AsistenciaResponse:
+    """Anula (borrado lógico) un registro de asistencia con motivo de auditoría."""
     return service.anular_asistencia(asistencia_id, data, current_user.id)

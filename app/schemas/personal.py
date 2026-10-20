@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 def validar_password_bcrypt(password: str) -> str:
+    """Valida que la contraseña no supere los 72 bytes UTF-8 que admite bcrypt."""
     if len(password.strip().encode("utf-8")) > 72:
         raise ValueError(
             "La contraseña no puede superar los 72 bytes UTF-8 que admite bcrypt"
@@ -215,6 +216,7 @@ class UsuarioCreate(UsuarioBase):
     @field_validator("password")
     @classmethod
     def validar_longitud_bcrypt(cls, password: str) -> str:
+        """Delega la validación de longitud bcrypt de la contraseña."""
         return validar_password_bcrypt(password)
 
 
@@ -260,6 +262,7 @@ class PasswordResetRequest(BaseModel):
     @field_validator("nueva_password")
     @classmethod
     def validar_longitud_bcrypt(cls, password: str) -> str:
+        """Delega la validación de longitud bcrypt de la nueva contraseña."""
         return validar_password_bcrypt(password)
 
 

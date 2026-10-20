@@ -106,6 +106,7 @@ def listar_zonas(
     current_user: Usuario = Depends(get_current_user),
     service: SalonService = Depends(get_salon_service)
 ) -> List[ZonaResponse]:
+    """Lista todas las zonas del restaurante con sus mesas."""
     return service.listar_zonas()
 
 
@@ -121,6 +122,7 @@ def eliminar_zona(
     zona_id: int = Path(..., gt=0, description="ID de la zona"),
     service: SalonService = Depends(get_salon_service)
 ) -> None:
+    """Elimina una zona que no tenga mesas asociadas."""
     service.eliminar_zona(zona_id)
 
 
@@ -263,6 +265,7 @@ def actualizar_mesa(
     mesa_in: MesaUpdate = ...,
     service: SalonService = Depends(get_salon_service)
 ) -> MesaResponse:
+    """Actualiza número, capacidad, estado o zona de una mesa."""
     return service.actualizar_mesa(mesa_id, mesa_in)
 
 
@@ -278,4 +281,5 @@ def eliminar_mesa(
     mesa_id: int = Path(..., gt=0, description="ID de la mesa"),
     service: SalonService = Depends(get_salon_service)
 ) -> None:
+    """Elimina una mesa que no esté ocupada."""
     service.eliminar_mesa(mesa_id)

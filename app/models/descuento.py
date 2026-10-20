@@ -9,6 +9,8 @@ from app.core.database import Base
 
 
 class TipoDescuento(str, enum.Enum):
+    """Conjunto de valores válidos para el tipo de descuento aplicable."""
+
     PORCENTAJE = "PORCENTAJE"
     MONTO = "MONTO"
 

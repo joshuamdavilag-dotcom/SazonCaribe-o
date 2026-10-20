@@ -26,6 +26,7 @@ def listar_registros_auditoria(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AuditoriaPageResponse:
+    """Lista la bitácora de auditoría paginada, solo para administradores y gerentes."""
     if current_user.rol not in (RolEnum.ADMINISTRADOR.value, RolEnum.GERENTE.value):
         raise HTTPException(
             status_code=403,

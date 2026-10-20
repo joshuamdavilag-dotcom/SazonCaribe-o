@@ -29,6 +29,7 @@ class DescuentoFrecuenteCreate(BaseModel):
 
     @model_validator(mode="after")
     def validar_porcentaje(self) -> "DescuentoFrecuenteCreate":
+        """Valida que el valor no supere 100 cuando el tipo es PORCENTAJE."""
         if self.tipo == TipoDescuento.PORCENTAJE and self.valor > 100:
             raise ValueError("El porcentaje no puede ser mayor a 100")
         return self

@@ -38,6 +38,7 @@ CAMERA_MIN_FREE_BYTES = 512 * 1024 * 1024
 
 
 def _utc_now_naive() -> datetime:
+    """Devuelve la hora UTC actual sin información de zona horaria."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
@@ -55,20 +56,28 @@ class CameraService:
 
     @staticmethod
     def _es_gestor(usuario: Usuario) -> bool:
+        """Indica si el usuario tiene rol de Administrador o Gerente."""
         return usuario.rol in {
             RolEnum.ADMINISTRADOR.value,
             RolEnum.GERENTE.value,
         }
 
     def _storage_dir(self) -> Path:
+        """Devuelve la ruta absoluta del directorio de almacenamiento de clips."""
         return Path(self.settings.CAMERA_STORAGE_DIR).expanduser().resolve()
 
     def _ensure_storage(self) -> Path:
+        """Crea el directorio de almacenamiento si no existe y lo devuelve."""
         storage_dir = self._storage_dir()
         storage_dir.mkdir(parents=True, exist_ok=True)
         return storage_dir
 
     def _stream_url(self, slug: str) -> str | None:
+        """Construye la URL WHEP del puente para una cámara.
+
+        Valida que la base del puente use HTTPS (o HTTP en local) y no incluya
+        credenciales ni ruta. Devuelve None si el puente no está configurado.
+        """
         base_url = self.settings.CAMERA_BRIDGE_BASE_URL.strip().rstrip("/")
         if not base_url:
             return None
@@ -92,6 +101,7 @@ class CameraService:
         return f"{base_url}/{slug}/whep"
 
     def _camera_or_404(self, camera_id: int, require_active: bool = True) -> Camera:
+        """Obtiene la cámara por ID o lanza 404 si no existe o está inactiva."""
         camera = self.db.get(Camera, camera_id)
         if not camera or (require_active and not camera.activa):
             raise HTTPException(status_code=404, detail="Cámara no encontrada")
@@ -108,6 +118,7 @@ class CameraService:
             raise HTTPException(status_code=404, detail="Cámara no encontrada")
 
     def _response(self, camera: Camera, viewer_ids: list[int] | None = None) -> dict[str, Any]:
+        """Serializa una cámara incluyendo su URL de stream y los IDs con acceso."""
         return {
             "id": camera.id,
             "nombre": camera.nombre,
@@ -270,6 +281,7 @@ class CameraService:
 
     @staticmethod
     def _valid_ice_server(server: Any) -> bool:
+        """Valida que un servidor ICE sea un diccionario con URLs STUN/TURN sin credenciales."""
         if not isinstance(server, dict):
             return False
         if "username" in server or "credential" in server:
@@ -392,12 +404,14 @@ class CameraService:
     def _clip_or_404(
         self, clip_id: str, camera_id: int | None = None
     ) -> CameraClip:
+        """Obtiene un clip por ID o lanza 404; opcionalmente valida su cámara."""
         clip = self.db.get(CameraClip, clip_id)
         if not clip or (camera_id is not None and clip.camara_id != camera_id):
             raise HTTPException(status_code=404, detail="Clip no encontrado")
         return clip
 
     def _clip_path(self, clip: CameraClip) -> Path:
+        """Construye la ruta del archivo del clip según su tipo MIME."""
         extension = "webm" if clip.mime_type == "video/webm" else "mp4"
         return self._storage_dir() / f"{clip.id}.{extension}"
 
@@ -435,6 +449,11 @@ class CameraService:
 
     @staticmethod
     def _check_storage_space(storage_dir: Path, incoming_bytes: int = 0) -> None:
+        """Verifica que queden al menos CAMERA_MIN_FREE_BYTES libres tras la escritura.
+
+        Raises:
+            HTTPException 507: Si el espacio libre restante es insuficiente.
+        """
         available = shutil.disk_usage(storage_dir).free
         if available - incoming_bytes < CAMERA_MIN_FREE_BYTES:
             raise HTTPException(
@@ -525,12 +544,14 @@ class CameraService:
 
     @staticmethod
     def _valid_video_signature(mime_type: str, data: bytes) -> bool:
+        """Valida que los bytes recibidos tengan la firma del formato de video."""
         if mime_type == "video/webm":
             return data.startswith(bytes.fromhex("1a45dfa3"))
         return len(data) >= 8 and data[4:8] == b"ftyp"
 
     @staticmethod
     def _require_clip_owner(clip: CameraClip, usuario: Usuario) -> None:
+        """Exige que el usuario sea gestor o dueño del clip, o lanza 404."""
         if not CameraService._es_gestor(usuario) and clip.usuario_id != usuario.id:
             raise HTTPException(status_code=404, detail="Clip no encontrado")
 
@@ -574,6 +595,7 @@ class CameraService:
 
     @staticmethod
     def _clip_response(clip: CameraClip, camera_name: str) -> dict[str, Any]:
+        """Serializa los metadatos de un clip para la API."""
         return {
             "id": clip.id,
             "camara_id": clip.camara_id,

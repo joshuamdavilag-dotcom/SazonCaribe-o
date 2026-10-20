@@ -421,6 +421,23 @@ class InventarioService:
     def actualizar_insumo(
         self, insumo_id: int, datos: InsumoUpdate
     ) -> InsumoResponse:
+        """
+        Actualiza los datos de un insumo.
+
+        Si cambia la unidad de medida base, exige factor_conversion_unidad y
+        reconvierte el stock, el costo unitario y las recetas vinculadas.
+
+        Args:
+            insumo_id: ID del insumo.
+            datos: Campos a actualizar.
+
+        Returns:
+            InsumoResponse con el insumo actualizado.
+
+        Raises:
+            HTTPException 404: Si el insumo no existe.
+            HTTPException 400: Si falta o es inválido el factor de conversión.
+        """
         insumo = self.insumo_repo.get_by_id(insumo_id)
         if not insumo:
             raise HTTPException(
@@ -484,6 +501,18 @@ class InventarioService:
     # =========================================================================
 
     def crear_categoria_insumo(self, data: CategoriaInsumoCreate) -> CategoriaInsumoResponse:
+        """
+        Crea una categoría de insumo.
+
+        Args:
+            data: Nombre de la categoría a crear.
+
+        Returns:
+            CategoriaInsumoResponse con la categoría creada.
+
+        Raises:
+            HTTPException 400: Si ya existe una categoría con ese nombre.
+        """
         existing = self.categoria_insumo_repo.get_all()
         for c in existing:
             if c.nombre.lower() == data.nombre.lower():
@@ -495,10 +524,18 @@ class InventarioService:
         return CategoriaInsumoResponse.model_validate(cat)
 
     def listar_categorias_insumo(self) -> List[CategoriaInsumoResponse]:
+        """Lista todas las categorías de insumo ordenadas por nombre."""
         cats = self.categoria_insumo_repo.get_all(order_by="nombre")
         return [CategoriaInsumoResponse.model_validate(c) for c in cats]
 
     def eliminar_categoria_insumo(self, cat_id: int) -> None:
+        """
+        Elimina una categoría de insumo sin insumos asociados.
+
+        Raises:
+            HTTPException 404: Si la categoría no existe.
+            HTTPException 400: Si la categoría tiene insumos asociados.
+        """
         cat = self.categoria_insumo_repo.get_by_id(cat_id)
         if not cat:
             raise HTTPException(
@@ -518,6 +555,19 @@ class InventarioService:
     # =========================================================================
 
     def crear_unidad_medida(self, data: UnidadMedidaCreate) -> UnidadMedidaResponse:
+        """
+        Crea una unidad de medida.
+
+        Args:
+            data: Datos de la unidad (nombre, abreviatura, magnitud y base).
+
+        Returns:
+            UnidadMedidaResponse con la unidad creada.
+
+        Raises:
+            HTTPException 400: Si el nombre o la abreviatura ya existen, o si la
+                unidad se define como su propia base.
+        """
         existing = self.unidad_medida_repo.get_all()
         for u in existing:
             if u.nombre.lower() == data.nombre.lower():
@@ -540,12 +590,27 @@ class InventarioService:
         return UnidadMedidaResponse.model_validate(unidad)
 
     def listar_unidades_medida(self) -> List[UnidadMedidaResponse]:
+        """Lista todas las unidades de medida ordenadas por nombre."""
         units = self.unidad_medida_repo.get_all(order_by="nombre")
         return [UnidadMedidaResponse.model_validate(u) for u in units]
 
     def actualizar_unidad_medida(
         self, unidad_id: int, datos: UnidadMedidaUpdate
     ) -> UnidadMedidaResponse:
+        """
+        Actualiza una unidad de medida.
+
+        Args:
+            unidad_id: ID de la unidad.
+            datos: Campos a actualizar.
+
+        Returns:
+            UnidadMedidaResponse con la unidad actualizada.
+
+        Raises:
+            HTTPException 404: Si la unidad no existe.
+            HTTPException 400: Si el nuevo nombre o abreviatura ya están en uso.
+        """
         unidad = self.unidad_medida_repo.get_by_id(unidad_id)
         if not unidad:
             raise HTTPException(
@@ -575,6 +640,13 @@ class InventarioService:
         return UnidadMedidaResponse.model_validate(unidad)
 
     def eliminar_unidad_medida(self, unidad_id: int) -> None:
+        """
+        Elimina una unidad de medida sin insumos asociados.
+
+        Raises:
+            HTTPException 404: Si la unidad no existe.
+            HTTPException 400: Si la unidad tiene insumos asociados.
+        """
         unidad = self.unidad_medida_repo.get_by_id(unidad_id)
         if not unidad:
             raise HTTPException(

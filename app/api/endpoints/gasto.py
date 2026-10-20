@@ -15,6 +15,7 @@ router = APIRouter()
 
 
 def get_gasto_service(db: Session = Depends(get_db)) -> GastoService:
+    """Retorna el servicio de gastos ligado a la sesión de BD de la petición."""
     return GastoService(db)
 
 
@@ -32,6 +33,7 @@ def crear_gasto(
     current_user: Usuario = Depends(get_current_user),
     service: GastoService = Depends(get_gasto_service),
 ) -> GastoResponse:
+    """Registra un gasto operativo del restaurante a nombre del usuario logueado."""
     return service.registrar_gasto(gasto_in, current_user.id)
 
 
@@ -48,4 +50,5 @@ def listar_gastos(
     fecha_fin: Optional[date] = Query(default=None),
     service: GastoService = Depends(get_gasto_service),
 ) -> List[GastoResponse]:
+    """Lista los gastos, opcionalmente filtrados por rango de fechas."""
     return service.listar_gastos(fecha_inicio, fecha_fin)

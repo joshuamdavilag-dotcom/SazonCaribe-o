@@ -438,6 +438,7 @@ def _migrate_turnos(db: Session) -> None:
 
 
 def _seed_categorias_insumo(db: Session) -> list[CategoriaInsumo]:
+    """Inserta las categorías de insumo iniciales si aún no existen."""
     stmt = select(CategoriaInsumo).limit(1)
     if db.execute(stmt).scalar_one_or_none():
         print("  [=] Categorías de insumo ya existen, omitiendo.")
@@ -454,6 +455,7 @@ def _seed_categorias_insumo(db: Session) -> list[CategoriaInsumo]:
 
 
 def _seed_unidades_medida(db: Session) -> list[UnidadMedida]:
+    """Inserta las unidades de medida iniciales si aún no existen."""
     stmt = select(UnidadMedida).limit(1)
     if db.execute(stmt).scalar_one_or_none():
         print("  [=] Unidades de medida ya existen, omitiendo.")

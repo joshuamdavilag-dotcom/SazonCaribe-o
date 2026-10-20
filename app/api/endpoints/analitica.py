@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 def get_analitica_service(db: Session = Depends(get_db)) -> AnaliticaService:
+    """Retorna el servicio de analítica ligado a la sesión de BD de la petición."""
     return AnaliticaService(db)
 
 
@@ -31,5 +32,6 @@ def cierre_caja(
     ),
     service: AnaliticaService = Depends(get_analitica_service)
 ) -> CierreCajaResponse:
+    """Devuelve las métricas financieras del cierre de caja para la fecha indicada."""
     fecha_consulta = fecha if fecha else date.today()
     return service.obtener_cierre_caja(fecha_consulta)

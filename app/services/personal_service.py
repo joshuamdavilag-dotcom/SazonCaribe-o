@@ -460,6 +460,19 @@ class PersonalService:
     def editar_empleado(
         self, empleado_id: int, empleado_in: EmpleadoUpdate
     ) -> EmpleadoResponse:
+        """
+        Actualiza los datos de un empleado existente.
+
+        Args:
+            empleado_id: ID del empleado.
+            empleado_in: Campos a actualizar.
+
+        Returns:
+            EmpleadoResponse con el empleado actualizado.
+
+        Raises:
+            HTTPException 404: Si el empleado o el puesto indicado no existen.
+        """
         empleado = self.empleado_repo.get_by_id(empleado_id)
         if not empleado:
             raise HTTPException(

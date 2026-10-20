@@ -55,6 +55,7 @@ def _normalizar(nombre: str) -> str:
 
 
 def _sincronizar_ejecutivos(db: Session) -> tuple[int, int, int]:
+    """Sincroniza los platos ejecutivos oficiales y devuelve (creados, actualizados, desactivados)."""
     categoria = db.execute(
         select(CategoriaMenu).where(CategoriaMenu.nombre == NOMBRE_CATEGORIA)
     ).scalar_one()
@@ -115,6 +116,7 @@ def _sincronizar_ejecutivos(db: Session) -> tuple[int, int, int]:
 
 
 def main() -> None:
+    """Punto de entrada ejecutado con `python -m app.db.actualizar_ejecutivos`."""
     dry_run = "--dry-run" in sys.argv
     db = SessionLocal()
     try:

@@ -18,6 +18,7 @@ router = APIRouter()
 
 
 def get_pago_service(db: Session = Depends(get_db)) -> PagoService:
+    """Retorna el servicio de pagos en línea ligado a la sesión de BD de la petición."""
     return PagoService(db)
 
 
@@ -28,6 +29,7 @@ def get_pago_service(db: Session = Depends(get_db)) -> PagoService:
     dependencies=[Depends(get_current_user)],
 )
 def disponibilidad_pagos() -> DisponibilidadPagosResponse:
+    """Indica si el proveedor de pagos está configurado y su adaptador disponible."""
     provider = PagoService.proveedor_configurado()
     configured = provider != "disabled"
     available = get_registered_gateway(provider) is not None if configured else False
@@ -63,6 +65,7 @@ def iniciar_checkout(
     ),
     service: PagoService = Depends(get_pago_service),
 ) -> CheckoutSessionResponse:
+    """Inicia una sesión de checkout para una orden usando la clave de idempotencia."""
     try:
         pago = service.iniciar_checkout(orden_id, idempotency_key)
     except GatewayNotConfiguredError as exc:
@@ -82,6 +85,7 @@ def consultar_pago(
     pago_id: int = Path(..., gt=0),
     service: PagoService = Depends(get_pago_service),
 ) -> PagoOnlineResponse:
+    """Devuelve el estado de un intento de pago por su ID."""
     return PagoOnlineResponse.model_validate(service.consultar_pago(pago_id))
 
 
@@ -94,6 +98,7 @@ async def webhook_pago(
     request: Request,
     service: PagoService = Depends(get_pago_service),
 ) -> dict[str, str]:
+    """Procesa la confirmación firmada enviada por el proveedor de pagos."""
     payload = await request.body()
     return service.procesar_webhook(
         provider_name.strip().lower(), payload, dict(request.headers)

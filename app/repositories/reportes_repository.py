@@ -210,6 +210,7 @@ class ReportesRepository:
     # ─── Métodos para caja actual (sin archivar) ───────────────────────
 
     def obtener_ingresos_totales_sin_archivar(self) -> Decimal:
+        """Suma de los totales de órdenes PAGADA aún no archivadas (caja actual)."""
         stmt = select(
             func.coalesce(func.sum(Orden.total), Decimal("0.00"))
         ).where(
@@ -221,6 +222,7 @@ class ReportesRepository:
         return self.db.execute(stmt).scalar_one()
 
     def contar_ordenes_sin_archivar(self) -> Dict[str, int]:
+        """Retorna el conteo de órdenes pagadas y canceladas aún no archivadas."""
         pagadas = select(func.count(Orden.id)).where(
             Orden.estado == EstadoOrden.PAGADA,
             Orden.cierre_caja_id.is_(None),
@@ -235,6 +237,7 @@ class ReportesRepository:
         }
 
     def obtener_descuentos_totales_sin_archivar(self) -> Decimal:
+        """Suma de los descuentos de órdenes PAGADA aún no archivadas."""
         stmt = select(
             func.coalesce(func.sum(Orden.descuento_total), Decimal("0.00"))
         ).where(
@@ -249,6 +252,15 @@ class ReportesRepository:
         self,
         limite: int = 5,
     ) -> List[Dict]:
+        """
+        Retorna los N platillos más vendidos en órdenes PAGADA no archivadas.
+
+        Args:
+            limite: Cantidad máxima de platillos a devolver.
+
+        Returns:
+            Lista de platillos con su nombre, cantidad vendida e ingresos generados.
+        """
         stmt = select(
             DetalleOrden.producto_id,
             MenuItem.nombre,

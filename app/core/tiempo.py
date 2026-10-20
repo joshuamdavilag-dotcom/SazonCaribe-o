@@ -7,10 +7,12 @@ NICARAGUA_TZ = ZoneInfo("America/Managua")
 
 
 def ahora_local() -> datetime:
+    """Devuelve la fecha y hora local de Managua como datetime naive sin offset."""
     return datetime.now(NICARAGUA_TZ).replace(tzinfo=None)
 
 
 def hoy_local() -> date:
+    """Devuelve la fecha local de Managua correspondiente al momento actual."""
     return ahora_local().date()
 
 

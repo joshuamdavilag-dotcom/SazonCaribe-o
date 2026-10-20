@@ -18,6 +18,7 @@ from app.services.auditoria_service import AuditoriaService
 
 
 class OrdenService:
+    """Reglas de negocio de órdenes: creación, edición, descuentos, stock y estados."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -32,6 +33,7 @@ class OrdenService:
         detalles: list[DetalleOrden],
         actor: Usuario | None,
     ) -> None:
+        """Registra en auditoría los descuentos por línea aplicados en una orden."""
         if actor is None:
             return
         for detalle in detalles:
@@ -268,6 +270,7 @@ class OrdenService:
     # ================================================================== #
 
     def _validar_orden_activa_por_mesa(self, mesa_id: int) -> None:
+        """Impide crear una segunda orden activa en la misma mesa (bloquea con 400)."""
         ordenes_activas = self.orden_repo.obtener_ordenes_filtradas(
             mesa_id=mesa_id,
         )
@@ -300,6 +303,12 @@ class OrdenService:
         mesero_id: int,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Crea una orden nueva (mesa u para llevar) validando stock y estado de mesa.
+
+        Raises:
+            HTTPException 404: si la mesa indicada no existe.
+            HTTPException 400: si la mesa no está LIBRE o ya tiene orden activa.
+        """
         if orden_in.mesa_id:
             mesa = self.salon_repo.obtener_mesa_por_id(orden_in.mesa_id)
             if not mesa:
@@ -422,6 +431,7 @@ class OrdenService:
         nuevos_detalles: list,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Alias canónico de ``_agregar_items_interno`` para agregar ítems a una orden."""
         return self._agregar_items_interno(orden_id, nuevos_detalles, actor)
 
     # ================================================================== #
@@ -429,6 +439,12 @@ class OrdenService:
     # ================================================================== #
 
     def pagar_orden(self, orden_id: int) -> Orden:
+        """Marca la orden como PAGADA y libera su mesa en una sola transacción.
+
+        Raises:
+            HTTPException 404: si la orden no existe.
+            HTTPException 400: si ya está pagada o cancelada.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -468,6 +484,7 @@ class OrdenService:
     #  Cambio de estado (con reversión automática al cancelar)            #
     # ================================================================== #
 
+    # Transiciones permitidas del estado de una orden (PAGADA/CANCELADA son terminales).
     TRANSICIONES_VALIDAS: dict[EstadoOrden, set[EstadoOrden]] = {
         EstadoOrden.PENDIENTE: {EstadoOrden.PREPARANDO, EstadoOrden.CANCELADA},
         EstadoOrden.PREPARANDO: {EstadoOrden.ENTREGADA, EstadoOrden.CANCELADA},
@@ -481,6 +498,14 @@ class OrdenService:
         orden_id: int,
         nuevo_estado: EstadoOrden,
     ) -> Orden:
+        """Cambia el estado de la orden validando la máquina de estados.
+
+        Al pasar a CANCELADA revierte el stock de los insumos descontados.
+
+        Raises:
+            HTTPException 404: si la orden no existe.
+            HTTPException 400: si la transición no está permitida.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -532,6 +557,12 @@ class OrdenService:
         motivo: Optional[str] = None,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Aplica un descuento (porcentaje o monto) a una línea de la orden.
+
+        Raises:
+            HTTPException 404: si la orden o el detalle no existen.
+            HTTPException 400: si la orden está pagada o cancelada.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -612,6 +643,12 @@ class OrdenService:
         motivo: Optional[str] = None,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Aplica un descuento global repartido proporcionalmente entre las líneas.
+
+        Raises:
+            HTTPException 404: si la orden no existe.
+            HTTPException 400: si la orden está pagada o cancelada.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -709,6 +746,7 @@ class OrdenService:
             raise
 
     def _recalcular_totales(self, orden: Orden) -> None:
+        """Recalcula subtotal, descuento total y total de la orden desde sus líneas."""
         subtotal = Decimal("0.00")
         descuento_total = Decimal("0.00")
 
@@ -727,6 +765,11 @@ class OrdenService:
         detalle_id: int,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Elimina el descuento de una línea específica de la orden.
+
+        Raises:
+            HTTPException 404: si la orden o el detalle no existen.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -786,6 +829,11 @@ class OrdenService:
         cantidad_actual: int,
         cantidad_nueva: int,
     ) -> int:
+        """Ajusta el inventario por la diferencia entre la cantidad actual y la nueva.
+
+        Si la cantidad aumenta valida stock y descuenta (SALIDA + gasto); si
+        disminuye devuelve los insumos (ENTRADA).
+        """
         delta = cantidad_nueva - cantidad_actual
         if delta == 0:
             return 0
@@ -840,6 +888,7 @@ class OrdenService:
         return 0
 
     def _revertir_detalle(self, detalle: DetalleOrden, motivo: str) -> None:
+        """Devuelve al inventario los insumos de una línea (ENTRADA de reversión)."""
         producto = self.menu_repo.obtener_menu_item_por_id(detalle.producto_id)
         if not producto:
             return
@@ -867,6 +916,11 @@ class OrdenService:
         detalle: DetalleOrden,
         item,
     ) -> None:
+        """Actualiza una línea existente al editar la comanda.
+
+        Ajusta inventario por la diferencia de cantidad, refresca el precio
+        desde el catálogo y recalcula el descuento de la línea.
+        """
         producto = self.menu_repo.obtener_menu_item_por_id(detalle.producto_id)
         precio_unitario = (
             Decimal(str(producto.precio)) if producto else detalle.precio_unitario
@@ -918,6 +972,16 @@ class OrdenService:
         items: list,
         actor: Usuario | None = None,
     ) -> Orden:
+        """Reemplaza el contenido de una orden con la lista final de ítems enviada.
+
+        Los ítems con ``detalle_id`` se actualizan, los que van sin id se
+        agregan y todo detalle existente que no aparezca se elimina; ajusta
+        inventario por diferencia y recalcula totales.
+
+        Raises:
+            HTTPException 404: si la orden no existe o un detalle no pertenece a ella.
+            HTTPException 400: si la orden está pagada o cancelada.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(
@@ -1025,6 +1089,11 @@ class OrdenService:
         venta_in: VentaRetroactivaCreate,
         mesero_id: int,
     ) -> Orden:
+        """Registra una venta de días pasados ya PAGADA, sin descontar inventario.
+
+        Raises:
+            HTTPException 404: si algún producto no existe.
+        """
         try:
             with self.db.begin_nested():
                 detalles_creados: list[DetalleOrden] = []
@@ -1083,9 +1152,15 @@ class OrdenService:
         estado: Optional[EstadoOrden] = None,
         mesa_id: Optional[int] = None,
     ) -> List[Orden]:
+        """Lista órdenes, opcionalmente filtradas por estado y/o mesa."""
         return self.orden_repo.obtener_ordenes_filtradas(estado, mesa_id)
 
     def obtener_orden(self, orden_id: int) -> Orden:
+        """Devuelve una orden por id.
+
+        Raises:
+            HTTPException 404: si la orden no existe.
+        """
         orden = self.orden_repo.obtener_por_id(orden_id)
         if not orden:
             raise HTTPException(

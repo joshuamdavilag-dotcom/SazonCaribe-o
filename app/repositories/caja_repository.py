@@ -10,11 +10,13 @@ from app.models.caja import CierreCaja
 
 
 class CajaRepository:
+    """Acceso a datos de la sesión de caja abierta (órdenes y gastos sin archivar)."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
 
     def obtener_ordenes_pagadas_sin_archivar(self) -> List[Orden]:
+        """Devuelve las órdenes PAGADA de la caja abierta actual, con sus detalles cargados."""
         statement = (
             select(Orden)
             .options(joinedload(Orden.detalles))
@@ -28,6 +30,7 @@ class CajaRepository:
         return list(result.unique().scalars().all())
 
     def obtener_gastos_sin_archivar(self) -> List[Gasto]:
+        """Devuelve los gastos que aún no han sido archivados en un cierre de caja."""
         statement = (
             select(Gasto)
             .where(Gasto.cierre_caja_id.is_(None))
@@ -40,6 +43,7 @@ class CajaRepository:
         self,
         ordenes: List[Orden],
     ) -> dict:
+        """Suma ventas y descuentos del conjunto de órdenes recibido."""
         total_ventas = sum(Decimal(str(o.total)) for o in ordenes)
         total_descuentos = sum(Decimal(str(o.descuento_total or 0)) for o in ordenes)
         return {
@@ -54,6 +58,7 @@ class CajaRepository:
         total_ordenes: int,
         cerrado_por: Optional[int],
     ) -> CierreCaja:
+        """Inserta un registro de cierre de caja y devuelve la entidad con su id asignado."""
         cierre = CierreCaja(
             total_ventas=total_ventas,
             total_ordenes=total_ordenes,
@@ -68,6 +73,7 @@ class CajaRepository:
         ordenes: List[Orden],
         cierre: CierreCaja,
     ) -> None:
+        """Vincula cada orden al cierre de caja, sacándolas de la caja abierta."""
         for orden in ordenes:
             orden.cierre_caja_id = cierre.id
         self.db.flush()
@@ -77,6 +83,7 @@ class CajaRepository:
         gastos: List[Gasto],
         cierre: CierreCaja,
     ) -> None:
+        """Vincula cada gasto al cierre de caja, sacándolos de la caja abierta."""
         for gasto in gastos:
             gasto.cierre_caja_id = cierre.id
         self.db.flush()

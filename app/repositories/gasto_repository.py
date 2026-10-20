@@ -10,6 +10,7 @@ from app.repositories.base_repository import BaseRepository
 
 
 class GastoRepository(BaseRepository[Gasto]):
+    """Acceso a datos de gastos operativos, con filtros por rango de fechas."""
 
     def __init__(self, db: Session) -> None:
         super().__init__(Gasto, db)
@@ -19,6 +20,7 @@ class GastoRepository(BaseRepository[Gasto]):
         fecha_inicio: date,
         fecha_fin: date,
     ) -> List[Gasto]:
+        """Devuelve los gastos con fecha dentro del rango inclusivo, más recientes primero."""
         stmt = (
             select(Gasto)
             .where(
@@ -37,6 +39,7 @@ class GastoRepository(BaseRepository[Gasto]):
         fecha_inicio: date,
         fecha_fin: date,
     ) -> Decimal:
+        """Suma los montos de gastos dentro del rango inclusivo (0.00 si no hay)."""
         stmt = select(
             func.coalesce(func.sum(Gasto.monto), Decimal("0.00"))
         ).where(

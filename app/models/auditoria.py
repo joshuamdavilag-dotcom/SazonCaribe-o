@@ -9,6 +9,8 @@ from app.core.tiempo import ahora_local
 
 
 class RegistroAuditoria(Base):
+    """Registro de auditoría de acciones realizadas por los usuarios del sistema."""
+
     __tablename__ = "registros_auditoria"
     __table_args__ = (
         Index("ix_registros_auditoria_ocurrido_en", "ocurrido_en"),

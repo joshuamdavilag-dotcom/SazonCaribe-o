@@ -17,6 +17,7 @@ router = APIRouter()
 
 
 def get_descuento_service(db: Session = Depends(get_db)) -> DescuentoFrecuenteService:
+    """Retorna el servicio de descuentos ligado a la sesión de BD de la petición."""
     return DescuentoFrecuenteService(db)
 
 
@@ -32,6 +33,7 @@ def listar_descuentos(
     solo_activos: bool = Query(default=False),
     service: DescuentoFrecuenteService = Depends(get_descuento_service),
 ) -> List[DescuentoFrecuenteResponse]:
+    """Lista el catálogo de descuentos frecuentes, opcionalmente solo los activos."""
     return service.listar(solo_activos=solo_activos)
 
 
@@ -48,6 +50,7 @@ def crear_descuento(
     data_in: DescuentoFrecuenteCreate,
     service: DescuentoFrecuenteService = Depends(get_descuento_service),
 ) -> DescuentoFrecuenteResponse:
+    """Crea un descuento reutilizable en el catálogo."""
     return service.crear(data_in)
 
 
@@ -64,6 +67,7 @@ def actualizar_descuento(
     data_in: DescuentoFrecuenteUpdate,
     service: DescuentoFrecuenteService = Depends(get_descuento_service),
 ) -> DescuentoFrecuenteResponse:
+    """Actualiza un descuento predeterminado existente."""
     return service.actualizar(descuento_id, data_in)
 
 
@@ -79,4 +83,5 @@ def eliminar_descuento(
     descuento_id: int,
     service: DescuentoFrecuenteService = Depends(get_descuento_service),
 ) -> None:
+    """Elimina un descuento del catálogo."""
     service.eliminar(descuento_id)

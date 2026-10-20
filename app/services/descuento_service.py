@@ -13,18 +13,25 @@ from app.schemas.descuento import (
 
 
 class DescuentoFrecuenteService:
+    """Gestiona los descuentos frecuentes reutilizables del catálogo."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repo = DescuentoFrecuenteRepository(db)
 
     def listar(self, solo_activos: bool = False) -> List[DescuentoFrecuenteResponse]:
+        """Lista los descuentos frecuentes, opcionalmente solo los activos."""
         return [
             DescuentoFrecuenteResponse.model_validate(d)
             for d in self.repo.listar(solo_activos=solo_activos)
         ]
 
     def crear(self, data_in: DescuentoFrecuenteCreate) -> DescuentoFrecuenteResponse:
+        """Crea un descuento frecuente nuevo.
+
+        Raises:
+            HTTPException 400: Si ya existe un descuento con el mismo nombre.
+        """
         nombre = data_in.nombre.strip()
         if self.repo.obtener_por_nombre(nombre):
             raise HTTPException(
@@ -47,6 +54,12 @@ class DescuentoFrecuenteService:
         descuento_id: int,
         data_in: DescuentoFrecuenteUpdate,
     ) -> DescuentoFrecuenteResponse:
+        """Actualiza los campos indicados de un descuento frecuente.
+
+        Raises:
+            HTTPException 404: Si el descuento no existe.
+            HTTPException 400: Si el nombre ya está en uso o el porcentaje supera 100.
+        """
         data = self.repo.get_by_id(descuento_id)
         if not data:
             raise HTTPException(
@@ -78,6 +91,11 @@ class DescuentoFrecuenteService:
         return DescuentoFrecuenteResponse.model_validate(data)
 
     def eliminar(self, descuento_id: int) -> None:
+        """Elimina físicamente un descuento frecuente.
+
+        Raises:
+            HTTPException 404: Si el descuento no existe.
+        """
         data = self.repo.get_by_id(descuento_id)
         if not data:
             raise HTTPException(

@@ -265,6 +265,7 @@ def registrar_adelanto(
     current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service),
 ) -> AdelantoSalarioResponse:
+    """Registra un adelanto de salario y crea el gasto operativo asociado."""
     return service.registrar_adelanto(data, current_user.id)
 
 
@@ -285,4 +286,5 @@ def listar_adelantos_empleado(
     current_user: Usuario = Depends(get_current_user),
     service: NominaService = Depends(get_nomina_service),
 ) -> List[AdelantoSalarioResponse]:
+    """Lista los adelantos de un empleado, con filtro opcional por fechas."""
     return service.listar_adelantos_empleado(empleado_id, fecha_inicio, fecha_fin)

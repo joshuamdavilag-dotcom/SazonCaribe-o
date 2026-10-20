@@ -77,10 +77,23 @@ class SalonService:
         return [ZonaResponse.model_validate(z) for z in zonas]
 
     def listar_zonas(self) -> List[ZonaResponse]:
+        """
+        Lista todas las zonas del restaurante con sus mesas asociadas.
+
+        Returns:
+            Lista de ZonaResponse.
+        """
         zonas = self.salon_repo.obtener_zonas_con_mesas()
         return [ZonaResponse.model_validate(z) for z in zonas]
 
     def eliminar_zona(self, zona_id: int) -> None:
+        """
+        Elimina una zona sin mesas asociadas.
+
+        Raises:
+            HTTPException 404: Si la zona no existe.
+            HTTPException 400: Si la zona tiene mesas asociadas.
+        """
         zona = self.salon_repo.obtener_zona_por_id(zona_id)
         if not zona:
             raise HTTPException(
@@ -159,6 +172,11 @@ class SalonService:
         mesa_id: int,
         nuevo_estado: EstadoMesa
     ) -> MesaResponse:
+        """Cambia el estado de una mesa (LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO).
+
+        Raises:
+            HTTPException 404: Si la mesa no existe.
+        """
         mesa_actualizada = self.salon_repo.actualizar_estado_mesa(
             mesa_id,
             nuevo_estado
@@ -212,6 +230,23 @@ class SalonService:
         return MesaResponse.model_validate(mesa_actualizada)
 
     def actualizar_mesa(self, mesa_id: int, mesa_in: MesaUpdate) -> MesaResponse:
+        """
+        Actualiza los datos de una mesa.
+
+        Valida que la zona destino exista y que el número no se repita dentro
+        de la zona.
+
+        Args:
+            mesa_id: ID de la mesa.
+            mesa_in: Campos a actualizar.
+
+        Returns:
+            MesaResponse con la mesa actualizada.
+
+        Raises:
+            HTTPException 404: Si la mesa o la zona indicada no existen.
+            HTTPException 400: Si el número de mesa ya existe en la zona.
+        """
         existente = self.salon_repo.obtener_mesa_por_id(mesa_id)
         if not existente:
             raise HTTPException(
@@ -242,6 +277,13 @@ class SalonService:
         return MesaResponse.model_validate(mesa_actualizada)
 
     def eliminar_mesa(self, mesa_id: int) -> None:
+        """
+        Elimina una mesa que no esté ocupada.
+
+        Raises:
+            HTTPException 404: Si la mesa no existe.
+            HTTPException 400: Si la mesa está ocupada.
+        """
         existente = self.salon_repo.obtener_mesa_por_id(mesa_id)
         if not existente:
             raise HTTPException(

@@ -79,12 +79,30 @@ class MenuRepository:
         return self.db.execute(statement).scalar_one_or_none()
 
     def contar_items_por_categoria(self, categoria_id: int) -> int:
+        """
+        Cuenta los platos asociados a una categoría.
+
+        Args:
+            categoria_id: ID de la categoría.
+
+        Returns:
+            Cantidad de platos que referencian la categoría.
+        """
         statement = select(func.count(MenuItem.id)).where(
             MenuItem.categoria_id == categoria_id
         )
         return self.db.execute(statement).scalar_one()
 
     def eliminar_categoria(self, categoria_id: int) -> bool:
+        """
+        Elimina físicamente una categoría del menú.
+
+        Args:
+            categoria_id: ID de la categoría a eliminar.
+
+        Returns:
+            True si la categoría existía y se eliminó; False si no existe.
+        """
         db_categoria = self.obtener_categoria_por_id(categoria_id)
         if db_categoria is None:
             return False
@@ -97,6 +115,15 @@ class MenuRepository:
     # =========================================================================
 
     def crear_menu_item(self, item_in: MenuItemCreate) -> MenuItem:
+        """
+        Crea un plato del menú junto con su receta (si se proporciona).
+
+        Args:
+            item_in: Datos del plato a crear, incluida su receta opcional.
+
+        Returns:
+            El plato creado con su ID asignado tras el flush.
+        """
         item_data = item_in.model_dump(exclude={"receta"})
         db_item = MenuItem(**item_data)
         self.db.add(db_item)

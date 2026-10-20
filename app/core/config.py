@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
+        """Normaliza DATABASE_URL y usa SQLite como fallback cuando está vacía."""
         if self.DATABASE_URL:
             url = self.DATABASE_URL
             # Render entrega a veces el esquema 'postgres://'; SQLAlchemy exige 'postgresql://'

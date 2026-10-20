@@ -43,6 +43,22 @@ class NominaService:
         data: AdelantoSalarioCreate,
         usuario_id: int,
     ) -> AdelantoSalarioResponse:
+        """
+        Registra un adelanto de salario para un empleado.
+
+        Crea un gasto OPERATIVO asociado y el registro del adelanto, que luego
+        se descuenta del pago neto en el cálculo de nómina.
+
+        Args:
+            data: Monto, observación y empleado del adelanto.
+            usuario_id: ID del usuario que registra el adelanto.
+
+        Returns:
+            AdelantoSalarioResponse con el adelanto creado.
+
+        Raises:
+            HTTPException 404: Si el empleado no existe.
+        """
         empleado = self.empleado_repo.get_by_id(data.empleado_id)
         if not empleado:
             raise HTTPException(
@@ -75,6 +91,20 @@ class NominaService:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> List[AdelantoSalarioResponse]:
+        """
+        Lista los adelantos de salario de un empleado, con filtro de fechas opcional.
+
+        Args:
+            empleado_id: ID del empleado.
+            fecha_inicio: Fecha inicial del filtro (opcional).
+            fecha_fin: Fecha final del filtro (opcional).
+
+        Returns:
+            Lista de AdelantoSalarioResponse.
+
+        Raises:
+            HTTPException 404: Si el empleado no existe.
+        """
         empleado = self.empleado_repo.get_by_id(empleado_id)
         if not empleado:
             raise HTTPException(
@@ -87,6 +117,7 @@ class NominaService:
         return [AdelantoSalarioResponse.model_validate(a) for a in adelantos]
 
     def _obtener_total_adelantos(self, empleado_id: int, fecha_inicio: date, fecha_fin: date) -> Decimal:
+        """Suma los adelantos de salario del empleado en el periodo indicado."""
         return self.adelanto_repo.sum_por_empleado_y_periodo(
             empleado_id, fecha_inicio, fecha_fin
         )

@@ -49,6 +49,7 @@ def verificar_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def obtener_password_hash(password: str) -> str:
+    """Genera el hash bcrypt de una contraseña, validando el límite de 72 bytes."""
     password_bytes = password.strip().encode("utf-8")
     if len(password_bytes) > 72:
         raise ValueError(

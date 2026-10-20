@@ -8,10 +8,13 @@ from app.core.database import Base
 
 
 def _utc_now_naive() -> datetime:
+    """Devuelve la hora UTC actual sin información de zona horaria."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Camera(Base):
+    """Cámara de vigilancia registrada en el sistema."""
+
     __tablename__ = "camaras"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -24,6 +27,8 @@ class Camera(Base):
 
 
 class CameraAccess(Base):
+    """Permiso de acceso de un usuario a una cámara específica."""
+
     __tablename__ = "accesos_camaras"
 
     camara_id: Mapped[int] = mapped_column(
@@ -35,6 +40,8 @@ class CameraAccess(Base):
 
 
 class CameraClip(Base):
+    """Grabación de video generada por un usuario desde una cámara."""
+
     __tablename__ = "clips_camaras"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

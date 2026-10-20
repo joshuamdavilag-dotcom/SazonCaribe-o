@@ -17,6 +17,8 @@ from app.core.database import Base
 
 
 class EstadoPago(str, enum.Enum):
+    """Conjunto de valores válidos para el estado de un pago en línea."""
+
     PENDIENTE = "PENDIENTE"
     CONFIRMADO = "CONFIRMADO"
     FALLIDO = "FALLIDO"
@@ -25,6 +27,8 @@ class EstadoPago(str, enum.Enum):
 
 
 class PagoOnline(Base):
+    """Registro de pagos en línea procesados a través de proveedores externos."""
+
     __tablename__ = "pagos_online"
     __table_args__ = (
         UniqueConstraint("clave_idempotencia", name="uq_pagos_online_idempotencia"),

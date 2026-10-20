@@ -13,6 +13,8 @@ from app.core.database import Base
 
 
 class CategoriaGasto(str, enum.Enum):
+    """Conjunto de valores válidos para la categoría de un gasto."""
+
     OPERATIVO = "OPERATIVO"
     MANTENIMIENTO = "MANTENIMIENTO"
     SUMINISTROS = "SUMINISTROS"

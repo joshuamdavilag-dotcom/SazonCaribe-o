@@ -101,6 +101,7 @@ class DetalleOrdenResponse(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def _fill_nombre(cls, data):
+        """Completa 'producto_nombre' con el nombre del producto relacionado."""
         if not isinstance(data, dict):
             nombre = getattr(data, 'producto_nombre', '') or ''
             if not nombre:

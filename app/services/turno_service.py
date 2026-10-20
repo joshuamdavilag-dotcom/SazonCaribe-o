@@ -11,6 +11,7 @@ from app.utils.calculations import calcular_horas_extras
 
 
 def _get_ip_cliente(request) -> str:
+    """Obtiene la IP del cliente priorizando CF-Connecting-IP y X-Forwarded-For."""
     if not request or not request.client:
         return ""
     if request.headers.get("cf-connecting-ip"):
@@ -28,6 +29,26 @@ def iniciar_turno(
     turno_id: int,
     ip_cliente: str,
 ) -> Asistencia:
+    """Inicia el turno de un empleado creando su registro de asistencia.
+
+    Idempotente: si el empleado ya tiene una asistencia abierta la reutiliza, y
+    si ya finalizó su turno en el día de negocio vigente (ventana 7:00 AM a
+    7:00 AM) rechaza la solicitud.
+
+    Args:
+        db: Sesión de base de datos.
+        usuario_id: ID del usuario que inicia el turno.
+        empleado_id: ID del empleado.
+        turno_id: ID del turno a iniciar.
+        ip_cliente: IP de origen para auditoría.
+
+    Returns:
+        La asistencia creada o la abierta existente.
+
+    Raises:
+        HTTPException 404: Si el turno no existe.
+        HTTPException 400: Si el empleado ya finalizó su turno hoy.
+    """
     turno_repo = TurnoRepository(db)
     asistencia_repo = AsistenciaRepository(db)
 
@@ -66,6 +87,21 @@ def iniciar_turno(
 
 
 def finalizar_turno(db: Session, asistencia_id: int) -> Asistencia:
+    """Finaliza el turno fijando la hora de salida y calculando las horas extras.
+
+    Idempotente: si la asistencia ya tiene salida registrada, la devuelve sin
+    cambios.
+
+    Args:
+        db: Sesión de base de datos.
+        asistencia_id: ID de la asistencia a finalizar.
+
+    Returns:
+        La asistencia con la salida registrada.
+
+    Raises:
+        HTTPException 404: Si la asistencia no existe.
+    """
     asistencia_repo = AsistenciaRepository(db)
     turno_repo = TurnoRepository(db)
 

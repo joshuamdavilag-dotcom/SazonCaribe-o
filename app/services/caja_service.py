@@ -10,6 +10,7 @@ from app.schemas.orden import OrdenResponse
 
 
 class CajaService:
+    """Reglas de negocio de la sesión de caja: consultas y cierre (archivado)."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -17,6 +18,7 @@ class CajaService:
         self.orden_repo = OrdenRepository(db)
 
     def historial_diario(self) -> HistorialDiarioResponse:
+        """Devuelve las órdenes pagadas de la caja abierta actual con sus totales."""
         ordenes = self.caja_repo.obtener_ordenes_pagadas_sin_archivar()
         totales = self.caja_repo.calcular_totales(ordenes)
 
@@ -30,6 +32,12 @@ class CajaService:
         )
 
     def ventas_dia(self, es_gestor: bool) -> VentasDiaResponse:
+        """Resumen de ventas del día para cualquier rol (sin datos financieros internos).
+
+        Args:
+            es_gestor: True si el solicitante es Administrador o Gerente; se refleja
+                en la respuesta para que el frontend sepa si puede ver el panel completo.
+        """
         ordenes = self.caja_repo.obtener_ordenes_pagadas_sin_archivar()
         totales = self.caja_repo.calcular_totales(ordenes)
 
@@ -48,6 +56,11 @@ class CajaService:
         self,
         usuario_id: int,
     ) -> CierreCajaResponse:
+        """Archiva la caja abierta: crea el cierre y lo vincula a órdenes y gastos.
+
+        Raises:
+            HTTPException 400: si no hay órdenes pagadas sin archivar.
+        """
         ordenes = self.caja_repo.obtener_ordenes_pagadas_sin_archivar()
 
         if not ordenes:

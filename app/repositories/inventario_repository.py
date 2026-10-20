@@ -288,28 +288,37 @@ class InsumoRepository(BaseRepository[Insumo]):
 
 
 class CategoriaInsumoRepository(BaseRepository[CategoriaInsumo]):
+    """Repositorio para el modelo CategoriaInsumo (categorías dinámicas de insumos)."""
+
     def __init__(self, db: Session) -> None:
         super().__init__(CategoriaInsumo, db)
 
     def contar_insumos_por_categoria(self, categoria_id: int) -> int:
+        """Cuenta cuántos insumos pertenecen a la categoría (guard de borrado)."""
         statement = select(Insumo).where(Insumo.categoria_id == categoria_id)
         return len(list(self.db.execute(statement).scalars().all()))
 
 
 class UnidadMedidaRepository(BaseRepository[UnidadMedida]):
+    """Repositorio para el modelo UnidadMedida (unidades y conversiones dinámicas)."""
+
     def __init__(self, db: Session) -> None:
         super().__init__(UnidadMedida, db)
 
     def contar_insumos_por_unidad(self, unidad_id: int) -> int:
+        """Cuenta cuántos insumos usan la unidad como base (guard de borrado)."""
         statement = select(Insumo).where(Insumo.unidad_medida_id == unidad_id)
         return len(list(self.db.execute(statement).scalars().all()))
 
 
 class PreparacionCocinaRepository(BaseRepository[PreparacionCocina]):
+    """Repositorio para el modelo PreparacionCocina (producción por lote)."""
+
     def __init__(self, db: Session) -> None:
         super().__init__(PreparacionCocina, db)
 
     def get_por_asistencia(self, asistencia_id: int) -> List[PreparacionCocina]:
+        """Devuelve las preparaciones vinculadas a una asistencia, más recientes primero."""
         statement = (
             select(PreparacionCocina)
             .where(PreparacionCocina.asistencia_id == asistencia_id)
@@ -318,6 +327,7 @@ class PreparacionCocinaRepository(BaseRepository[PreparacionCocina]):
         return list(self.db.execute(statement).scalars().all())
 
     def get_por_rango_fechas(self, fecha_inicio, fecha_fin) -> List[PreparacionCocina]:
+        """Devuelve las preparaciones cuya fecha cae dentro del rango inclusivo."""
         from datetime import datetime
         statement = (
             select(PreparacionCocina)

@@ -7,6 +7,7 @@ from app.models.pago import EstadoPago
 
 
 class PagoOnlineResponse(BaseModel):
+    """Esquema de respuesta para un pago en línea."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -23,6 +24,7 @@ class PagoOnlineResponse(BaseModel):
 
 
 class DisponibilidadPagosResponse(BaseModel):
+    """Esquema de respuesta con la disponibilidad de pagos en línea."""
     proveedor_configurado: str
     adaptador_disponible: bool
     habilitado: bool
@@ -30,4 +32,5 @@ class DisponibilidadPagosResponse(BaseModel):
 
 
 class CheckoutSessionResponse(BaseModel):
+    """Esquema de respuesta con la sesión de pago creada."""
     pago: PagoOnlineResponse

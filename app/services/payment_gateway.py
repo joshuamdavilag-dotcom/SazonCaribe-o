@@ -4,12 +4,16 @@ from typing import Literal, Mapping, Protocol
 
 @dataclass(frozen=True)
 class CheckoutSession:
+    """Sesión de checkout emitida por un proveedor de pagos."""
+
     provider_payment_id: str
     checkout_url: str
 
 
 @dataclass(frozen=True)
 class VerifiedPaymentEvent:
+    """Evento de webhook ya verificado y normalizado por el proveedor."""
+
     event_id: str
     payment_reference: str
     provider_payment_id: str
@@ -19,6 +23,8 @@ class VerifiedPaymentEvent:
 
 
 class PaymentGateway(Protocol):
+    """Contrato que debe cumplir cada adaptador de proveedor de pagos."""
+
     name: str
 
     def create_checkout(
@@ -30,22 +36,32 @@ class PaymentGateway(Protocol):
         currency: str,
         success_url: str,
         cancel_url: str,
-    ) -> CheckoutSession: ...
+    ) -> CheckoutSession:
+        """Crea una sesión de checkout y devuelve su ID y URL de pago."""
+        ...
 
     def verify_webhook(
         self, *, payload: bytes, headers: Mapping[str, str]
-    ) -> VerifiedPaymentEvent: ...
+    ) -> VerifiedPaymentEvent:
+        """Verifica la firma del webhook y devuelve el evento normalizado."""
+        ...
 
 
 class GatewayNotConfiguredError(RuntimeError):
+    """Indica que no existe un adaptador registrado para el proveedor solicitado."""
+
     pass
 
 
 class GatewayRequestError(RuntimeError):
+    """Indica un fallo transitorio al comunicarse con el proveedor de pagos."""
+
     pass
 
 
 class WebhookVerificationError(RuntimeError):
+    """Indica que la firma del webhook no pudo verificarse."""
+
     pass
 
 
@@ -61,6 +77,11 @@ def register_payment_gateway(gateway: PaymentGateway) -> None:
 
 
 def get_payment_gateway(provider_name: str) -> PaymentGateway:
+    """Devuelve el adaptador registrado para un proveedor.
+
+    Raises:
+        GatewayNotConfiguredError: Si no hay un adaptador para el proveedor.
+    """
     gateway = _GATEWAYS.get(provider_name.strip().lower())
     if gateway is None:
         raise GatewayNotConfiguredError(
@@ -70,4 +91,5 @@ def get_payment_gateway(provider_name: str) -> PaymentGateway:
 
 
 def get_registered_gateway(provider_name: str) -> PaymentGateway | None:
+    """Devuelve el adaptador registrado para un proveedor o None si no existe."""
     return _GATEWAYS.get(provider_name.strip().lower())

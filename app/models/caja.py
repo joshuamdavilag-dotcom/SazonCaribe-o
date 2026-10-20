@@ -7,6 +7,8 @@ from app.core.database import Base
 
 
 class CierreCaja(Base):
+    """Cierre de caja que archiva las órdenes y gastos de una sesión."""
+
     __tablename__ = "cierres_caja"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

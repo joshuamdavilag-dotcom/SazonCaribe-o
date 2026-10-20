@@ -19,6 +19,7 @@ from app.services.gasto_service import GastoService
 
 
 class PreparacionService:
+    """Registra la producción de cocina por lote y su impacto en inventario."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -33,6 +34,24 @@ class PreparacionService:
         usuario_id: int,
         asistencia_id: int | None = None,
     ) -> PreparacionCocinaResponse:
+        """Registra una producción de cocina por lote.
+
+        Valida stock suficiente de cada insumo, descuenta las cantidades del
+        inventario generando movimientos SALIDA con su gasto automático de
+        SUMINISTROS, y crea el detalle de la preparación.
+
+        Args:
+            data: Insumos y cantidades de la preparación.
+            usuario_id: ID del usuario que registra la producción.
+            asistencia_id: ID de la asistencia activa a vincular (opcional).
+
+        Returns:
+            PreparacionCocinaResponse con la preparación creada.
+
+        Raises:
+            HTTPException 404: Si algún insumo no existe.
+            HTTPException 400: Si algún insumo no tiene stock suficiente.
+        """
         for det in data.detalles:
             insumo = self.insumo_repo.get_by_id(det.insumo_id)
             if not insumo:
@@ -93,9 +112,11 @@ class PreparacionService:
         return PreparacionCocinaResponse.model_validate(preparacion)
 
     def listar_por_fecha(self, fecha) -> List[PreparacionCocinaResponse]:
+        """Lista las preparaciones registradas en una fecha concreta."""
         preparaciones = self.preparacion_repo.get_por_rango_fechas(fecha, fecha)
         return [PreparacionCocinaResponse.model_validate(p) for p in preparaciones]
 
     def listar_por_asistencia(self, asistencia_id: int) -> List[PreparacionCocinaResponse]:
+        """Lista las preparaciones vinculadas a una asistencia (turno) específica."""
         preparaciones = self.preparacion_repo.get_por_asistencia(asistencia_id)
         return [PreparacionCocinaResponse.model_validate(p) for p in preparaciones]

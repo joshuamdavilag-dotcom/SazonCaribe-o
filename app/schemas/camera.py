@@ -5,12 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CameraCreate(BaseModel):
+    """Esquema para crear una cámara."""
     nombre: str = Field(min_length=1, max_length=100)
     slug: str = Field(min_length=1, max_length=50, pattern=r"^[a-z0-9][a-z0-9_-]*$")
 
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, value: str) -> str:
+        """Limpia los espacios del nombre y valida que no quede vacío."""
         value = value.strip()
         if not value:
             raise ValueError("El nombre de la cámara no puede estar vacío")
@@ -18,6 +20,7 @@ class CameraCreate(BaseModel):
 
 
 class CameraUpdate(BaseModel):
+    """Esquema para actualizar una cámara."""
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     slug: str | None = Field(
         default=None,
@@ -30,6 +33,7 @@ class CameraUpdate(BaseModel):
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, value: str | None) -> str | None:
+        """Limpia los espacios del nombre y valida que no quede vacío."""
         if value is None:
             return None
         value = value.strip()
@@ -39,10 +43,12 @@ class CameraUpdate(BaseModel):
 
 
 class CameraAccessUpdate(BaseModel):
+    """Esquema para asignar los usuarios con acceso a una cámara."""
     usuario_ids: list[int] = Field(max_length=500)
 
 
 class CameraResponse(BaseModel):
+    """Esquema de respuesta para una cámara."""
     id: int
     nombre: str
     slug: str
@@ -52,18 +58,21 @@ class CameraResponse(BaseModel):
 
 
 class CameraViewerResponse(BaseModel):
+    """Esquema de respuesta para un usuario con acceso a cámaras."""
     id: int
     username: str
     nombre_completo: str
 
 
 class CameraStreamTokenResponse(BaseModel):
+    """Esquema de respuesta con el token temporal de transmisión."""
     token: str
     expira_en_segundos: int = 300
     ice_servers: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CameraBridgeAuthorization(BaseModel):
+    """Esquema para autorizar una petición del puente de cámaras."""
     model_config = ConfigDict(extra="ignore")
 
     user: str = Field(default="", max_length=100)
@@ -74,11 +83,13 @@ class CameraBridgeAuthorization(BaseModel):
 
 
 class CameraClipCreate(BaseModel):
+    """Esquema para registrar un clip de cámara."""
     mime_type: str = Field(min_length=1, max_length=80)
 
     @field_validator("mime_type")
     @classmethod
     def validar_tipo(cls, value: str) -> str:
+        """Normaliza el MIME y valida que sea video/webm o video/mp4."""
         mime = value.split(";", 1)[0].strip().lower()
         if mime not in {"video/webm", "video/mp4"}:
             raise ValueError("El formato debe ser video/webm o video/mp4")
@@ -86,6 +97,7 @@ class CameraClipCreate(BaseModel):
 
 
 class CameraClipResponse(BaseModel):
+    """Esquema de respuesta para un clip de cámara."""
     id: str
     camara_id: int
     camara_nombre: str
@@ -97,6 +109,7 @@ class CameraClipResponse(BaseModel):
 
 
 class CameraStorageResponse(BaseModel):
+    """Esquema de respuesta con el uso de almacenamiento de clips."""
     clips: int
     bytes_usados: int
     bytes_libres: int

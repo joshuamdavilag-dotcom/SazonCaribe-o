@@ -7,6 +7,8 @@ from app.models.auditoria import RegistroAuditoria
 
 
 class AuditoriaRepository:
+    """Acceso a datos de la bitácora de auditoría."""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -17,6 +19,17 @@ class AuditoriaRepository:
         limit: int,
         offset: int,
     ) -> tuple[list[RegistroAuditoria], int]:
+        """Devuelve una página de registros (más recientes primero) y el total sin paginar.
+
+        Args:
+            desde: Fecha inicial inclusiva; None para no filtrar por inicio.
+            hasta: Fecha final inclusiva; None para no filtrar por fin.
+            limit: Máximo de registros a devolver.
+            offset: Registros a omitir (paginación).
+
+        Returns:
+            Tupla ``(registros, total)`` donde ``total`` es el conteo completo del filtro.
+        """
         statement = select(RegistroAuditoria)
         count_statement = select(func.count()).select_from(RegistroAuditoria)
 

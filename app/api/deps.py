@@ -88,6 +88,7 @@ def requerir_rol(roles_permitidos: List[RolEnum]):
         Función dependiente que valida el rol.
     """
     def _verificar_rol(current_user: Usuario = Depends(get_current_user)):
+        """Valida que el rol del usuario autenticado esté entre los permitidos."""
         try:
             rol_usuario = RolEnum(current_user.rol)
         except ValueError:

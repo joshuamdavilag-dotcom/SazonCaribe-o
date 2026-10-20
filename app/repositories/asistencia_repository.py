@@ -307,6 +307,11 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         self,
         asistencia_id: int,
     ) -> Optional[Asistencia]:
+        """Registra el latido de una asistencia activa (``ultimo_heartbeat = ahora``).
+
+        Returns:
+            La asistencia recargada o None si el id no existe.
+        """
         stmt = (
             update(Asistencia)
             .where(Asistencia.id == asistencia_id)

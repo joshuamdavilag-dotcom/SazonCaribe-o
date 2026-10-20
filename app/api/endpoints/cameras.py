@@ -27,6 +27,7 @@ _GESTORES = [RolEnum.ADMINISTRADOR, RolEnum.GERENTE]
 
 
 def get_camera_service(db: Session = Depends(get_db)) -> CameraService:
+    """Retorna el servicio de cámaras ligado a la sesión de BD de la petición."""
     return CameraService(db)
 
 
@@ -39,6 +40,7 @@ def autorizar_puente(
     datos: CameraBridgeAuthorization,
     service: CameraService = Depends(get_camera_service),
 ) -> dict[str, bool]:
+    """Valida las credenciales del lector WebRTC del puente de cámaras."""
     token = datos.password or datos.token
     camera_slug = datos.user or datos.path
     service.autorizar_puente(camera_slug, token, datos.action, datos.path)
@@ -53,6 +55,7 @@ def autorizar_puente(
 def listar_usuarios_autorizables(
     service: CameraService = Depends(get_camera_service),
 ) -> list[dict]:
+    """Lista los usuarios que pueden recibir acceso a las cámaras."""
     return service.listar_usuarios_autorizables()
 
 
@@ -64,6 +67,7 @@ def listar_usuarios_autorizables(
 def resumen_almacenamiento(
     service: CameraService = Depends(get_camera_service),
 ) -> dict[str, int]:
+    """Devuelve el resumen de almacenamiento usado por los clips de video."""
     return service.resumen_almacenamiento()
 
 
@@ -72,6 +76,7 @@ def listar_clips(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> list[dict]:
+    """Lista los clips de video visibles para el usuario logueado."""
     return service.listar_clips(current_user)
 
 
@@ -81,6 +86,7 @@ def descargar_video_clip(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> FileResponse:
+    """Descarga el archivo de video de un clip autorizado."""
     path, mime_type = service.obtener_video_clip(clip_id, current_user)
     return FileResponse(
         path,
@@ -99,6 +105,7 @@ def eliminar_clip(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> Response:
+    """Elimina un clip de video cancelando su grabación y archivo."""
     service.cancelar_clip(clip_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -108,6 +115,7 @@ def listar_camaras(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> list[dict]:
+    """Lista las cámaras visibles para el usuario logueado."""
     return service.listar_camaras(current_user)
 
 
@@ -121,6 +129,7 @@ def crear_camara(
     datos: CameraCreate,
     service: CameraService = Depends(get_camera_service),
 ) -> dict:
+    """Registra una nueva cámara en el sistema."""
     return service.crear_camara(datos)
 
 
@@ -134,6 +143,7 @@ def actualizar_camara(
     datos: CameraUpdate,
     service: CameraService = Depends(get_camera_service),
 ) -> dict:
+    """Actualiza los datos de una cámara existente."""
     return service.actualizar_camara(camera_id, datos)
 
 
@@ -147,6 +157,7 @@ def actualizar_accesos(
     datos: CameraAccessUpdate,
     service: CameraService = Depends(get_camera_service),
 ) -> dict:
+    """Actualiza los permisos de acceso de una cámara."""
     return service.actualizar_accesos(camera_id, datos)
 
 
@@ -159,6 +170,7 @@ def emitir_token_stream(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> dict:
+    """Emite un token temporal de acceso al stream de una cámara."""
     return service.emitir_token_stream(camera_id, current_user)
 
 
@@ -172,6 +184,7 @@ def iniciar_clip(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> dict[str, str]:
+    """Inicia la grabación de un nuevo clip de video para una cámara."""
     return service.iniciar_clip(camera_id, current_user, datos.mime_type)
 
 
@@ -184,6 +197,7 @@ async def guardar_fragmento(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> dict[str, int]:
+    """Guarda un fragmento (chunk) del video de un clip en curso."""
     content_length = request.headers.get("content-length")
     if content_length:
         try:
@@ -214,6 +228,7 @@ def finalizar_clip(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> dict:
+    """Finaliza la grabación de un clip y consolida sus fragmentos."""
     return service.finalizar_clip(camera_id, clip_id, current_user)
 
 
@@ -227,5 +242,6 @@ def cancelar_clip(
     current_user: Usuario = Depends(get_current_user),
     service: CameraService = Depends(get_camera_service),
 ) -> Response:
+    """Cancela la grabación de un clip de video de una cámara."""
     service.cancelar_clip(clip_id, current_user, camera_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -77,10 +77,28 @@ class SalonRepository:
         return self.db.execute(statement).scalar_one_or_none()
 
     def contar_mesas_por_zona(self, zona_id: int) -> int:
+        """
+        Cuenta las mesas asociadas a una zona.
+
+        Args:
+            zona_id: ID de la zona.
+
+        Returns:
+            Cantidad de mesas que pertenecen a la zona.
+        """
         statement = select(func.count(Mesa.id)).where(Mesa.zona_id == zona_id)
         return self.db.execute(statement).scalar_one()
 
     def eliminar_zona(self, zona_id: int) -> bool:
+        """
+        Elimina físicamente una zona del salón.
+
+        Args:
+            zona_id: ID de la zona a eliminar.
+
+        Returns:
+            True si la zona existía y se eliminó; False si no existe.
+        """
         db_zona = self.obtener_zona_por_id(zona_id)
         if db_zona is None:
             return False
@@ -153,6 +171,16 @@ class SalonRepository:
         mesa_id: int,
         nuevo_estado: EstadoMesa
     ) -> Optional[Mesa]:
+        """
+        Cambia el estado de una mesa y limpia su apodo si queda LIBRE.
+
+        Args:
+            mesa_id: ID de la mesa a actualizar.
+            nuevo_estado: Nuevo estado de la mesa.
+
+        Returns:
+            La mesa actualizada o None si no existe.
+        """
         db_mesa = self.obtener_mesa_por_id(mesa_id)
         if db_mesa is None:
             return None
@@ -164,6 +192,18 @@ class SalonRepository:
         return db_mesa
 
     def actualizar_mesa(self, mesa_id: int, **kwargs) -> Optional[Mesa]:
+        """
+        Actualiza parcialmente una mesa con los campos proporcionados.
+
+        Ignora los valores nulos y, si el nuevo estado es LIBRE, limpia el apodo.
+
+        Args:
+            mesa_id: ID de la mesa a actualizar.
+            **kwargs: Campos del modelo a actualizar.
+
+        Returns:
+            La mesa actualizada o None si no existe.
+        """
         db_mesa = self.obtener_mesa_por_id(mesa_id)
         if db_mesa is None:
             return None
@@ -177,6 +217,16 @@ class SalonRepository:
         return db_mesa
 
     def asignar_apodo(self, mesa_id: int, apodo: Optional[str]) -> Optional[Mesa]:
+        """
+        Asigna o limpia el apodo temporal de una mesa.
+
+        Args:
+            mesa_id: ID de la mesa.
+            apodo: Apodo a asignar, o None para limpiarlo.
+
+        Returns:
+            La mesa actualizada o None si no existe.
+        """
         db_mesa = self.obtener_mesa_por_id(mesa_id)
         if db_mesa is None:
             return None
@@ -186,6 +236,15 @@ class SalonRepository:
         return db_mesa
 
     def eliminar_mesa(self, mesa_id: int) -> bool:
+        """
+        Elimina físicamente una mesa del salón.
+
+        Args:
+            mesa_id: ID de la mesa a eliminar.
+
+        Returns:
+            True si la mesa existía y se eliminó; False si no existe.
+        """
         db_mesa = self.obtener_mesa_por_id(mesa_id)
         if db_mesa is None:
             return False

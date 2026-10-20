@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 class PagoService:
+    """Orquesta el ciclo de pagos en línea de una orden con pasarelas externas."""
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.pagos = PagoRepository(db)
@@ -32,10 +34,17 @@ class PagoService:
 
     @staticmethod
     def proveedor_configurado() -> str:
+        """Devuelve el nombre del proveedor de pagos configurado, en minúsculas."""
         return get_settings().PAYMENT_PROVIDER.strip().lower()
 
     @classmethod
     def obtener_gateway(cls) -> PaymentGateway:
+        """Devuelve el adaptador del proveedor configurado.
+
+        Raises:
+            GatewayNotConfiguredError: Si los pagos en línea están desactivados
+                o no hay adaptador registrado para el proveedor.
+        """
         provider = cls.proveedor_configurado()
         if provider == "disabled":
             raise GatewayNotConfiguredError(
@@ -46,6 +55,27 @@ class PagoService:
     def iniciar_checkout(
         self, orden_id: int, idempotency_key: str
     ) -> PagoOnline:
+        """Inicia (o reutiliza) el checkout en línea de una orden abierta.
+
+        Valida que las URLs de retorno usen HTTPS y aplica idempotencia por
+        clave: reutiliza un intento existente y verifica que coincida en orden,
+        monto, proveedor y moneda.
+
+        Args:
+            orden_id: ID de la orden a pagar.
+            idempotency_key: Clave de idempotencia del intento de pago.
+
+        Returns:
+            PagoOnline con la URL de checkout y el ID del proveedor.
+
+        Raises:
+            HTTPException 404: Si la orden no existe.
+            HTTPException 409: Si la orden ya está pagada/cancelada, ya tiene un
+                checkout pendiente o la clave de idempotencia no coincide.
+            HTTPException 400: Si el total de la orden no es mayor que cero.
+            HTTPException 503: Si las URLs de retorno no usan HTTPS.
+            HTTPException 502: Si el proveedor falla o devuelve una sesión inválida.
+        """
         settings = get_settings()
         gateway = self.obtener_gateway()
         for return_url in (settings.PAYMENT_SUCCESS_URL, settings.PAYMENT_CANCEL_URL):
@@ -176,6 +206,11 @@ class PagoService:
         return pago
 
     def consultar_pago(self, pago_id: int) -> PagoOnline:
+        """Obtiene un intento de pago por su ID.
+
+        Raises:
+            HTTPException 404: Si el pago no existe.
+        """
         pago = self.db.get(PagoOnline, pago_id)
         if pago is None:
             raise HTTPException(
@@ -187,6 +222,28 @@ class PagoService:
     def procesar_webhook(
         self, provider_name: str, payload: bytes, headers: dict[str, str]
     ) -> dict[str, str]:
+        """Procesa un webhook de la pasarela y actualiza el pago y la orden.
+
+        Verifica la firma, valida los datos del evento y es idempotente por
+        `event_id`. En un pago confirmado marca la orden como PAGADA y libera
+        la mesa; si el monto, moneda o estado no cuadran, deja el pago en
+        REVISION.
+
+        Args:
+            provider_name: Proveedor que envía el webhook.
+            payload: Cuerpo crudo de la petición.
+            headers: Cabeceras de la petición.
+
+        Returns:
+            Diccionario con el estado resultante del evento.
+
+        Raises:
+            HTTPException 503: Si el proveedor no está habilitado.
+            HTTPException 401: Si la firma no puede verificarse.
+            HTTPException 400: Si el evento tiene datos inválidos o un estado no soportado.
+            HTTPException 404: Si no se encuentra el pago o la orden asociada.
+            HTTPException 409: Si no se pudo registrar el evento.
+        """
         configured_provider = self.proveedor_configurado()
         if configured_provider == "disabled" or provider_name != configured_provider:
             raise HTTPException(

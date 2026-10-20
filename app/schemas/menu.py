@@ -219,6 +219,7 @@ class MenuItemUpdate(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _aceptar_clave_receta_legacy(cls, values):
+        """Renombra la clave legacy 'receta' a 'ingredientes_receta' antes de validar."""
         if isinstance(values, dict) and "receta" in values and "ingredientes_receta" not in values:
             values["ingredientes_receta"] = values.pop("receta")
         return values

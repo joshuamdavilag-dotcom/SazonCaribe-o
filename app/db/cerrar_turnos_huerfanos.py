@@ -95,6 +95,7 @@ def sancar_turnos_huerfanos(db: Session) -> List[Asistencia]:
 
 
 def main() -> None:
+    """Punto de entrada ejecutado con `python -m app.db.cerrar_turnos_huerfanos`."""
     parser = argparse.ArgumentParser(
         description="Cierra turnos huérfanos con salida a las 18:00 del día de entrada."
     )

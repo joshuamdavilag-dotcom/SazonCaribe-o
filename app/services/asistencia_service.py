@@ -103,6 +103,20 @@ class AsistenciaService:
         return [TurnoResponse.model_validate(t) for t in turnos]
 
     def actualizar_turno(self, turno_id: int, datos: TurnoUpdate) -> TurnoResponse:
+        """
+        Actualiza un turno laboral existente.
+
+        Args:
+            turno_id: ID del turno.
+            datos: Campos a actualizar.
+
+        Returns:
+            TurnoResponse con el turno actualizado.
+
+        Raises:
+            HTTPException 404: Si el turno no existe.
+            HTTPException 400: Si el nuevo nombre ya está en uso.
+        """
         turno = self.turno_repo.get_by_id(turno_id)
         if not turno:
             raise HTTPException(
@@ -122,6 +136,13 @@ class AsistenciaService:
         return TurnoResponse.model_validate(turno)
 
     def eliminar_turno(self, turno_id: int) -> None:
+        """
+        Elimina un turno laboral sin asistencias registradas.
+
+        Raises:
+            HTTPException 404: Si el turno no existe.
+            HTTPException 400: Si el turno tiene asistencias registradas.
+        """
         turno = self.turno_repo.get_by_id(turno_id)
         if not turno:
             raise HTTPException(
@@ -354,6 +375,24 @@ class AsistenciaService:
         data: AsistenciaEditarHorarios,
         gerente_id: int,
     ) -> AsistenciaResponse:
+        """Corrige la hora de entrada y salida de una asistencia (Admin/Gerente).
+
+        Guarda las horas locales tal cual se envían (sin conversión a UTC) y
+        recalcula las horas extras si se proporciona la hora de salida,
+        registrando motivo y autorizador para auditoría.
+
+        Args:
+            asistencia_id: ID de la asistencia a editar.
+            data: Nuevas horas (entrada obligatoria, salida opcional) y motivo.
+            gerente_id: ID del usuario autenticado que autoriza el cambio.
+
+        Returns:
+            AsistenciaResponse con la asistencia actualizada.
+
+        Raises:
+            HTTPException 404: Si la asistencia no existe.
+            HTTPException 400: Si el motivo está vacío o la salida no es posterior a la entrada.
+        """
         asistencia = self.asistencia_repo.get_by_id(asistencia_id)
         if not asistencia:
             raise HTTPException(
@@ -368,6 +407,7 @@ class AsistenciaService:
             )
 
         def _parse_local(valor: str) -> datetime:
+            """Convierte un texto 'YYYY-MM-DDTHH:MM' en datetime sin conversión de zona."""
             return datetime.strptime(valor, "%Y-%m-%dT%H:%M")
 
         entrada_local = _parse_local(data.fecha_hora_entrada)
@@ -480,6 +520,12 @@ class AsistenciaService:
         return [AsistenciaResponse.model_validate(a) for a in asistencias]
 
     def actualizar_heartbeat(self, asistencia_id: int) -> AsistenciaResponse:
+        """Registra el latido de una asistencia activa para evitar su cierre automático.
+
+        Raises:
+            HTTPException 404: Si la asistencia no existe.
+            HTTPException 400: Si la asistencia ya tiene salida registrada.
+        """
         asistencia = self.asistencia_repo.get_by_id(asistencia_id)
         if not asistencia:
             raise HTTPException(
@@ -565,6 +611,18 @@ class AsistenciaService:
         self,
         timeout_seconds: int,
     ) -> int:
+        """Cierra automáticamente los turnos sin heartbeat dentro del timeout.
+
+        Fallback de seguridad para turnos huérfanos: fija la salida en
+        ``COALESCE(ultimo_heartbeat, hora_entrada_real)`` y calcula las horas
+        extras correspondientes.
+
+        Args:
+            timeout_seconds: Segundos de inactividad que marcan un turno como stale.
+
+        Returns:
+            Cantidad de asistencias cerradas.
+        """
         timeout_desde = ahora_local() - timedelta(seconds=timeout_seconds)
         stale = self.asistencia_repo.get_activas_sin_heartbeat(timeout_desde)
         if not stale:

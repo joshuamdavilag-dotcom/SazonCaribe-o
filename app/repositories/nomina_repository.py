@@ -126,6 +126,7 @@ class NominaRepository(BaseRepository[Nomina]):
 
 
 class AdelantoSalarioRepository(BaseRepository[AdelantoSalario]):
+    """Repositorio para el modelo AdelantoSalario."""
 
     def __init__(self, db: Session) -> None:
         super().__init__(AdelantoSalario, db)
@@ -136,6 +137,17 @@ class AdelantoSalarioRepository(BaseRepository[AdelantoSalario]):
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> List[AdelantoSalario]:
+        """
+        Obtiene los adelantos de salario de un empleado, opcionalmente por rango.
+
+        Args:
+            empleado_id: ID del empleado.
+            fecha_inicio: Fecha mínima del adelanto (opcional).
+            fecha_fin: Fecha máxima del adelanto (opcional).
+
+        Returns:
+            Lista de adelantos ordenados por fecha descendente.
+        """
         stmt = (
             select(AdelantoSalario)
             .where(AdelantoSalario.empleado_id == empleado_id)
@@ -154,6 +166,17 @@ class AdelantoSalarioRepository(BaseRepository[AdelantoSalario]):
         fecha_inicio: date,
         fecha_fin: date,
     ) -> Decimal:
+        """
+        Suma los montos de adelantos de un empleado dentro de un período.
+
+        Args:
+            empleado_id: ID del empleado.
+            fecha_inicio: Fecha de inicio del período.
+            fecha_fin: Fecha de fin del período.
+
+        Returns:
+            Monto total de adelantos, o Decimal("0.00") si no hay registros.
+        """
         stmt = select(
             func.coalesce(func.sum(AdelantoSalario.monto), Decimal("0.00"))
         ).where(

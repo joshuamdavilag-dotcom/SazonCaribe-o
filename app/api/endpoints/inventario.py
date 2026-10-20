@@ -354,6 +354,7 @@ def actualizar_insumo(
     datos: InsumoUpdate = ...,
     service: InventarioService = Depends(get_inventario_service)
 ) -> InsumoResponse:
+    """Actualiza la categoría, unidad de medida o stock mínimo de un insumo."""
     return service.actualizar_insumo(insumo_id, datos)
 
 
@@ -371,6 +372,7 @@ def listar_categorias_insumo(
     current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service),
 ) -> List[CategoriaInsumoResponse]:
+    """Lista todas las categorías de insumo registradas."""
     return service.listar_categorias_insumo()
 
 
@@ -386,6 +388,7 @@ def crear_categoria_insumo(
     data: CategoriaInsumoCreate,
     service: InventarioService = Depends(get_inventario_service),
 ) -> CategoriaInsumoResponse:
+    """Crea una nueva categoría de insumo."""
     return service.crear_categoria_insumo(data)
 
 
@@ -400,6 +403,7 @@ def eliminar_categoria_insumo(
     cat_id: int = Path(..., gt=0, description="ID de la categoría"),
     service: InventarioService = Depends(get_inventario_service),
 ):
+    """Elimina una categoría de insumo que no tenga insumos asociados."""
     service.eliminar_categoria_insumo(cat_id)
 
 
@@ -417,6 +421,7 @@ def listar_unidades_medida(
     current_user: Usuario = Depends(get_current_user),
     service: InventarioService = Depends(get_inventario_service),
 ) -> List[UnidadMedidaResponse]:
+    """Lista todas las unidades de medida disponibles."""
     return service.listar_unidades_medida()
 
 
@@ -432,6 +437,7 @@ def crear_unidad_medida(
     data: UnidadMedidaCreate,
     service: InventarioService = Depends(get_inventario_service),
 ) -> UnidadMedidaResponse:
+    """Crea una nueva unidad de medida."""
     return service.crear_unidad_medida(data)
 
 
@@ -446,6 +452,7 @@ def eliminar_unidad_medida(
     unidad_id: int = Path(..., gt=0, description="ID de la unidad"),
     service: InventarioService = Depends(get_inventario_service),
 ):
+    """Elimina una unidad de medida que no tenga insumos asociados."""
     service.eliminar_unidad_medida(unidad_id)
 
 
@@ -461,6 +468,7 @@ def actualizar_unidad_medida(
     datos: UnidadMedidaUpdate = ...,
     service: InventarioService = Depends(get_inventario_service),
 ) -> UnidadMedidaResponse:
+    """Actualiza los datos de una unidad de medida existente."""
     return service.actualizar_unidad_medida(unidad_id, datos)
 
 
@@ -475,12 +483,14 @@ def convertir_unidades(
     destino: int,
     service: InventarioService = Depends(get_inventario_service),
 ) -> dict:
+    """Convierte una cantidad entre dos unidades de medida."""
     from app.services.conversion_service import convertir_cantidad
     resultado = convertir_cantidad(service.db, cantidad, origen, destino)
     return {"cantidad_origen": cantidad, "unidad_origen": origen, "unidad_destino": destino, "cantidad_convertida": round(resultado, 4)}
 
 
 def get_preparacion_service(db: Session = Depends(get_db)) -> PreparacionService:
+    """Retorna el servicio de preparaciones ligado a la sesión de BD de la petición."""
     return PreparacionService(db)
 
 
@@ -501,6 +511,7 @@ def registrar_preparacion(
     current_user: Usuario = Depends(get_current_user),
     service: PreparacionService = Depends(get_preparacion_service)
 ) -> PreparacionCocinaResponse:
+    """Registra una preparación por lote y descuenta los insumos del inventario."""
     asistencia_id = None
     if current_user.empleado_id:
         from app.repositories.asistencia_repository import AsistenciaRepository
@@ -527,6 +538,7 @@ def listar_preparaciones(
     current_user: Usuario = Depends(get_current_user),
     service: PreparacionService = Depends(get_preparacion_service),
 ) -> List[PreparacionCocinaResponse]:
+    """Lista las preparaciones de cocina registradas en el día de hoy."""
     from datetime import date
     return service.listar_por_fecha(date.today())
 
@@ -541,6 +553,7 @@ def obtener_insumos_lote(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[int]:
+    """Devuelve los IDs de insumos marcados como consumo por lote en las recetas."""
     from sqlalchemy import select, distinct
     from app.models.menu import Receta
     stmt = select(distinct(Receta.insumo_id)).where(

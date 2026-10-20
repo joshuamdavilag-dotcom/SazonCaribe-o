@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 def get_caja_service(db: Session = Depends(get_db)) -> CajaService:
+    """Retorna el servicio de caja ligado a la sesión de BD de la petición."""
     return CajaService(db)
 
 
@@ -28,6 +29,7 @@ def get_caja_service(db: Session = Depends(get_db)) -> CajaService:
 def historial_diario(
     service: CajaService = Depends(get_caja_service),
 ) -> HistorialDiarioResponse:
+    """Devuelve las órdenes pagadas de la caja abierta actual."""
     return service.historial_diario()
 
 
@@ -46,6 +48,7 @@ def ventas_dia(
     current_user: Usuario = Depends(get_current_user),
     service: CajaService = Depends(get_caja_service),
 ) -> VentasDiaResponse:
+    """Devuelve el resumen de ventas del día según el rol del usuario."""
     es_gestor = current_user.rol in (
         RolEnum.ADMINISTRADOR.value,
         RolEnum.GERENTE.value,
@@ -69,4 +72,5 @@ def cerrar_caja(
     current_user: Usuario = Depends(get_current_user),
     service: CajaService = Depends(get_caja_service),
 ) -> CierreCajaResponse:
+    """Cierra la caja actual y archiva las órdenes pagadas y gastos pendientes."""
     return service.cerrar_caja(current_user.id)

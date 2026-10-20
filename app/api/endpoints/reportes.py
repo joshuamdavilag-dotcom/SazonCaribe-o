@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 def get_reportes_service(db: Session = Depends(get_db)) -> ReportesService:
+    """Retorna el servicio de reportes ligado a la sesión de BD de la petición."""
     return ReportesService(db)
 
 

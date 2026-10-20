@@ -9,6 +9,8 @@ from app.core.database import Base
 
 
 class CategoriaInsumo(Base):
+    """Categorías para clasificar los insumos del inventario."""
+
     __tablename__ = "categorias_insumo"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -21,6 +23,8 @@ class CategoriaInsumo(Base):
 
 
 class UnidadMedida(Base):
+    """Unidades de medida con su magnitud y cadena de conversión."""
+
     __tablename__ = "unidades_medida"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

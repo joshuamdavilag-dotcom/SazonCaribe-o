@@ -96,6 +96,13 @@ class MenuService:
         return [CategoriaMenuResponse.model_validate(c) for c in categorias]
 
     def eliminar_categoria(self, categoria_id: int) -> None:
+        """
+        Elimina una categoría de menú sin platillos asociados.
+
+        Raises:
+            HTTPException 404: Si la categoría no existe.
+            HTTPException 400: Si la categoría tiene platillos asociados.
+        """
         categoria = self.menu_repo.obtener_categoria_por_id(categoria_id)
         if not categoria:
             raise HTTPException(

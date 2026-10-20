@@ -24,6 +24,7 @@ router = APIRouter()
 
 
 def get_orden_service(db: Session = Depends(get_db)) -> OrdenService:
+    """Retorna el servicio de órdenes ligado a la sesión de BD de la petición."""
     return OrdenService(db)
 
 
@@ -47,6 +48,7 @@ def crear_venta_retroactiva(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Registra y paga una orden con fecha pasada, sin afectar inventario ni mesas."""
     return service.crear_venta_retroactiva(venta_in, current_user.id)
 
 
@@ -67,6 +69,7 @@ def crear_orden(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Abre una nueva orden con sus detalles y descuenta el inventario por receta."""
     return service.crear_orden(orden_in, current_user.id, current_user)
 
 
@@ -86,6 +89,7 @@ def listar_ordenes(
     mesa_id: Optional[int] = None,
     service: OrdenService = Depends(get_orden_service),
 ) -> List[OrdenResponse]:
+    """Lista las órdenes con filtros opcionales por estado y mesa."""
     return service.obtener_ordenes(estado, mesa_id)
 
 
@@ -104,6 +108,7 @@ def obtener_orden(
     orden_id: int = Path(..., gt=0),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Devuelve una orden específica con todos sus detalles."""
     return service.obtener_orden(orden_id)
 
 
@@ -123,6 +128,7 @@ def actualizar_estado(
     body: ActualizarEstadoOrden = ...,
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Cambia el estado de la orden validando la transición del ciclo de vida."""
     return service.cambiar_estado(orden_id, body.estado)
 
 
@@ -147,6 +153,7 @@ def agregar_items(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Agrega ítems a una orden abierta y descuenta los ingredientes del inventario."""
     return service.agregar_items_canonico(orden_id, body.items, current_user)
 
 
@@ -171,6 +178,7 @@ def editar_items(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Reemplaza el contenido de una comanda abierta y ajusta el inventario."""
     return service.editar_orden(orden_id, body.items, current_user)
 
 
@@ -192,6 +200,7 @@ def pagar_orden(
     orden_id: int = Path(..., gt=0),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Marca la orden como pagada y libera la mesa vinculada en una sola transacción."""
     return service.pagar_orden(orden_id)
 
 
@@ -212,6 +221,7 @@ def aplicar_descuento_item(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Aplica un descuento porcentual o de monto fijo a un ítem específico."""
     return service.aplicar_descuento_item(
         orden_id, body.detalle_id, body.tipo, body.valor, body.motivo, current_user
     )
@@ -230,6 +240,7 @@ def aplicar_descuento_global(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Aplica un descuento global repartido proporcionalmente entre los ítems."""
     return service.aplicar_descuento_global(
         orden_id, body.tipo, body.valor, body.motivo, current_user
     )
@@ -248,4 +259,5 @@ def quitar_descuento_item(
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
+    """Elimina el descuento aplicado a un detalle específico de la orden."""
     return service.quitar_descuento_item(orden_id, detalle_id, current_user)

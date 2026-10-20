@@ -10,10 +10,12 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 # =============================================================================
 
 class CategoriaInsumoCreate(BaseModel):
+    """Esquema para crear una categoría de insumo."""
     nombre: str = Field(..., min_length=1, max_length=50, description="Nombre de la categoría")
 
 
 class CategoriaInsumoResponse(BaseModel):
+    """Esquema de respuesta para una categoría de insumo."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="ID único de la categoría")
@@ -25,6 +27,7 @@ class CategoriaInsumoResponse(BaseModel):
 # =============================================================================
 
 class UnidadMedidaCreate(BaseModel):
+    """Esquema para crear una unidad de medida."""
     nombre: str = Field(..., min_length=1, max_length=50, description="Nombre de la unidad")
     abreviatura: str = Field(..., min_length=1, max_length=10, description="Abreviatura")
     tipo_magnitud: str = Field(
@@ -43,6 +46,7 @@ class UnidadMedidaCreate(BaseModel):
 
 
 class UnidadMedidaUpdate(BaseModel):
+    """Esquema para actualizar una unidad de medida."""
     nombre: Optional[str] = Field(default=None, min_length=1, max_length=50)
     abreviatura: Optional[str] = Field(default=None, min_length=1, max_length=10)
     tipo_magnitud: Optional[str] = Field(
@@ -54,6 +58,7 @@ class UnidadMedidaUpdate(BaseModel):
 
 
 class UnidadMedidaResponse(BaseModel):
+    """Esquema de respuesta para una unidad de medida."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="ID único de la unidad")
@@ -267,6 +272,7 @@ class InsumoResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _populate_virtual_fields(cls, data):
+        """Rellena los campos virtuales de unidad, categoría y empaque desde las relaciones ORM."""
         obj = data
         um = getattr(obj, "unidad_medida_obj", None) or getattr(obj, "unidad_medida", None)
         if hasattr(um, "nombre"):
@@ -467,6 +473,7 @@ class PreparacionCocinaResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _populate_detalles_virtual(cls, data):
+        """Rellena los nombres virtuales de insumo y unidad en cada detalle de la preparación."""
         obj = data
         detalles = getattr(obj, "detalles", None)
         if detalles:
