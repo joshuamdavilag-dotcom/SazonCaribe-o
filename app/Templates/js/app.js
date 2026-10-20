@@ -3299,9 +3299,7 @@ function tapOrderCard(itemId) {
   changeOrderModalQty(itemId, 1);
   openOrderCartSheet();
 }
-window.tapOrderCard = tapOrderCard;
-
-function changeOrderModalQty(itemId, delta) {
+window.tapOrderCard = tapOrderCard;function changeOrderModalQty(itemId, delta) {
   const item = (state.menuItems || []).find(i => i.id === itemId);
   if (!item) return;
 

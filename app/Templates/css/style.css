@@ -1186,6 +1186,16 @@ input, select, textarea { font: inherit; }
 }
 .cat-carousel::-webkit-scrollbar { display: none; }
 
+/* Escritorio / pantallas amplias: las categorías se envuelven para que
+   "Todas" y el resto queden SIEMPRE visibles (sin scroll oculto). */
+@media (min-width: 769px) {
+  .cat-carousel {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    scroll-snap-type: none;
+  }
+}
+
 .cat-chip {
   flex: 0 0 auto;
   scroll-snap-align: center;
@@ -1298,7 +1308,7 @@ input, select, textarea { font: inherit; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .oc-media img.img-loaded { opacity: 1; }
@@ -1478,7 +1488,7 @@ input, select, textarea { font: inherit; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.3s ease;
 }
 .dish-sheet-media img.img-loaded { opacity: 1; }
