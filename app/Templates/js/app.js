@@ -3221,6 +3221,7 @@ function renderOrderModalMenu(items) {
     const tint = getDishTint(cat);
     const inOrder = state.currentOrder.items.find(i => i.producto_id === item.id);
     const qty = inOrder ? inOrder.cantidad : 0;
+    const itemDescuento = inOrder && inOrder._descuentoMonto ? inOrder._descuentoMonto : 0;
 
     const thumb = item.imagen_url
       ? `<img src="${escHtml(item.imagen_url)}" alt="" loading="lazy" decoding="async">`
@@ -3253,6 +3254,9 @@ function renderOrderModalMenu(items) {
               <span class="material-symbols-outlined">add</span>
               <span class="oc-add-label">Agregar</span>
             </button>`}
+            <button type="button" class="oc-disc-btn ${itemDescuento ? 'on' : ''}" aria-label="Descuento en ${escHtml(item.nombre)}" title="${itemDescuento ? `Descuento: -C$${itemDescuento.toFixed(2)}` : 'Aplicar descuento'}" onclick="event.stopPropagation(); openMenuItemDiscount(${item.id});">
+              <span class="material-symbols-outlined">sell</span>
+            </button>
           </div>
         </div>
       </article>`;
@@ -3467,6 +3471,25 @@ function openItemDiscountSheet(idx) {
 }
 window.openItemDiscountSheet = openItemDiscountSheet;
 
+function openMenuItemDiscount(productoId) {
+  let idx = state.currentOrder.items.findIndex(i => i.producto_id === productoId);
+  if (idx === -1) {
+    const item = (state.menuItems || []).find(i => i.id === productoId);
+    if (!item) return;
+    state.currentOrder.items.push({
+      producto_id: productoId, nombre: item.nombre,
+      precio_unitario: parseFloat(item.precio), cantidad: 1,
+    });
+    idx = state.currentOrder.items.length - 1;
+    renderOrderModalMenu(state.menuItems);
+    renderOrderModalCart();
+    updateOrderModalTotals();
+    updateOrderModalCartUI();
+  }
+  openItemDiscountSheet(idx);
+}
+window.openMenuItemDiscount = openMenuItemDiscount;
+
 function closeItemDiscountSheet() {
   const sheet = document.getElementById('order-item-disc-sheet');
   if (sheet) sheet.style.display = 'none';
@@ -3528,6 +3551,7 @@ function applyItemDiscount() {
   item._descuentoMotivo = motivo;
 
   closeItemDiscountSheet();
+  renderOrderModalMenu(state.menuItems);
   renderOrderModalCart();
   updateOrderModalTotals();
   updateOrderModalCartUI();
@@ -3544,6 +3568,7 @@ function clearItemDiscount() {
     delete item._descuentoMotivo;
   }
   closeItemDiscountSheet();
+  renderOrderModalMenu(state.menuItems);
   renderOrderModalCart();
   updateOrderModalTotals();
   updateOrderModalCartUI();

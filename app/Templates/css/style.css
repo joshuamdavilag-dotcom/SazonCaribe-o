@@ -1286,7 +1286,6 @@ input, select, textarea { font: inherit; }
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: transform 0.14s, box-shadow 0.14s, border-color 0.14s;
@@ -1309,6 +1308,7 @@ input, select, textarea { font: inherit; }
   background: var(--bg-primary);
   color: var(--turquesa-ola);
   overflow: hidden;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 .oc-media img {
   position: absolute;
@@ -1377,8 +1377,8 @@ input, select, textarea { font: inherit; }
 .oc-body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px 12px;
+  gap: 4px;
+  padding: 12px 14px 13px;
   flex: 1;
   min-width: 0;
 }
@@ -1397,11 +1397,13 @@ input, select, textarea { font: inherit; }
 }
 .oc-foot {
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: 10px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+  flex-shrink: 0;
 }
 .oc-cat-inline {
   display: block;
@@ -1432,6 +1434,8 @@ input, select, textarea { font: inherit; }
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(230, 57, 70, 0.35);
   transition: transform 0.12s, box-shadow 0.12s;
 }
@@ -1446,6 +1450,7 @@ input, select, textarea { font: inherit; }
   border-radius: var(--radius-full);
   background: var(--turquesa-ola);
   box-shadow: 0 2px 8px rgba(42, 157, 143, 0.4);
+  flex-shrink: 0;
 }
 .oc-step-btn {
   display: grid;
@@ -1467,6 +1472,28 @@ input, select, textarea { font: inherit; }
   color: #fff;
   font-size: 15px;
   font-weight: 800;
+}
+.oc-disc-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, border-color 0.14s, transform 0.12s;
+}
+.oc-disc-btn .material-symbols-outlined { font-size: 19px; }
+.oc-disc-btn:hover { background: var(--bg-secondary); color: var(--azul-marino); }
+.oc-disc-btn:active { transform: scale(0.9); }
+.oc-disc-btn.on {
+  background: var(--amarillo-solar);
+  border-color: var(--amarillo-solar);
+  color: #7A2E00;
+  box-shadow: 0 2px 8px rgba(255, 183, 3, 0.45);
 }
 
 .order-card-empty {
@@ -3664,6 +3691,9 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   .oc-step-btn { width: 24px !important; height: 24px !important; }
   .oc-step-btn .material-symbols-outlined { font-size: 16px !important; }
   .oc-step-qty { font-size: 13px !important; min-width: 16px !important; }
+  .oc-disc-btn { width: 28px !important; height: 28px !important; }
+  .oc-disc-btn .material-symbols-outlined { font-size: 17px !important; }
+  .oc-foot { padding-top: 7px; gap: 6px; }
   .order-card-group {
     top: -10px;
     margin: 2px 0 -2px;
