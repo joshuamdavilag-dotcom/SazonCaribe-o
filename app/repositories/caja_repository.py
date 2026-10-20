@@ -41,9 +41,11 @@ class CajaRepository:
         ordenes: List[Orden],
     ) -> dict:
         total_ventas = sum(Decimal(str(o.total)) for o in ordenes)
+        total_descuentos = sum(Decimal(str(o.descuento_total or 0)) for o in ordenes)
         return {
             "total_ventas": float(total_ventas),
             "total_ordenes": len(ordenes),
+            "total_descuentos": float(total_descuentos),
         }
 
     def crear_cierre(

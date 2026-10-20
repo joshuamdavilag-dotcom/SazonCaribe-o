@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user, requerir_rol
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
-from app.schemas.caja import CierreCajaResponse, HistorialDiarioResponse
+from app.schemas.caja import CierreCajaResponse, HistorialDiarioResponse, VentasDiaResponse
 from app.services.caja_service import CajaService
 
 router = APIRouter()
@@ -29,6 +29,28 @@ def historial_diario(
     service: CajaService = Depends(get_caja_service),
 ) -> HistorialDiarioResponse:
     return service.historial_diario()
+
+
+@router.get(
+    "/ventas-dia",
+    response_model=VentasDiaResponse,
+    summary="Ventas del día (cualquier rol)",
+    description=(
+        "Resumen de solo lectura de las órdenes PAGADA de la caja abierta "
+        "actual: total vendido, cantidad de órdenes y descuentos. "
+        "No expone gastos, nómina ni utilidad. Disponible para todos los roles."
+    ),
+    dependencies=[Depends(get_current_user)],
+)
+def ventas_dia(
+    current_user: Usuario = Depends(get_current_user),
+    service: CajaService = Depends(get_caja_service),
+) -> VentasDiaResponse:
+    es_gestor = current_user.rol in (
+        RolEnum.ADMINISTRADOR.value,
+        RolEnum.GERENTE.value,
+    )
+    return service.ventas_dia(es_gestor)
 
 
 @router.post(

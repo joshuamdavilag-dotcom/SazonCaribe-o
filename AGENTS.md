@@ -249,6 +249,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Consultar calendario          | Y             | Y       | Y        |
 | Gestionar eventos calendario | Y             | Y       | N        |
 | Cierre de caja (reportes)     | Y             | Y       | N        |
+| Ver ventas del día (resumen)  | Y             | Y       | Y        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
 | Nomina                        | Y             | Y       | N        |
 
@@ -376,6 +377,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | DELETE | /api/v1/ordenes/{id}/descuento-item/{detalle_id} | Yes  | Any                |
 | PUT    | /api/v1/ordenes/{id}/pagar                  | Yes      | Any                |
 | GET    | /api/v1/caja/historial-diario               | Yes      | Any                |
+| GET    | /api/v1/caja/ventas-dia                     | Yes      | Any                |
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
 | POST   | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
@@ -601,6 +603,13 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 1. `GET /caja/historial-diario` → `Orden` WHERE `PAGADA AND fecha=today AND cierre_caja_id IS NULL`
 2. `POST /caja/cierre` → creates `CierreCaja` + links qualifying orders
 3. Next query returns empty set
+
+### Ventas del día (panel del mesero)
+- El Vendedor no puede ver el Cierre de Caja financiero (`GET /reportes/cierre` es Admin/Gerente → 403, y antes la pantalla quedaba en C$0.00). Ahora tiene un panel acotado de **solo lectura**.
+- `GET /caja/ventas-dia` (cualquier rol autenticado) devuelve `VentasDiaResponse`: `fecha`, `total_ventas`, `total_ordenes`, `total_descuentos`, `es_gestor` y las órdenes PAGADA de la caja abierta actual (`cierre_caja_id IS NULL`). **Nunca expone gastos, nómina ni utilidad neta.**
+- `CajaRepository.calcular_totales()` ahora incluye `total_descuentos` (consumido solo por `ventas_dia`; `cerrar_caja` sigue leyendo únicamente `total_ventas`/`total_ordenes`).
+- Frontend `#screen-cuenta`: `body:not(.role-administrador):not(.role-gerente) #cierre-gestor-panel { display:none }` oculta tarjetas de resumen, tabs de periodo, gráficos y Top platillos. El mesero ve `#ventas-dia-panel` (total vendido hoy + órdenes pagadas + tabla de órdenes).
+- `loadHistorialOrdenesDia(target)` / `renderHistorialOrdenesDia(ordenes, target)` aceptan `'gestor'` (usa `#historial-ordenes-list`) o `'mesero'` (usa `#historial-ordenes-list-mesero`); `loadVentasDia()` llena `#vd-total` y `#vd-ordenes`.
 
 ### Unit conversion system (3 phases)
 - **Phase 1 — Backend engine**: `UnidadMedida` model extended with `tipo_magnitud` (PESO/VOLUMEN/UNIDAD/PERSONALIZADO), `unidad_base_id` FK (self-referential), `factor_conversion` Float; `conversion_service.py` with `convertir_cantidad()` using transitive chain resolution; PUT + conversion GET endpoints; seed data with two-pass base_ref resolution

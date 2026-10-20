@@ -42,3 +42,28 @@ class HistorialDiarioResponse(BaseModel):
         default_factory=list,
         description="Lista de órdenes pagadas del día",
     )
+
+
+class VentasDiaResponse(BaseModel):
+    """Resumen de ventas del día visible para cualquier rol (sin datos financieros internos)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    fecha: str = Field(
+        ..., description="Fecha del resumen (YYYY-MM-DD)"
+    )
+    total_ventas: float = Field(
+        ..., description="Suma de totales de órdenes pagadas de la caja abierta"
+    )
+    total_ordenes: int = Field(
+        ..., description="Cantidad de órdenes pagadas de la caja abierta"
+    )
+    total_descuentos: float = Field(
+        ..., description="Suma de descuentos aplicados en las órdenes de la caja abierta"
+    )
+    es_gestor: bool = Field(
+        ..., description="Indica si el usuario puede ver el detalle financiero completo"
+    )
+    ordenes: list = Field(
+        default_factory=list,
+        description="Lista de órdenes pagadas del día",
+    )

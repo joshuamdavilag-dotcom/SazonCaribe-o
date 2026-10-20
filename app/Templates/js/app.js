@@ -408,8 +408,12 @@ function navigateTo(screenId) {
   if (screenId === 'inventory') loadInventory();
   if (screenId === 'personal') loadPersonal();
   if (screenId === 'cuenta') {
-    loadCierreReportes('diario');
-    loadHistorialOrdenesDia();
+    const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
+    const meseroPanel = document.getElementById('ventas-dia-panel');
+    if (meseroPanel) meseroPanel.style.display = esGestor ? 'none' : 'block';
+    loadHistorialOrdenesDia(esGestor ? 'gestor' : 'mesero');
+    if (esGestor) loadCierreReportes('diario');
+    else loadVentasDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
   if (screenId === 'descuentos') loadDescuentos();
@@ -6800,21 +6804,33 @@ async function aplicarDescuentoOrder() {
 /* =========================================================================
    Daily Orders History — Caja Screen
    ========================================================================= */
-async function loadHistorialOrdenesDia() {
-  const container = document.getElementById('historial-ordenes-list');
+async function loadVentasDia() {
+  try {
+    const data = await api('/caja/ventas-dia');
+    const totalEl = document.getElementById('vd-total');
+    const ordenesEl = document.getElementById('vd-ordenes');
+    if (totalEl) totalEl.textContent = 'C$' + parseFloat(data.total_ventas || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (ordenesEl) ordenesEl.textContent = data.total_ordenes || 0;
+  } catch {
+    showToast('No se pudieron cargar las ventas del día', 'error');
+  }
+}
+
+async function loadHistorialOrdenesDia(target = 'gestor') {
+  const container = document.getElementById(target === 'mesero' ? 'historial-ordenes-list-mesero' : 'historial-ordenes-list');
   if (!container) return;
   container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">Cargando historial…</p>';
 
   try {
     const data = await api('/caja/historial-diario');
-    renderHistorialOrdenesDia(data.ordenes || []);
+    renderHistorialOrdenesDia(data.ordenes || [], target);
   } catch {
     container.innerHTML = '<p style="text-align:center;color:#E63946;padding:12px;">Error al cargar historial.</p>';
   }
 }
 
-function renderHistorialOrdenesDia(ordenes) {
-  const container = document.getElementById('historial-ordenes-list');
+function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
+  const container = document.getElementById(target === 'mesero' ? 'historial-ordenes-list-mesero' : 'historial-ordenes-list');
   if (!container) return;
 
   if (ordenes.length === 0) {

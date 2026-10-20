@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories.caja_repository import CajaRepository
 from app.repositories.orden_repository import OrdenRepository
-from app.schemas.caja import CierreCajaResponse, HistorialDiarioResponse
+from app.schemas.caja import CierreCajaResponse, HistorialDiarioResponse, VentasDiaResponse
 from app.schemas.orden import OrdenResponse
 
 
@@ -24,6 +24,21 @@ class CajaService:
             fecha=date.today().isoformat(),
             total_ventas=totales["total_ventas"],
             total_ordenes=totales["total_ordenes"],
+            ordenes=[
+                OrdenResponse.model_validate(o) for o in ordenes
+            ],
+        )
+
+    def ventas_dia(self, es_gestor: bool) -> VentasDiaResponse:
+        ordenes = self.caja_repo.obtener_ordenes_pagadas_sin_archivar()
+        totales = self.caja_repo.calcular_totales(ordenes)
+
+        return VentasDiaResponse(
+            fecha=date.today().isoformat(),
+            total_ventas=totales["total_ventas"],
+            total_ordenes=totales["total_ordenes"],
+            total_descuentos=totales["total_descuentos"],
+            es_gestor=es_gestor,
             ordenes=[
                 OrdenResponse.model_validate(o) for o in ordenes
             ],

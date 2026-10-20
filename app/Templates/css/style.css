@@ -2972,6 +2972,11 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   display: none !important;
 }
 
+/* Cierre de Caja: el mesero (Vendedor) solo ve el resumen de ventas del día */
+body:not(.role-administrador):not(.role-gerente) #cierre-gestor-panel {
+  display: none !important;
+}
+
 /* Cocinero/Chef: solo el Panel de Cocina (sin navegación lateral ni barra inferior) */
 body.role-cocina .sidebar-nav,
 body.role-cocina .bottom-nav,
