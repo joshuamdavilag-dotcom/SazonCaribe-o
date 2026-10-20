@@ -1592,16 +1592,91 @@ function renderAuditoria() {
   };
   tbody.innerHTML = items.map(event => {
     const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
-    const before = event.antes ? JSON.stringify(event.antes, null, 2) : '—';
-    const after = event.despues ? JSON.stringify(event.despues, null, 2) : '—';
     return `<tr class="border-b border-slate-100 align-top">
       <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escHtml(stamp)}</td>
       <td class="px-4 py-3 whitespace-nowrap"><strong class="text-slate-800">${escHtml(event.actor_username)}</strong><span class="block text-xs text-slate-500">${escHtml(event.actor_rol)}</span></td>
       <td class="px-4 py-3 whitespace-nowrap"><span class="rounded-full bg-sky-50 text-sky-800 px-2 py-1 text-xs font-semibold">${escHtml(labels[event.accion] || event.accion)}</span></td>
       <td class="px-4 py-3 text-slate-700">${escHtml(event.descripcion)}</td>
-      <td class="px-4 py-3"><details><summary class="cursor-pointer text-[#0F3B66] font-semibold">Ver datos</summary><div class="grid md:grid-cols-2 gap-2 mt-2"><div><strong class="text-xs text-slate-500">Antes</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(before)}</pre></div><div><strong class="text-xs text-slate-500">Después</strong><pre class="text-xs whitespace-pre-wrap break-all">${escHtml(after)}</pre></div></div></details></td>
+      <td class="px-4 py-3">${renderAuditData(event.antes, event.despues)}</td>
     </tr>`;
   }).join('');
+}
+
+const AUDIT_FIELD_LABELS = {
+  concepto: 'Descripción',
+  monto: 'Monto',
+  precio: 'Precio',
+  categoria: 'Categoría',
+  fecha: 'Fecha',
+  motivo: 'Motivo',
+  eliminado: 'Eliminado',
+  moneda: 'Moneda',
+  insumo_id: 'Insumo',
+  cierre_caja_id: 'Cierre de caja',
+  total_anterior: 'Total anterior',
+  total_nuevo: 'Total nuevo',
+  total: 'Total',
+  subtotal: 'Subtotal',
+  descuento_total: 'Descuento total',
+  descuento_monto: 'Descuento',
+  descuento_porcentaje: 'Descuento %',
+  cantidad: 'Cantidad',
+  cantidad_devuelta: 'Cantidad devuelta',
+  detalle_id: 'Línea',
+  producto: 'Platillo',
+  detalle: 'Detalle',
+  producto_id: 'Platillo',
+  mesa_id: 'Mesa',
+  orden_id: 'Pedido',
+  tipo: 'Tipo',
+  valor: 'Valor',
+  estado: 'Estado',
+};
+
+function auditFieldLabel(key) {
+  if (AUDIT_FIELD_LABELS[key]) return AUDIT_FIELD_LABELS[key];
+  return String(key).replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+}
+
+function auditValueText(key, value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if (key === 'monto' || key === 'precio' || key === 'total' || key === 'subtotal' ||
+      key === 'descuento_total' || key === 'descuento_monto' || key === 'total_anterior' ||
+      key === 'total_nuevo') {
+    const n = parseFloat(value);
+    if (!isNaN(n)) return `C$${n.toFixed(2)}`;
+  }
+  if (key === 'fecha') return String(value).replace('T', ' ').slice(0, 16);
+  if (key === 'moneda') return 'C$';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function renderAuditData(antes, despues) {
+  if (!antes && !despues) return '<span class="text-slate-400 text-xs">—</span>';
+  const before = antes && typeof antes === 'object' ? antes : {};
+  const after = despues && typeof despues === 'object' ? despues : {};
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  const rows = keys.map(key => {
+    const b = auditValueText(key, before[key]);
+    const a = auditValueText(key, after[key]);
+    const soloAlta = !(key in before);
+    const soloBaja = !(key in after);
+    let valueHtml;
+    if (soloAlta) {
+      valueHtml = `<span class="text-[#0B7A6E] font-bold">${escHtml(a)}</span>`;
+    } else if (soloBaja) {
+      valueHtml = `<span class="text-[#B42318] line-through">${escHtml(b)}</span>`;
+    } else if (b !== a) {
+      valueHtml = `<span class="text-slate-400 line-through">${escHtml(b)}</span> <span class="text-slate-400">→</span> <span class="text-[#0B7A6E] font-bold">${escHtml(a)}</span>`;
+    } else {
+      valueHtml = `<span class="text-slate-600">${escHtml(b)}</span>`;
+    }
+    return `<tr><td class="py-0.5 pr-3 align-top text-xs font-semibold text-slate-500 whitespace-nowrap">${escHtml(auditFieldLabel(key))}</td><td class="py-0.5 align-top text-xs">${valueHtml}</td></tr>`;
+  }).join('');
+  const count = keys.filter(k => auditValueText(k, before[k]) !== auditValueText(k, after[k])).length;
+  return `<details><summary class="cursor-pointer text-[#0F3B66] font-semibold text-xs select-none">${count ? `${count} cambio${count === 1 ? '' : 's'}` : 'Ver datos'}</summary><table class="mt-2 border-collapse">${rows}</table></details>`;
 }
 
 const CATEGORIA_BADGE = {
