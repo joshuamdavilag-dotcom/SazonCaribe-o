@@ -17,6 +17,8 @@ from app.schemas.orden import (
     VentaRetroactivaCreate,
     AplicarDescuentoItemRequest,
     AplicarDescuentoGlobalRequest,
+    AnularOrdenRequest,
+    DevolverItemRequest,
 )
 from app.services.orden_service import OrdenService
 
@@ -202,6 +204,53 @@ def pagar_orden(
 ) -> OrdenResponse:
     """Marca la orden como pagada y libera la mesa vinculada en una sola transacción."""
     return service.pagar_orden(orden_id)
+
+
+# =====================================================================
+#  Anulación / devolución de pedidos cobrados (Admin/Gerente)
+# =====================================================================
+
+@router.post(
+    "/{orden_id}/anular",
+    response_model=OrdenResponse,
+    summary="Anular una orden pagada",
+    description=(
+        "Anula una orden PAGADA de la caja abierta (devolución total). "
+        "Requiere `motivo` obligatorio; la orden deja de contar en ventas "
+        "pero se conserva con autor, fecha y motivo en la auditoría."
+    ),
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+)
+def anular_orden(
+    orden_id: int,
+    body: AnularOrdenRequest,
+    current_user: Usuario = Depends(get_current_user),
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    """Anula una orden pagada dejando el motivo en auditoría."""
+    return service.anular_orden(orden_id, body.motivo, current_user)
+
+
+@router.post(
+    "/{orden_id}/devolver-item",
+    response_model=OrdenResponse,
+    summary="Devolver unidades de una línea de la orden",
+    description=(
+        "Devuelve parte o todas las unidades de una línea de una orden PAGADA "
+        "y recalcula el total. Requiere `motivo` obligatorio; queda en auditoría."
+    ),
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+)
+def devolver_item(
+    orden_id: int,
+    body: DevolverItemRequest,
+    current_user: Usuario = Depends(get_current_user),
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    """Devuelve unidades de una línea de una orden pagada."""
+    return service.devolver_item(
+        orden_id, body.detalle_id, body.cantidad, body.motivo, current_user
+    )
 
 
 # =====================================================================

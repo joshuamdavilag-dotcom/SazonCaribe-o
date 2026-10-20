@@ -35,6 +35,7 @@ class AnaliticaRepository:
         stmt_total = (
             select(func.coalesce(func.sum(Orden.total), 0.0))
             .where(Orden.estado == EstadoOrden.PAGADA)
+            .where(Orden.anulada.is_(False))
             .where(func.date(Orden.fecha_creacion) == fecha_consulta)
         )
         total_ventas = self.db.execute(stmt_total).scalar()
@@ -42,6 +43,7 @@ class AnaliticaRepository:
         stmt_pagadas = (
             select(func.count(Orden.id))
             .where(Orden.estado == EstadoOrden.PAGADA)
+            .where(Orden.anulada.is_(False))
             .where(func.date(Orden.fecha_creacion) == fecha_consulta)
         )
         pagadas_count = self.db.execute(stmt_pagadas).scalar()
@@ -81,6 +83,7 @@ class AnaliticaRepository:
             .join(Orden, DetalleOrden.orden_id == Orden.id)
             .join(MenuItem, DetalleOrden.producto_id == MenuItem.id)
             .where(Orden.estado == EstadoOrden.PAGADA)
+            .where(Orden.anulada.is_(False))
             .where(func.date(Orden.fecha_creacion) == fecha_consulta)
             .group_by(DetalleOrden.producto_id, MenuItem.nombre)
             .order_by(desc("cantidad_vendida"))

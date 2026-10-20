@@ -36,6 +36,7 @@ class ReportesRepository:
         ).where(
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
+                Orden.anulada.is_(False),
                 func.date(Orden.fecha_creacion) >= fecha_inicio,
                 func.date(Orden.fecha_creacion) <= fecha_fin,
             )
@@ -49,7 +50,7 @@ class ReportesRepository:
     ) -> Dict[str, int]:
         """Retorna conteo de órdenes pagadas y canceladas en el rango."""
         stmt = select(
-            func.sum(case((Orden.estado == EstadoOrden.PAGADA, 1), else_=0)).label("pagadas"),
+            func.sum(case((and_(Orden.estado == EstadoOrden.PAGADA, Orden.anulada.is_(False)), 1), else_=0)).label("pagadas"),
             func.sum(case((Orden.estado == EstadoOrden.CANCELADA, 1), else_=0)).label("canceladas"),
         ).where(
             and_(
@@ -108,6 +109,7 @@ class ReportesRepository:
         ).where(
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
+                Orden.anulada.is_(False),
                 func.date(Orden.fecha_creacion) >= fecha_inicio,
                 func.date(Orden.fecha_creacion) <= fecha_fin,
             )
@@ -140,6 +142,7 @@ class ReportesRepository:
         ).where(
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
+                Orden.anulada.is_(False),
                 func.date(Orden.fecha_creacion) >= fecha_inicio,
                 func.date(Orden.fecha_creacion) <= fecha_fin,
             )
@@ -185,7 +188,7 @@ class ReportesRepository:
                 )),
                 Decimal("0.00"),
             ).label("gastos_operativos"),
-        )
+        ).where(Gasto.eliminado.is_(False))
         if filtros:
             stmt = stmt.where(*filtros)
         return stmt
@@ -217,6 +220,7 @@ class ReportesRepository:
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.cierre_caja_id.is_(None),
+                Orden.anulada.is_(False),
             )
         )
         return self.db.execute(stmt).scalar_one()
@@ -226,6 +230,7 @@ class ReportesRepository:
         pagadas = select(func.count(Orden.id)).where(
             Orden.estado == EstadoOrden.PAGADA,
             Orden.cierre_caja_id.is_(None),
+            Orden.anulada.is_(False),
         )
         canceladas = select(func.count(Orden.id)).where(
             Orden.estado == EstadoOrden.CANCELADA,
@@ -244,6 +249,7 @@ class ReportesRepository:
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.cierre_caja_id.is_(None),
+                Orden.anulada.is_(False),
             )
         )
         return self.db.execute(stmt).scalar_one()
@@ -276,6 +282,7 @@ class ReportesRepository:
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.cierre_caja_id.is_(None),
+                Orden.anulada.is_(False),
             )
         ).group_by(
             DetalleOrden.producto_id,

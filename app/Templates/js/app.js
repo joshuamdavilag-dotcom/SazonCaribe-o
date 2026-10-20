@@ -417,7 +417,7 @@ function navigateTo(screenId) {
     const meseroPanel = document.getElementById('ventas-dia-panel');
     if (meseroPanel) meseroPanel.style.display = esGestor ? 'none' : 'block';
     loadHistorialOrdenesDia(esGestor ? 'gestor' : 'mesero');
-    if (esGestor) loadCierreReportes('diario');
+    if (esGestor) { loadCierreReportes('diario'); state.auditOffset = 0; loadAuditoria(); }
     else loadVentasDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
@@ -1585,6 +1585,10 @@ function renderAuditoria() {
     DESCUENTO_APLICADO: 'Descuento aplicado',
     DESCUENTO_GLOBAL_APLICADO: 'Descuento global',
     DESCUENTO_RETIRADO: 'Descuento retirado',
+    ORDEN_ANULADA: 'Pedido anulado',
+    ITEM_DEVUELTO: 'Platillo devuelto',
+    GASTO_EDITADO: 'Gasto modificado',
+    GASTO_ELIMINADO: 'Gasto eliminado',
   };
   tbody.innerHTML = items.map(event => {
     const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
@@ -1652,11 +1656,98 @@ function renderGastosTable() {
       <td style="padding:12px 16px;font-weight:600;color:#0F3B66;white-space:nowrap;">#${g.id}</td>
       <td style="padding:12px 16px;color:#374151;white-space:nowrap;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
       <td style="padding:12px 16px;"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORIA_BADGE[g.categoria] || 'bg-slate-100 text-slate-600'}">${CATEGORIA_LABELS[g.categoria] || g.categoria}</span></td>
-      <td style="padding:12px 16px;color:#374151;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.concepto}</td>
+      <td style="padding:12px 16px;color:#374151;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.concepto)}</td>
       <td style="padding:12px 16px;text-align:right;font-weight:700;color:#E63946;white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
       <td style="padding:12px 16px;color:#6b7280;font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
+      <td class="admin-only" style="padding:8px 12px;white-space:nowrap;text-align:right;">
+        <button type="button" class="btn-action" title="Editar gasto" onclick="openEditarGasto(${g.id})">✏️</button>
+        <button type="button" class="btn-action btn-action-danger" title="Eliminar gasto" onclick="openEliminarGasto(${g.id})">🗑️</button>
+      </td>
     </tr>
   `).join('');
+}
+
+function openEditarGasto(id) {
+  const g = (state.allGastos || []).find(x => x.id === id);
+  if (!g) return showToast('No se encontró el gasto', 'warning');
+  document.getElementById('edit-gasto-id').value = g.id;
+  document.getElementById('edit-gasto-concepto').value = g.concepto;
+  document.getElementById('edit-gasto-monto').value = parseFloat(g.monto).toFixed(2);
+  document.getElementById('edit-gasto-categoria').value = g.categoria;
+  document.getElementById('edit-gasto-fecha').value = String(g.fecha).slice(0, 10);
+  document.getElementById('edit-gasto-motivo').value = '';
+  document.getElementById('modal-editar-gasto')?.classList.add('show');
+}
+
+function closeEditarGastoModal() {
+  document.getElementById('modal-editar-gasto')?.classList.remove('show');
+}
+
+async function confirmarEditarGasto() {
+  const id = document.getElementById('edit-gasto-id').value;
+  const concepto = document.getElementById('edit-gasto-concepto').value.trim();
+  const monto = parseFloat(document.getElementById('edit-gasto-monto').value);
+  const categoria = document.getElementById('edit-gasto-categoria').value;
+  const fecha = document.getElementById('edit-gasto-fecha').value;
+  const motivo = document.getElementById('edit-gasto-motivo').value.trim();
+
+  if (!concepto) return showToast('Ingresa una descripción', 'warning');
+  if (!monto || monto <= 0) return showToast('Ingresa un monto válido', 'warning');
+  if (!motivo) return showToast('El motivo de la modificación es obligatorio', 'warning');
+
+  const btn = document.getElementById('save-editar-gasto-btn');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    await api(`/gastos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ concepto, monto, categoria, fecha, motivo }),
+    });
+    closeEditarGastoModal();
+    showToast('Gasto modificado y registrado en auditoría', 'success');
+    loadGastos();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar Cambios';
+  }
+}
+
+function openEliminarGasto(id) {
+  const g = (state.allGastos || []).find(x => x.id === id);
+  if (!g) return showToast('No se encontró el gasto', 'warning');
+  document.getElementById('del-gasto-id').value = g.id;
+  document.getElementById('del-gasto-texto').textContent =
+    `#${g.id} · ${g.concepto} · C$${parseFloat(g.monto).toFixed(2)}`;
+  document.getElementById('del-gasto-motivo').value = '';
+  document.getElementById('modal-eliminar-gasto')?.classList.add('show');
+}
+
+function closeEliminarGastoModal() {
+  document.getElementById('modal-eliminar-gasto')?.classList.remove('show');
+}
+
+async function confirmarEliminarGasto() {
+  const id = document.getElementById('del-gasto-id').value;
+  const motivo = document.getElementById('del-gasto-motivo').value.trim();
+  if (!motivo) return showToast('El motivo de la eliminación es obligatorio', 'warning');
+
+  const btn = document.getElementById('confirm-del-gasto-btn');
+  btn.disabled = true;
+  btn.textContent = 'Eliminando…';
+  try {
+    await api(`/gastos/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ motivo }),
+    });
+    closeEliminarGastoModal();
+    showToast('Gasto eliminado y registrado en auditoría', 'success');
+    loadGastos();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Eliminar Gasto';
+  }
 }
 
 function openGastosModal() {
@@ -6853,6 +6944,7 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
           <th>Fecha</th>
           <th class="right">Total</th>
           <th>Estado</th>
+          ${target === 'gestor' ? '<th class="right">Acciones</th>' : ''}
         </tr>
       </thead>
       <tbody>
@@ -6862,6 +6954,10 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
           const modalidad = mesa ? 'Salón' : 'Para Llevar';
           const desc = parseFloat(o.descuento_total || 0);
           const fec = String(o.fecha_creacion || '').replace('T', ' ').slice(0, 16);
+          const devueltos = (o.detalles || []).filter(d => (d.cantidad_devuelta || 0) > 0);
+          const devueltosTxt = devueltos.length
+            ? `<span class="td-sub" style="color:#FFB703;">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
+            : '';
           return `
             <tr>
               <td class="order-id">#${o.id}</td>
@@ -6876,10 +6972,15 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
               <td class="right">
                 <span class="td-total">C$${parseFloat(o.total).toFixed(2)}</span>
                 ${desc > 0 ? `<span class="td-desc">−C$${desc.toFixed(2)} desc</span>` : ''}
+                ${devueltosTxt}
               </td>
               <td>
                 <span class="cierre-estado-badge ${o.estado === 'PAGADA' ? 'is-pagada' : 'is-otro'}">${o.estado}</span>
               </td>
+              ${target === 'gestor' ? `<td class="right">
+                <button type="button" class="btn-action admin-only" title="Devolver platillos" onclick="openDevolverItemModal(${o.id})">↩</button>
+                <button type="button" class="btn-action btn-action-danger admin-only" title="Anular pedido completo" onclick="openAnularOrdenModal(${o.id})">🗑️</button>
+              </td>` : ''}
             </tr>`;
         }).join('')}
       </tbody>
@@ -6889,6 +6990,106 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
 function clearHistorialOrdenesDia() {
   const container = document.getElementById('historial-ordenes-list');
   if (container) container.innerHTML = '<p class="ch-empty">Historial limpiado tras el cierre de caja.</p>';
+}
+
+/* =========================================================================
+   Anulación / devolución de pedidos cobrados (Admin/Gerente)
+   ========================================================================= */
+
+async function openAnularOrdenModal(ordenId) {
+  try {
+    const orden = await api(`/ordenes/${ordenId}`);
+    document.getElementById('anular-orden-id').value = orden.id;
+    document.getElementById('anular-orden-texto').textContent =
+      `#${orden.id} · ${(orden.detalles || []).length} ítem(s) · C$${parseFloat(orden.total).toFixed(2)}`;
+    document.getElementById('anular-orden-motivo').value = '';
+    document.getElementById('modal-anular-orden')?.classList.add('show');
+  } catch { /* handled by api() */ }
+}
+
+function closeAnularOrdenModal() {
+  document.getElementById('modal-anular-orden')?.classList.remove('show');
+}
+
+async function confirmarAnularOrden() {
+  const id = document.getElementById('anular-orden-id').value;
+  const motivo = document.getElementById('anular-orden-motivo').value.trim();
+  if (!motivo) return showToast('El motivo de la anulación es obligatorio', 'warning');
+
+  const btn = document.getElementById('confirm-anular-orden-btn');
+  btn.disabled = true;
+  btn.textContent = 'Anulando…';
+  try {
+    await api(`/ordenes/${id}/anular`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    });
+    closeAnularOrdenModal();
+    showToast('Pedido anulado y registrado en auditoría', 'success');
+    if (state.currentScreen === 'cuenta') { loadVentasDia(); loadHistorialOrdenesDia('gestor'); }
+    if (state.currentScreen === 'comandero') loadCocinaOrdenes();
+    loadTables();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Anular Pedido';
+  }
+}
+
+async function openDevolverItemModal(ordenId) {
+  try {
+    const orden = await api(`/ordenes/${ordenId}`);
+    const vendibles = (orden.detalles || []).filter(d => (d.cantidad - (d.cantidad_devuelta || 0)) > 0);
+    if (!vendibles.length) {
+      return showToast('Esta orden no tiene ítems por devolver', 'warning');
+    }
+    document.getElementById('devolver-orden-id').value = orden.id;
+    const sel = document.getElementById('devolver-detalle');
+    sel.innerHTML = vendibles.map(d => {
+      const vigentes = d.cantidad - (d.cantidad_devuelta || 0);
+      return `<option value="${d.id}" data-max="${vigentes}">${escHtml(d.producto_nombre || ('Platillo #' + d.producto_id))} — quedan ${vigentes} de ${d.cantidad}</option>`;
+    }).join('');
+    const cant = document.getElementById('devolver-cantidad');
+    cant.value = 1;
+    cant.max = vendibles[0].cantidad - (vendibles[0].cantidad_devuelta || 0);
+    document.getElementById('devolver-motivo').value = '';
+    document.getElementById('modal-devolver-item')?.classList.add('show');
+  } catch { /* handled by api() */ }
+}
+
+function closeDevolverItemModal() {
+  document.getElementById('modal-devolver-item')?.classList.remove('show');
+}
+
+async function confirmarDevolverItem() {
+  const ordenId = document.getElementById('devolver-orden-id').value;
+  const sel = document.getElementById('devolver-detalle');
+  const detalleId = sel.value;
+  const max = parseInt(sel.options[sel.selectedIndex]?.dataset.max || '1', 10);
+  const cantidad = parseInt(document.getElementById('devolver-cantidad').value, 10);
+  const motivo = document.getElementById('devolver-motivo').value.trim();
+
+  if (!cantidad || cantidad <= 0) return showToast('Ingresa una cantidad válida', 'warning');
+  if (cantidad > max) return showToast(`Solo quedan ${max} unidad(es) por devolver`, 'warning');
+  if (!motivo) return showToast('El motivo de la devolución es obligatorio', 'warning');
+
+  const btn = document.getElementById('confirm-devolver-item-btn');
+  btn.disabled = true;
+  btn.textContent = 'Devolviendo…';
+  try {
+    await api(`/ordenes/${ordenId}/devolver-item`, {
+      method: 'POST',
+      body: JSON.stringify({ detalle_id: parseInt(detalleId, 10), cantidad, motivo }),
+    });
+    closeDevolverItemModal();
+    showToast('Devolución registrada y total actualizado', 'success');
+    if (state.currentScreen === 'cuenta') { loadVentasDia(); loadHistorialOrdenesDia('gestor'); }
+    if (state.currentScreen === 'comandero') loadCocinaOrdenes();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Registrar Devolución';
+  }
 }
 
 /* =========================================================================
@@ -7617,6 +7818,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Para Llevar
   document.getElementById('btn-para-llevar')?.addEventListener('click', openParaLlevarModal);
+
+  // Gastos: editar / eliminar
+  document.getElementById('close-editar-gasto')?.addEventListener('click', closeEditarGastoModal);
+  document.getElementById('cancel-editar-gasto')?.addEventListener('click', closeEditarGastoModal);
+  document.getElementById('save-editar-gasto-btn')?.addEventListener('click', confirmarEditarGasto);
+  document.getElementById('close-eliminar-gasto')?.addEventListener('click', closeEliminarGastoModal);
+  document.getElementById('cancel-eliminar-gasto')?.addEventListener('click', closeEliminarGastoModal);
+  document.getElementById('confirm-del-gasto-btn')?.addEventListener('click', confirmarEliminarGasto);
+
+  // Pedidos: anular / devolver
+  document.getElementById('close-anular-orden')?.addEventListener('click', closeAnularOrdenModal);
+  document.getElementById('cancel-anular-orden')?.addEventListener('click', closeAnularOrdenModal);
+  document.getElementById('confirm-anular-orden-btn')?.addEventListener('click', confirmarAnularOrden);
+  document.getElementById('close-devolver-item')?.addEventListener('click', closeDevolverItemModal);
+  document.getElementById('cancel-devolver-item')?.addEventListener('click', closeDevolverItemModal);
+  document.getElementById('confirm-devolver-item-btn')?.addEventListener('click', confirmarDevolverItem);
 
   // FAB Nueva comanda rápida (Salón)
   document.getElementById('btn-nueva-comanda')?.addEventListener('click', openParaLlevarModal);

@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List
 
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, CheckConstraint, Boolean
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -83,6 +83,26 @@ class Orden(Base):
         ForeignKey("cierres_caja.id", name="fk_ordenes_cierre_caja_id"),
         nullable=True,
     )
+    anulada: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        comment="Marca la orden como anulada (devolución total); queda en auditoría",
+    )
+    motivo_anulacion: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    anulada_por: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("usuarios.id", name="fk_ordenes_anulada_por"),
+        nullable=True,
+    )
+    anulada_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
 
     # Relación muchos-a-uno con Mesa
     mesa: Mapped["Mesa"] = relationship(
@@ -93,6 +113,14 @@ class Orden(Base):
     # Relación muchos-a-uno con Usuario (mesero)
     mesero: Mapped["Usuario"] = relationship(
         "Usuario",
+        foreign_keys=[mesero_id],
+        lazy="selectin"
+    )
+
+    # Relación muchos-a-uno con Usuario (quien anuló la orden)
+    anulado_por_usuario: Mapped[Optional["Usuario"]] = relationship(
+        "Usuario",
+        foreign_keys=[anulada_por],
         lazy="selectin"
     )
 
@@ -171,6 +199,21 @@ class DetalleOrden(Base):
     notas: Mapped[Optional[str]] = mapped_column(
         String(255),
         nullable=True
+    )
+    cantidad_devuelta: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+        comment="Unidades devueltas de esta línea (0 si no hubo devolución)",
+    )
+    motivo_devolucion: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    devuelta_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
     )
 
     # Relación muchos-a-uno con Orden

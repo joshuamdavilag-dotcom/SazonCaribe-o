@@ -5,6 +5,7 @@ from typing import Optional, List
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.tiempo import ahora_local
 from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.inventario import MovimientoInventario
 from app.models.personal import Usuario
@@ -481,6 +482,220 @@ class OrdenService:
             raise
 
     # ================================================================== #
+    #  Anulación / devolución de pedidos cobrados (con auditoría)         #
+    # ================================================================== #
+
+    def anular_orden(
+        self,
+        orden_id: int,
+        motivo: str,
+        actor: Usuario,
+    ) -> Orden:
+        """Anula una orden PAGADA de la caja abierta (devolución total).
+
+        La orden deja de contar en ventas y cierres, pero se conserva con su
+        motivo, autor y fecha para trazabilidad total.
+
+        Raises:
+            HTTPException 404: si la orden no existe.
+            HTTPException 400: si no está PAGADA, ya está anulada o está archivada.
+            HTTPException 400: si el motivo está vacío.
+        """
+        motivo = (motivo or "").strip()
+        if not motivo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo de la anulación es obligatorio.",
+            )
+
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+        if orden.anulada:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La orden ya está anulada.",
+            )
+        if orden.estado != EstadoOrden.PAGADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se pueden anular órdenes pagadas.",
+            )
+        if orden.cierre_caja_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede anular una orden ya archivada en un cierre de caja.",
+            )
+
+        antes = {
+            "id": orden.id,
+            "estado": orden.estado.value,
+            "total": str(orden.total),
+            "subtotal": str(orden.subtotal),
+            "descuento_total": str(orden.descuento_total),
+            "mesa_id": orden.mesa_id,
+            "mesero_id": orden.mesero_id,
+            "anulada": False,
+        }
+
+        try:
+            with self.db.begin_nested():
+                orden.anulada = True
+                orden.motivo_anulacion = motivo
+                orden.anulada_por = actor.id
+                orden.anulada_en = ahora_local()
+
+                AuditoriaService.registrar(
+                    self.db,
+                    actor,
+                    "ORDEN_ANULADA",
+                    "orden",
+                    orden.id,
+                    f"Orden #{orden.id} anulada por C${orden.total} — motivo: {motivo}",
+                    antes=antes,
+                    despues={
+                        "id": orden.id,
+                        "total": str(orden.total),
+                        "motivo": motivo,
+                        "anulada": True,
+                    },
+                )
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def devolver_item(
+        self,
+        orden_id: int,
+        detalle_id: int,
+        cantidad: int,
+        motivo: str,
+        actor: Usuario,
+    ) -> Orden:
+        """Devuelve unidades de una línea de una orden PAGADA y recalcula el total.
+
+        Args:
+            orden_id: ID de la orden.
+            detalle_id: ID de la línea a devolver.
+            cantidad: Unidades a devolver (no puede exceder lo vigente).
+            motivo: Motivo obligatorio de la devolución.
+            actor: Usuario que autoriza la devolución.
+
+        Raises:
+            HTTPException 404: si la orden o la línea no existen.
+            HTTPException 400: si la orden no está pagada, está archivada o anulada.
+            HTTPException 400: si el motivo está vacío o la cantidad es inválida.
+        """
+        motivo = (motivo or "").strip()
+        if not motivo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo de la devolución es obligatorio.",
+            )
+        if cantidad is None or cantidad <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La cantidad a devolver debe ser mayor a 0.",
+            )
+
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+        if orden.anulada:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La orden está anulada.",
+            )
+        if orden.estado != EstadoOrden.PAGADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se pueden devolver ítems de órdenes pagadas.",
+            )
+        if orden.cierre_caja_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede modificar una orden ya archivada en un cierre de caja.",
+            )
+
+        detalle = next((d for d in orden.detalles if d.id == detalle_id), None)
+        if detalle is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la línea {detalle_id} en la orden {orden_id}.",
+            )
+
+        ya_devueltas = detalle.cantidad_devuelta or 0
+        vigentes = detalle.cantidad - ya_devueltas
+        if cantidad > vigentes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"No se pueden devolver {cantidad} unidades: "
+                    f"solo quedan {vigentes} vigentes en la línea."
+                ),
+            )
+
+        antes_total = {
+            "total": str(orden.total),
+            "subtotal": str(orden.subtotal),
+            "descuento_total": str(orden.descuento_total),
+        }
+        antes_detalle = {
+            "detalle_id": detalle.id,
+            "producto_id": detalle.producto_id,
+            "cantidad": detalle.cantidad,
+            "cantidad_devuelta": ya_devueltas,
+        }
+
+        try:
+            with self.db.begin_nested():
+                detalle.cantidad_devuelta = ya_devueltas + cantidad
+                detalle.motivo_devolucion = motivo
+                detalle.devuelta_en = ahora_local()
+
+                self._recalcular_totales(orden)
+                orden.estado = EstadoOrden.PAGADA
+
+                AuditoriaService.registrar(
+                    self.db,
+                    actor,
+                    "ITEM_DEVUELTO",
+                    "orden",
+                    orden.id,
+                    (
+                        f"Devolución de {cantidad} × platillo #{detalle.producto_id} "
+                        f"en la orden #{orden.id} — motivo: {motivo}"
+                    ),
+                    antes={**antes_total, "detalle": antes_detalle},
+                    despues={
+                        "detalle_id": detalle.id,
+                        "producto_id": detalle.producto_id,
+                        "cantidad_devuelta": detalle.cantidad_devuelta,
+                        "motivo": motivo,
+                        "total": str(orden.total),
+                    },
+                )
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
+    # ================================================================== #
     #  Cambio de estado (con reversión automática al cancelar)            #
     # ================================================================== #
 
@@ -746,14 +961,25 @@ class OrdenService:
             raise
 
     def _recalcular_totales(self, orden: Orden) -> None:
-        """Recalcula subtotal, descuento total y total de la orden desde sus líneas."""
+        """Recalcula subtotal, descuento total y total de la orden desde sus líneas.
+
+        Descuenta las unidades devueltas: la línea factura solo las unidades
+        vigentes (cantidad - cantidad_devuelta) y su descuento se prorratea.
+        """
         subtotal = Decimal("0.00")
         descuento_total = Decimal("0.00")
 
         for d in orden.detalles:
-            base = Decimal(str(d.precio_unitario)) * d.cantidad
+            vigentes = d.cantidad - (d.cantidad_devuelta or 0)
+            if vigentes <= 0:
+                continue
+            base = Decimal(str(d.precio_unitario)) * vigentes
             subtotal += base
-            descuento_total += d.descuento_monto or Decimal("0.00")
+            descuento_linea = d.descuento_monto or Decimal("0.00")
+            if d.cantidad_devuelta and d.cantidad:
+                proporcion = Decimal(vigentes) / Decimal(d.cantidad)
+                descuento_linea = (descuento_linea * proporcion).quantize(Decimal("0.01"))
+            descuento_total += descuento_linea
 
         orden.subtotal = subtotal
         orden.descuento_total = descuento_total

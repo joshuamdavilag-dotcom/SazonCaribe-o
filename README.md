@@ -34,8 +34,8 @@ Sistema de gestión para restaurante (**ERP / POS**) construido con **FastAPI + 
 - **Personal**: puestos, empleados, usuarios, plantillas de turno y habilitación dinámica de turnos para vendedores.
 - **Asistencia**: check-in/check-out, horas extras, edición de horarios, anulación con auditoría, heartbeat y cierre automático de turnos huérfanos.
 - **Nómina**: cálculo quincenal, adelantos de salario, pago y recalculación.
-- **Caja**: historial del día, ventas del día (vista acotada para meseros), cierre de caja con archivado.
-- **Gastos**: CRUD de gastos operativos y gastos automáticos por consumo de insumos.
+- **Caja**: historial del día, ventas del día (vista acotada para meseros), cierre de caja con archivado, anulación de pedidos y devolución de líneas con motivo.
+- **Gastos**: CRUD de gastos operativos y gastos automáticos por consumo de insumos; edición y eliminación auditadas (borrado lógico con motivo).
 - **Reportes**: cierre financiero por periodo (diario/semanal/quincenal/mensual/anual), utilidad neta, top platillos y descuentos.
 - **Calendario**: planificación de disponibilidad de platillos y llegadas de insumos, más consulta de asistencias reales.
 - **Cámaras**: registro, control de acceso y clips de video vía puente WebRTC.
@@ -252,6 +252,8 @@ Roles definidos en `RolEnum` (`app/schemas/personal.py`): **Administrador**, **G
 | Cierre de caja financiero (reportes) | ✅ | ✅ | ❌ |
 | **Ver ventas del día (resumen)** | ✅ | ✅ | ✅ |
 | Cerrar caja (archivar) | ✅ | ✅ | ❌ |
+| Anular pedido / devolver ítem | ✅ | ✅ | ❌ |
+| Editar / eliminar gasto (con motivo) | ✅ | ✅ | ❌ |
 | Nómina | ✅ | ✅ | ❌ |
 | Cámaras (gestión) | ✅ | ✅ | ❌ |
 | Auditoría | ✅ | ✅ | ❌ |
@@ -328,9 +330,9 @@ Todos los endpoints del ERP están bajo el prefijo **`/api/v1/`** y requieren au
 | Inventario | `/api/v1/inventario` | insumos, movimientos, categorías, unidades, preparaciones |
 | Menú | `/api/v1/menu` | items, categorías, imagen, recetas |
 | Salón | `/api/v1/salon` | zonas, mesas, mapa, estado, apodo |
-| Órdenes | `/api/v1/ordenes` | crear, items, estado, pagar, descuentos, retroactiva |
+| Órdenes | `/api/v1/ordenes` | crear, items, estado, pagar, descuentos, retroactiva, anular, devolver-item |
 | Caja | `/api/v1/caja` | historial-diario, ventas-dia, cierre |
-| Gastos | `/api/v1/gastos` | CRUD con filtro por rango |
+| Gastos | `/api/v1/gastos` | CRUD con filtro por rango + editar/eliminar auditado |
 | Descuentos | `/api/v1/descuentos` | descuentos frecuentes |
 | Calendario | `/api/v1/calendario` | eventos + asistencias reales |
 | Reportes | `/api/v1/reportes` | cierre financiero por periodo |

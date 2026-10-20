@@ -38,6 +38,48 @@ class GastoCreate(BaseModel):
     )
 
 
+class GastoUpdate(BaseModel):
+    """Esquema para editar un gasto existente (requiere motivo obligatorio)."""
+    concepto: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="Nuevo concepto del gasto",
+    )
+    monto: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+        description="Nuevo monto del gasto (debe ser mayor a 0)",
+    )
+    categoria: Optional[CategoriaGasto] = Field(
+        default=None,
+        description="Nueva categoría del gasto",
+    )
+    fecha: Optional[date] = Field(
+        default=None,
+        description="Nueva fecha del gasto (YYYY-MM-DD)",
+    )
+    motivo: str = Field(
+        ...,
+        min_length=3,
+        max_length=255,
+        description="Motivo obligatorio de la modificación (queda en auditoría)",
+        examples=["Monto mal tecleado al registrar"],
+    )
+
+
+class GastoEliminarRequest(BaseModel):
+    """Esquema para eliminar (borrado lógico) un gasto con motivo obligatorio."""
+    motivo: str = Field(
+        ...,
+        min_length=3,
+        max_length=255,
+        description="Motivo obligatorio de la eliminación (queda en auditoría)",
+        examples=["Gasto duplicado por error"],
+    )
+
+
 class GastoResponse(BaseModel):
     """Esquema de respuesta para un gasto."""
     model_config = ConfigDict(from_attributes=True)
@@ -74,4 +116,20 @@ class GastoResponse(BaseModel):
     cierre_caja_id: Optional[int] = Field(
         default=None,
         description="ID del cierre de caja que archivó este gasto",
+    )
+    eliminado: bool = Field(
+        default=False,
+        description="Indica si el gasto fue eliminado (borrado lógico)",
+    )
+    motivo_eliminacion: Optional[str] = Field(
+        default=None,
+        description="Motivo por el que se eliminó el gasto",
+    )
+    eliminado_por: Optional[int] = Field(
+        default=None,
+        description="ID del usuario que eliminó el gasto",
+    )
+    eliminado_en: Optional[datetime] = Field(
+        default=None,
+        description="Fecha y hora de la eliminación",
     )

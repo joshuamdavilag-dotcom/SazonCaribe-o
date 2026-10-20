@@ -97,6 +97,18 @@ class DetalleOrdenResponse(BaseModel):
         default=None,
         description="Notas especiales del ítem"
     )
+    cantidad_devuelta: int = Field(
+        default=0,
+        description="Unidades devueltas de esta línea"
+    )
+    motivo_devolucion: Optional[str] = Field(
+        default=None,
+        description="Motivo de la devolución de esta línea"
+    )
+    devuelta_en: Optional[datetime] = Field(
+        default=None,
+        description="Fecha y hora de la devolución"
+    )
 
     @model_validator(mode='before')
     @classmethod
@@ -185,6 +197,54 @@ class OrdenResponse(BaseModel):
     detalles: List[DetalleOrdenResponse] = Field(
         default_factory=list,
         description="Lista de ítems de la orden"
+    )
+    anulada: bool = Field(
+        default=False,
+        description="Indica si la orden fue anulada (devolución total)"
+    )
+    motivo_anulacion: Optional[str] = Field(
+        default=None,
+        description="Motivo de la anulación de la orden"
+    )
+    anulada_por: Optional[int] = Field(
+        default=None,
+        description="ID del usuario que anuló la orden"
+    )
+    anulada_en: Optional[datetime] = Field(
+        default=None,
+        description="Fecha y hora de la anulación"
+    )
+
+
+class AnularOrdenRequest(BaseModel):
+    """Esquema para anular una orden completa con motivo obligatorio."""
+    motivo: str = Field(
+        ...,
+        min_length=3,
+        max_length=255,
+        description="Motivo obligatorio de la anulación (queda en auditoría)",
+        examples=["Cliente devolvió el pedido completo"],
+    )
+
+
+class DevolverItemRequest(BaseModel):
+    """Esquema para devolver unidades de una línea de la orden."""
+    detalle_id: int = Field(
+        ...,
+        gt=0,
+        description="ID de la línea (DetalleOrden) a devolver parcial o totalmente",
+    )
+    cantidad: int = Field(
+        ...,
+        gt=0,
+        description="Unidades a devolver de la línea",
+    )
+    motivo: str = Field(
+        ...,
+        min_length=3,
+        max_length=255,
+        description="Motivo obligatorio de la devolución (queda en auditoría)",
+        examples=["Plato salió frío"],
     )
 
 

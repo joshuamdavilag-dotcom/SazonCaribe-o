@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.20">
+  <link rel="stylesheet" href="css/style.css?v=6.22">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -835,6 +835,50 @@
             </div>
             <div id="historial-ordenes-list" class="p-1"></div>
           </div>
+
+          <!-- Movimientos y cambios del día (auditoría) -->
+          <div id="caja-auditoria-panel" class="table-container overflow-x-auto bg-white rounded-2xl shadow-sm border border-slate-200 w-full min-w-0">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 gap-2 flex-wrap">
+              <div>
+                <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Movimientos y Cambios</h3>
+                <p class="text-[12px] text-slate-500 mt-1">Anulaciones, devoluciones y gastos modificados — con autor y motivo</p>
+              </div>
+              <button id="btn-refresh-auditoria" type="button" class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+                <span class="material-symbols-outlined text-[15px]">refresh</span> Actualizar
+              </button>
+            </div>
+            <div class="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100">
+              <label class="text-[12px] font-semibold text-slate-500">Desde
+                <input type="date" id="auditoria-desde" class="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-[12px]">
+              </label>
+              <label class="text-[12px] font-semibold text-slate-500">Hasta
+                <input type="date" id="auditoria-hasta" class="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-[12px]">
+              </label>
+              <button id="btn-filtrar-auditoria" type="button" class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#003366] text-[12px] font-bold text-white">
+                <span class="material-symbols-outlined text-[15px]">filter_alt</span> Filtrar
+              </button>
+              <span id="auditoria-total" class="text-[12px] text-slate-500 ml-auto"></span>
+            </div>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                  <th class="px-4 py-2">Fecha</th>
+                  <th class="px-4 py-2">Usuario</th>
+                  <th class="px-4 py-2">Acción</th>
+                  <th class="px-4 py-2">Descripción</th>
+                  <th class="px-4 py-2">Datos</th>
+                </tr>
+              </thead>
+              <tbody id="auditoria-tbody"></tbody>
+            </table>
+            <div class="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+              <span id="auditoria-pagina" class="text-[12px] text-slate-500"></span>
+              <div class="flex items-center gap-2">
+                <button id="btn-auditoria-anterior" type="button" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 disabled:opacity-40">Anterior</button>
+                <button id="btn-auditoria-siguiente" type="button" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 disabled:opacity-40">Siguiente</button>
+              </div>
+            </div>
+          </div>
           </div>
 
         </div>
@@ -910,10 +954,11 @@
                   <th class="px-4 py-3">Descripción</th>
                   <th class="px-4 py-3 text-right">Monto</th>
                   <th class="px-4 py-3">Registrado Por</th>
+                  <th class="px-4 py-3 text-right admin-only">Acciones</th>
                 </tr>
               </thead>
               <tbody id="gastos-tbody">
-                <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
+                <tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">Cargando gastos…</td></tr>
               </tbody>
             </table>
           </div>
@@ -2039,6 +2084,142 @@
     </div>
   </div>
 
+  <!-- Modal: Anular Orden Pagada -->
+  <div id="modal-anular-orden" class="modal-overlay" aria-label="Anular pedido">
+    <div class="modal-sheet" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Anular Pedido Completo</h3>
+        <button class="modal-close" id="close-anular-orden" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:10px;">
+          ¿Estás seguro de que deseas anular este pedido? Dejará de contar en las ventas y en el cierre de caja.
+        </p>
+        <p style="font-size:13px;color:#374151;margin-bottom:16px;font-weight:600;" id="anular-orden-texto"></p>
+        <input type="hidden" id="anular-orden-id">
+        <div class="form-group">
+          <label class="form-label" for="anular-orden-motivo">Motivo de la anulación <span style="color:#E63946;">*</span></label>
+          <input type="text" id="anular-orden-motivo" class="form-input" maxlength="255"
+                 placeholder="Ej: Cliente devolvió el pedido completo" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El pedido se conserva en la bitácora con quién, cuándo, por qué y el monto.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-anular-orden" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-anular-orden-btn" style="flex:1;">Anular Pedido</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Devolver Ítem de Orden -->
+  <div id="modal-devolver-item" class="modal-overlay" aria-label="Devolver platillo">
+    <div class="modal-sheet" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">↩ Devolver Platillos</h3>
+        <button class="modal-close" id="close-devolver-item" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:14px;">
+          Elige la línea y cuántas unidades se devuelven. El total del pedido se recalcula automáticamente.
+        </p>
+        <input type="hidden" id="devolver-orden-id">
+        <div class="form-group">
+          <label class="form-label" for="devolver-detalle">Platillo</label>
+          <select id="devolver-detalle" class="form-input"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="devolver-cantidad">Cantidad a devolver</label>
+          <input type="number" id="devolver-cantidad" class="form-input" min="1" step="1" value="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="devolver-motivo">Motivo de la devolución <span style="color:#E63946;">*</span></label>
+          <input type="text" id="devolver-motivo" class="form-input" maxlength="255"
+                 placeholder="Ej: Plato salió frío" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">La devolución queda registrada para auditoría.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-devolver-item" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-devolver-item-btn" style="flex:1;">Registrar Devolución</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Gasto -->
+  <div id="modal-editar-gasto" class="modal-overlay" aria-label="Editar gasto">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ Editar Gasto</h3>
+        <button class="modal-close" id="close-editar-gasto" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <input type="hidden" id="edit-gasto-id">
+        <div class="form-group">
+          <label class="form-label" for="edit-gasto-concepto">Descripción</label>
+          <input type="text" id="edit-gasto-concepto" class="form-input" maxlength="255">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="edit-gasto-monto">Monto (C$)</label>
+            <input type="number" id="edit-gasto-monto" class="form-input" step="0.01" min="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-gasto-fecha">Fecha</label>
+            <input type="date" id="edit-gasto-fecha" class="form-input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-gasto-categoria">Categoría</label>
+          <select id="edit-gasto-categoria" class="form-input">
+            <option value="OPERATIVO">🔧 Operativo</option>
+            <option value="MANTENIMIENTO">🛠️ Mantenimiento</option>
+            <option value="SUMINISTROS">📦 Suministros</option>
+            <option value="SERVICIOS">⚙️ Servicios</option>
+            <option value="IMPUESTOS">🏛️ Impuestos</option>
+            <option value="OTROS">📋 Otros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-gasto-motivo">Motivo de la modificación <span style="color:#E63946;">*</span></label>
+          <input type="text" id="edit-gasto-motivo" class="form-input" maxlength="255"
+                 placeholder="Ej: Monto mal tecleado al registrar" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El valor anterior y el nuevo quedan en la bitácora.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-editar-gasto" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="save-editar-gasto-btn" style="flex:1;">Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Eliminar Gasto -->
+  <div id="modal-eliminar-gasto" class="modal-overlay" aria-label="Eliminar gasto">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Eliminar Gasto</h3>
+        <button class="modal-close" id="close-eliminar-gasto" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:10px;">
+          ¿Estás seguro de que deseas eliminar este gasto? Dejará de contar en los totales.
+        </p>
+        <p style="font-size:13px;color:#374151;margin-bottom:16px;font-weight:600;" id="del-gasto-texto"></p>
+        <input type="hidden" id="del-gasto-id">
+        <div class="form-group">
+          <label class="form-label" for="del-gasto-motivo">Motivo de la eliminación <span style="color:#E63946;">*</span></label>
+          <input type="text" id="del-gasto-motivo" class="form-input" maxlength="255"
+                 placeholder="Ej: Gasto duplicado por error" />
+          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El gasto se conserva en la bitácora con quién, cuándo y por qué.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-eliminar-gasto" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-del-gasto-btn" style="flex:1;">Eliminar Gasto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Editar Horas Extras -->
   <div id="modal-edit-ot" class="modal-overlay" aria-label="Editar horas extras">
     <div class="modal-sheet" style="max-width:440px;">
@@ -2413,6 +2594,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.20"></script>
+  <script src="js/app.js?v=6.22"></script>
 </body>
 </html>

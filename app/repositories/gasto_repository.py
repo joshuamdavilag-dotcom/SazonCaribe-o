@@ -27,12 +27,27 @@ class GastoRepository(BaseRepository[Gasto]):
                 and_(
                     func.date(Gasto.fecha) >= fecha_inicio,
                     func.date(Gasto.fecha) <= fecha_fin,
+                    Gasto.eliminado.is_(False),
                 )
             )
             .order_by(Gasto.fecha.desc())
         )
         result = self.db.execute(stmt)
         return list(result.scalars().all())
+
+    def listar_todos(self) -> List[Gasto]:
+        """Devuelve todos los gastos no eliminados, más recientes primero."""
+        stmt = (
+            select(Gasto)
+            .where(Gasto.eliminado.is_(False))
+            .order_by(Gasto.fecha.desc())
+        )
+        result = self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    def obtener_por_id(self, gasto_id: int) -> Gasto | None:
+        """Devuelve un gasto por id, sin importar si está eliminado."""
+        return self.db.get(Gasto, gasto_id)
 
     def sumar_por_rango(
         self,
@@ -46,6 +61,7 @@ class GastoRepository(BaseRepository[Gasto]):
             and_(
                 func.date(Gasto.fecha) >= fecha_inicio,
                 func.date(Gasto.fecha) <= fecha_fin,
+                Gasto.eliminado.is_(False),
             )
         )
         return self.db.execute(stmt).scalar_one()

@@ -73,7 +73,8 @@ app/
 │       ├── salon.py         # Zonas, mesas, mapa
 │       ├── orden.py         # Órdenes, agregar items, facturación, pagar, descuentos
 │       ├── caja.py          # Historial diario, cierre de caja (archivado)
-│       ├── gasto.py         # Gastos operativos CRUD
+│       ├── gasto.py         # Gastos operativos CRUD + editar/eliminar auditado
+│       ├── auditoria.py     # Bitácora de auditoría (GET paginado, Admin/Gerente)
 │       ├── calendario.py    # Planificación autenticada + consulta de asistencias reales
 │       ├── reportes.py      # Reportes financieros por periodo
 │       └── analitica.py     # Cierre de caja legacy (métricas simples)
@@ -99,9 +100,9 @@ app/
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
 │   ├── menu.py              # CategoriaMenu, MenuItem (imagen_url, tiempo_preparacion), Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
-│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable for direct sales/para llevar; subtotal, descuento_total, nombre_cliente fields; descuento_porcentaje, descuento_monto, motivo_descuento on DetalleOrden)
+│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable; subtotal, descuento_total, nombre_cliente; descuento_porcentaje/monto/motivo on DetalleOrden; anulada/motivo_anulacion/anulada_por/anulada_en on Orden; cantidad_devuelta/motivo_devolucion/devuelta_en on DetalleOrden)
 │   ├── caja.py              # CierreCaja
-│   ├── gasto.py             # Gasto, CategoriaGasto enum
+│   ├── gasto.py             # Gasto, CategoriaGasto enum (+ eliminado/motivo_eliminacion/eliminado_por/eliminado_en)
 │   ├── calendario.py        # EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 │   └── __init__.py          # Registers all models including Gasto
 ├── repositories/
@@ -200,7 +201,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - All modals use `.modal-overlay.show` pattern
 - `showToast(message, type)` for notifications
 - Role-based nav: `.nav-locked` class for restricted items
-- Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`
+- Gastos screen: `#screen-gastos` with table (ID, Fecha, Categoría, Descripción, Monto, Registrado Por, Acciones); modal `#modal-registrar-gasto` with fecha picker + categoría select + monto + descripción; `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/`. Columna Acciones (`admin-only`) con ✏️/🗑️ → `#modal-editar-gasto` (`confirmarEditarGasto()` → `PUT /gastos/{id}`) y `#modal-eliminar-gasto` (`confirmarEliminarGasto()` → `DELETE /gastos/{id}`); ambos con motivo obligatorio y refresco de la tabla
+- Caja — Auditoría y anulación: el historial de órdenes de la caja (`renderHistorialOrdenesDia`, target `gestor`) muestra columnas ↩ (devolver) y 🗑️ (anular) `admin-only` → `#modal-devolver-item`/`#modal-anular-orden`. El panel `#caja-auditoria-panel` (dentro de `#cierre-gestor-panel`, oculto para no-gestores) muestra la bitácora: filtros `#auditoria-desde`/`#auditoria-hasta` + `#btn-filtrar-auditoria`, tabla `#auditoria-tbody`, paginación `#btn-auditoria-anterior`/`#btn-auditoria-siguiente` con `state.auditOffset`/`auditLimit`, total `#auditoria-total` y `#auditoria-pagina`. `loadAuditoria()`/`renderAuditoria()` consumen `GET /auditoria/`; se recarga al entrar a Caja (gestor) y con `#btn-refresh-auditoria`. El render muestra antes/después en un `<details>` por registro
 - Calendario: `#screen-calendario` mensual y responsive; `loadCalendario()` pide eventos + asistencias reales a `GET /calendario/?desde=&hasta=` una vez por navegación/mes; `renderCalendario()` dibuja semanas y permite elegir fecha para mostrar detalle diario completo. Asistencias son solo consulta (sin anuladas); Admin/Gerente crean/editar/eliminan eventos por modal `#modal-calendar-event`. Catálogos se cargan una vez desde Menú, Insumos y Proveedores. Reglas completas y contrato: `docs/CALENDARIO.md`.
 - Salón: `#zona-filters` chip row dynamically populated from `GET /salon/zonas`; filters combine with estado chips via `applyTableFilters()`; zone CRUD in `#zonas-panel` (collapsible) within Gestionar Mesas modal; startup `_fix_orphaned_mesas()` auto-frees OCUPADA tables with no active orders; table detail modal shows "Forzar Libramiento" button when OCUPADA but no active order found
 - Inventario: `#insumo-cat-filters` chip row dynamically populated from `GET /inventario/categorias-insumo`; filters items by `categoria_id`; `#modal-insumo` has ⚙️ toggle buttons for inline category and unit subpanels (`#cat-insumo-panel`, `#unidad-panel`); dynamic `<select>` populated from `GET /inventario/unidades-medida`; `loadInventory()` fetches both catalog endpoints + insumos + alerts; category cards show `categoria_nombre` badge; `#modal-stock` has two tabs (Movimiento/Detalles) — Movimiento tab adjusts stock via `PATCH /insumos/{id}/stock`, Detalles tab edits category/unit/stock_minimo via `PATCH /insumos/{id}`; gear subpanels for inline category/unit creation from stock modal
@@ -252,6 +254,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Cierre de caja (reportes)     | Y             | Y       | N        |
 | Ver ventas del día (resumen)  | Y             | Y       | Y        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
+| Anular pedido / devolver ítem | Y             | Y       | N        |
+| Editar/Eliminar gasto         | Y             | Y       | N        |
+| Consultar auditoría           | Y             | Y       | N        |
 | Nomina                        | Y             | Y       | N        |
 
 ## Business Rules
@@ -262,6 +267,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **IVA**: Removed — menu prices are tax-inclusive; `IVA_RATE=0.0`
 - **Turno**: Template (Matutino/Nocturno); Asistencia = actual check-in record
 - **MenuItem**: Must have `categoria_id`, `nombre`, `precio`; `disponible` toggles visibility
+- **Anulación de pedidos y devolución de líneas (auditado)**: `POST /ordenes/{id}/anular` (Admin/Gerente) marca `Orden.anulada=True` + `motivo_anulacion`/`anulada_por`/`anulada_en` (borrado lógico, nunca `db.delete`); la orden sale de TODOS los totales de ventas (caja abierta e históricos). `POST /ordenes/{id}/devolver-item` (Admin/Gerente) con `{detalle_id, cantidad, motivo}` acumula `DetalleOrden.cantidad_devuelta`/`motivo_devolucion`/`devuelta_en` y recalcula `subtotal`/`descuento_total`/`total` prorrateando las unidades devueltas. Bloqueos: 404 si la orden/detalle no existe, 400 si el motivo está vacío, la orden ya está anulada, la orden pertenece a una caja ya cerrada (`cierre_caja_id` no nulo), o si `cantidad` excede las unidades vigentes de la línea. NO revierte inventario. Cada operación se registra en `RegistroAuditoria` (`ORDEN_ANULADA`/`ITEM_DEVUELTO`) con antes/después y el autor. Frontend: botones ↩/🗑️ (`admin-only`) en el historial de órdenes de la Caja (target `gestor`) → `#modal-devolver-item` / `#modal-anular-orden`.
+- **Edición y eliminación de gastos (auditado)**: `PUT /gastos/{id}` edita `concepto`/`monto`/`categoria`/`fecha` con `motivo` obligatorio; `DELETE /gastos/{id}` marca `Gasto.eliminado=True` + `motivo_eliminacion`/`eliminado_por`/`eliminado_en` (borrado lógico, nunca `db.delete`). Ambos Admin/Gerente. Reglas: 404 si no existe, 400 si ya está eliminado, si el motivo está vacío, o si la edición no cambia ningún campo. A diferencia de las órdenes, los gastos PUEDEN editarse/eliminarse aunque pertenezcan a una caja ya cerrada (decisión explícita del negocio). Eliminar un gasto SUMINISTROS auto-generado NO devuelve stock. Los gastos eliminados se excluyen de `CajaRepository`, `GastoRepository`, `ReportesRepository` (rangos y `sin_archivar`) y `AnaliticaRepository`. Cada operación se registra en `RegistroAuditoria` (`GASTO_EDITADO`/`GASTO_ELIMINADO`) con antes/después y el autor. Frontend: columnas ✏️/🗑️ (`admin-only`) en la tabla de Gastos → `#modal-editar-gasto` / `#modal-eliminar-gasto`.
+- **Bitácora de auditoría**: `RegistroAuditoria` (modelo existente) + `AuditoriaService.registrar(db, actor, accion, entidad_tipo, entidad_id, descripcion, antes=, despues=)` (añade a la sesión; el caller hace commit). Consulta vía `GET /api/v1/auditoria/?desde=&hasta=&limit=&offset=` (solo Admin/Gerente, paginado, máx. `limit=100`, 400 si `desde > hasta`). En el ERP se muestra en el panel "Movimientos y Cambios" (`#caja-auditoria-panel`) dentro de la pantalla Caja (Cierre de Caja), visible solo para gestores (`#cierre-gestor-panel`), con filtros de fecha, paginación y detalle antes/después por registro. Acciones registradas actualmente: `PRECIO_ASIGNADO`/`PRECIO_ACTUALIZADO`/`DESCUENTO_*`, `ORDEN_ANULADA`, `ITEM_DEVUELTO`, `GASTO_EDITADO`, `GASTO_ELIMINADO`.
+- **Migraciones de startup de auditoría**: `_migrate_ordenes_anulacion()` (columnas `anulada/motivo_anulacion/anulada_por/anulada_en` en `ordenes`; `cantidad_devuelta/motivo_devolucion/devuelta_en` en `detalles_orden`) y `_migrate_gastos_eliminacion()` (`eliminado/motivo_eliminacion/eliminado_por/eliminado_en` en `gastos`) en `app/main.py`, idempotentes vía `information_schema`. `Orden.mesero` usa `foreign_keys=[mesero_id]` (la FK `anulada_por` creó un segundo camino a `usuarios`); relación `anulado_por_usuario` con `foreign_keys=[anulada_por]`.
 - **Anulación de registro de asistencia**: `DELETE /asistencia/{id}` (Admin/Gerente) marca `Asistencia.anulada=True` (borrado lógico, nunca `db.delete`) con `motivo` obligatorio que se guarda en `motivo_modificacion` + `modificado_por` (auditoría). Bloquea: registro inexistente (404), motivo vacío (400), turno aún activo sin salida (400), registro ya anulado (400). Los registros anulados NO cuentan para nómina: `get_finalizadas_por_rango`, `get_asistencias_por_rango_fechas` y `get_asistencia_del_dia` filtran `Asistencia.anulada == False`, por lo que horas normales y extras se descartan del cálculo y el empleado puede volver a marcar entrada el mismo día. El historial (`get_asistencias_por_empleado`) conserva el registro con badge "🚫 Anulado" (y motivo en tooltip) para trazabilidad.
 - **Borrado lógico de platillos**: `DELETE /menu/items/{id}` does a SOFT DELETE — sets `disponible=False` (never `db.delete`). Receta e historial de ventas (`detalle_orden`) se conservan; el plato puede reactivarse editándolo. `IntegrityError` se captura y devuelve 400 con mensaje claro. `GET /menu/items` devuelve solo activos por defecto; `?incluir_inactivos=true` (solo Admin/Gerente) los incluye para Gestión de Menú. La unicidad de nombre verifica también inactivos.
 - **Eliminación con liberación de nombres (platos y usuarios)**: `DELETE /menu/items/{id}` y `DELETE /personal/usuarios/{id}` usan una regla borrar/archivar para liberar el nombre (título del plato / username + cédula) y poder reutilizarlo tras una "baja". Sin registros asociados → borrado físico (`db.delete`; la receta se purga vía `cascade="all, delete-orphan"`); con referencias contables → archivo: renombra a `{valor}_deleted_{id}` (idempotente; truncado al `max_len` de la columna; colisión → sufijo `uuid4` corto) y marca `disponible=False`/`activo=False`. Helpers: `_nombre_archivado()` en `MenuService` (max 100) y `PersonalService` (username 50, cédula 20); `PersonalService._usuario_tiene_referencias()` (6 FKs: ordenes.mesero_id, gastos.registrado_por, asistencias.modificado_por, adelantos_salario.registrado_por_id, preparaciones_cocina.registrado_por, cierres_caja.cerrado_por) y `_empleado_tiene_referencias()` (3 FKs: asistencias/nominas/adelantos_salario.empleado_id). Se borra primero el usuario y luego su empleado (ambos solo si las dos consultas dan 0). El endpoint de usuario pide `{password}` (autorización, patrón de `dar_de_baja_empleado`), 400 si es auto-borrado o ya archivado, 401 si la contraseña es incorrecta. **Login**: `POST /auth/login` rechaza con 403 "Tu usuario está desactivado..." si `usuario.activo == False` (nuevo check tras validar password).
@@ -376,12 +385,17 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/ordenes/{id}/descuento-item         | Yes      | Any                |
 | POST   | /api/v1/ordenes/{id}/descuento-global       | Yes      | Any                |
 | DELETE | /api/v1/ordenes/{id}/descuento-item/{detalle_id} | Yes  | Any                |
+| POST   | /api/v1/ordenes/{id}/anular                 | Yes      | Admin, Gerente     |
+| POST   | /api/v1/ordenes/{id}/devolver-item          | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/ordenes/{id}/pagar                  | Yes      | Any                |
 | GET    | /api/v1/caja/historial-diario               | Yes      | Any                |
 | GET    | /api/v1/caja/ventas-dia                     | Yes      | Any                |
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
 | POST   | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
+| GET    | /api/v1/auditoria/                          | Yes      | Admin, Gerente     |
 | GET    | /api/v1/descuentos/                         | Yes      | Any                |
 | POST   | /api/v1/descuentos/                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/descuentos/{id}                     | Yes      | Admin, Gerente     |

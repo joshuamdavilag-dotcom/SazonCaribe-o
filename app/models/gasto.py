@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
-    String, Integer, DateTime, Numeric, ForeignKey, Text,
+    String, Integer, DateTime, Numeric, ForeignKey, Text, Boolean,
     Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -65,6 +65,26 @@ class Gasto(Base):
     cierre_caja_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("cierres_caja.id", name="fk_gastos_cierre_caja_id"),
+        nullable=True,
+    )
+    eliminado: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        comment="Borrado lógico del gasto; excluido de listados y totales",
+    )
+    motivo_eliminacion: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    eliminado_por: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("usuarios.id", name="fk_gastos_eliminado_por"),
+        nullable=True,
+    )
+    eliminado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
         nullable=True,
     )
     cierre_caja: Mapped[Optional["CierreCaja"]] = relationship(

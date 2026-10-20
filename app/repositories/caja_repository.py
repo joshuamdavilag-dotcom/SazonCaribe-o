@@ -23,6 +23,7 @@ class CajaRepository:
             .where(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.cierre_caja_id.is_(None),
+                Orden.anulada.is_(False),
             )
             .order_by(Orden.fecha_creacion.desc())
         )
@@ -33,7 +34,10 @@ class CajaRepository:
         """Devuelve los gastos que aún no han sido archivados en un cierre de caja."""
         statement = (
             select(Gasto)
-            .where(Gasto.cierre_caja_id.is_(None))
+            .where(
+                Gasto.cierre_caja_id.is_(None),
+                Gasto.eliminado.is_(False),
+            )
             .order_by(Gasto.fecha.desc())
         )
         result = self.db.execute(statement)

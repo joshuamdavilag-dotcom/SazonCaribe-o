@@ -227,6 +227,8 @@ async def startup_event():
         _migrate_asistencias_anulada()
         _migrate_usuarios_turno_habilitado()
         _migrate_mesas_apodo()
+        _migrate_ordenes_anulacion()
+        _migrate_gastos_eliminacion()
         _migrate_nombres_archivados()
         _fix_unidades_medida()
         _auto_seed_admin()
@@ -446,6 +448,36 @@ def _migrate_gastos_cierre_caja_id():
     # FK en SQLite se crea en create_all si el modelo lo define
     # En MySQL legacy, esta migración la agregaba; en SQLite no hace falta
     pass
+
+
+def _migrate_ordenes_anulacion():
+    """Agrega las columnas de anulación a ordenes y devolución a detalles_orden."""
+    _add_column_if_not_exists("ordenes", "anulada",
+        "ALTER TABLE ordenes ADD COLUMN anulada BOOLEAN NOT NULL DEFAULT 0")
+    _add_column_if_not_exists("ordenes", "motivo_anulacion",
+        "ALTER TABLE ordenes ADD COLUMN motivo_anulacion VARCHAR(255) NULL")
+    _add_column_if_not_exists("ordenes", "anulada_por",
+        "ALTER TABLE ordenes ADD COLUMN anulada_por INT NULL")
+    _add_column_if_not_exists("ordenes", "anulada_en",
+        "ALTER TABLE ordenes ADD COLUMN anulada_en DATETIME NULL")
+    _add_column_if_not_exists("detalles_orden", "cantidad_devuelta",
+        "ALTER TABLE detalles_orden ADD COLUMN cantidad_devuelta INT NOT NULL DEFAULT 0")
+    _add_column_if_not_exists("detalles_orden", "motivo_devolucion",
+        "ALTER TABLE detalles_orden ADD COLUMN motivo_devolucion VARCHAR(255) NULL")
+    _add_column_if_not_exists("detalles_orden", "devuelta_en",
+        "ALTER TABLE detalles_orden ADD COLUMN devuelta_en DATETIME NULL")
+
+
+def _migrate_gastos_eliminacion():
+    """Agrega las columnas de borrado lógico a gastos."""
+    _add_column_if_not_exists("gastos", "eliminado",
+        "ALTER TABLE gastos ADD COLUMN eliminado BOOLEAN NOT NULL DEFAULT 0")
+    _add_column_if_not_exists("gastos", "motivo_eliminacion",
+        "ALTER TABLE gastos ADD COLUMN motivo_eliminacion VARCHAR(255) NULL")
+    _add_column_if_not_exists("gastos", "eliminado_por",
+        "ALTER TABLE gastos ADD COLUMN eliminado_por INT NULL")
+    _add_column_if_not_exists("gastos", "eliminado_en",
+        "ALTER TABLE gastos ADD COLUMN eliminado_en DATETIME NULL")
 
 
 def _migrate_adelantos_salario():
