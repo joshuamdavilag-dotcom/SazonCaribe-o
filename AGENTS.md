@@ -209,6 +209,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Descuento por producto (`.oc-disc-btn` / `openMenuItemDiscount(productoId)`): botón 🏷️ en cada tarjeta del catálogo que agrega el platillo si no está en la comanda y abre `#order-item-disc-sheet` (`openItemDiscountSheet(idx)`); `applyItemDiscount()`/`clearItemDiscount()` refrescan también el catálogo (`renderOrderModalMenu`) para que el botón refleje el estado `.on`
 - Responsive design: Custom CSS (NOT Tailwind); mobile `<768px`, tablet `768-1024px`
 - Dynamic Carta categories: Fetches from `GET /menu/categorias`; order modal category tabs rendered dynamically from same source
+- Carta — acceso a Descuentos: `#btn-carta-descuentos` (`.admin-only`, header de `#screen-menu-view`) abre `#screen-descuentos` vía `navigateTo('descuentos')`; esa pantalla tiene `#btn-descuentos-volver` → `navigateTo('menu-view')`. No hay entrada de Descuentos en el sidebar (v6.19)
 - C$ currency: All monetary values use `C$` (Córdobas nicaragüenses)
 - Personal module: New employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` in employee body; ⚙️ button next to Puesto select opens `#puesto-panel` (inline subpanel) to create new Puesto inline — `guardarPuesto()` posts `POST /personal/puestos`, reloads select, auto-selects new puesto
 - Unidades de Medida: `#modal-unidades` management modal with table view + create/edit form; `#unidad-derived` toggle shows/hides base unit select + conversion factor; magnitud-filtered base unit select via `populateUnidadBaseSelect()` (falls back to all units for PERSONALIZADO magnitud); live conversion preview text
@@ -381,6 +382,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
 | POST   | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
+| GET    | /api/v1/descuentos/                         | Yes      | Any                |
+| POST   | /api/v1/descuentos/                         | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/descuentos/{id}                     | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/descuentos/{id}                     | Yes      | Admin, Gerente     |
 | GET    | /api/v1/calendario/?desde=&hasta=            | Yes      | Any                |
 | POST   | /api/v1/calendario/eventos                   | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/calendario/eventos/{id}              | Yes      | Admin, Gerente     |
@@ -486,6 +491,13 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `ReportesRepository.obtener_gastos_clasificados_sin_archivar()` — same classification for unarchived gastos (`cierre_caja_id IS NULL`); used by the DIARIO caja dashboard
 - `ReportesService.obtener_cierre()` — utilidad_neta subtracts gastos_nomina + costo_insumos + gastos_operativos; `gastos_nomina` suma los adelantos de la tabla gastos sobre el `pago_neto` de la tabla Nominas, y `costo_insumos` es SOLO el bucket SUMINISTROS de la tabla gastos (el costo teórico de recetas NO se usa para evitar doble contabilidad)
 - **Frontend**: `#screen-gastos` with sortable table, `#modal-registrar-gasto` form (with date picker); `loadGastos()` fetches `GET /gastos/`, `guardarGasto()` posts `POST /gastos/` with optional `fecha`; Admin/Gerente only via `.nav-item-admin`
+
+### Descuentos predeterminados (catálogo de promociones)
+- `DescuentoFrecuente` model (`descuentos_frecuentes`): `nombre` (unique), `tipo` (`TipoDescuento`: PORCENTAJE/MONTO), `valor`, `activo`. Es un **catálogo global reutilizable**, no está ligado a un platillo.
+- Endpoints: `GET /descuentos/?solo_activos=` (todos los roles), `POST/PUT/DELETE /descuentos/{id}` (Admin/Gerente)
+- **Ubicación en la UI (v6.19)**: la pantalla `#screen-descuentos` **ya no tiene entrada propia en el sidebar** (se eliminó para ahorrar espacio). Se accede desde el **botón `#btn-carta-descuentos`** (clase `.admin-only`) en el header de la pantalla **Carta** (`#screen-menu-view`) → `navigateTo('descuentos')`. El header de la pantalla tiene el botón **`#btn-descuentos-volver`** ("← Volver a Carta") → `navigateTo('menu-view')`.
+- **Guard de rol**: `navigateTo()` fuerza `menu-view` con toast de advertencia si un no-gestor intenta `descuentos` (defensa en profundidad; el botón ya está oculto por CSS para Vendedor)
+- **Frontend**: `#descuentos-list` (grid de tarjetas con nombre, tipo, valor y acciones ✏️ Editar / 🗑️ Eliminar), `#modal-descuento` (`#descuento-form`, toggle `#desc-toggle` para tipo, `#desc-valor-label` dinámico); `loadDescuentos()`, `openNuevoDescuento()`, `openEditarDescuento(id)`, `guardarDescuento()`, `eliminarDescuento(id)`. Los descuentos activos también se ofrecen como "descuentos rápidos" dentro de la comanda (`GET /descuentos/?solo_activos=true`, `silent: true`)
 
 ### Kitchen production (batch preparation)
 - `PreparacionCocina` + `DetallePreparacionCocina` models in `app/models/inventario.py`

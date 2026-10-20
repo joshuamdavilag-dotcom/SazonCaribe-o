@@ -376,6 +376,11 @@ function navigateTo(screenId) {
   if (esUsuarioCocina() && screenId !== 'comandero') {
     screenId = 'comandero';
   }
+  const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
+  if (screenId === 'descuentos' && !esGestor) {
+    showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
+    screenId = 'menu-view';
+  }
   if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
     void cerrarTodasCamaras();
   }
@@ -7603,6 +7608,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('gasto-form')?.addEventListener('submit', (e) => { e.preventDefault(); guardarGasto(); });
 
   // Descuentos predeterminados
+  document.getElementById('btn-carta-descuentos')?.addEventListener('click', () => navigateTo('descuentos'));
+  document.getElementById('btn-descuentos-volver')?.addEventListener('click', () => navigateTo('menu-view'));
   document.getElementById('btn-nuevo-descuento')?.addEventListener('click', openNuevoDescuento);
   document.getElementById('close-descuento-modal')?.addEventListener('click', closeDescuentoModal);
   document.getElementById('cancel-descuento-modal')?.addEventListener('click', closeDescuentoModal);

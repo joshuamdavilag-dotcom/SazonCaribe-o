@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.18">
+  <link rel="stylesheet" href="css/style.css?v=6.19">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -193,10 +193,6 @@
         <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
           <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
-        </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="descuentos" data-roles="Administrador,Gerente">
-          <span class="material-symbols-outlined nav-icon text-[20px]">sell</span>
-          <span class="nav-label">Descuentos</span>
         </a>
       </nav>
 
@@ -441,6 +437,10 @@
               <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Carta</h1>
               <p class="text-[13px] text-slate-500 mt-1">Selecciona platillos o bebidas para agregar a la orden</p>
             </div>
+            <button id="btn-carta-descuentos" type="button" class="admin-only shrink-0 inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-[#0F3B66] text-white text-[13px] font-semibold active:scale-95 transition shadow-sm shadow-blue-900/20" aria-label="Descuentos predeterminados">
+              <span class="material-symbols-outlined text-[18px]">sell</span>
+              <span class="hidden sm:inline">Descuentos</span>
+            </button>
           </div>
           <!-- Búsqueda rápida -->
           <div class="mt-3 flex items-center gap-2 h-11 px-3.5 rounded-xl bg-[#F0EAE1] border border-transparent focus-within:border-brand-turquoise focus-within:ring-4 focus-within:ring-brand-turquoise/15 transition">
@@ -924,7 +924,9 @@
       <section id="screen-descuentos" class="screen w-full max-w-full overflow-x-hidden" aria-label="Descuentos predeterminados">
         <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
           <div class="min-w-0">
-            <span class="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#0F3B66]">Administración · Promociones</span>
+            <button id="btn-descuentos-volver" type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[#0F3B66] active:scale-95 transition">
+              <span class="material-symbols-outlined text-[16px]">arrow_back</span> Volver a Carta
+            </button>
             <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Descuentos Predeterminados</h1>
             <p class="text-sm text-slate-500 mt-1">Crea descuentos frecuentes (empleado, promo, cortesía) para aplicarlos con un toque al cobrar</p>
           </div>
@@ -2411,6 +2413,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.18"></script>
+  <script src="js/app.js?v=6.19"></script>
 </body>
 </html>
