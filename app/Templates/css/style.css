@@ -623,6 +623,7 @@ input, select, textarea { font: inherit; }
 .kc-btn-coral     { background: var(--rojo-cangrejo); }
 .kc-btn-turquoise { background: var(--turquesa-ola); }
 .kc-btn-cobrar    { background: #fff; border: 1.5px solid var(--azul-marino); color: var(--azul-marino); }
+.kc-btn-editar    { background: #fff; border: 1.5px solid var(--amarillo-solar); color: #B7791F; }
 .kc-btn-cancelar  { background: transparent; border: 1.5px solid rgba(230,57,70,0.35); color: var(--rojo-cangrejo); font-size: 11px; height: 34px; }
 
 /* =========================================================================

@@ -780,6 +780,246 @@ class OrdenService:
             self.db.rollback()
             raise
 
+    def _calcular_diferencia_cantidades(
+        self,
+        producto_id: int,
+        cantidad_actual: int,
+        cantidad_nueva: int,
+    ) -> int:
+        delta = cantidad_nueva - cantidad_actual
+        if delta == 0:
+            return 0
+        producto = self.menu_repo.obtener_menu_item_por_id(producto_id)
+        if not producto:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"El producto con ID {producto_id} no existe",
+            )
+        for receta in producto.ingredientes_receta:
+            if receta.descuento_por_lote:
+                continue
+            insumo = receta.insumo
+            cantidad_base = Decimal(str(receta.cantidad_necesaria)) * abs(delta)
+            cantidad = self._convertir_si_necesario(
+                receta.unidad_medida_id, insumo, cantidad_base
+            )
+            if delta > 0:
+                if Decimal(str(insumo.cantidad_actual)) < cantidad:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"No hay suficiente '{insumo.nombre}' en "
+                            f"inventario (disponible: "
+                            f"{insumo.cantidad_actual}, requerido: {cantidad})"
+                        ),
+                    )
+                insumo.cantidad_actual -= cantidad
+                self.db.add(MovimientoInventario(
+                    insumo_id=insumo.id,
+                    tipo="SALIDA",
+                    cantidad=cantidad,
+                    motivo=f"Edición de comanda #{producto_id}",
+                    fecha=datetime.now(),
+                ))
+                costo = cantidad * Decimal(str(insumo.costo_unitario))
+                if costo > 0:
+                    self.gasto_service.registrar_gasto_automatico(
+                        insumo_id=insumo.id,
+                        concepto=f"Receta: {insumo.nombre} — Edición de comanda",
+                        monto=costo,
+                    )
+            else:
+                insumo.cantidad_actual += cantidad
+                self.db.add(MovimientoInventario(
+                    insumo_id=insumo.id,
+                    tipo="ENTRADA",
+                    cantidad=cantidad,
+                    motivo=f"Edición de comanda #{producto_id} (reducción)",
+                    fecha=datetime.now(),
+                ))
+        return 0
+
+    def _revertir_detalle(self, detalle: DetalleOrden, motivo: str) -> None:
+        producto = self.menu_repo.obtener_menu_item_por_id(detalle.producto_id)
+        if not producto:
+            return
+        for receta in producto.ingredientes_receta:
+            if receta.descuento_por_lote:
+                continue
+            insumo = receta.insumo
+            cantidad_base = (
+                Decimal(str(receta.cantidad_necesaria)) * detalle.cantidad
+            )
+            cantidad = self._convertir_si_necesario(
+                receta.unidad_medida_id, insumo, cantidad_base
+            )
+            insumo.cantidad_actual += cantidad
+            self.db.add(MovimientoInventario(
+                insumo_id=insumo.id,
+                tipo="ENTRADA",
+                cantidad=cantidad,
+                motivo=motivo,
+                fecha=datetime.now(),
+            ))
+
+    def _sincronizar_detalle_edicion(
+        self,
+        detalle: DetalleOrden,
+        item,
+    ) -> None:
+        producto = self.menu_repo.obtener_menu_item_por_id(detalle.producto_id)
+        precio_unitario = (
+            Decimal(str(producto.precio)) if producto else detalle.precio_unitario
+        )
+
+        if item.cantidad > detalle.cantidad:
+            self._calcular_diferencia_cantidades(
+                detalle.producto_id, detalle.cantidad, item.cantidad
+            )
+        elif item.cantidad < detalle.cantidad:
+            self._revertir_detalle(
+                DetalleOrden(
+                    producto_id=detalle.producto_id,
+                    cantidad=detalle.cantidad - item.cantidad,
+                    precio_unitario=detalle.precio_unitario,
+                ),
+                f"Edición de comanda — reducción de {detalle.producto_id}",
+            )
+
+        detalle.cantidad = item.cantidad
+        detalle.precio_unitario = precio_unitario
+        detalle.notas = item.notas
+
+        descuento_monto = item.descuento_monto
+        base_linea = precio_unitario * item.cantidad
+        if descuento_monto is not None:
+            descuento_monto = Decimal(str(descuento_monto)).quantize(Decimal("0.01"))
+            if descuento_monto > base_linea:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"El descuento de C${descuento_monto} excede el total "
+                        f"del ítem '{producto.nombre if producto else detalle.producto_id}' "
+                        f"(C${base_linea})."
+                    ),
+                )
+        if descuento_monto and base_linea > 0:
+            detalle.descuento_porcentaje = (
+                descuento_monto / base_linea * Decimal("100")
+            ).quantize(Decimal("0.01"))
+        else:
+            detalle.descuento_porcentaje = None
+        detalle.descuento_monto = descuento_monto
+        detalle.motivo_descuento = item.motivo_descuento if descuento_monto else None
+
+    def editar_orden(
+        self,
+        orden_id: int,
+        items: list,
+        actor: Usuario | None = None,
+    ) -> Orden:
+        orden = self.orden_repo.obtener_por_id(orden_id)
+        if not orden:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la orden con ID {orden_id}",
+            )
+        if orden.estado in (EstadoOrden.PAGADA, EstadoOrden.CANCELADA):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"No se puede editar una orden {orden.estado.value}"
+                ),
+            )
+
+        ids_validos = {d.id for d in orden.detalles}
+        for item in items:
+            if item.detalle_id is not None and item.detalle_id not in ids_validos:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        f"El detalle con ID {item.detalle_id} no pertenece "
+                        f"a la orden #{orden_id}"
+                    ),
+                )
+        ids_enviados = {i.detalle_id for i in items if i.detalle_id is not None}
+        for item in items:
+            if item.detalle_id is None:
+                self.validar_stock_suficiente([
+                    DetalleOrdenCreate(
+                        producto_id=item.producto_id,
+                        cantidad=item.cantidad,
+                    )
+                ])
+
+        try:
+            with self.db.begin_nested():
+                estado_original = orden.estado
+
+                for detalle in list(orden.detalles):
+                    if detalle.id not in ids_enviados:
+                        self._revertir_detalle(
+                            detalle, f"Ítem retirado de Orden #{orden_id}"
+                        )
+                        self.db.delete(detalle)
+
+                for item in items:
+                    if item.detalle_id is None:
+                        continue
+                    detalle = next(
+                        (d for d in orden.detalles if d.id == item.detalle_id), None
+                    )
+                    if detalle is not None:
+                        self._sincronizar_detalle_edicion(detalle, item)
+
+                for item in items:
+                    if item.detalle_id is not None:
+                        continue
+                    nuevos, _, _ = self._procesar_detalles(
+                        [DetalleOrdenCreate(
+                            producto_id=item.producto_id,
+                            cantidad=item.cantidad,
+                            notas=item.notas,
+                            descuento_monto=item.descuento_monto,
+                            motivo_descuento=item.motivo_descuento,
+                        )],
+                        contexto=f"Edición de Orden #{orden_id}",
+                    )
+                    for detalle in nuevos:
+                        detalle.orden_id = orden_id
+                        self.db.add(detalle)
+                        orden.detalles.append(detalle)
+
+                self.db.flush()
+
+                vigentes = [d for d in orden.detalles if d.id in ids_enviados or d.id is None]
+                subtotal = Decimal("0.00")
+                descuento_total = Decimal("0.00")
+                for d in vigentes:
+                    base = Decimal(str(d.precio_unitario)) * d.cantidad
+                    subtotal += base
+                    descuento_total += d.descuento_monto or Decimal("0.00")
+                orden.subtotal = subtotal
+                orden.descuento_total = descuento_total
+                orden.total = max(subtotal - descuento_total, Decimal("0.00"))
+
+                self._registrar_descuentos_de_detalles(
+                    orden_id,
+                    [d for d in vigentes if d.id is not None and d.descuento_monto],
+                    actor,
+                )
+
+                if vigentes and estado_original != EstadoOrden.PENDIENTE:
+                    orden.estado = EstadoOrden.PENDIENTE
+
+            self.db.commit()
+            self.db.refresh(orden)
+            return orden
+
+        except Exception:
+            self.db.rollback()
+            raise
+
     def crear_venta_retroactiva(
         self,
         venta_in: VentaRetroactivaCreate,

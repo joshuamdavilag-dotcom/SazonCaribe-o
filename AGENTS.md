@@ -265,6 +265,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **CategoriaMenu**: Dynamic categories; delete guarded if category has associated platillos
 - **Orden**: `mesa_id` nullable (para llevar / retroactive / direct sales) + array of `detalles` (each with `producto_id`, `cantidad`, optional `notas` for special instructions like "Sin cebolla", "poco cocido")
 - **One-active-order-per-mesa**: Only ONE active order (PENDIENTE/PREPARANDO/ENTREGADA) per mesa. New items via `POST /ordenes/{id}/items`. Does NOT apply to para llevar (mesa_id null).
+- **Edición de comanda abierta**: `PUT /ordenes/{id}/items` (cualquier rol autenticado, bloqueado en PAGADA/CANCELADA) reemplaza el contenido de la orden. El body `{items: [{detalle_id?, producto_id, cantidad, notas?, descuento_monto?, motivo_descuento?}]}` es el estado FINAL deseado: los ítems con `detalle_id` se actualizan (cantidad/precio actual/notas/descuento), los que van sin `detalle_id` se agregan, y todo `DetalleOrden` existente que no aparezca se elimina. `detalle_id` que no pertenezca a la orden → 404. Ajusta inventario por diferencia (`_calcular_diferencia_cantidades` para aumentos, `_revertir_detalle` para reducciones o retiros) generando `MovimientoInventario` (SALIDA/ENTRADA) y `Gasto` (SUMINISTROS) en aumentos. `_sincronizar_detalle_edicion()` actualiza la línea usando siempre el precio actual del catálogo y recalcula `descuento_porcentaje` desde `descuento_monto` (400 si el descuento excede la línea). Totales recalculados en memoria sobre los detalles vigentes. Si la orden queda con ítems y estaba en PREPARANDO/ENTREGADA vuelve a PENDIENTE (reentra a cocina); una lista vacía deja los totales en 0.00 sin forzar estado. El estado terminal (PAGADA/CANCELADA) nunca se toca. Frontend: modo edición de `#modal-order` precarga los ítems existentes (con `_detalleId`), muestra "Tu comanda" y al confirmar hace `PUT` con la lista completa.
 - **Pagar orden**: `PUT /ordenes/{id}/pagar` sets PAGADA + LIBRE in a single transaction. If mesa_id is null (para llevar), only sets PAGADA.
 - **Orden state machine**: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA` (any state can also → CANCELADA). Invalid transitions return 400.
 - **Adelantos de Salario**: `AdelantoSalario` model linked to Empleado + Nomina (via `total_adelantos`); auto-creates a `Gasto` (OPERATIVO) on registration; deducted from `pago_neto` in nomina calculations; API at `POST /nomina/adelantos`, `GET /nomina/empleados/{id}/adelantos`
@@ -367,6 +368,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/ordenes/{id}                        | Yes      | Any                |
 | PATCH  | /api/v1/ordenes/{id}/estado                 | Yes      | Any                |
 | POST   | /api/v1/ordenes/{id}/items                  | Yes      | Any                |
+| PUT    | /api/v1/ordenes/{id}/items                  | Yes      | Any                |
 | POST   | /api/v1/ordenes/{id}/descuento-item         | Yes      | Any                |
 | POST   | /api/v1/ordenes/{id}/descuento-global       | Yes      | Any                |
 | DELETE | /api/v1/ordenes/{id}/descuento-item/{detalle_id} | Yes  | Any                |
@@ -566,6 +568,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `DetalleOrdenResponse` includes `producto_nombre` — populated via `@model_validator` from eager-loaded `DetalleOrden.producto` relationship
 - Frontend `renderCocinaCards()` filters by tab: cocina (PENDIENTE/PREPARANDO), lista (ENTREGADA), historial (PAGADA/CANCELADA)
 - `cambiarEstadoKDS(id, estado)` calls `PATCH /ordenes/{id}/estado` — validates against `TRANSICIONES_VALIDAS` state machine
+- `editarOrdenKDS(id)` — botón "✏️ Editar" en tarjetas KDS (PENDIENTE/PREPARANDO/ENTREGADA); con mesa reusa `agregarAlPedido()`, sin mesa (para llevar) abre `openOrderModal(null, null, orden)`; ambas entran al modo edición que hace `PUT /ordenes/{id}/items` con el estado final de la comanda
 
 ### Reportes financieros query chain
 ```

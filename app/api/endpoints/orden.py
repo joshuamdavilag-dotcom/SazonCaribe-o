@@ -13,6 +13,7 @@ from app.schemas.orden import (
     OrdenResponse,
     ActualizarEstadoOrden,
     AgregarItemsOrdenRequest,
+    EditarOrdenRequest,
     VentaRetroactivaCreate,
     AplicarDescuentoItemRequest,
     AplicarDescuentoGlobalRequest,
@@ -147,6 +148,30 @@ def agregar_items(
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     return service.agregar_items_canonico(orden_id, body.items, current_user)
+
+
+# =====================================================================
+#  Editar comanda abierta (reemplaza el contenido) — PUT canónico
+# =====================================================================
+
+@router.put(
+    "/{orden_id}/items",
+    response_model=OrdenResponse,
+    summary="Editar los ítems de una comanda abierta",
+    description=(
+        "Reemplaza el contenido de la comanda: actualiza cantidades y "
+        "descuentos de los ítems existentes, agrega los nuevos y elimina "
+        "los que no aparezcan en la lista enviada. Ajusta inventario."
+    ),
+    dependencies=[Depends(get_current_user)],
+)
+def editar_items(
+    orden_id: int = Path(..., gt=0),
+    body: EditarOrdenRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: OrdenService = Depends(get_orden_service),
+) -> OrdenResponse:
+    return service.editar_orden(orden_id, body.items, current_user)
 
 
 # =====================================================================

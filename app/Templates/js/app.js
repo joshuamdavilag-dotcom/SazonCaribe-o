@@ -2742,9 +2742,11 @@ function renderCocinaCards() {
     const actionsHtml = showActions ? (() => {
       const cobrarBtn = `<button type="button" class="kc-btn-cobrar" onclick="cobrarOrden(${o.id})"><span class="material-symbols-outlined text-[18px]">payments</span>Cobrar</button>`;
       const cancelBtn = `<button type="button" class="kc-btn-cancelar" onclick="cambiarEstadoKDS(${o.id}, 'CANCELADA')" title="Cancelar orden"><span class="material-symbols-outlined text-[16px]">close</span>Cancelar</button>`;
+      const editarBtn = `<button type="button" class="kc-btn-editar" onclick="editarOrdenKDS(${o.id})" title="Agregar o modificar ítems"><span class="material-symbols-outlined text-[18px]">edit_note</span>Editar</button>`;
       if (o.estado === 'PENDIENTE') {
         return `<div class="kc-actions">
             <button type="button" class="kc-btn-entregar kc-btn-coral" onclick="cambiarEstadoKDS(${o.id}, 'PREPARANDO')"><span class="material-symbols-outlined text-[19px]">soup_kitchen</span>En Preparación</button>
+            ${editarBtn}
             ${cobrarBtn}
             ${cancelBtn}
           </div>`;
@@ -2752,11 +2754,13 @@ function renderCocinaCards() {
       if (o.estado === 'PREPARANDO') {
         return `<div class="kc-actions">
             <button type="button" class="kc-btn-entregar kc-btn-turquoise" onclick="cambiarEstadoKDS(${o.id}, 'ENTREGADA')"><span class="material-symbols-outlined text-[19px]">check_circle</span>Lista p/ Servir</button>
+            ${editarBtn}
             ${cobrarBtn}
             ${cancelBtn}
           </div>`;
       }
       return `<div class="kc-actions">
+          ${editarBtn}
           ${cobrarBtn}
           ${cancelBtn}
         </div>`;
@@ -2816,6 +2820,24 @@ async function cobrarOrden(ordenId) {
   const orden = cocinaOrdenes.find(item => item.id === ordenId);
   openMetodoPago(orden || { id: ordenId, total: 0 }, 'kds');
 }
+
+/* Editar una orden desde el KDS (agregar/quitar ítems) — solo órdenes no pagadas */
+async function editarOrdenKDS(ordenId) {
+  const orden = cocinaOrdenes.find(item => item.id === ordenId);
+  if (!orden) return showToast('No se encontró la orden', 'error');
+  if (['PAGADA', 'CANCELADA'].includes(orden.estado)) {
+    return showToast('Esta orden ya no se puede modificar', 'warning');
+  }
+
+  if (orden.mesa_id) {
+    state.currentOcupada = { mesaId: orden.mesa_id, orden };
+    await agregarAlPedido();
+    return;
+  }
+
+  openOrderModal(null, null, orden);
+}
+window.editarOrdenKDS = editarOrdenKDS;
 
 function openMetodoPago(orden, origen) {
   if (!orden?.id) return showToast('No se encontró la orden que deseas cobrar', 'error');
@@ -3039,11 +3061,41 @@ function scrollActiveCategoryChip() {
   }
 }
 
-function openOrderModal(mesaId, mesaNumero) {
+function openOrderModal(mesaId, mesaNumero, ordenExistente) {
   state.currentOrder = { mesaId, items: [] };
   state.selectedMesa = mesaId;
   orderModalCategory = 'all';
   orderModalSearch = '';
+
+  // Modo edición: precargar ítems de la orden existente
+  if (ordenExistente) {
+    state.currentOrder._addToExisting = true;
+    state.currentOrder._ordenId = ordenExistente.id;
+    state.currentOrder._ordenOriginal = ordenExistente;
+    (ordenExistente.detalles || []).forEach(d => {
+      const descMonto = parseFloat(d.descuento_monto || 0);
+      const item = {
+        _detalleId: d.id,
+        producto_id: d.producto_id,
+        nombre: d.producto_nombre || (state.menuItems || []).find(mi => mi.id === d.producto_id)?.nombre || `#${d.producto_id}`,
+        precio_unitario: parseFloat(d.precio_unitario || 0),
+        cantidad: d.cantidad,
+        notas: d.notas || null,
+      };
+      if (descMonto > 0) {
+        item._descuentoMonto = descMonto;
+        if (d.descuento_porcentaje) {
+          item._descuentoTipo = 'PORCENTAJE';
+          item._descuentoValor = parseFloat(d.descuento_porcentaje);
+        } else {
+          item._descuentoTipo = 'MONTO';
+          item._descuentoValor = descMonto;
+        }
+        item._descuentoMotivo = d.motivo_descuento || null;
+      }
+      state.currentOrder.items.push(item);
+    });
+  }
 
   const titleEl = document.getElementById('order-modal-mesa');
   const clienteRow = document.getElementById('order-modal-cliente-row');
@@ -3070,7 +3122,7 @@ function openOrderModal(mesaId, mesaNumero) {
   if (searchClear) searchClear.style.display = 'none';
   const clienteInput = document.getElementById('order-modal-cliente');
   if (clienteInput) {
-    clienteInput.value = '';
+    clienteInput.value = ordenExistente?.nombre_cliente || '';
     if (!mesaId) setTimeout(() => clienteInput.focus(), 300);
   }
 
@@ -3089,7 +3141,15 @@ function openOrderModal(mesaId, mesaNumero) {
 
   document.getElementById('modal-order').classList.add('show');
   renderOrderModalCategories();
-  loadOrderModalMenu();
+
+  // Modo edición: mostrar los ítems ya cargados y abrir "Tu comanda"
+  if (ordenExistente && state.currentOrder.items.length) {
+    renderOrderModalCart();
+    updateOrderModalTotals();
+    loadOrderModalMenu().then(() => openOrderCartSheet());
+  } else {
+    loadOrderModalMenu();
+  }
 }
 
 function abrirOrdenParaLlevar() {
@@ -3680,18 +3740,45 @@ async function submitOrder() {
   let ordenParaCobrar = null;
   try {
     if (state.currentOrder._addToExisting && state.currentOrder._ordenId) {
-      await api(`/ordenes/${state.currentOrder._ordenId}/items`, {
-        method: 'POST',
+      const ordenEditada = await api(`/ordenes/${state.currentOrder._ordenId}/items`, {
+        method: 'PUT',
         body: JSON.stringify({
           items: items.map(i => {
-            const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas };
-            if (i._precioAjustado) obj.precio_unitario = i.precio_unitario;
-            if (i._descuentoMonto) obj.descuento_monto = i._descuentoMonto;
+            const obj = { producto_id: i.producto_id, cantidad: i.cantidad, notas: i.notas || null };
+            if (i._detalleId) obj.detalle_id = i._detalleId;
+            if (i._descuentoMonto) {
+              obj.descuento_monto = i._descuentoMonto;
+              obj.motivo_descuento = i._descuentoMotivo || null;
+            }
             return obj;
           }),
         }),
       });
-      showToast('Ítems agregados a la orden existente', 'success');
+
+      const dg = state.currentOrder._descuentoGlobal;
+      if (dg && dg.valor > 0) {
+        await api(`/ordenes/${state.currentOrder._ordenId}/descuento-global`, {
+          method: 'POST',
+          body: JSON.stringify({ tipo: dg.tipo, valor: dg.valor, motivo: dg.motivo || null }),
+        });
+      } else if (dg && dg.valor === 0 && ordenEditada?.detalles?.length) {
+        for (const d of ordenEditada.detalles) {
+          if (d.descuento_monto) {
+            try {
+              await api(`/ordenes/${state.currentOrder._ordenId}/descuento-item/${d.id}`, { method: 'DELETE' });
+            } catch { /* ignore */ }
+          }
+        }
+      }
+
+      const mesaIdEdit = state.currentOrder.mesaId;
+      closeOrderModal();
+      showToast('Comanda actualizada', 'success');
+      if (mesaIdEdit) {
+        actualizarOcupacion();
+        enriquecerMesasOcupadas();
+      }
+      return;
     } else {
       const mesaId = state.currentOrder.mesaId;
       const clienteInput = document.getElementById('order-modal-cliente');
@@ -6540,11 +6627,10 @@ async function agregarAlPedido() {
   const oc = state.currentOcupada;
   if (!oc || !oc.orden) return;
 
+  const orden = oc.orden;
   closeDetalleMesaOcupada();
   const mesa = state.tables.find(t => t.id === oc.mesaId);
-  openOrderModal(oc.mesaId, mesa?.numero || '?');
-  state.currentOrder._addToExisting = true;
-  state.currentOrder._ordenId = oc.orden.id;
+  openOrderModal(oc.mesaId, mesa?.numero || '?', orden);
 }
 
 function openPreCuenta() {

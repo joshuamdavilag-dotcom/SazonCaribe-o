@@ -214,6 +214,54 @@ class AgregarItemsOrdenRequest(BaseModel):
     )
 
 
+class EditarDetalleOrdenItem(BaseModel):
+    """Ítem de una comanda en modo edición."""
+    detalle_id: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="ID del DetalleOrden existente (null/omitido = ítem nuevo)",
+    )
+    producto_id: int = Field(
+        ...,
+        gt=0,
+        description="ID del producto del menú",
+    )
+    cantidad: int = Field(
+        ...,
+        gt=0,
+        description="Cantidad final del producto (mayor que 0)",
+    )
+    notas: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Notas especiales del ítem",
+    )
+    descuento_monto: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+        description="Descuento fijo en C$ aplicado al ítem",
+    )
+    motivo_descuento: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Motivo del descuento",
+    )
+
+
+class EditarOrdenRequest(BaseModel):
+    """Esquema para reemplazar el contenido de una comanda abierta.
+
+    La lista `items` es el estado FINAL deseado: los ítems con
+    `detalle_id` se actualizan, los que vienen sin `detalle_id` se
+    agregan y todo DetalleOrden existente que no aparezca se elimina.
+    """
+    items: List[EditarDetalleOrdenItem] = Field(
+        default_factory=list,
+        description="Estado final de los ítems de la comanda (puede quedar vacía)",
+    )
+
+
 class VentaRetroactivaCreate(BaseModel):
     """Esquema para registrar una venta de días pasados."""
     fecha: date = Field(
