@@ -1246,8 +1246,8 @@ input, select, textarea { font: inherit; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   padding: 14px 14px 104px;
   align-content: start;
 }
@@ -1300,7 +1300,7 @@ input, select, textarea { font: inherit; }
 
 .oc-media {
   position: relative;
-  width: 124px;
+  width: 148px;
   flex-shrink: 0;
   align-self: stretch;
   min-height: 124px;
@@ -1383,7 +1383,7 @@ input, select, textarea { font: inherit; }
   min-width: 0;
 }
 .oc-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.32;
   color: var(--text-primary);
@@ -3620,7 +3620,7 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   .cat-chip-count { line-height: 15px !important; }
   .cat-carousel { gap: 6px !important; padding: 1px 1px 3px !important; }
   .order-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 10px !important;
     padding: 10px 10px 104px !important;
   }
@@ -3630,7 +3630,7 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   }
   .order-card:hover { transform: none; }
   .oc-media {
-    width: 100px;
+    width: 104px;
     min-height: 104px;
   }
   .oc-media .material-symbols-outlined { font-size: 34px !important; }
@@ -3649,9 +3649,9 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
     padding: 9px 10px;
   }
   .oc-name {
-    font-size: 13.5px !important;
+    font-size: 14.5px !important;
   }
-  .oc-price { font-size: 15px !important; }
+  .oc-price { font-size: 15.5px !important; }
   .oc-cat-inline { display: none; }
   .oc-foot { padding-top: 6px; }
   .oc-add {
