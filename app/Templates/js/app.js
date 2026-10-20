@@ -2395,7 +2395,7 @@ function tableCardHTML(m) {
   const s = ESTADO_MESA[estado] || ESTADO_MESA.LIBRE;
   const zona = m.zona_nombre || 'Zona ' + m.zona_id;
   const rows = s.rows.map(r => `
-        <div class="flex items-center gap-1.5 text-xs text-slate-600">
+        <div class="tm-detail flex items-center gap-1.5 text-xs text-slate-600">
           <span class="material-symbols-outlined text-[14px] text-slate-400">${r.icon}</span><span>${r.text(m)}</span>
         </div>`).join('');
   const footerText = typeof s.footerText === 'function' ? s.footerText(m) : s.footerText;
@@ -2403,16 +2403,16 @@ function tableCardHTML(m) {
       <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
                aria-label="Mesa ${m.numero}${m.apodo ? ', ' + m.apodo : ''}, ${estado.toLowerCase()}">
-        <div class="flex items-start gap-2.5 flex-wrap">
-          <div class="grid place-items-center w-8 h-8 rounded-lg shrink-0 ${s.iconBox}">
+        <div class="tm-head flex items-start gap-2.5 flex-wrap">
+          <div class="tm-icon grid place-items-center w-8 h-8 rounded-lg shrink-0 ${s.iconBox}">
             <span class="material-symbols-outlined text-[18px]">${s.icon}</span>
           </div>
           <div class="min-w-0 flex-1 leading-tight">
-            <h3 class="font-display font-bold text-sm sm:text-base text-slate-900 whitespace-nowrap">Mesa ${m.numero}</h3>
-            <span class="block text-[11px] font-medium text-slate-400">${zona}</span>
+            <h3 class="tm-name font-display font-bold text-sm sm:text-base text-slate-900 whitespace-nowrap">Mesa ${m.numero}</h3>
+            <span class="tm-zona block text-[11px] font-medium text-slate-400">${zona}</span>
             ${m.apodo ? `<span class="oc-apodo mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-brand-coral"><span class="material-symbols-outlined text-[12px]">tag</span>${escHtml(m.apodo)}</span>` : ''}
           </div>
-          <span class="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${s.badge}">
+          <span class="tm-badge ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${s.badge}">
             <span class="w-1.5 h-1.5 rounded-full ${s.dot}${estado === 'OCUPADA' ? ' animate-ping' : ''}"></span>${s.label}
           </span>
         </div>
@@ -2420,7 +2420,7 @@ function tableCardHTML(m) {
           <span class="material-symbols-outlined text-[15px] mb-0.5">${s.statusIcon}</span><span class="oc-status">${s.statusText}</span>
         </div>
         <div class="space-y-1">${rows}</div>
-        <div class="mt-0.5 flex items-center justify-between py-1.5 px-2 rounded-lg text-xs font-semibold ${s.footer}">
+        <div class="tm-foot mt-0.5 flex items-center justify-between py-1.5 px-2 rounded-lg text-xs font-semibold ${s.footer}">
           <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">${s.footerIcon}</span>${footerText}</span>
           ${s.extra ? `<span class="material-symbols-outlined text-[16px]">${s.extra}</span>` : ''}
         </div>

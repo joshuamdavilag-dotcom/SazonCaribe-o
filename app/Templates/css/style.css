@@ -4392,7 +4392,31 @@ body { background: var(--bg-primary); }
 }
 
 @media (max-width: 767px) {
-  #table-grid [data-mesa-id] { min-height: 152px; }
+  #table-grid {
+    gap: 12px !important;
+  }
+  #table-grid [data-mesa-id] {
+    min-height: 190px;
+    padding: 15px 14px !important;
+    border-radius: 19px !important;
+    gap: 10px !important;
+  }
+  #table-grid .tm-head { gap: 11px !important; }
+  #table-grid .tm-icon {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+  }
+  #table-grid .tm-icon .material-symbols-outlined { font-size: 21px !important; }
+  #table-grid .tm-name { font-size: 15.5px !important; }
+  #table-grid .tm-zona { font-size: 12px !important; }
+  #table-grid .tm-badge {
+    font-size: 10.5px !important;
+    padding: 3px 9px !important;
+  }
+  #table-grid .oc-status { font-size: 12.5px !important; }
+  #table-grid .tm-detail,
+  #table-grid .tm-foot { font-size: 12px !important; }
   #table-grid [data-mesa-id]:hover,
   .kc-card:hover,
   .data-card:hover { transform: none; }
