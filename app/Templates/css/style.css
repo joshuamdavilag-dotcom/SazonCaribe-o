@@ -1372,7 +1372,7 @@ input, select, textarea { font: inherit; }
 .oc-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   padding: 10px 12px 12px;
   flex: 1;
   min-width: 0;
@@ -1387,13 +1387,20 @@ input, select, textarea { font: inherit; }
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 2.64em;
+}
+.oc-price {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--azul-marino);
+  white-space: nowrap;
 }
 .oc-foot {
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
 }
 .oc-cat-inline {
@@ -1411,43 +1418,56 @@ input, select, textarea { font: inherit; }
   gap: 6px;
   flex-shrink: 0;
 }
-.oc-minus {
-  display: grid;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-full);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  place-items: center;
-  cursor: pointer;
-  transition: transform 0.12s, background 0.12s;
-}
-.oc-minus:active { transform: scale(0.85); background: var(--bg-secondary); }
-.oc-minus .material-symbols-outlined { font-size: 20px; }
-.oc-price {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--azul-marino);
-  white-space: nowrap;
-}
 .oc-add {
-  flex-shrink: 0;
-  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   height: 34px;
+  padding: 0 14px;
   border: none;
   border-radius: var(--radius-full);
   background: var(--rojo-cangrejo);
   color: #fff;
-  display: grid;
-  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.42);
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.35);
   transition: transform 0.12s, box-shadow 0.12s;
 }
-.oc-add:active { transform: scale(0.85); }
-.oc-add .material-symbols-outlined { font-size: 21px; }
+.oc-add:active { transform: scale(0.94); }
+.oc-add .material-symbols-outlined { font-size: 18px; }
+.oc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 3px;
+  border-radius: var(--radius-full);
+  background: var(--turquesa-ola);
+  box-shadow: 0 2px 8px rgba(42, 157, 143, 0.4);
+}
+.oc-step-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.12s;
+}
+.oc-step-btn:active { transform: scale(0.85); background: rgba(255, 255, 255, 0.2); }
+.oc-step-btn .material-symbols-outlined { font-size: 18px; }
+.oc-step-qty {
+  min-width: 22px;
+  text-align: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
 
 .order-card-empty {
   grid-column: 1 / -1;
@@ -3621,26 +3641,27 @@ body:not(.role-administrador):not(.role-gerente) .admin-only {
   .oc-badge.qty { font-size: 12px; }
   .oc-tag { display: none; }
   .oc-body {
-    gap: 3px;
+    gap: 2px;
     padding: 8px 9px 10px;
   }
   .oc-name {
     font-size: 13.5px !important;
     -webkit-line-clamp: 3;
+    min-height: 2.64em;
   }
+  .oc-price { font-size: 15px !important; }
   .oc-cat-inline { display: none; }
-  .oc-foot { padding-top: 2px; }
-  .oc-price { font-size: 14px !important; }
-  .oc-minus {
-    width: 28px !important;
-    height: 28px !important;
-  }
-  .oc-minus .material-symbols-outlined { font-size: 18px !important; }
+  .oc-foot { padding-top: 6px; }
   .oc-add {
-    width: 30px !important;
     height: 30px !important;
+    padding: 0 11px !important;
+    font-size: 12.5px !important;
   }
-  .oc-add .material-symbols-outlined { font-size: 19px !important; }
+  .oc-add .material-symbols-outlined { font-size: 16px !important; }
+  .oc-stepper { height: 30px !important; }
+  .oc-step-btn { width: 26px !important; height: 26px !important; }
+  .oc-step-btn .material-symbols-outlined { font-size: 17px !important; }
+  .oc-step-qty { font-size: 14px !important; min-width: 18px !important; }
   .order-card-group {
     top: -10px;
     margin: 2px 0 -2px;

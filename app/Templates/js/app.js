@@ -3239,17 +3239,20 @@ function renderOrderModalMenu(items) {
         </div>
         <div class="oc-body">
           <div class="oc-name">${escHtml(item.nombre)}</div>
-          <div class="oc-cat-inline">${escHtml(cat)}</div>
+          <div class="oc-price">C$${parseFloat(item.precio).toFixed(2)}</div>
           <div class="oc-foot">
-            <span class="oc-price">C$${parseFloat(item.precio).toFixed(2)}</span>
-            <div class="oc-actions">
-              ${qty > 0 ? `<button type="button" class="oc-minus" aria-label="Quitar uno de ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, -1);">
+            ${qty > 0 ? `<div class="oc-stepper">
+              <button type="button" class="oc-step-btn" aria-label="Quitar uno de ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, -1);">
                 <span class="material-symbols-outlined">remove</span>
-              </button>` : ''}
-              <button type="button" class="oc-add" aria-label="Agregar ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
+              </button>
+              <span class="oc-step-qty">${qty}</span>
+              <button type="button" class="oc-step-btn" aria-label="Agregar uno de ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
                 <span class="material-symbols-outlined">add</span>
               </button>
-            </div>
+            </div>` : `<button type="button" class="oc-add" aria-label="Agregar ${escHtml(item.nombre)}" onclick="event.stopPropagation(); changeOrderModalQty(${item.id}, 1);">
+              <span class="material-symbols-outlined">add</span>
+              <span class="oc-add-label">Agregar</span>
+            </button>`}
           </div>
         </div>
       </article>`;
@@ -3359,7 +3362,9 @@ function tapOrderCard(itemId) {
   changeOrderModalQty(itemId, 1);
   openOrderCartSheet();
 }
-window.tapOrderCard = tapOrderCard;function changeOrderModalQty(itemId, delta) {
+window.tapOrderCard = tapOrderCard;
+
+function changeOrderModalQty(itemId, delta) {
   const item = (state.menuItems || []).find(i => i.id === itemId);
   if (!item) return;
 
