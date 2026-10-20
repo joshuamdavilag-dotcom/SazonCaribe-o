@@ -409,6 +409,7 @@ function navigateTo(screenId) {
     loadHistorialOrdenesDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
+  if (screenId === 'descuentos') loadDescuentos();
   if (screenId === 'auditoria') { state.auditOffset = 0; loadAuditoria(); }
   if (screenId === 'calendario') loadCalendario();
   if (screenId === 'cameras') loadCameras();
@@ -2133,6 +2134,136 @@ async function guardarGasto() {
   }
 }
 
+/* =========================================================================
+   Descuentos Predeterminados (Administración)
+   ========================================================================= */
+let descuentoEditandoId = null;
+let descModalTipo = 'PORCENTAJE';
+
+async function loadDescuentos() {
+  const cont = document.getElementById('descuentos-list');
+  if (!cont) return;
+  cont.innerHTML = '<p style="color:#9ca3af;padding:12px;grid-column:1/-1;">Cargando descuentos…</p>';
+  try {
+    const lista = await api('/descuentos/');
+    if (!Array.isArray(lista) || !lista.length) {
+      cont.innerHTML = '<p style="color:#9ca3af;padding:12px;grid-column:1/-1;">No hay descuentos creados. Toca "Nuevo Descuento".</p>';
+      return;
+    }
+    cont.innerHTML = lista.map(d => {
+      const val = d.tipo === 'PORCENTAJE' ? `${parseFloat(d.valor)}%` : `C$${parseFloat(d.valor).toFixed(2)}`;
+      const tipoLabel = d.tipo === 'PORCENTAJE' ? 'Porcentaje' : 'Monto fijo';
+      const inactivo = !d.activo;
+      return `
+      <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm" style="${inactivo ? 'opacity:0.6;' : ''}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="font-display text-lg font-extrabold text-brand-navy break-words">${escHtml(d.nombre)}</p>
+            <p class="text-[12px] text-slate-500 mt-0.5">${tipoLabel}</p>
+          </div>
+          <span class="shrink-0 inline-flex items-center rounded-full px-3 py-1 text-[13px] font-extrabold" style="background:var(--turquesa-ola);color:#fff;">${val}</span>
+        </div>
+        ${inactivo ? '<p class="text-[11px] font-bold text-slate-400 mt-2">⏸️ NO DISPONIBLE</p>' : ''}
+        <div class="flex gap-2 mt-3">
+          <button class="btn btn-secondary" style="flex:1;min-height:36px;" onclick="openEditarDescuento(${d.id})">✏️ Editar</button>
+          <button class="btn btn-secondary" style="flex:1;min-height:36px;color:var(--rojo-cangrejo);" onclick="eliminarDescuento(${d.id})">🗑️ Eliminar</button>
+        </div>
+      </div>`;
+    }).join('');
+    state.descuentosList = lista;
+  } catch {
+    cont.innerHTML = '<p style="color:#E63946;padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
+  }
+}
+
+function setDescModalTipo(tipo) {
+  descModalTipo = tipo;
+  document.querySelectorAll('#desc-toggle .oc-disc-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tipo === tipo);
+  });
+  const label = document.getElementById('desc-valor-label');
+  if (label) label.textContent = tipo === 'PORCENTAJE' ? 'Valor (%)' : 'Valor (C$)';
+}
+window.setDescModalTipo = setDescModalTipo;
+
+function openNuevoDescuento() {
+  descuentoEditandoId = null;
+  descModalTipo = 'PORCENTAJE';
+  document.getElementById('descuento-modal-title').textContent = '🏷️ Nuevo Descuento';
+  document.getElementById('desc-nombre').value = '';
+  document.getElementById('desc-valor').value = '';
+  document.getElementById('desc-activo-group').style.display = 'none';
+  setDescModalTipo('PORCENTAJE');
+  document.getElementById('modal-descuento').classList.add('show');
+}
+window.openNuevoDescuento = openNuevoDescuento;
+
+function openEditarDescuento(id) {
+  const d = (state.descuentosList || []).find(x => x.id === id);
+  if (!d) return;
+  descuentoEditandoId = id;
+  document.getElementById('descuento-modal-title').textContent = '✏️ Editar Descuento';
+  document.getElementById('desc-nombre').value = d.nombre;
+  document.getElementById('desc-valor').value = parseFloat(d.valor);
+  document.getElementById('desc-activo').checked = !!d.activo;
+  document.getElementById('desc-activo-group').style.display = '';
+  setDescModalTipo(d.tipo === 'PORCENTAJE' ? 'PORCENTAJE' : 'MONTO');
+  document.getElementById('modal-descuento').classList.add('show');
+}
+window.openEditarDescuento = openEditarDescuento;
+
+function closeDescuentoModal() {
+  document.getElementById('modal-descuento').classList.remove('show');
+}
+window.closeDescuentoModal = closeDescuentoModal;
+
+async function guardarDescuento(e) {
+  if (e) e.preventDefault();
+  const nombre = document.getElementById('desc-nombre')?.value.trim();
+  const valor = parseFloat(document.getElementById('desc-valor')?.value);
+  if (!nombre) return showToast('Ingresa un nombre', 'warning');
+  if (!valor || valor <= 0) return showToast('Ingresa un valor válido', 'warning');
+  if (descModalTipo === 'PORCENTAJE' && valor > 100) return showToast('El porcentaje no puede ser mayor a 100', 'warning');
+
+  const btn = document.getElementById('save-descuento-btn');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    if (descuentoEditandoId) {
+      const activo = document.getElementById('desc-activo')?.checked;
+      await api(`/descuentos/${descuentoEditandoId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ nombre, tipo: descModalTipo, valor, activo }),
+      });
+      showToast('Descuento actualizado', 'success');
+    } else {
+      await api('/descuentos/', {
+        method: 'POST',
+        body: JSON.stringify({ nombre, tipo: descModalTipo, valor }),
+      });
+      showToast('Descuento creado', 'success');
+    }
+    closeDescuentoModal();
+    loadDescuentos();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+window.guardarDescuento = guardarDescuento;
+
+async function eliminarDescuento(id) {
+  const d = (state.descuentosList || []).find(x => x.id === id);
+  if (!confirm(`¿Eliminar el descuento "${d ? d.nombre : id}"?`)) return;
+  try {
+    await api(`/descuentos/${id}`, { method: 'DELETE' });
+    showToast('Descuento eliminado', 'success');
+    loadDescuentos();
+  } catch { /* handled by api() */ }
+}
+window.eliminarDescuento = eliminarDescuento;
+
 /*    =========================================================================
    Tables (Salón)
    ========================================================================= */
@@ -3040,7 +3171,7 @@ function renderOrderModalMenu(items) {
       : (item.tiempo_preparacion ? `<span class="oc-badge">${item.tiempo_preparacion}m</span>` : '');
 
     html += `
-      <article class="order-card ${qty > 0 ? 'selected' : ''}" data-item-id="${item.id}" role="listitem" onclick="openDishSheet(${item.id})">
+      <article class="order-card ${qty > 0 ? 'selected' : ''}" data-item-id="${item.id}" role="listitem" onclick="tapOrderCard(${item.id})">
         <div class="oc-media ${tint.cls}">
           ${thumb}
           ${badge}
@@ -3163,6 +3294,13 @@ window.changeDishSheetQty = changeDishSheetQty;
 window.closeDishSheet = closeDishSheet;
 window.confirmDishSheet = confirmDishSheet;
 
+/* Tocar la fila del platillo: agrega 1 unidad y abre "Tu comanda" para editar */
+function tapOrderCard(itemId) {
+  changeOrderModalQty(itemId, 1);
+  openOrderCartSheet();
+}
+window.tapOrderCard = tapOrderCard;
+
 function changeOrderModalQty(itemId, delta) {
   const item = (state.menuItems || []).find(i => i.id === itemId);
   if (!item) return;
@@ -3194,24 +3332,39 @@ function renderOrderModalCart() {
   const items = state.currentOrder.items;
 
   if (items.length === 0) {
-    cart.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
+    cart.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca un platillo para agregarlo</p>';
     return;
   }
 
   cart.innerHTML = items.map((item, idx) => {
     const desc = item._descuentoMonto || 0;
+    const linea = item.precio_unitario * item.cantidad;
+    const descLabel = item._descuentoTipo === 'PORCENTAJE'
+      ? `${item._descuentoValor}%`
+      : `C$${desc.toFixed(2)}`;
+    const sub = desc > 0
+      ? `<span style="text-decoration:line-through;">C$${linea.toFixed(2)}</span> <span class="oc-item-desc">-${descLabel}</span>`
+      : `C$${item.precio_unitario.toFixed(2)} c/u`;
     return `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nombre}</div>
-        <div style="font-size:12px;color:#6b7280;">C$${item.precio_unitario.toFixed(2)}${item._precioAjustado ? ' <span style="color:var(--amarillo-solar);font-size:10px;">✏️</span>' : ''}${desc > 0 ? ` <span style="color:var(--rojo-cangrejo);font-weight:600;">· -C$${desc.toFixed(2)}</span>` : ''}</div>
+    <div class="oc-item-row">
+      <div class="oc-item-info">
+        <div class="oc-item-name">${escHtml(item.nombre)}</div>
+        <div class="oc-item-sub">${sub}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-        <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, -1)" style="width:26px;height:26px;font-size:14px;">−</button>
-        <span style="min-width:20px;text-align:center;font-weight:600;font-size:13px;">${item.cantidad}</span>
-        <button class="qty-btn" onclick="changeOrderModalQty(${item.producto_id}, 1)" style="width:26px;height:26px;font-size:14px;">+</button>
-        <button onclick="aplicarDescuentoItemModal(${idx})" style="background:none;border:none;color:${desc > 0 ? 'var(--rojo-cangrejo)' : 'var(--amarillo-solar)'};font-size:14px;cursor:pointer;padding:2px 4px;" title="Descuento en C$">✏️</button>
-        <button onclick="deleteOrderItem(${idx})" style="background:none;border:none;color:#E63946;font-size:14px;cursor:pointer;padding:2px 4px;" title="Eliminar">🗑</button>
+      <div class="oc-item-stepper">
+        <button class="oc-item-btn" onclick="changeOrderModalQty(${item.producto_id}, -1)" aria-label="Menos">
+          <span class="material-symbols-outlined">remove</span>
+        </button>
+        <span class="oc-item-qty">${item.cantidad}</span>
+        <button class="oc-item-btn" onclick="changeOrderModalQty(${item.producto_id}, 1)" aria-label="Más">
+          <span class="material-symbols-outlined">add</span>
+        </button>
+        <button class="oc-item-btn oc-item-disc ${desc > 0 ? 'on' : ''}" onclick="openItemDiscountSheet(${idx})" title="Descuento" aria-label="Descuento">
+          <span class="material-symbols-outlined">sell</span>
+        </button>
+        <button class="oc-item-btn oc-item-del" onclick="deleteOrderItem(${idx})" title="Eliminar" aria-label="Eliminar">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
       </div>
     </div>`;
   }).join('');
@@ -3225,50 +3378,220 @@ function deleteOrderItem(idx) {
   updateOrderModalCartUI();
 }
 
-function aplicarDescuentoItemModal(idx) {
-  const items = state.currentOrder.items;
-  const item = items[idx];
+/* ===== Descuento por ítem (panel propio) ===== */
+let itemDiscountIdx = null;
+let itemDiscountTipo = 'PORCENTAJE';
+
+function openItemDiscountSheet(idx) {
+  const item = state.currentOrder.items[idx];
   if (!item) return;
+  itemDiscountIdx = idx;
+  itemDiscountTipo = item._descuentoTipo || 'PORCENTAJE';
+  const sheet = document.getElementById('order-item-disc-sheet');
+  if (!sheet) return;
+
+  document.getElementById('oid-title').textContent = item.nombre;
+  document.getElementById('oid-subtotal').textContent = `Subtotal: C$${(item.precio_unitario * item.cantidad).toFixed(2)}`;
+  document.querySelectorAll('#oid-toggle .oc-disc-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tipo === itemDiscountTipo);
+  });
+  document.getElementById('oid-prefix').textContent = itemDiscountTipo === 'PORCENTAJE' ? '%' : 'C$';
+  document.getElementById('oid-value').value = item._descuentoValor != null ? item._descuentoValor : '';
+  document.getElementById('oid-motivo').value = item._descuentoMotivo || '';
+  renderItemDiscountQuick();
+  document.getElementById('oid-clear').style.display = item._descuentoMonto ? '' : 'none';
+  sheet.style.display = 'flex';
+}
+window.openItemDiscountSheet = openItemDiscountSheet;
+
+function closeItemDiscountSheet() {
+  const sheet = document.getElementById('order-item-disc-sheet');
+  if (sheet) sheet.style.display = 'none';
+  itemDiscountIdx = null;
+}
+window.closeItemDiscountSheet = closeItemDiscountSheet;
+
+function setItemDiscountTipo(tipo) {
+  itemDiscountTipo = tipo;
+  document.querySelectorAll('#oid-toggle .oc-disc-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tipo === tipo);
+  });
+  document.getElementById('oid-prefix').textContent = tipo === 'PORCENTAJE' ? '%' : 'C$';
+  renderItemDiscountQuick();
+}
+window.setItemDiscountTipo = setItemDiscountTipo;
+
+function renderItemDiscountQuick() {
+  const cont = document.getElementById('oid-quick');
+  if (!cont) return;
+  if (itemDiscountTipo === 'PORCENTAJE') {
+    cont.innerHTML = [5, 10, 15, 20, 25, 50].map(v =>
+      `<button type="button" class="oc-disc-chip" onclick="setItemDiscountValue(${v})">${v}%</button>`
+    ).join('');
+  } else {
+    cont.innerHTML = [10, 20, 50, 100].map(v =>
+      `<button type="button" class="oc-disc-chip" onclick="setItemDiscountValue(${v})">C$${v}</button>`
+    ).join('');
+  }
+}
+
+function setItemDiscountValue(v) {
+  const input = document.getElementById('oid-value');
+  if (input) input.value = v;
+}
+window.setItemDiscountValue = setItemDiscountValue;
+
+function applyItemDiscount() {
+  const idx = itemDiscountIdx;
+  const item = state.currentOrder.items[idx];
+  if (!item) return;
+  const valor = parseFloat(document.getElementById('oid-value').value);
+  const motivo = (document.getElementById('oid-motivo').value || '').trim() || null;
+  if (!valor || valor <= 0) return showToast('Ingresa un valor de descuento válido', 'warning');
+
   const linea = item.precio_unitario * item.cantidad;
-  const actual = item._descuentoMonto || 0;
-  const input = prompt(
-    `Descuento en Córdobas (C$) para "${item.nombre}"\n\n` +
-    `Subtotal del ítem: C$${linea.toFixed(2)}\n` +
-    `Descuento actual: C$${actual.toFixed(2)}\n\n` +
-    `Ingresa 0 o deja vacío para quitar el descuento.`,
-    actual > 0 ? actual.toFixed(2) : ''
-  );
-  if (input === null) return;
-  const texto = input.trim();
-  if (texto === '') {
-    delete item._descuentoMonto;
-    renderOrderModalCart();
-    updateOrderModalTotals();
-    showToast(`Descuento de "${item.nombre}" eliminado`, 'success');
-    return;
+  let monto;
+  if (itemDiscountTipo === 'PORCENTAJE') {
+    if (valor > 100) return showToast('El porcentaje no puede ser mayor a 100', 'warning');
+    monto = linea * (valor / 100);
+  } else {
+    monto = valor;
   }
-  const monto = parseFloat(texto);
-  if (isNaN(monto) || monto < 0) return showToast('Ingresa un monto de descuento válido', 'warning');
-  if (monto > linea) return showToast(`El descuento no puede exceder C$${linea.toFixed(2)} (total del ítem)`, 'warning');
-  if (monto === 0) {
-    delete item._descuentoMonto;
-    renderOrderModalCart();
-    updateOrderModalTotals();
-    showToast(`Descuento de "${item.nombre}" eliminado`, 'success');
-    return;
-  }
-  item._descuentoMonto = monto;
+  if (monto > linea) return showToast(`El descuento no puede exceder C$${linea.toFixed(2)}`, 'warning');
+
+  item._descuentoTipo = itemDiscountTipo;
+  item._descuentoValor = valor;
+  item._descuentoMonto = Math.round(monto * 100) / 100;
+  item._descuentoMotivo = motivo;
+
+  closeItemDiscountSheet();
   renderOrderModalCart();
   updateOrderModalTotals();
-  showToast(`Descuento de C$${monto.toFixed(2)} aplicado a "${item.nombre}"`, 'success');
+  updateOrderModalCartUI();
+  showToast(`Descuento aplicado a "${item.nombre}"`, 'success');
 }
-window.aplicarDescuentoItemModal = aplicarDescuentoItemModal;
+window.applyItemDiscount = applyItemDiscount;
+
+function clearItemDiscount() {
+  const item = state.currentOrder.items[itemDiscountIdx];
+  if (item) {
+    delete item._descuentoTipo;
+    delete item._descuentoValor;
+    delete item._descuentoMonto;
+    delete item._descuentoMotivo;
+  }
+  closeItemDiscountSheet();
+  renderOrderModalCart();
+  updateOrderModalTotals();
+  updateOrderModalCartUI();
+  showToast('Descuento eliminado', 'success');
+}
+window.clearItemDiscount = clearItemDiscount;
+
+/* ===== Descuento global (toda la orden) + promos del catálogo ===== */
+let cartDiscountTipo = 'PORCENTAJE';
+
+function setCartDiscountTipo(tipo) {
+  cartDiscountTipo = tipo;
+  document.querySelectorAll('#oc-cart-disc-toggle .oc-disc-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tipo === tipo);
+  });
+  document.getElementById('oc-cart-disc-prefix').textContent = tipo === 'PORCENTAJE' ? '%' : 'C$';
+  renderCartDiscountQuick();
+}
+window.setCartDiscountTipo = setCartDiscountTipo;
+
+function renderCartDiscountQuick() {
+  const cont = document.getElementById('oc-cart-disc-quick');
+  if (!cont) return;
+  const vals = cartDiscountTipo === 'PORCENTAJE' ? [5, 10, 15, 20, 25, 50] : [10, 20, 50, 100];
+  cont.innerHTML = vals.map(v =>
+    `<button type="button" class="oc-disc-chip" onclick="setCartDiscountValue(${v})">${cartDiscountTipo === 'PORCENTAJE' ? v + '%' : 'C$' + v}</button>`
+  ).join('');
+}
+
+function setCartDiscountValue(v) {
+  const input = document.getElementById('oc-cart-disc-value');
+  if (input) input.value = v;
+}
+window.setCartDiscountValue = setCartDiscountValue;
+
+function applyCartDiscount() {
+  const valor = parseFloat(document.getElementById('oc-cart-disc-value').value);
+  const motivo = (document.getElementById('oc-cart-disc-motivo').value || '').trim() || null;
+  if (!valor || valor <= 0) return showToast('Ingresa un valor de descuento válido', 'warning');
+
+  const subtotal = state.currentOrder.items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0);
+  let monto;
+  if (cartDiscountTipo === 'PORCENTAJE') {
+    if (valor > 100) return showToast('El porcentaje no puede ser mayor a 100', 'warning');
+    monto = subtotal * (valor / 100);
+  } else {
+    monto = valor;
+  }
+  if (monto > subtotal) return showToast(`El descuento no puede exceder el subtotal (C$${subtotal.toFixed(2)})`, 'warning');
+
+  state.currentOrder._descuentoGlobal = { tipo: cartDiscountTipo, valor, motivo, monto: Math.round(monto * 100) / 100 };
+  document.getElementById('oc-cart-disc-clear').style.display = '';
+  updateOrderModalTotals();
+  showToast('Descuento global aplicado', 'success');
+}
+window.applyCartDiscount = applyCartDiscount;
+
+function clearCartDiscount() {
+  delete state.currentOrder._descuentoGlobal;
+  document.getElementById('oc-cart-disc-value').value = '';
+  document.getElementById('oc-cart-disc-motivo').value = '';
+  document.getElementById('oc-cart-disc-clear').style.display = 'none';
+  updateOrderModalTotals();
+  showToast('Descuento global eliminado', 'success');
+}
+window.clearCartDiscount = clearCartDiscount;
+
+async function loadOrderCartPromos() {
+  const cont = document.getElementById('order-cart-promos');
+  if (!cont) return;
+  try {
+    const promos = await api('/descuentos/?solo_activos=true', { silent: true });
+    if (!Array.isArray(promos) || !promos.length) {
+      cont.style.display = 'none';
+      return;
+    }
+    state.discountPromos = promos;
+    cont.innerHTML = promos.map(p => {
+      const val = p.tipo === 'PORCENTAJE' ? `${parseFloat(p.valor)}%` : `C$${parseFloat(p.valor).toFixed(2)}`;
+      return `<button type="button" class="oc-promo" onclick="applyPromoDescuento(${p.id})" title="${escHtml(p.nombre)}">
+        <span class="material-symbols-outlined" style="font-size:15px;">sell</span>
+        ${escHtml(p.nombre)} <span class="oc-promo-val">${val}</span>
+      </button>`;
+    }).join('');
+    cont.style.display = '';
+  } catch {
+    cont.style.display = 'none';
+  }
+}
+window.loadOrderCartPromos = loadOrderCartPromos;
+
+function applyPromoDescuento(id) {
+  const promo = (state.discountPromos || []).find(p => p.id === id);
+  if (!promo) return;
+  setCartDiscountTipo(promo.tipo === 'PORCENTAJE' ? 'PORCENTAJE' : 'MONTO');
+  document.getElementById('oc-cart-disc-value').value = parseFloat(promo.valor);
+  // abrir el panel de descuento
+  const panel = document.getElementById('order-cart-discount-panel');
+  if (panel) panel.open = true;
+  showToast(`Descuento "${promo.nombre}" listo para aplicar`, 'info');
+}
+window.applyPromoDescuento = applyPromoDescuento;
 
 function updateOrderModalTotals() {
   const items = state.currentOrder.items;
   const count = items.reduce((s, i) => s + i.cantidad, 0);
   const subtotal = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0);
-  const descuento = items.reduce((s, i) => s + (i._descuentoMonto || 0), 0);
+  const descItem = items.reduce((s, i) => s + (i._descuentoMonto || 0), 0);
+  const dg = state.currentOrder._descuentoGlobal;
+  const descGlobal = dg ? (dg.monto || 0) : 0;
+  const descuento = descItem + descGlobal;
   const total = Math.max(subtotal - descuento, 0);
   document.getElementById('order-modal-count').textContent = count;
   document.getElementById('order-modal-subtotal').textContent = `C$${subtotal.toFixed(2)}`;
@@ -3314,6 +3637,12 @@ function openOrderCartSheet() {
   if (dishSheet) dishSheet.style.display = 'none';
   if (sheet) sheet.style.display = 'flex';
   if (bar) bar.style.display = 'none';
+  // Cargar promos del catálogo y refrescar el total/descuento global
+  loadOrderCartPromos();
+  const dg = state.currentOrder._descuentoGlobal;
+  const clearBtn = document.getElementById('oc-cart-disc-clear');
+  if (clearBtn) clearBtn.style.display = dg ? '' : 'none';
+  updateOrderModalTotals();
 }
 
 function closeOrderCartSheet() {
@@ -3383,6 +3712,17 @@ async function submitOrder() {
           }),
         }),
       });
+
+      // Descuento global a toda la orden (si se definió en "Tu comanda")
+      const dg = state.currentOrder._descuentoGlobal;
+      if (dg && orden && orden.id && dg.valor > 0) {
+        try {
+          await api(`/ordenes/${orden.id}/descuento-global`, {
+            method: 'POST',
+            body: JSON.stringify({ tipo: dg.tipo, valor: dg.valor, motivo: dg.motivo || null }),
+          });
+        } catch { /* api() ya muestra el error */ }
+      }
 
       if (!mesaId && orden && orden.id) {
         const cobrarNow = document.getElementById('order-modal-cobrar-now')?.checked;
@@ -6943,6 +7283,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('order-modal-fab')?.addEventListener('click', openOrderCartSheet);
   document.getElementById('close-cart-sheet')?.addEventListener('click', closeOrderCartSheet);
 
+  // Order modal — descuento global + promos
+  document.getElementById('oc-cart-disc-toggle')?.addEventListener('click', (e) => {
+    const tab = e.target.closest('.oc-disc-tab');
+    if (tab) setCartDiscountTipo(tab.dataset.tipo);
+  });
+  document.getElementById('oc-cart-disc-apply')?.addEventListener('click', applyCartDiscount);
+  document.getElementById('oc-cart-disc-clear')?.addEventListener('click', clearCartDiscount);
+  document.getElementById('oc-cart-disc-value')?.addEventListener('input', () => {
+    const btn = document.getElementById('oc-cart-disc-clear');
+    if (btn) btn.style.display = 'none';
+  });
+
   // Order modal — detalle de platillo (sheet)
   document.getElementById('dish-sheet-close')?.addEventListener('click', closeDishSheet);
   document.getElementById('dish-sheet-minus')?.addEventListener('click', () => changeDishSheetQty(-1));
@@ -7103,6 +7455,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('cancel-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('gasto-form')?.addEventListener('submit', (e) => { e.preventDefault(); guardarGasto(); });
+
+  // Descuentos predeterminados
+  document.getElementById('btn-nuevo-descuento')?.addEventListener('click', openNuevoDescuento);
+  document.getElementById('close-descuento-modal')?.addEventListener('click', closeDescuentoModal);
+  document.getElementById('cancel-descuento-modal')?.addEventListener('click', closeDescuentoModal);
+  document.getElementById('descuento-form')?.addEventListener('submit', guardarDescuento);
 
   // Para Llevar
   document.getElementById('btn-para-llevar')?.addEventListener('click', openParaLlevarModal);

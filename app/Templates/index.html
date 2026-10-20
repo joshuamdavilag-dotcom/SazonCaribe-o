@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.5">
+  <link rel="stylesheet" href="css/style.css?v=6.6">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -193,6 +193,10 @@
         <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
           <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
+        </a>
+        <a class="nav-item nav-item-admin admin-only" data-screen="descuentos" data-roles="Administrador,Gerente">
+          <span class="material-symbols-outlined nav-icon text-[20px]">sell</span>
+          <span class="nav-label">Descuentos</span>
         </a>
       </nav>
 
@@ -883,6 +887,23 @@
         </div>
       </section>
 
+      <!-- SCREEN: DESCUENTOS -->
+      <section id="screen-descuentos" class="screen w-full max-w-full overflow-x-hidden" aria-label="Descuentos predeterminados">
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="min-w-0">
+            <span class="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#0F3B66]">Administración · Promociones</span>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Descuentos Predeterminados</h1>
+            <p class="text-sm text-slate-500 mt-1">Crea descuentos frecuentes (empleado, promo, cortesía) para aplicarlos con un toque al cobrar</p>
+          </div>
+          <button id="btn-nuevo-descuento" type="button" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F3B66] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-blue-900/20">
+            <span class="material-symbols-outlined text-[18px]">add</span> Nuevo Descuento
+          </button>
+        </header>
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4 w-full min-w-0">
+          <div id="descuentos-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </div>
+      </section>
+
       <!-- SCREEN: CÁMARAS -->
       <section id="screen-cameras" class="screen w-full max-w-full overflow-x-hidden" aria-label="Cámaras de seguridad">
         <header class="screen-header camera-screen-header">
@@ -1461,6 +1482,10 @@
           <span>🛒 Tu comanda</span>
           <button type="button" id="close-cart-sheet" class="modal-close" aria-label="Cerrar carrito">✕</button>
         </div>
+
+        <!-- Descuentos rápidos (catálogo de Administración) -->
+        <div id="order-cart-promos" class="order-cart-promos" style="display:none;"></div>
+
         <div id="order-modal-cart" class="order-cart-body"></div>
         <div class="order-cart-foot">
           <div class="order-cart-line">
@@ -1479,6 +1504,31 @@
             <span>Total</span>
             <span class="price-lg" id="order-modal-total">C$0.00</span>
           </div>
+
+          <!-- Aplicar descuento a toda la orden -->
+          <details id="order-cart-discount-panel" class="oc-disc">
+            <summary class="oc-disc-sum">
+              <span class="material-symbols-outlined">sell</span>
+              Aplicar descuento a toda la orden
+            </summary>
+            <div class="oc-disc-body">
+              <div class="oc-disc-toggle" id="oc-cart-disc-toggle">
+                <button type="button" class="oc-disc-tab active" data-tipo="PORCENTAJE">% Porcentaje</button>
+                <button type="button" class="oc-disc-tab" data-tipo="MONTO">C$ Monto fijo</button>
+              </div>
+              <div class="oc-disc-inputrow">
+                <span class="oc-disc-prefix" id="oc-cart-disc-prefix">%</span>
+                <input type="number" id="oc-cart-disc-value" class="oc-disc-input" step="0.01" min="0.01" placeholder="10" inputmode="decimal">
+              </div>
+              <div class="oc-disc-quick" id="oc-cart-disc-quick"></div>
+              <input type="text" id="oc-cart-disc-motivo" class="oc-disc-motivo" placeholder="Motivo (opcional)" maxlength="255">
+              <div class="oc-disc-actions">
+                <button type="button" class="btn btn-secondary" id="oc-cart-disc-clear" style="display:none;">Quitar</button>
+                <button type="button" class="btn btn-turquoise" id="oc-cart-disc-apply">Aplicar</button>
+              </div>
+            </div>
+          </details>
+
           <label id="order-modal-cobrar-row" class="order-cart-cobrar" style="display:none;">
             <input type="checkbox" id="order-modal-cobrar-now" checked>
             <span>✅ Cobrar ahora (elegir método de pago)</span>
@@ -1499,6 +1549,31 @@
         </span>
         <span class="order-cartbar-cta">Ver comanda</span>
       </button>
+
+      <!-- Sheet: descuento de un ítem -->
+      <div id="order-item-disc-sheet" class="dish-sheet" style="display:none;max-height:70%;">
+        <div class="order-cart-head" style="border-radius:var(--radius-xl) var(--radius-xl) 0 0;">
+          <span>🏷️ Descuento — <span id="oid-title"></span></span>
+          <button type="button" class="modal-close" onclick="closeItemDiscountSheet()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="oc-disc-body" style="padding:14px 16px calc(14px + env(safe-area-inset-bottom));">
+          <div class="oc-disc-toggle" id="oid-toggle">
+            <button type="button" class="oc-disc-tab active" data-tipo="PORCENTAJE" onclick="setItemDiscountTipo('PORCENTAJE')">% Porcentaje</button>
+            <button type="button" class="oc-disc-tab" data-tipo="MONTO" onclick="setItemDiscountTipo('MONTO')">C$ Monto fijo</button>
+          </div>
+          <div id="oid-subtotal" class="caption" style="font-size:12px;"></div>
+          <div class="oc-disc-inputrow">
+            <span class="oc-disc-prefix" id="oid-prefix">%</span>
+            <input type="number" id="oid-value" class="oc-disc-input" step="0.01" min="0.01" placeholder="10" inputmode="decimal">
+          </div>
+          <div class="oc-disc-quick" id="oid-quick"></div>
+          <input type="text" id="oid-motivo" class="oc-disc-motivo" placeholder="Motivo (opcional)" maxlength="255">
+          <div class="oc-disc-actions">
+            <button type="button" class="btn btn-secondary" id="oid-clear" onclick="clearItemDiscount()">Quitar</button>
+            <button type="button" class="btn btn-turquoise" onclick="applyItemDiscount()">Aplicar</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2140,6 +2215,43 @@
     </div>
   </div>
 
+  <!-- Modal: Nuevo/Editar Descuento Predeterminado -->
+  <div id="modal-descuento" class="modal-overlay" aria-label="Descuento predeterminado">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="descuento-modal-title">🏷️ Nuevo Descuento</h3>
+        <button class="modal-close" id="close-descuento-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="descuento-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="desc-nombre">Nombre</label>
+          <input type="text" id="desc-nombre" class="form-input" maxlength="100" placeholder="Ej: Empleado, Promo Martes" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de descuento</label>
+          <div class="oc-disc-toggle" id="desc-toggle">
+            <button type="button" class="oc-disc-tab active" data-tipo="PORCENTAJE" onclick="setDescModalTipo('PORCENTAJE')">% Porcentaje</button>
+            <button type="button" class="oc-disc-tab" data-tipo="MONTO" onclick="setDescModalTipo('MONTO')">C$ Monto fijo</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="desc-valor" id="desc-valor-label">Valor (%)</label>
+          <input type="number" id="desc-valor" class="form-input" step="0.01" min="0.01" placeholder="10" required>
+        </div>
+        <div class="form-group" id="desc-activo-group" style="display:none;">
+          <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="desc-activo" checked style="width:18px;height:18px;accent-color:var(--turquesa-ola);">
+            Disponible para aplicar
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-descuento-modal" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-descuento-btn" style="flex:1;">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Modal: Venta Retroactiva -->
   <div id="modal-venta-retroactiva" class="modal-overlay" aria-label="Registrar venta de días pasados">
     <div class="modal-sheet" style="max-width:560px;">
@@ -2266,6 +2378,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.5"></script>
+  <script src="js/app.js?v=6.6"></script>
 </body>
 </html>

@@ -11,6 +11,7 @@ from app.models.pago import PagoOnline, EstadoPago
 from app.models.calendario import EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
+from app.models.descuento import DescuentoFrecuente, TipoDescuento
 
 __all__ = [
     "RegistroAuditoria",
@@ -48,4 +49,6 @@ __all__ = [
     "Camera",
     "CameraAccess",
     "CameraClip",
+    "DescuentoFrecuente",
+    "TipoDescuento",
 ]

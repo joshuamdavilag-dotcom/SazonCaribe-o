@@ -35,6 +35,7 @@ from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.reportes import router as reportes_router
 from app.api.endpoints.caja import router as caja_router
 from app.api.endpoints.gasto import router as gasto_router
+from app.api.endpoints.descuento import router as descuento_router
 from app.api.endpoints.pagos import router as pagos_router
 from app.api.endpoints.calendario import router as calendario_router
 from app.api.endpoints.cameras import router as cameras_router
@@ -151,6 +152,12 @@ app.include_router(
 )
 
 app.include_router(
+    descuento_router,
+    prefix="/api/v1/descuentos",
+    tags=["Descuentos"]
+)
+
+app.include_router(
     pagos_router,
     prefix="/api/v1/pagos",
     tags=["Pagos en línea"]
@@ -212,6 +219,7 @@ async def startup_event():
         _migrate_recetas_descuento_lote()
         _migrate_orden_descuentos()
         _migrate_orden_nombre_cliente()
+        _migrate_descuentos_frecuentes()
         _migrate_gastos_cierre_caja_id()
         _migrate_adelantos_salario()
         _migrate_menu_item_imagen_tiempo()
@@ -392,6 +400,42 @@ def _migrate_orden_nombre_cliente():
     """Agrega columna nombre_cliente a ordenes si no existe."""
     _add_column_if_not_exists("ordenes", "nombre_cliente",
         "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL")
+
+
+def _migrate_descuentos_frecuentes():
+    """Crea la tabla descuentos_frecuentes y siembra descuentos comunes la primera vez."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    if not _table_exists("descuentos_frecuentes"):
+        return  # create_all ya la crea con el modelo
+
+    with Session(engine) as db:
+        try:
+            existentes = db.execute(
+                text("SELECT COUNT(*) FROM descuentos_frecuentes")
+            ).scalar_one()
+            if existentes and int(existentes) > 0:
+                return
+            semillas = [
+                ("Empleado 20%", "PORCENTAJE", 20.00),
+                ("Promo 10%", "PORCENTAJE", 10.00),
+                ("Cliente frecuente 5%", "PORCENTAJE", 5.00),
+                ("Cortesía C$50", "MONTO", 50.00),
+            ]
+            for nombre, tipo, valor in semillas:
+                db.execute(
+                    text(
+                        "INSERT INTO descuentos_frecuentes (nombre, tipo, valor, activo) "
+                        "VALUES (:n, :t, :v, :a)"
+                    ),
+                    {"n": nombre, "t": tipo, "v": valor, "a": True},
+                )
+            db.commit()
+            logger.info("Descuentos frecuentes sembrados: %s", len(semillas))
+        except Exception as e:
+            db.rollback()
+            logger.warning("No se pudieron sembrar descuentos frecuentes: %s", e)
 
 
 def _migrate_gastos_cierre_caja_id():
