@@ -27,6 +27,7 @@ from app.models.asistencia import Asistencia
 from app.models.orden import Orden
 from app.models.personal import Empleado, Puesto, Usuario
 from app.models.push import PushSuscripcion
+from app.schemas.personal import RolEnum
 
 logger = logging.getLogger(__name__)
 
@@ -152,30 +153,40 @@ class PushService:
             select(Usuario.id, Puesto.nombre)
             .join(Empleado, Usuario.empleado_id == Empleado.id)
             .join(Puesto, Empleado.puesto_id == Puesto.id)
-            .where(Usuario.activo.is_(True))
+            .where(Usuario.activo.is_(True), Empleado.activo.is_(True))
         ).all()
         return [usuario_id for usuario_id, puesto in filas if es_puesto_cocina(puesto)]
 
     def usuarios_con_turno_activo(self, usuario_ids: Iterable[int]) -> list[int]:
-        """Usuarios que tienen el turno abierto (asistencia abierta y no anulada).
+        """Usuarios que están dentro del sistema (turno abierto y no anulado).
 
         Las notificaciones push solo se entregan a quien está trabajando:
-        si el turno ya se cerró o el registro fue anulado, no se envía nada.
+        si el turno ya se cerró, el registro fue anulado, el usuario está
+        desactivado, el empleado fue dado de baja o al vendedor le
+        deshabilitaron el turno, no se envía nada.
         """
         ids = [usuario_id for usuario_id in usuario_ids if usuario_id]
         if not ids:
             return []
         filas = self.db.execute(
-            select(Usuario.id)
+            select(Usuario.id, Usuario.rol, Usuario.turno_habilitado)
             .join(Empleado, Usuario.empleado_id == Empleado.id)
             .join(Asistencia, Asistencia.empleado_id == Empleado.id)
             .where(
                 Usuario.id.in_(ids),
+                Usuario.activo.is_(True),
+                Empleado.activo.is_(True),
                 Asistencia.hora_salida_real.is_(None),
                 Asistencia.anulada.is_(False),
             )
         ).all()
-        return sorted({fila[0] for fila in filas})
+        return sorted(
+            {
+                fila[0]
+                for fila in filas
+                if fila[1] != RolEnum.VENDEDOR or fila[2]
+            }
+        )
 
     # ------------------------------------------------------------------ #
     #  Envío
