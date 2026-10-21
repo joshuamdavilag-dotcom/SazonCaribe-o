@@ -267,6 +267,17 @@ function pushSoportado() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
+function contextoSeguroPush() {
+  return window.isSecureContext !== false;
+}
+
+function mensajePushNoSoportado() {
+  if (!contextoSeguroPush()) {
+    return 'Las notificaciones push necesitan una conexión segura: abre el ERP en https:// o en http://localhost.';
+  }
+  return 'Este navegador no soporta notificaciones push.';
+}
+
 async function registrarServiceWorkerPush() {
   if (!('serviceWorker' in navigator)) return null;
   if (pushEstado.registro) return pushEstado.registro;
@@ -296,7 +307,7 @@ function pintarEstadoPush() {
 
   if (!estado) return;
   if (!pushSoportado()) {
-    estado.textContent = 'Este navegador no soporta notificaciones push.';
+    estado.textContent = mensajePushNoSoportado();
     return;
   }
   if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
@@ -311,7 +322,7 @@ function pintarEstadoPush() {
 async function activarNotificacionesPush() {
   if (pushEstado.cargando) return;
   if (!pushSoportado()) {
-    showToast('Tu navegador no soporta notificaciones push', 'warning');
+    showToast(mensajePushNoSoportado(), 'warning', 6000);
     return;
   }
   pushEstado.cargando = true;
