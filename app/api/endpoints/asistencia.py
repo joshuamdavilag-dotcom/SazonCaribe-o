@@ -200,6 +200,12 @@ def registrar_entrada(
     response_model=AsistenciaResponse,
     summary="Marcar salida",
     description="Finaliza el turno activo del empleado logueado y calcula horas extras.",
+    responses={
+        409: {
+            "description": "El turno ya fue cerrado automáticamente (deshabilitación o watcher). "
+            "El detalle indica la hora de salida registrada y la causa.",
+        }
+    },
     tags=["Asistencia"]
 )
 def registrar_salida(
