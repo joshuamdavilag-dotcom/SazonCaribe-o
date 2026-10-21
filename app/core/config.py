@@ -109,6 +109,30 @@ class Settings(BaseSettings):
         description="API key de ImgBB para subir imágenes de platos"
     )
 
+    # Notificaciones push (Web Push / VAPID). Si las claves no se definen,
+    # se derivan del SECRET_KEY (ver app/core/vapid.py) y el servicio funciona
+    # sin configuración manual.
+    VAPID_PUBLIC_KEY: str = Field(
+        default="",
+        description="Clave pública VAPID en base64url (opcional; si falta se deriva del SECRET_KEY)"
+    )
+    VAPID_PRIVATE_KEY: str = Field(
+        default="",
+        description="Clave privada VAPID en base64url (opcional; si falta se deriva del SECRET_KEY)"
+    )
+    VAPID_SUBJECT: str = Field(
+        default="mailto:admin@sazoncaribeno.com",
+        description="Contacto 'sub' que exige el protocolo VAPID (mailto: o https:)"
+    )
+    PUSH_TTL: int = Field(
+        default=3600,
+        description="Segundos que el servicio de push conserva la notificación"
+    )
+    PUSH_TIMEOUT: int = Field(
+        default=15,
+        description="Tiempo máximo de espera del envío push en segundos"
+    )
+
     # Cámaras: solo se guarda el path público del stream, no las credenciales RTSP.
     CAMERA_BRIDGE_BASE_URL: str = Field(
         default="",

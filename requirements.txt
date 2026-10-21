@@ -25,5 +25,8 @@ tzdata>=2024.1
 # HTTP client (ImgBB image uploads)
 httpx==0.28.1
 
+# Notificaciones push (Web Push / VAPID)
+pywebpush==2.0.1
+
 # Procesamiento de imagenes (resize + compresion WebP antes de ImgBB)
 Pillow>=10.0.0

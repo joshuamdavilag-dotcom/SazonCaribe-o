@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
-  <link rel="stylesheet" href="css/style.css?v=6.25">
+  <link rel="stylesheet" href="css/style.css?v=6.26">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -136,6 +136,14 @@
           </button>
         </div>
       </header>
+      <div class="notifications-push" id="notifications-push">
+        <button id="btn-push-notificaciones" class="notifications-push-button" type="button"
+                data-push-toggle aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
+          <span data-push-texto>Activar avisos</span>
+        </button>
+        <p id="notifications-push-estado" class="notifications-push-estado">Recibe avisos de comandas aunque tengas la app cerrada.</p>
+      </div>
       <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
       <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
     </section>
@@ -244,6 +252,11 @@
                   aria-label="Notificaciones" aria-haspopup="dialog" aria-expanded="false">
             <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
             <span>Notificaciones</span>
+          </button>
+          <button id="desktop-push-toggle" class="desktop-push-toggle" type="button"
+                  data-push-toggle aria-pressed="false" aria-label="Activar avisos de comandas">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
+            <span data-push-texto>Activar avisos</span>
           </button>
         </div>
       </div>
@@ -2594,6 +2607,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js?v=6.25"></script>
+  <script src="js/app.js?v=6.26"></script>
 </body>
 </html>

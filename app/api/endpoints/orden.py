@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -21,6 +21,7 @@ from app.schemas.orden import (
     DevolverItemRequest,
 )
 from app.services.orden_service import OrdenService
+from app.services.push_service import ejecutar_notificacion_push
 
 router = APIRouter()
 
@@ -68,11 +69,14 @@ def crear_venta_retroactiva(
 )
 def crear_orden(
     orden_in: OrdenCreate,
+    background_tasks: BackgroundTasks,
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Abre una nueva orden con sus detalles y descuenta el inventario por receta."""
-    return service.crear_orden(orden_in, current_user.id, current_user)
+    orden = service.crear_orden(orden_in, current_user.id, current_user)
+    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    return orden
 
 
 # =====================================================================
@@ -126,12 +130,16 @@ def obtener_orden(
     dependencies=[Depends(get_current_user)],
 )
 def actualizar_estado(
+    background_tasks: BackgroundTasks,
     orden_id: int = Path(..., gt=0),
     body: ActualizarEstadoOrden = ...,
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Cambia el estado de la orden validando la transición del ciclo de vida."""
-    return service.cambiar_estado(orden_id, body.estado)
+    orden = service.cambiar_estado(orden_id, body.estado)
+    if orden.estado == EstadoOrden.ENTREGADA:
+        background_tasks.add_task(ejecutar_notificacion_push, orden.id, "comanda_lista")
+    return orden
 
 
 # =====================================================================
@@ -150,13 +158,16 @@ def actualizar_estado(
     dependencies=[Depends(get_current_user)],
 )
 def agregar_items(
+    background_tasks: BackgroundTasks,
     orden_id: int = Path(..., gt=0),
     body: AgregarItemsOrdenRequest = ...,
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Agrega ítems a una orden abierta y descuenta los ingredientes del inventario."""
-    return service.agregar_items_canonico(orden_id, body.items, current_user)
+    orden = service.agregar_items_canonico(orden_id, body.items, current_user)
+    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    return orden
 
 
 # =====================================================================
@@ -175,13 +186,16 @@ def agregar_items(
     dependencies=[Depends(get_current_user)],
 )
 def editar_items(
+    background_tasks: BackgroundTasks,
     orden_id: int = Path(..., gt=0),
     body: EditarOrdenRequest = ...,
     current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Reemplaza el contenido de una comanda abierta y ajusta el inventario."""
-    return service.editar_orden(orden_id, body.items, current_user)
+    orden = service.editar_orden(orden_id, body.items, current_user)
+    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    return orden
 
 
 # =====================================================================

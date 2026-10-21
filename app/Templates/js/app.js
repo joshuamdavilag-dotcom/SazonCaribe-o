@@ -9,6 +9,8 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
   ? 'http://127.0.0.1:8000/api/v1'
   : `${location.origin}/api/v1`;
 
+const VERSION_APP = '6.26';
+
 function escHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -237,8 +239,208 @@ function alternarNotificaciones() {
   }
   panel.hidden = false;
   actualizarContadoresNotificaciones(panel.querySelectorAll('.notification-entry[data-notification-screen]').length);
+  pintarEstadoPush();
   void cargarNotificaciones();
   document.getElementById('notifications-close')?.focus();
+}
+
+/* =========================================================================
+   Web Push — avisos de comandas (cocina ↔ mesero)
+   ========================================================================= */
+const pushEstado = {
+  configuracion: null,
+  suscripcion: null,
+  registro: null,
+  cargando: false,
+};
+
+function urlBase64ToUint8Array(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const normalizado = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const binario = atob(normalizado);
+  const salida = new Uint8Array(binario.length);
+  for (let indice = 0; indice < binario.length; indice += 1) {
+    salida[indice] = binario.charCodeAt(indice);
+  }
+  return salida;
+}
+
+function pushSoportado() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function registrarServiceWorkerPush() {
+  if (!('serviceWorker' in navigator)) return null;
+  if (pushEstado.registro) return pushEstado.registro;
+  try {
+    pushEstado.registro = await navigator.serviceWorker.register(`/Templates/sw.js?v=${VERSION_APP}`, { scope: '/Templates/' });
+    return pushEstado.registro;
+  } catch (error) {
+    console.warn('No se pudo registrar el service worker de push:', error);
+    return null;
+  }
+}
+
+function pintarEstadoPush() {
+  const botones = document.querySelectorAll('[data-push-toggle]');
+  const estado = document.getElementById('notifications-push-estado');
+  const activo = Boolean(pushEstado.suscripcion);
+
+  botones.forEach(boton => {
+    boton.classList.toggle('push-activo', activo);
+    boton.setAttribute('aria-pressed', String(activo));
+    const etiqueta = boton.querySelector('[data-push-texto]');
+    if (etiqueta) etiqueta.textContent = activo ? 'Avisos activados' : 'Activar avisos';
+  });
+
+  if (!estado) return;
+  if (!pushSoportado()) {
+    estado.textContent = 'Este navegador no soporta notificaciones push.';
+    return;
+  }
+  if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+    estado.textContent = 'Las notificaciones están bloqueadas: habilítalas en los ajustes del navegador.';
+    return;
+  }
+  estado.textContent = activo
+    ? 'Recibirás avisos de comandas mientras tu turno esté abierto.'
+    : 'Recibe avisos de comandas aunque tengas la app cerrada.';
+}
+
+async function activarNotificacionesPush() {
+  if (pushEstado.cargando) return;
+  if (!pushSoportado()) {
+    showToast('Tu navegador no soporta notificaciones push', 'warning');
+    return;
+  }
+  pushEstado.cargando = true;
+  try {
+    const registro = await registrarServiceWorkerPush();
+    if (!registro) throw new Error('No se pudo registrar el servicio de notificaciones');
+
+    let configuracion = pushEstado.configuracion;
+    if (!configuracion) {
+      configuracion = await api('/push/config', { silent: true });
+      pushEstado.configuracion = configuracion;
+    }
+    if (!configuracion?.public_key) {
+      throw new Error('El servidor no tiene habilitadas las notificaciones push');
+    }
+
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') {
+      showToast('No se otorgó permiso para enviar notificaciones', 'warning');
+      pintarEstadoPush();
+      return;
+    }
+
+    let suscripcion = await registro.pushManager.getSubscription();
+    if (!suscripcion) {
+      suscripcion = await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(configuracion.public_key),
+      });
+    }
+
+    const datos = suscripcion.toJSON();
+    await api('/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: datos.endpoint, keys: datos.keys }),
+      silent: true,
+    });
+
+    pushEstado.suscripcion = suscripcion;
+    pintarEstadoPush();
+    showToast('Notificaciones activadas en este dispositivo');
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || 'No se pudieron activar las notificaciones', 'error');
+    pintarEstadoPush();
+  } finally {
+    pushEstado.cargando = false;
+  }
+}
+
+async function desactivarNotificacionesPush() {
+  const suscripcion = pushEstado.suscripcion;
+  if (!suscripcion) return;
+  try {
+    const endpoint = suscripcion.endpoint;
+    await suscripcion.unsubscribe();
+    await api('/push/unsubscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint }),
+      silent: true,
+    });
+    pushEstado.suscripcion = null;
+    pintarEstadoPush();
+    showToast('Notificaciones desactivadas en este dispositivo');
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || 'No se pudieron desactivar las notificaciones', 'error');
+  }
+}
+
+function alternarNotificacionesPush() {
+  if (pushEstado.suscripcion) {
+    void desactivarNotificacionesPush();
+  } else {
+    void activarNotificacionesPush();
+  }
+}
+
+async function sincronizarEstadoPush() {
+  if (!pushSoportado()) {
+    pintarEstadoPush();
+    return;
+  }
+  try {
+    const registro = await registrarServiceWorkerPush();
+    if (!registro) {
+      pintarEstadoPush();
+      return;
+    }
+    const suscripcion = await registro.pushManager.getSubscription();
+    pushEstado.suscripcion = suscripcion || null;
+    if (suscripcion) {
+      const datos = suscripcion.toJSON();
+      await api('/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint: datos.endpoint, keys: datos.keys }),
+        silent: true,
+      });
+    }
+  } catch (error) {
+    console.warn('No se pudo sincronizar el estado de las notificaciones push:', error);
+  }
+  pintarEstadoPush();
+}
+
+/* =========================================================================
+   Destinos por URL (enlace profundo desde una notificación)
+   ========================================================================= */
+function paramUrl(nombre) {
+  try {
+    return new URLSearchParams(window.location.search).get(nombre);
+  } catch (error) {
+    return null;
+  }
+}
+
+async function aplicarDestinoSolicitado() {
+  const pantalla = paramUrl('pantalla');
+  const mesa = paramUrl('mesa');
+  const destino = (pantalla && document.getElementById(`screen-${pantalla}`))
+    ? pantalla
+    : (esUsuarioCocina() ? 'comandero' : 'salon');
+  navigateTo(destino);
+
+  if (!mesa) return;
+  const mesaId = parseInt(mesa, 10);
+  if (!Number.isFinite(mesaId)) return;
+  await loadTables();
+  navigateTo('salon');
+  openDetalleMesaOcupada(mesaId);
 }
 
 /* =========================================================================
@@ -1029,8 +1231,9 @@ async function login(username, password) {
     showApp();
     showAttendancePanel();
     loadTurnos();
-    navigateTo(esUsuarioCocina() ? 'comandero' : 'salon');
+    await aplicarDestinoSolicitado();
     iniciarIntervalosSesion();
+    void sincronizarEstadoPush();
     showToast(`Bienvenido, ${state.user.username}`);
   } catch (e) {
     const esErrorDeConexion = e?.name === 'TypeError'
@@ -7464,6 +7667,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => document.getElementById('menu-search')?.focus(), 0);
   });
   document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
+  document.querySelectorAll('[data-push-toggle]').forEach(boton => {
+    boton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      alternarNotificacionesPush();
+    });
+  });
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {
     void cargarNotificaciones();
   });
@@ -8051,9 +8261,10 @@ document.addEventListener('DOMContentLoaded', () => {
     showApp();
     showAttendancePanel();
     loadTurnos();
-    navigateTo(esUsuarioCocina() ? 'comandero' : 'salon');
+    void aplicarDestinoSolicitado();
     iniciarIntervalosSesion();
     sincronizarPuestoUsuario();
+    void sincronizarEstadoPush();
   } else {
     showLogin();
   }
@@ -8069,7 +8280,7 @@ async function sincronizarPuestoUsuario() {
     state.user = { ...state.user, puesto };
     localStorage.setItem('pos_user', JSON.stringify(state.user));
     applyRoleRestrictions();
-    if (esUsuarioCocina()) navigateTo('comandero');
+    if (esUsuarioCocina() && !paramUrl('pantalla')) navigateTo('comandero');
   } catch {
     /* sesión inválida: el interceptor de api() ya maneja el logout */
   }

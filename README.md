@@ -101,7 +101,8 @@ app/
 │   ├── config.py            # Settings (Pydantic Settings) leídos de .env
 │   ├── database.py          # Engine, SessionLocal, Base, get_db(); detección de dialecto
 │   ├── security.py          # bcrypt directo + JWT (SECRET_KEY/ALGORITHM/EXPIRACIÓN)
-│   └── tiempo.py            # Hora local Managua + día de negocio (ventana_dia_negocio)
+│   ├── tiempo.py            # Hora local Managua + día de negocio (ventana_dia_negocio)
+│   └── vapid.py             # Claves VAPID derivadas de SECRET_KEY (Web Push)
 ├── api/
 │   ├── deps.py              # get_current_user, requerir_rol(roles)
 │   ├── auditoria.py         # Router de bitácora de auditoría
@@ -119,6 +120,7 @@ app/
     ├── index.html           # SPA del ERP (personal autenticado)
     ├── css/style.css        # Design tokens + estilos del POS
     ├── js/app.js            # Toda la lógica del SPA
+    ├── sw.js                # Service Worker de notificaciones push (Web Push)
     └── carta/               # Carta Digital pública (sin auth): index.html, css/, js/, img/
 docs/
 ├── CALENDARIO.md            # Guía funcional y técnica del calendario
@@ -215,6 +217,13 @@ Definidas en `app/core/config.py` (Pydantic Settings, archivo `.env`). Ver `.env
 | `PAYMENT_CURRENCY` | `NIO` | Moneda ISO 4217 |
 | `PAYMENT_SUCCESS_URL` | *(vacío)* | URL de retorno tras pago exitoso |
 | `PAYMENT_CANCEL_URL` | *(vacío)* | URL de retorno al cancelar checkout |
+| `VAPID_PUBLIC_KEY` | *(derivada)* | Clave pública VAPID. Si se deja vacía se **deriva de `SECRET_KEY`** (determinista, estable entre reinicios) |
+| `VAPID_PRIVATE_KEY` | *(derivada)* | Clave privada VAPID. Si se deja vacía se **deriva de `SECRET_KEY`** |
+| `VAPID_SUBJECT` | `mailto:admin@sazoncaribeno.com` | Contacto del servidor de push (claim `sub` del JWT VAPID) |
+| `PUSH_TTL` | `3600` | Segundos de vida de la notificación push (0 = entregar solo si el dispositivo está en línea) |
+| `PUSH_TIMEOUT` | `15` | Timeout (segundos) de la llamada HTTP al servicio de push |
+
+> **Las claves VAPID no necesitan configurarse en producción**: si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están definidas, `app/core/vapid.py` las deriva de `SECRET_KEY` de forma determinista. Mientras `SECRET_KEY` no cambie (en Render es un valor generado y estable), las suscripciones de los dispositivos siguen siendo válidas entre reinicios. Si defines las claves a mano, deben ser un par coherente (las dos base64url de 65/32 bytes).
 
 ---
 
@@ -316,6 +325,24 @@ Resumen de las reglas más relevantes. El detalle exhaustivo está en `AGENTS.md
 - `imagen_url` es **gestionado solo por el servidor**: se sube por `POST /menu/items/{id}/imagen` (multipart), se valida por contenido con Pillow, se comprime a WebP (≤1080 px) y se publica en ImgBB.
 - Borrado lógico de platillos (`disponible=False`). Si no tiene ventas, un reinicio puede purgarlo; con ventas, se archiva renombrando el nombre.
 
+### Notificaciones push (cocina ↔ salón)
+
+Web Push con **VAPID** (`pywebpush`): el aviso llega al teléfono aunque la app esté cerrada o el navegador en segundo plano.
+
+| Flujo | Quién recibe | Cuándo |
+|-------|--------------|--------|
+| Nueva comanda | Usuarios de **cocina** (su `Puesto` contiene "cocin"/"cosin"/"chef") | `POST /ordenes/`, `POST /ordenes/{id}/items`, `PUT /ordenes/{id}/items` |
+| Comanda lista | El **mesero** que creó la orden (`orden.mesero_id`) | `PATCH /ordenes/{id}/estado` → `ENTREGADA` |
+
+Reglas:
+
+- **Solo se notifica a quien tiene el turno abierto** (asistencia activa y no anulada). Si el turno ya se cerró o fue anulado, no se entrega ninguna notificación.
+- El mesero que creó la orden **no** recibe el aviso de cocina (evita autosnotificaciones).
+- Los envíos corren como **tarea en segundo plano** (`BackgroundTasks`) con su propia sesión de BD: un fallo de push **jamás** rompe el flujo de la orden (queda solo en el log).
+- Las suscripciones caducadas (respuesta `404`/`410` del servicio de push) se eliminan automáticamente.
+- El service worker vive en `/Templates/sw.js` (ámbito `/Templates/`) y abre el ERP con enlace profundo: `?pantalla=comandero` para cocina, `?pantalla=salon&mesa=<id>` para el mesero.
+- El cliente (JS) registra la suscripción con `POST /api/v1/push/subscribe` y la mantiene sincronizada en cada inicio de sesión.
+
 ---
 
 ## API
@@ -342,6 +369,7 @@ Todos los endpoints del ERP están bajo el prefijo **`/api/v1/`** y requieren au
 | Cámaras | `/api/v1/cameras` | cámaras, accesos, clips, tokens de stream |
 | Pagos | `/api/v1/pagos` | disponibilidad, checkout, webhook |
 | Auditoría | `/api/v1/auditoria` | bitácora paginada |
+| Push | `/api/v1/push` | config, subscribe, unsubscribe, subscriptions |
 | Backups | `/api/v1/backups` | gestión de copias de seguridad |
 
 ### Parámetros de filtrado habituales
@@ -387,9 +415,11 @@ La configuración de Render está en `render.yaml`:
 
 > En el dashboard de Render fija manualmente `IMGBB_API_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` y `SECRET_KEY`, y confirma las DB_*. Si `IMGBB_API_KEY` falta, la subida de imágenes responde 500.
 
+> **Push (Web Push)**: no requiere variables adicionales. Las claves VAPID se derivan de `SECRET_KEY` (mientras no cambies esa variable, las suscripciones de los dispositivos siguen siendo válidas). Verifica que `https://sazoncaribe-o.onrender.com/Templates/sw.js` responde 200 después del despliegue.
+
 ### Frontend en producción: versión de assets y despliegue manual
 
-- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.25`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
+- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.26`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
 - El URL público es único y no debe cambiar: `https://sazoncaribe-o.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`). Ojo: `sazoncaribeo.onrender.com` (sin guion) devuelve 404 de routing de Render; el dominio del servicio es `sazoncaribe-o`.
 - Si Render no despliega solo tras el push, haz **Manual Deploy → Clear build cache & deploy** en el servicio `sazoncaribe-o` y luego un hard-refresh (`Ctrl + Shift + R`) en el navegador.
 

@@ -57,9 +57,10 @@ Multi-layer pattern: **API → Service → Repository → Model**
 app/
 ├── main.py                  # FastAPI app, CORS, router registration, static mounts (/Templates + /carta), startup migrations, heartbeat watcher BG task, orphaned mesa fix, joshi password fix, constraint fix
 ├── core/
-│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS, IMGBB_API_KEY
+│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS, IMGBB_API_KEY, VAPID_*, PUSH_*
 │   ├── database.py          # Engine, SessionLocal, Base, get_db()
-│   └── security.py          # bcrypt (direct) + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
+│   ├── security.py          # bcrypt (direct) + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
+│   └── vapid.py             # Claves VAPID derivadas de SECRET_KEY (determinista) — Web Push
 ├── api/
 │   ├── deps.py              # get_current_user, requerir_rol(roles)
 │   └── endpoints/           # API controllers (one file per domain)
@@ -77,6 +78,7 @@ app/
 │       ├── auditoria.py     # Bitácora de auditoría (GET paginado, Admin/Gerente)
 │       ├── calendario.py    # Planificación autenticada + consulta de asistencias reales
 │       ├── reportes.py      # Reportes financieros por periodo
+│       ├── push.py          # Suscripciones push del dispositivo (config/subscribe/unsubscribe)
 │       └── analitica.py     # Cierre de caja legacy (métricas simples)
 ├── schemas/
 │   ├── personal.py          # RolEnum, Puesto/Empleado/Usuario schemas
@@ -92,6 +94,7 @@ app/
 │   ├── calendario.py        # EventoCalendario request/response y respuesta de calendario
 │   ├── reportes.py          # PeriodoEnum, CierreCajaPeriodoResponse (includes gastos_operativos)
 │   ├── analitica.py         # CierreCajaResponse (legacy)
+│   ├── push.py              # PushClaves, PushSuscripcionCreate/Response, PushConfigResponse
 │   └── auth.py              # LoginRequest, TokenResponse
 ├── models/
 │   ├── personal.py          # Puesto, Empleado, Usuario
@@ -104,6 +107,7 @@ app/
 │   ├── caja.py              # CierreCaja
 │   ├── gasto.py             # Gasto, CategoriaGasto enum (+ eliminado/motivo_eliminacion/eliminado_por/eliminado_en)
 │   ├── calendario.py        # EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
+│   ├── push.py              # PushSuscripcion (usuario_id, endpoint unique, p256dh, auth)
 │   └── __init__.py          # Registers all models including Gasto
 ├── repositories/
 │   ├── base_repository.py   # Generic base repository
@@ -136,13 +140,15 @@ app/
 │   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos; incluye descuentos en response
 │   ├── conversion_service.py     # convertir_cantidad() — transitive chain resolution via _get_chain()
 │   ├── turno_service.py          # Standalone functions
+│   ├── push_service.py           # Suscripciones push, usuarios_cocina(), enviar(), notificar_nueva_comanda()/notificar_comanda_lista()
 │   └── analitica_service.py
 ├── db/
 │   └── init_db.py
 ├── Templates/
 │   ├── index.html
 │   ├── css/style.css
-│   ├── js/app.js                 # POS SPA, calendario mensual y detalle diario; órdenes con POST /ordenes/{id}/items
+│   ├── js/app.js                 # POS SPA, calendario mensual y detalle diario; órdenes con POST /ordenes/{id}/items; push (suscripción + deep links)
+│   ├── sw.js                     # Service Worker de Web Push (scope /Templates/) — push + notificationclick
 │   └── carta/                    # Carta Digital pública (sin auth): index.html, css/style.css, js/app.js, img/ (hero, logos, placeholder) + img/platos/ (imágenes subidas por el ERP)
 ├── docs/
 │   └── CALENDARIO.md             # Guía funcional y técnica completa del calendario
@@ -193,7 +199,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ### Frontend / JS
 
 - Vanilla JS SPA — no frameworks, no build step
-- **Asset version**: `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Hay que subir `<N>` en CADA cambio de frontend** (o los navegadores sirven el JS/CSS cacheado y el fix no aparece en producción). Versión actual: **6.25**.
+- **Asset version**: `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Hay que subir `<N>` en CADA cambio de frontend** (o los navegadores sirven el JS/CSS cacheado y el fix no aparece en producción). Versión actual: **6.26**.
 - `API_BASE` auto-detects: local (`localhost`/`127.0.0.1`) → `http://127.0.0.1:8000/api/v1`, otherwise → `${location.origin}/api/v1` (works on Render)
 - Token stored in `localStorage` as `pos_token`; user as `pos_user`
 - Adding items to existing order uses `POST /ordenes/{id}/items` (legacy PATCH endpoint removed)
@@ -225,6 +231,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Badge "⏱️ Auto" en el historial de asistencias: marca los registros cerrados automáticamente (`Asistencia.observaciones` con causa de cierre) con el motivo en el `title`; convive con el badge "✏️ Auditado" (corrección manual de horarios) cuando ambos aplican; el resto de la UI de asistencia usa etiquetas explícitas (Entrada / Salida / Horas extras) en lugar de rótulos genéricos. `editar_horarios()` preserva `horas_extras_originales` (solo si estaba en NULL) para que la corrección manual de un cierre automático quede trazable.
 - Editar Horarios: `#modal-editar-horarios` modal with `<input type="time">` for entrada + salida; opens from 🕐 button in asistencias table; `openEditarHorariosModal()` prefill con `slice(0,16)` del string crudo (sin conversión); `confirmEditarHorarios()` posts `PUT /asistencia/{id}/editar-horarios` with `fecha_hora_entrada`, `fecha_hora_salida`, `motivo`; backend guarda la hora local tal cual SIN conversión a UTC; recalculates horas extras if exit time provided; audit trail via `motivo_modificacion` + `modificado_por`
 - Role-based CSS: `body:not(.role-administrador):not(.role-gerente) .admin-only { display: none !important; }` — Gerente can see admin-only elements (Gestionar Mesas, Gestión de Turnos buttons)
+- **Push (Web Push)**: los botones de aviso llevan el atributo `data-push-toggle` (hay dos: `#notifications-push` dentro del panel de notificaciones y `#desktop-push-toggle` en el topbar de escritorio). `pintarEstadoPush()` los sincroniza (`.push-activo` + texto "Avisos activados"/"Activar avisos") y el estado se explica en `#notifications-push-estado` ("Recibirás avisos de comandas **mientras tu turno esté abierto**"). El service worker se registra con `navigator.serviceWorker.register('/Templates/sw.js?v=' + VERSION_APP, { scope: '/Templates/' })`; el `?v=` evita que el navegador sirva el SW cacheado. Deep links: `?pantalla=` (destino) y `?mesa=` (mesa a abrir).
 - `formatLocalTime(isoStr)` helper formatea de forma literal el string crudo (extrae HH:MM y muestra 12h AM/PM) — sin conversión de zona; los datetimes de asistencia son hora local fija de Managua
 - Reloj en vivo: `updateClock()` muestra hora actual en KDS (`#comandero-clock`) y Salón (`#salon-clock`), actualiza cada 30s via `setInterval`
 - `cobrarOrden(ordenId)` — pago rápido desde KDS: PATCH estado a PAGADA + PUT mesa a LIBRE (si tiene mesa_id); alternativa al flujo de detalle de mesa ocupada
@@ -400,6 +407,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
 | GET    | /api/v1/auditoria/                          | Yes      | Admin, Gerente     |
+| GET    | /api/v1/push/config                         | Yes      | Any                |
+| POST   | /api/v1/push/subscribe                      | Yes      | Any                |
+| POST   | /api/v1/push/unsubscribe                    | Yes      | Any                |
+| GET    | /api/v1/push/subscriptions                  | Yes      | Any                |
+| DELETE | /api/v1/push/subscriptions/{id}             | Yes      | Any (propia)       |
 | GET    | /api/v1/descuentos/                         | Yes      | Any                |
 | POST   | /api/v1/descuentos/                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/descuentos/{id}                     | Yes      | Admin, Gerente     |
@@ -607,6 +619,24 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - **Auto-refresh**: `iniciarIntervalosSesion()` arranca `state.kdsRefreshInterval` (15 s) que recarga el KDS solo cuando `state.currentScreen === 'comandero'` y la pestaña está visible; se limpia en `logout()`
 - **Botón principal de cocina**: `.kc-btn-principal` (ancho completo, 52px, `order: -1`) domina la tarjeta — `PENDIENTE` → "🔥 Empezar Preparación" (rojo, `local_fire_department`), `PREPARANDO` → "🛎️ ¡Listo! Avisar al Mesero" (turquesa, `room_service`). "Cobrar", "Editar" y "Cancelar" siguen disponibles para el cocinero
 
+### Notificaciones push (Web Push / VAPID)
+- **Arquitectura**: Web Push con VAPID (`pywebpush==2.0.1`). El aviso llega al teléfono aunque la app esté cerrada o el navegador en segundo plano (a diferencia de WebSocket/SSE, que exigen la pestaña abierta).
+- **Claves VAPID derivadas de `SECRET_KEY`** (`app/core/vapid.py`): si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están definidas, se derivan de forma determinista (P-256) del `SECRET_KEY`. Así producción funciona sin configurar nada en el dashboard de Render y **las suscripciones de los dispositivos sobreviven a los reinicios** (mientras el `SECRET_KEY` no cambie). Las variables de entorno mandan sobre la derivación.
+  - `claves_vapid()` → `(public_key, private_key)` base64url **str**
+  - `clave_privada_vapid()` → clave privada base64url **str** (py-webpush 2.0.1 usa `Vapid.from_string`, que exige `str`; pasar `bytes` revienta con `'bytes' object has no attribute 'encode'`)
+- `app/models/push.py` → tabla `push_suscripciones` (`usuario_id` FK CASCADE, `endpoint` **String(500) unique** — no `Text` para no chocar con el límite de índice de MySQL/Aiven, `p256dh`, `auth`, `user_agent`, `creada_en`, `ultimo_envio_en`). Se crea sola con `Base.metadata.create_all` en el arranque.
+- **Disparadores** (en la capa de endpoints, `app/api/endpoints/orden.py`):
+  - `POST /ordenes/`, `POST /ordenes/{id}/items`, `PUT /ordenes/{id}/items` → `nueva_comanda` → notifica a **cocina**
+  - `PATCH /ordenes/{id}/estado` con `ENTREGADA` → `comanda_lista` → notifica al **mesero** (`orden.mesero_id`)
+- **Solo se notifica a quien tiene el turno abierto**: `PushService.usuarios_con_turno_activo()` filtra por `Asistencia.hora_salida_real IS NULL AND anulada == False`. Si el turno ya se cerró o el registro fue anulado, **no se entrega ninguna notificación**. El mesero que creó la orden queda excluido del aviso a cocina (nada de autosnotificaciones).
+- **Cocina = por Puesto, no por rol**: `es_puesto_cocina()` acepta nombres que contengan `cocin`, `cosin` o `chef` (en producción el puesto es `Cosinero/Chef`, con typo, y NO contiene "cocin").
+- **Los envíos son tarea en segundo plano** (`BackgroundTasks` + `ejecutar_notificacion_push()` que abre su propia `SessionLocal()`): un fallo de push **jamás** rompe el flujo de la orden; el error queda en el log (`[PUSH] ...`) y la suscripción que responde `404`/`410` se elimina (podada automática).
+- **Service worker**: `app/Templates/sw.js`, registrado con `navigator.serviceWorker.register('/Templates/sw.js?v=<VERSION_APP>', { scope: '/Templates/' })`. El scope cubre `/Templates/index.html` (el mount de `StaticFiles` no usa `html=True`, así que `sw.js` se sirve directo). Maneja `push` (muestra notificación con icono `Imagenes/notificacion.png`) y `notificationclick` (abre el ERP con enlace profundo).
+- **Enlaces profundos**: `?pantalla=comandero` (cocina) y `?pantalla=salon&mesa=<mesa_id>` (mesero). `aplicarDestinoSolicitado()` los aplica en `login()` y en la restauración de sesión; `sincronizarPuestoUsuario()` NO pisa el deep link (solo navega a cocina si no hay `?pantalla=`).
+- **Frontend**: `activarNotificacionesPush()` / `desactivarNotificacionesPush()` / `sincronizarEstadoPush()` / `pintarEstadoPush()` / `alternarNotificacionesPush()` en `app/Templates/js/app.js`. Botones con atributo `data-push-toggle` (panel de notificaciones `#notifications-push` + topbar de escritorio `#desktop-push-toggle`).
+- **Endpoints** (`app/api/endpoints/push.py`, todos autenticados): `GET /push/config` (clave pública VAPID + `habilitado`), `POST /push/subscribe` (upsert por `endpoint`), `POST /push/unsubscribe`, `GET /push/subscriptions` (solo las del usuario), `DELETE /push/subscriptions/{id}` (solo propias → 404 ajenas).
+- **Requisito de plataforma**: el service worker exige contexto seguro → en producción HTTPS (o `localhost` en desarrollo).
+
 ### Cocinero/Chef (puesto de cocina)
 - El **cocinero se identifica por su Puesto** (`Puesto.nombre` que contenga "cocin" o "chef", case-insensitive), no por rol — los roles siguen siendo Administrador/Gerente/Vendedor
 - `POST /auth/login` y `GET /auth/me` incluyen `puesto` (nombre del puesto del empleado) en el JWT y en `AuthMeResponse`
@@ -694,5 +724,6 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 - `render.yaml` declara `SECRET_KEY: generateValue` (estable) y las DB_* como `sync: false` (se fijan en el dashboard). **No incluye** `IMGBB_API_KEY` ni `ACCESS_TOKEN_EXPIRE_MINUTES` — ambas se fijan manualmente en el dashboard de Render.
 - Verificar en el dashboard de Render que `ACCESS_TOKEN_EXPIRE_MINUTES` **NO** esté fijo en `480` (anula el default de 525600 del `config.py`).
 - Verificar que `IMGBB_API_KEY` esté configurada (sin ella, `POST /menu/items/{id}/imagen` responde 500).
+- **Push**: no hay nada que configurar en el dashboard (las claves VAPID se derivan del `SECRET_KEY`, que en Render es estable). Después del deploy, comprobar que `https://sazoncaribe-o.onrender.com/Templates/sw.js` responde 200 y que `GET /api/v1/push/config` devuelve `habilitado: true` con la clave pública. Si el `SECRET_KEY` de Render cambiara, las suscripciones de los dispositivos quedarían inservibles y habría que volver a activarlas.
 - `joshi_0211` NO existe en la BD local; su contraseña se fuerza a `@0420311001000V` en cada arranque (hack `_fix_joshi_password`, decisión de no tocarlo). Si el login que falla en prod es de `joshi_0211`, después de cada deploy la contraseña es siempre esa.
 - Ante un login fallido en prod, los logs de Render ya imprimen `Login intent username=... usuario_existe=True/False` y `password_valida=True/False hash_prefix=...`; un `usuario_existe=False` apunta a dos BDs divergentes (Render vs local) o a usernames legacy con espacios/mayúsculas (el fallback `LOWER(TRIM())` en `get_by_username` ya los sana); un `password_valida=False` apunta a hash corrupto (auditoría `[AUTH AUDIT]` al arranque lo lista).

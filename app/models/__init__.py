@@ -12,6 +12,7 @@ from app.models.calendario import EventoCalendario, TipoEventoCalendario, Estado
 from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
 from app.models.descuento import DescuentoFrecuente, TipoDescuento
+from app.models.push import PushSuscripcion
 
 __all__ = [
     "RegistroAuditoria",
@@ -51,4 +52,5 @@ __all__ = [
     "CameraClip",
     "DescuentoFrecuente",
     "TipoDescuento",
+    "PushSuscripcion",
 ]
