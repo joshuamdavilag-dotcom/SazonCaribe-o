@@ -419,6 +419,9 @@ class AsistenciaService:
             "modificado_por": gerente_id,
         }
 
+        if asistencia.horas_extras_originales is None:
+            datos["horas_extras_originales"] = asistencia.horas_extras
+
         if data.fecha_hora_salida is not None:
             salida_local = _parse_local(data.fecha_hora_salida)
             if salida_local <= entrada_local:

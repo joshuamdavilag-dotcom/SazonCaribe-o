@@ -6263,11 +6263,14 @@ function renderAsistenciasTable(asistencias, container) {
           const autoCierre = (a.observaciones || '').includes('Cierre automático')
             ? `<span title="${escHtml(a.observaciones)}" style="cursor:help;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">⏱️ Auto</span>`
             : '';
+          const auditado = a.horas_extras_originales != null
+            ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
+            : '';
           const auditInfo = a.anulada
             ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
-            : (a.horas_extras_originales != null
-              ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
-              : (autoCierre || '<span style="color:#9ca3af;font-size:11px;">—</span>'));
+            : (auditado || autoCierre
+              ? `${auditado}${autoCierre}`
+              : '<span style="color:#9ca3af;font-size:11px;">—</span>');
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
           const acciones = a.anulada
             ? '<span style="color:#9ca3af;font-size:11px;">—</span>'

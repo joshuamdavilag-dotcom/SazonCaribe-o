@@ -389,7 +389,7 @@ La configuración de Render está en `render.yaml`:
 
 ### Frontend en producción: versión de assets y despliegue manual
 
-- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.24`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
+- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.25`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
 - El URL público es único y no debe cambiar: `https://sazoncaribe-o.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`). Ojo: `sazoncaribeo.onrender.com` (sin guion) devuelve 404 de routing de Render; el dominio del servicio es `sazoncaribe-o`.
 - Si Render no despliega solo tras el push, haz **Manual Deploy → Clear build cache & deploy** en el servicio `sazoncaribe-o` y luego un hard-refresh (`Ctrl + Shift + R`) en el navegador.
 
