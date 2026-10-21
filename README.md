@@ -261,7 +261,7 @@ Roles definidos en `RolEnum` (`app/schemas/personal.py`): **Administrador**, **G
 Reglas de sesión adicionales:
 
 - `get_current_user` valida en **cada petición** el usuario fresco de BD: si `activo == False` → `403 USUARIO_DESACTIVADO`; si es Vendedor con `turno_habilitado == False` → `403 TURNO_DESHABILITADO`. Esto invalida de inmediato las sesiones abiertas al deshabilitar un turno.
-- El **cocinero** se identifica por su **Puesto** (nombre que contiene "cocin" o "chef"), no por rol. La app lo lleva directo al Panel de Cocina en pantalla completa.
+- El **cocinero** se identifica por su **Puesto** (nombre que contiene "cocin" o "chef"), no por rol. La app lo lleva directo al Panel de Cocina al iniciar sesión, pero **la navegación nunca se oculta por el puesto**: el bloqueo de navegación aplica solo al rol `Vendedor` y un Administrador/Gerente con puesto de cocina conserva sidebar y bottom nav completos.
 
 ---
 
@@ -292,6 +292,9 @@ Resumen de las reglas más relevantes. El detalle exhaustivo está en `AGENTS.md
 - **Día de negocio** configurable (`HORA_INICIO_DIA`, default 7 AM): los turnos que cruzan medianoche pertenecen al servicio del día anterior.
 - `iniciar_turno` es idempotente; no permite repetir el turno ya finalizado del día de negocio vigente.
 - **Heartbeat**: los vendedores envían latidos; el watcher cierra turnos cuyo dueño ya no puede continuar (usuario inactivo / turno deshabilitado).
+- **Cierres automáticos visibles**: todo cierre forzado (deshabilitación de turno o watcher) queda auditado como `TURNO_CERRADO_AUTOMATICAMENTE` con antes/después y causa; la API de habilitación de turnos informa cuántos turnos se cerraron (`turnos_cerrados`).
+- **Check-out honesto**: si el turno ya fue cerrado automáticamente, `POST /asistencia/check-out` responde `409` con la hora de salida registrada y la causa (no un "éxito" engañoso); el empleado ve la advertencia y gerencia puede corregirla con Editar Horarios.
+- **Habilitación de turnos con confirmation**: los botones de habilitación/deshabilitación masiva y por fila tienen etiquetas explícitas ("Habilitar Turnos (n/total)" / "Deshabilitar Turnos de Todos") y piden confirmación antes de deshabilitar, porque cerrar el turno de alguien es una acción forzosa.
 - **Anulación**: `DELETE /asistencia/{id}` es borrado lógico con motivo obligatorio; los registros anulados no cuentan para nómina.
 
 ### Nómina
@@ -383,6 +386,12 @@ La configuración de Render está en `render.yaml`:
 - **Healthcheck**: `/healthcheck`
 
 > En el dashboard de Render fija manualmente `IMGBB_API_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` y `SECRET_KEY`, y confirma las DB_*. Si `IMGBB_API_KEY` falta, la subida de imágenes responde 500.
+
+### Frontend en producción: versión de assets y despliegue manual
+
+- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.24`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
+- El URL público es único y no debe cambiar: `https://sazoncaribeo.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`).
+- Si Render no despliega solo tras el push, haz **Manual Deploy → Clear build cache & deploy** en el servicio `sazoncaribe-o` y luego un hard-refresh (`Ctrl + Shift + R`) en el navegador.
 
 ---
 

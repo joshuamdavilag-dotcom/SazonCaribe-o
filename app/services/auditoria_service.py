@@ -59,6 +59,47 @@ class AuditoriaService:
         db.add(evento)
         return evento
 
+    @staticmethod
+    def registrar_sistema(
+        db: Session,
+        accion: str,
+        entidad_tipo: str,
+        entidad_id: int | None,
+        descripcion: str,
+        antes: dict[str, Any] | None = None,
+        despues: dict[str, Any] | None = None,
+    ) -> RegistroAuditoria:
+        """Agrega un evento de auditoría ejecutado por el sistema (sin actor humano).
+
+        Se usa para los cierres automáticos de turnos: el registro queda visible
+        en la bitácora aunque no haya una persona detrás de la acción.
+
+        Args:
+            db: Sesión de base de datos.
+            accion: Identificador de la acción realizada.
+            entidad_tipo: Tipo de entidad afectada.
+            entidad_id: ID de la entidad afectada (puede ser None).
+            descripcion: Descripción legible del evento.
+            antes: Estado previo de la entidad (opcional).
+            despues: Estado posterior de la entidad (opcional).
+
+        Returns:
+            El registro de auditoría construido (aún sin commit).
+        """
+        evento = RegistroAuditoria(
+            actor_id=0,
+            actor_username="sistema",
+            actor_rol="Sistema",
+            accion=accion,
+            entidad_tipo=entidad_tipo,
+            entidad_id=entidad_id,
+            descripcion=descripcion,
+            antes=antes,
+            despues=despues,
+        )
+        db.add(evento)
+        return evento
+
     def listar(
         self,
         desde: date | None,

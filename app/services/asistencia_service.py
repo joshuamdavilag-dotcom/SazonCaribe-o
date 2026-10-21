@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.tiempo import ahora_local, hoy_local
 from app.utils.calculations import calcular_horas_extras
+from app.models.personal import Usuario
 from app.repositories.asistencia_repository import AsistenciaRepository
 from app.repositories.turno_repository import TurnoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -554,6 +555,7 @@ class AsistenciaService:
     def cerrar_asistencias_por_deshabilitacion(
         self,
         empleado_ids: List[int],
+        actor: Optional[Usuario] = None,
     ) -> int:
         """
         Cierra las asistencias activas tras deshabilitar el turno (regla ≤15 min).
@@ -566,6 +568,10 @@ class AsistenciaService:
           corrige con Editar Horarios).
         Las horas extras se calculan desde la hora de salida programada del turno.
         Idempotente: solo cierra registros aún sin salida (UPDATE condicional).
+
+        Args:
+            empleado_ids: IDs de los empleados afectados.
+            actor: Usuario que ejecutó la deshabilitación (para la bitácora).
 
         Returns:
             Cantidad de asistencias cerradas.
@@ -605,7 +611,62 @@ class AsistenciaService:
                 "Cierre automático por deshabilitación de turno",
             ):
                 cerrados += 1
+                self._registrar_cierre_automatico(
+                    asistencia,
+                    entrada,
+                    fecha_fin,
+                    horas_extras,
+                    "Turno cerrado automáticamente al deshabilitar el turno del empleado.",
+                    actor=actor,
+                )
         return cerrados
+
+    def _registrar_cierre_automatico(
+        self,
+        asistencia,
+        entrada: datetime,
+        fecha_fin: datetime,
+        horas_extras: Decimal,
+        descripcion: str,
+        actor: Optional[Usuario] = None,
+    ) -> None:
+        """Deja constancia en la bitácora de auditoría de un cierre automático."""
+        from app.services.auditoria_service import AuditoriaService
+
+        antes = {
+            "entrada": entrada.isoformat() if entrada else None,
+            "salida": None,
+            "horas_extras": None,
+            "estado": "abierto",
+        }
+        despues = {
+            "entrada": entrada.isoformat() if entrada else None,
+            "salida": fecha_fin.isoformat() if fecha_fin else None,
+            "horas_extras": str(horas_extras),
+            "estado": "cerrado",
+        }
+        if actor is not None:
+            AuditoriaService.registrar(
+                self.db,
+                actor,
+                "TURNO_CERRADO_AUTOMATICAMENTE",
+                "Asistencia",
+                asistencia.id,
+                descripcion,
+                antes,
+                despues,
+            )
+        else:
+            AuditoriaService.registrar_sistema(
+                self.db,
+                "TURNO_CERRADO_AUTOMATICAMENTE",
+                "Asistencia",
+                asistencia.id,
+                descripcion,
+                antes,
+                despues,
+            )
+        self.db.commit()
 
     def cerrar_turnos_stale(
         self,
@@ -649,4 +710,11 @@ class AsistenciaService:
                 "Cierre automático por timeout de heartbeat",
             ):
                 cerrados += 1
+                self._registrar_cierre_automatico(
+                    asistencia,
+                    entrada,
+                    fecha_fin,
+                    horas_extras,
+                    "Turno cerrado automáticamente por inactividad (sin heartbeat).",
+                )
         return cerrados

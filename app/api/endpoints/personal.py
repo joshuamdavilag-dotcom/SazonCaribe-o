@@ -19,6 +19,7 @@ from app.schemas.personal import (
     EliminarUsuarioResponse,
     TurnoHabilitadoUpdate,
     TurnoMasivoResponse,
+    TurnoUsuarioResponse,
     RolEnum
 )
 from app.services.personal_service import PersonalService
@@ -270,20 +271,21 @@ def restablecer_contrasena(
 )
 def habilitar_turno_masivo(
     request: TurnoHabilitadoUpdate,
-    service: PersonalService = Depends(get_personal_service)
+    service: PersonalService = Depends(get_personal_service),
+    current_user: Usuario = Depends(get_current_user),
 ) -> TurnoMasivoResponse:
     """
     Habilita o deshabilita el inicio de turno de todos los Vendedores.
 
     - **turno_habilitado**: true habilita a todos, false los bloquea.
     """
-    resultado = service.habilitar_turno_masivo(request.turno_habilitado)
+    resultado = service.habilitar_turno_masivo(request.turno_habilitado, actor=current_user)
     return TurnoMasivoResponse(**resultado)
 
 
 @router.patch(
     "/usuarios/{usuario_id}/turno",
-    response_model=UsuarioResponse,
+    response_model=TurnoUsuarioResponse,
     summary="Cambiar habilitación de turno de un usuario",
     description="Habilita o deshabilita el inicio de turno de un usuario Vendedor. Solo Administradores y Gerentes.",
     tags=["Usuarios"],
@@ -292,15 +294,18 @@ def habilitar_turno_masivo(
 def cambiar_turno_habilitado(
     usuario_id: int,
     request: TurnoHabilitadoUpdate,
-    service: PersonalService = Depends(get_personal_service)
-) -> UsuarioResponse:
+    service: PersonalService = Depends(get_personal_service),
+    current_user: Usuario = Depends(get_current_user),
+) -> TurnoUsuarioResponse:
     """
     Cambia la habilitación de turno de un usuario específico.
 
     - **usuario_id**: ID del usuario
     - **turno_habilitado**: true habilita su turno, false lo bloquea.
     """
-    return service.cambiar_turno_habilitado(
+    usuario, turnos_cerrados = service.cambiar_turno_habilitado(
         usuario_id,
         request.turno_habilitado,
+        actor=current_user,
     )
+    return TurnoUsuarioResponse(usuario=usuario, turnos_cerrados=turnos_cerrados)

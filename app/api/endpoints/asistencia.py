@@ -218,7 +218,10 @@ def registrar_salida(
             current_user.empleado_id,
         )
         if asistencia_hoy and asistencia_hoy.hora_salida_real is not None:
-            return AsistenciaResponse.model_validate(asistencia_hoy)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=_detalle_turno_ya_cerrado(asistencia_hoy),
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El empleado no tiene un turno activo para finalizar",
@@ -226,6 +229,21 @@ def registrar_salida(
 
     asistencia = turno_service.finalizar_turno(db, activa.id)
     return AsistenciaResponse.model_validate(asistencia)
+
+
+def _detalle_turno_ya_cerrado(asistencia) -> str:
+    """Explica que el turno ya estaba cerrado y con qué hora quedó registrado."""
+    hora_salida = asistencia.hora_salida_real
+    hora = hora_salida.strftime("%I:%M %p") if hora_salida else "hora desconocida"
+    motivo = (asistencia.observaciones or "").strip()
+    detalle = (
+        f"Tu turno ya fue cerrado a las {hora} y no está activo. "
+        "Si seguiste trabajando después de esa hora, pide a gerencia que corrija "
+        "la salida con Editar Horarios."
+    )
+    if motivo:
+        detalle += f" Motivo registrado: {motivo}."
+    return detalle
 
 
 # =============================================================================

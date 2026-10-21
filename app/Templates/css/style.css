@@ -2977,18 +2977,6 @@ body:not(.role-administrador):not(.role-gerente) #cierre-gestor-panel {
   display: none !important;
 }
 
-/* Cocinero/Chef: solo el Panel de Cocina (sin navegación lateral ni barra inferior) */
-body.role-cocina .sidebar-nav,
-body.role-cocina .bottom-nav,
-body.role-cocina .sidebar-toggle {
-  display: none !important;
-}
-body.role-cocina .main-content {
-  margin-left: 0 !important;
-  padding-bottom: 0 !important;
-}
-body.role-cocina .sidebar-backdrop { display: none !important; }
-
 /* =========================================================================
    Personal & Nómina
    ========================================================================= */

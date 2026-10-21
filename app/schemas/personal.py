@@ -309,3 +309,18 @@ class TurnoMasivoResponse(BaseModel):
         ge=0,
         description="Cantidad de usuarios Vendedor actualizados"
     )
+    turnos_cerrados: int = Field(
+        0,
+        ge=0,
+        description="Cantidad de turnos que se cerraron automáticamente al deshabilitar"
+    )
+
+
+class TurnoUsuarioResponse(BaseModel):
+    """Esquema de respuesta para el cambio de habilitación de turno de un usuario."""
+    usuario: UsuarioResponse
+    turnos_cerrados: int = Field(
+        0,
+        ge=0,
+        description="Cantidad de turnos que se cerraron automáticamente al deshabilitar"
+    )

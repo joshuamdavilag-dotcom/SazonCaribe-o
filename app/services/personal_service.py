@@ -607,16 +607,19 @@ class PersonalService:
         self,
         usuario_id: int,
         turno_habilitado: bool,
-    ) -> UsuarioResponse:
+        actor: Optional[Usuario] = None,
+    ) -> tuple[UsuarioResponse, int]:
         """
         Habilita o deshabilita el inicio de turno de un usuario Vendedor.
 
         Args:
             usuario_id: ID del usuario.
             turno_habilitado: Nuevo estado de habilitación.
+            actor: Usuario que ejecuta el cambio (queda en la bitácora).
 
         Returns:
-            UsuarioResponse con el usuario actualizado.
+            Tupla con el usuario actualizado y la cantidad de turnos cerrados
+            automáticamente por la deshabilitación.
 
         Raises:
             HTTPException 404: Si el usuario no existe.
@@ -632,31 +635,44 @@ class PersonalService:
             usuario_id,
             turno_habilitado,
         )
+        cerrados = 0
         if not turno_habilitado and actualizado.rol == RolEnum.VENDEDOR.value:
-            AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
-                [actualizado.empleado_id],
+            empleado_ids = (
+                [actualizado.empleado_id] if actualizado.empleado_id else []
             )
-        return UsuarioResponse.model_validate(actualizado)
+            cerrados = AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
+                empleado_ids,
+                actor=actor,
+            )
+        return UsuarioResponse.model_validate(actualizado), cerrados
 
-    def habilitar_turno_masivo(self, turno_habilitado: bool) -> dict:
+    def habilitar_turno_masivo(
+        self,
+        turno_habilitado: bool,
+        actor: Optional[Usuario] = None,
+    ) -> dict:
         """
         Habilita o deshabilita el inicio de turno de todos los Vendedores.
 
         Args:
             turno_habilitado: Nuevo estado de habilitación.
+            actor: Usuario que ejecuta el cambio (queda en la bitácora).
 
         Returns:
-            Dict con la cantidad de usuarios actualizados.
+            Dict con la cantidad de usuarios actualizados y la cantidad de
+            turnos que se cerraron automáticamente.
         """
         actualizados = self.usuario_repo.actualizar_turno_habilitado_masivo(
             turno_habilitado
         )
+        cerrados = 0
         if not turno_habilitado and actualizados > 0:
             vendedores = self.usuario_repo.get_by_rol(RolEnum.VENDEDOR.value)
-            AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
-                [u.empleado_id for u in vendedores],
+            cerrados = AsistenciaService(self.db).cerrar_asistencias_por_deshabilitacion(
+                [u.empleado_id for u in vendedores if u.empleado_id],
+                actor=actor,
             )
-        return {"actualizados": actualizados}
+        return {"actualizados": actualizados, "turnos_cerrados": cerrados}
 
     # =========================================================================
     # Métodos Privados de Validación

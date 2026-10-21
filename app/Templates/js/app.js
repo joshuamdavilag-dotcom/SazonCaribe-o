@@ -71,6 +71,7 @@ const state = {
   auditOffset: 0,
   auditLimit: 50,
   auditPage: null,
+  avisoCierreAutomatico: null,
 };
 
 /* =========================================================================
@@ -373,9 +374,6 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
-  if (esUsuarioCocina() && screenId !== 'comandero') {
-    screenId = 'comandero';
-  }
   const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
   if (screenId === 'descuentos' && !esGestor) {
     showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
@@ -981,6 +979,8 @@ function cerrarClipModal() {
    Role-Based Nav Restrictions
    ========================================================================= */
 function esUsuarioCocina() {
+  const rol = state.user?.rol || '';
+  if (rol !== 'Vendedor') return false;
   const puesto = (state.user?.puesto || '').toLowerCase();
   if (!puesto) return false;
   return puesto.includes('cocin') || puesto.includes('chef');
@@ -989,13 +989,11 @@ function esUsuarioCocina() {
 function applyRoleRestrictions() {
   const rol = state.user?.rol || '';
   const isElevated = rol === 'Administrador' || rol === 'Gerente';
-  const esCocina = esUsuarioCocina();
 
   document.body.classList.remove('role-administrador', 'role-gerente', 'role-vendedor', 'role-cocina');
   if (rol === 'Administrador') document.body.classList.add('role-administrador');
   else if (rol === 'Gerente') document.body.classList.add('role-gerente');
   else if (rol === 'Vendedor') document.body.classList.add('role-vendedor');
-  if (esCocina) document.body.classList.add('role-cocina');
 
   document.querySelectorAll('.nav-item-admin').forEach(btn => {
     const allowedRoles = (btn.dataset.roles || '').split(',');
@@ -1119,12 +1117,17 @@ async function finalizarTurno() {
     return null;
   } catch (e) {
     const msg = (e && typeof e.message === 'string') ? e.message : '';
-    if (msg.includes('no tiene un turno activo')) {
+    const yaCerrado = msg.includes('ya fue cerrado');
+    if (msg.includes('no tiene un turno activo') || yaCerrado) {
       state.currentAsistencia = null;
       localStorage.removeItem('pos_asistencia');
       renderAttendanceStatus();
     }
-    if (!ERRORES_SESION.includes(msg)) showToast(msg, 'error');
+    if (yaCerrado) {
+      showToast(msg, 'error', 9000);
+    } else if (!ERRORES_SESION.includes(msg)) {
+      showToast(msg, 'error');
+    }
     throw e;
   }
 }
@@ -1476,12 +1479,21 @@ async function syncAsistenciaActiva() {
   if (!state.token || !state.user) return;
   try {
     const data = await api('/asistencia/activa', { silent: true });
+    const previa = state.currentAsistencia;
     if (data) {
       state.currentAsistencia = data;
       localStorage.setItem('pos_asistencia', JSON.stringify(data));
     } else {
       state.currentAsistencia = null;
       localStorage.removeItem('pos_asistencia');
+      if (previa && !previa.hora_salida_real && state.avisoCierreAutomatico !== previa.id) {
+        state.avisoCierreAutomatico = previa.id;
+        showToast(
+          'Tu turno fue cerrado automáticamente y ya no está activo. Si la hora de salida no es correcta, pide a gerencia que la ajuste con Editar Horarios.',
+          'error',
+          10000,
+        );
+      }
     }
     state.attendanceSynced = true;
     renderAttendanceStatus();
@@ -1589,6 +1601,7 @@ function renderAuditoria() {
     ITEM_DEVUELTO: 'Platillo devuelto',
     GASTO_EDITADO: 'Gasto modificado',
     GASTO_ELIMINADO: 'Gasto eliminado',
+    TURNO_CERRADO_AUTOMATICAMENTE: 'Turno cerrado automáticamente',
   };
   tbody.innerHTML = items.map(event => {
     const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
@@ -1631,6 +1644,9 @@ const AUDIT_FIELD_LABELS = {
   tipo: 'Tipo',
   valor: 'Valor',
   estado: 'Estado',
+  entrada: 'Entrada',
+  salida: 'Salida',
+  horas_extras: 'Horas extras',
 };
 
 function auditFieldLabel(key) {
@@ -1647,7 +1663,9 @@ function auditValueText(key, value) {
     const n = parseFloat(value);
     if (!isNaN(n)) return `C$${n.toFixed(2)}`;
   }
-  if (key === 'fecha') return String(value).replace('T', ' ').slice(0, 16);
+  if (key === 'fecha' || key === 'entrada' || key === 'salida') {
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
   if (key === 'moneda') return 'C$';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
@@ -5575,17 +5593,41 @@ function syncMassTurnoButton() {
   const btn = document.getElementById('btn-toggle-all-turnos');
   if (!btn) return;
   const vendedores = (state.usuarios || []).filter(u => u.rol === 'Vendedor');
-  const allEnabled = vendedores.length > 0 && vendedores.every(u => u.turno_habilitado);
-  btn.dataset.enabled = String(allEnabled);
-  btn.querySelector('.material-symbols-outlined').textContent = allEnabled ? 'toggle_on' : 'toggle_off';
+  const total = vendedores.length;
+  const habilitados = vendedores.filter(u => u.turno_habilitado).length;
+  const todosHabilitados = total > 0 && habilitados === total;
+  btn.dataset.enabled = String(todosHabilitados);
+  btn.querySelector('.material-symbols-outlined').textContent = todosHabilitados ? 'toggle_off' : 'toggle_on';
   const label = btn.querySelector('span:last-child');
-  if (label) label.textContent = allEnabled ? 'Turnos Habilitados' : 'Habilitar Todos los Turnos';
+  if (label) {
+    label.textContent = todosHabilitados
+      ? 'Deshabilitar Turnos de Todos'
+      : `Habilitar Turnos (${habilitados}/${total})`;
+  }
+}
+
+function nombreUsuarioVendedor(usuarioId) {
+  const usu = (state.usuarios || []).find(u => u.id === usuarioId);
+  if (!usu) return `usuario #${usuarioId}`;
+  const emp = (state.empleados || []).find(e => e.id === usu.empleado_id);
+  const nombre = emp ? `${emp.nombre || ''} ${emp.apellido || ''}`.trim() : '';
+  return nombre ? `${nombre} (${usu.username})` : usu.username;
 }
 
 async function toggleTurnoMasivo() {
   const btn = document.getElementById('btn-toggle-all-turnos');
   if (!btn) return;
   const next = btn.dataset.enabled !== 'true';
+  if (!next) {
+    const vendedores = (state.usuarios || []).filter(u => u.rol === 'Vendedor');
+    const ok = confirm(
+      `Se deshabilitará el turno de TODOS los meseros (${vendedores.length}).\n\n` +
+      '• Los que tengan un turno abierto verán su salida registrada automáticamente.\n' +
+      '• No podrán iniciar turno ni mantener la sesión abierta.\n\n' +
+      '¿Deseas continuar?'
+    );
+    if (!ok) return;
+  }
   btn.disabled = true;
   try {
     const res = await api('/personal/usuarios/turno-masivo', {
@@ -5597,25 +5639,51 @@ async function toggleTurnoMasivo() {
     });
     renderPersonalTable(state.empleados, state.usuarios);
     syncMassTurnoButton();
-    showToast(next
-      ? `Meseros habilitados para iniciar turno (${res.actualizados || 0})`
-      : 'Turno de todos los meseros deshabilitado');
+    const cerrados = res.turnos_cerrados || 0;
+    if (next) {
+      showToast(`Turnos habilitados para ${res.actualizados || 0} meseros`, 'success');
+    } else {
+      showToast(
+        `Turno deshabilitado para ${res.actualizados || 0} meseros` +
+        (cerrados ? ` — ${cerrados} turno(s) activo(s) se cerraron automáticamente` : ''),
+        'error',
+        cerrados ? 7000 : 3000,
+      );
+    }
   } catch { /* handled by api() */ } finally { btn.disabled = false; }
 }
 
 async function toggleTurnoUsuario(usuarioId, habilitar) {
+  if (!habilitar) {
+    const ok = confirm(
+      `Se deshabilitará el turno de ${nombreUsuarioVendedor(usuarioId)}.\n\n` +
+      '• Si tiene un turno abierto, su salida se registrará automáticamente.\n' +
+      '• No podrá iniciar turno ni mantener la sesión abierta.\n\n' +
+      '¿Deseas continuar?'
+    );
+    if (!ok) return;
+  }
   try {
     const res = await api(`/personal/usuarios/${usuarioId}/turno`, {
       method: 'PATCH',
       body: JSON.stringify({ turno_habilitado: habilitar }),
     });
+    const usuario = res.usuario || res;
     const usu = (state.usuarios || []).find(u => u.id === usuarioId);
-    if (usu) usu.turno_habilitado = res.turno_habilitado;
+    if (usu) usu.turno_habilitado = usuario.turno_habilitado;
     renderPersonalTable(state.empleados, state.usuarios);
     syncMassTurnoButton();
-    showToast(habilitar
-      ? 'Mesero habilitado para iniciar turno'
-      : 'Mesero deshabilitado — no podrá iniciar turno');
+    const cerrados = res.turnos_cerrados || 0;
+    if (habilitar) {
+      showToast('Turno habilitado — el mesero ya puede iniciar su turno', 'success');
+    } else {
+      showToast(
+        'Turno deshabilitado' +
+        (cerrados ? ` — su turno activo se cerró automáticamente (${cerrados})` : ''),
+        'error',
+        cerrados ? 7000 : 3000,
+      );
+    }
   } catch { /* handled by api() */ }
 }
 
@@ -6192,11 +6260,14 @@ function renderAsistenciasTable(asistencias, container) {
           const otBadge = ot > 0
             ? `<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
             : '<span style="color:#9ca3af;">0.00h</span>';
+          const autoCierre = (a.observaciones || '').includes('Cierre automático')
+            ? `<span title="${escHtml(a.observaciones)}" style="cursor:help;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">⏱️ Auto</span>`
+            : '';
           const auditInfo = a.anulada
             ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
             : (a.horas_extras_originales != null
               ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
-              : '<span style="color:#9ca3af;font-size:11px;">—</span>');
+              : (autoCierre || '<span style="color:#9ca3af;font-size:11px;">—</span>'));
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
           const acciones = a.anulada
             ? '<span style="color:#9ca3af;font-size:11px;">—</span>'
