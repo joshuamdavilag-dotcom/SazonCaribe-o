@@ -9,8 +9,6 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
   ? 'http://127.0.0.1:8000/api/v1'
   : `${location.origin}/api/v1`;
 
-const VERSION_APP = '6.26';
-
 function escHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -273,7 +271,10 @@ async function registrarServiceWorkerPush() {
   if (!('serviceWorker' in navigator)) return null;
   if (pushEstado.registro) return pushEstado.registro;
   try {
-    pushEstado.registro = await navigator.serviceWorker.register(`/Templates/sw.js?v=${VERSION_APP}`, { scope: '/Templates/' });
+    pushEstado.registro = await navigator.serviceWorker.register('/Templates/sw.js', { scope: '/Templates/' });
+    if (pushEstado.registro.update) {
+      pushEstado.registro.update().catch(() => {});
+    }
     return pushEstado.registro;
   } catch (error) {
     console.warn('No se pudo registrar el service worker de push:', error);
@@ -418,18 +419,33 @@ async function sincronizarEstadoPush() {
 
 /* =========================================================================
    Destinos por URL (enlace profundo desde una notificación)
+   La URL pública del ERP es única y no cambia: los parámetros de destino
+   se leen una sola vez y se limpian de la barra de direcciones.
    ========================================================================= */
-function paramUrl(nombre) {
+const DESTINO_URL = (() => {
   try {
-    return new URLSearchParams(window.location.search).get(nombre);
+    const params = new URLSearchParams(window.location.search);
+    return { pantalla: params.get('pantalla'), mesa: params.get('mesa') };
   } catch (error) {
-    return null;
+    return { pantalla: null, mesa: null };
+  }
+})();
+
+function limpiarUrlDestino() {
+  try {
+    if (!window.location.search) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('pantalla');
+    url.searchParams.delete('mesa');
+    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+  } catch (error) {
+    /* si el navegador no deja limpiar la URL, el destino sigue funcionando */
   }
 }
 
-async function aplicarDestinoSolicitado() {
-  const pantalla = paramUrl('pantalla');
-  const mesa = paramUrl('mesa');
+limpiarUrlDestino();
+
+async function aplicarDestino(pantalla, mesa) {
   const destino = (pantalla && document.getElementById(`screen-${pantalla}`))
     ? pantalla
     : (esUsuarioCocina() ? 'comandero' : 'salon');
@@ -441,6 +457,18 @@ async function aplicarDestinoSolicitado() {
   await loadTables();
   navigateTo('salon');
   openDetalleMesaOcupada(mesaId);
+}
+
+function aplicarDestinoSolicitado() {
+  return aplicarDestino(DESTINO_URL.pantalla, DESTINO_URL.mesa);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (evento) => {
+    const datos = evento.data || {};
+    if (datos.tipo !== 'destino') return;
+    void aplicarDestino(datos.pantalla, datos.mesa);
+  });
 }
 
 /* =========================================================================
@@ -8280,7 +8308,7 @@ async function sincronizarPuestoUsuario() {
     state.user = { ...state.user, puesto };
     localStorage.setItem('pos_user', JSON.stringify(state.user));
     applyRoleRestrictions();
-    if (esUsuarioCocina() && !paramUrl('pantalla')) navigateTo('comandero');
+    if (esUsuarioCocina() && !DESTINO_URL.pantalla) navigateTo('comandero');
   } catch {
     /* sesión inválida: el interceptor de api() ya maneja el logout */
   }

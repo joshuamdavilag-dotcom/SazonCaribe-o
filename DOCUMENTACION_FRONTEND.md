@@ -32,7 +32,7 @@
 - Sirve FastAPI desde `app/Templates/` (INDEX: `index.html`, CSS: `css/style.css`, JS: `js/app.js`).
 - **`API_BASE`** auto-detecta: local (`localhost`/`127.0.0.1`) → `http://127.0.0.1:8000/api/v1`, remoto → `${location.origin}/api/v1`.
 - **Token/sesión** en `localStorage`: `pos_token` (JWT) y `pos_user` (JSON con rol).
-- **Cache-bust**: los `<link>`/`<script>` usan query string `?v=X`; se incrementa en cada cambio de CSS/JS.
+- **Cache-bust**: los `<link>`/`<script>` usan **URL estable sin query string** (`css/style.css`, `js/app.js`); la invalidación la hace el servidor con `Cache-Control: no-cache` + `ETag`/`304`, así que nunca hay que tocar el link.
 - **Navegación**: `.screen` se muestra/oculta con clase `.active` (ver `navigateTo`).
 - **Tailwind** (CDN) + **Material Symbols** (fuente de iconos) ya cargados en `<head>`; `tailwind.config` define tokens Material (`primary`, `surface-container`, etc.).
 
@@ -434,7 +434,7 @@ Tailwind config (en `index.html`): `primary #0D233A`, `primary-container #003366
 4. **RBAC**: `.admin-only` solo Admin/Gerente (vía `body:not(.role-administrador):not(.role-gerente)`); `.nav-locked` deja ver pero bloquea. Role in `#screen-personal` etc.
 5. **Responsive**: breakpoints móvil <768px; tablet 768–1024px; desktop ≥1024px.
 6. **Modales**: siempre `.modal-overlay` + `.modal-sheet` + `.modal-header`(título + `×`). Se activan con `.show`.
-7. **Cache-bust**: tras editar CSS/JS, subir `?v=` en `index.html`.
+7. **Cache-bust**: los links de CSS/JS **no cambian** (sin `?v=`); el servidor revalida con `ETag`/`304`. No hay nada que subir en `index.html`.
 8. **Reloj**: hora local fija Nicaragua (`formatLocalTime` literal, sin `Date`).
 9. **Iconos**: se usan **Material Symbols** (`<span class="material-symbols-outlined">nombre</span>`).
 10. **Tailwind + CSS custom coexisten**: usa utilidades Tailwind donde el HTML de Stitch las use (especialmente tarjetas de Salón) y CSS custom para el shell/componentes base.

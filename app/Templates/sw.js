@@ -44,16 +44,22 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const destino = (event.notification.data && event.notification.data.url) || RUTA_APP;
-  const url = new URL(destino, self.location.origin).href;
+  const url = new URL(destino, self.location.origin);
+  const params = url.searchParams;
 
   event.waitUntil((async () => {
     const clientes = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const cliente of clientes) {
       if ('focus' in cliente && cliente.url.startsWith(new URL(BASE, self.location.origin).href)) {
-        await cliente.navigate(url);
-        return cliente.focus();
+        await cliente.focus();
+        cliente.postMessage({
+          tipo: 'destino',
+          pantalla: params.get('pantalla'),
+          mesa: params.get('mesa'),
+        });
+        return cliente;
       }
     }
-    return self.clients.openWindow(url);
+    return self.clients.openWindow(url.href);
   })());
 });

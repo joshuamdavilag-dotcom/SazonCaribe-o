@@ -417,10 +417,10 @@ La configuración de Render está en `render.yaml`:
 
 > **Push (Web Push)**: no requiere variables adicionales. Las claves VAPID se derivan de `SECRET_KEY` (mientras no cambies esa variable, las suscripciones de los dispositivos siguen siendo válidas). Verifica que `https://sazoncaribe-o.onrender.com/Templates/sw.js` responde 200 después del despliegue.
 
-### Frontend en producción: versión de assets y despliegue manual
+### Frontend en producción: assets con URL estable y despliegue manual
 
-- `app/Templates/index.html` carga `css/style.css?v=<N>` y `js/app.js?v=<N>`. **Todo cambio de frontend exige subir `<N>`** (actualmente `6.26`); si no, el navegador sirve el JS/CSS cacheado y el fix no aparece.
-- El URL público es único y no debe cambiar: `https://sazoncaribe-o.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`). Ojo: `sazoncaribeo.onrender.com` (sin guion) devuelve 404 de routing de Render; el dominio del servicio es `sazoncaribe-o`.
+- `app/Templates/index.html` carga `css/style.css` y `js/app.js` **sin parámetro de versión**: **la URL de los archivos nunca cambia**. El cache se resuelve con `Cache-Control: no-cache` + `ETag`/`304` (middleware `_revalidar_estaticos` en `app/main.py`), así que el navegador revalida en cada carga y nunca queda con un JS/CSS viejo **sin tocar ningún link**. No hay que subir ningún número de versión.
+- El URL público es único y no debe cambiar: `https://sazoncaribe-o.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`). Ojo: `sazoncaribeo.onrender.com` (sin guion) devuelve 404 de routing de Render; el dominio del servicio es `sazoncaribe-o`. Los enlaces profundos de las notificaciones (`?pantalla=…`, `?mesa=…`) se borran de la barra de direcciones al cargar la app: la URL visible siempre es la canónica.
 - Si Render no despliega solo tras el push, haz **Manual Deploy → Clear build cache & deploy** en el servicio `sazoncaribe-o` y luego un hard-refresh (`Ctrl + Shift + R`) en el navegador.
 
 ---

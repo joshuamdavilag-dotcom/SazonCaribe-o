@@ -211,6 +211,20 @@ app.mount(
 )
 
 
+@app.middleware("http")
+async def _revalidar_estaticos(request: Request, call_next):
+    """Los assets del ERP y de la Carta se revalidan siempre (ETag/304).
+
+    Así las URLs de los archivos son estables (nunca hay que versionarlas)
+    y el navegador nunca queda con una copia vieja del JS o del CSS.
+    """
+    response = await call_next(request)
+    ruta = request.url.path
+    if ruta.startswith("/Templates") or ruta.startswith("/carta"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.on_event("startup")
 async def startup_event():
     """Evento de inicio de la aplicación."""
