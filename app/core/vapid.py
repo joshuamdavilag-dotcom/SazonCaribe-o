@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from app.core.config import get_settings
 
 _CURVA = ec.SECP256R1()
-_ORDEN_CURVA = _CURVA.group_order
+_ORDEN_CURVA = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
 
 
 def _base64url(datos: bytes) -> str:
