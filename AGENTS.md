@@ -57,8 +57,8 @@ Multi-layer pattern: **API → Service → Repository → Model**
 app/
 ├── main.py                  # FastAPI app, CORS, router registration, static mounts (/Templates + /carta), startup migrations, heartbeat watcher BG task, orphaned mesa fix, joshi password fix, constraint fix
 ├── core/
-│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS, IMGBB_API_KEY, VAPID_*, PUSH_*
-│   ├── database.py          # Engine, SessionLocal, Base, get_db()
+│   ├── config.py            # Pydantic Settings (.env) — includes HEARTBEAT_TIMEOUT_SECONDS, IMGBB_API_KEY, VAPID_*, PUSH_*, GEMINI_*
+│   ├── database.py          # Engine, SessionLocal, Base, get_db() (SQLite archivo → pool normal; :memory: → StaticPool)
 │   ├── security.py          # bcrypt (direct) + JWT — SECRET_KEY/ALGORITHM/ACCESS_TOKEN_EXPIRE_MINUTES read from .env via Settings
 │   └── vapid.py             # Claves VAPID derivadas de SECRET_KEY (determinista) — Web Push
 ├── api/
@@ -79,6 +79,7 @@ app/
 │       ├── calendario.py    # Planificación autenticada + consulta de asistencias reales
 │       ├── reportes.py      # Reportes financieros por periodo
 │       ├── push.py          # Suscripciones push del dispositivo (config/subscribe/unsubscribe)
+│       ├── estudio_mercado.py # Estudio de Mercado con Gemini (generar, listar, detalle, eliminar, documentos, chat)
 │       └── analitica.py     # Cierre de caja legacy (métricas simples)
 ├── schemas/
 │   ├── personal.py          # RolEnum, Puesto/Empleado/Usuario schemas
@@ -95,6 +96,7 @@ app/
 │   ├── reportes.py          # PeriodoEnum, CierreCajaPeriodoResponse (includes gastos_operativos)
 │   ├── analitica.py         # CierreCajaResponse (legacy)
 │   ├── push.py              # PushClaves, PushSuscripcionCreate/Response, PushConfigResponse
+│   ├── estudio_mercado.py   # EstudioMercadoResponse, GenerarEstudioRequest, ChatEstudioRequest/Response, DocumentoResponse
 │   └── auth.py              # LoginRequest, TokenResponse
 ├── models/
 │   ├── personal.py          # Puesto, Empleado, Usuario
@@ -103,11 +105,12 @@ app/
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
 │   ├── menu.py              # CategoriaMenu, MenuItem (imagen_url, tiempo_preparacion), Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
-│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable; subtotal, descuento_total, nombre_cliente; descuento_porcentaje/monto/motivo on DetalleOrden; anulada/motivo_anulacion/anulada_por/anulada_en on Orden; cantidad_devuelta/motivo_devolucion/devuelta_en on DetalleOrden)
+│   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable; metodo_pago; subtotal, descuento_total, nombre_cliente; descuento_porcentaje/monto/motivo on DetalleOrden; anulada/motivo_anulacion/anulada_por/anulada_en on Orden; cantidad_devuelta/motivo_devolucion/devuelta_en on DetalleOrden)
 │   ├── caja.py              # CierreCaja
 │   ├── gasto.py             # Gasto, CategoriaGasto enum (+ eliminado/motivo_eliminacion/eliminado_por/eliminado_en)
 │   ├── calendario.py        # EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 │   ├── push.py              # PushSuscripcion (usuario_id, endpoint unique, p256dh, auth)
+│   ├── estudio_mercado.py   # EstudioMercado, DocumentoEstudioMercado, MensajeEstudioMercado
 │   └── __init__.py          # Registers all models including Gasto
 ├── repositories/
 │   ├── base_repository.py   # Generic base repository
@@ -124,6 +127,7 @@ app/
 │   ├── gasto_repository.py       # obtener_por_rango(), sumar_por_rango()
 │   ├── calendario_repository.py  # eventos por rango + asistencias no anuladas con nombres
 │   ├── reportes_repository.py    # + obtener_gastos_clasificados(), obtener_descuentos_totales()
+│   ├── estudio_mercado_repository.py # Métricas del periodo, CRUD de estudios, documentos y mensajes
 │   └── analitica_repository.py
 ├── services/
 │   ├── personal_service.py
@@ -140,7 +144,10 @@ app/
 │   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos; incluye descuentos en response
 │   ├── conversion_service.py     # convertir_cantidad() — transitive chain resolution via _get_chain()
 │   ├── turno_service.py          # Standalone functions
-│   ├── push_service.py           # Suscripciones push, usuarios_cocina(), enviar(), notificar_nueva_comanda()/notificar_comanda_lista()
+│   ├── push_service.py           # Suscripciones push, usuarios_cocina(), enviar(), notificar_nueva_comanda()/notificar_comanda_lista(); usuarios_administracion(), notificar_estudio_mercado()
+│   ├── gemini_service.py         # Cliente Gemini: rotación de modelos, reintentos, thinkingConfig adaptativo, clasificador de alcance
+│   ├── estudio_mercado_service.py # Generación del estudio (métricas + temporada), guardrail de temas, chat con documentos, _contexto_negocio()
+│   ├── extraccion_texto.py       # Extrae texto de PDF/DOC/DOCX/XLS/XLSX/CSV para el análisis
 │   └── analitica_service.py
 ├── db/
 │   └── init_db.py
@@ -423,6 +430,16 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | PUT    | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
 | DELETE | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
 | GET    | /api/v1/auditoria/                          | Yes      | Admin, Gerente     |
+| GET    | /api/v1/estudio-mercado/                    | Yes      | Admin, Gerente     |
+| POST   | /api/v1/estudio-mercado/generar             | Yes      | Admin, Gerente     |
+| GET    | /api/v1/estudio-mercado/{id}                | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/estudio-mercado/{id}                | Yes      | Admin, Gerente     |
+| GET    | /api/v1/estudio-mercado/documentos          | Yes      | Admin, Gerente     |
+| POST   | /api/v1/estudio-mercado/documentos          | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/estudio-mercado/documentos/{id}     | Yes      | Admin, Gerente     |
+| GET    | /api/v1/estudio-mercado/chat/historial      | Yes      | Admin, Gerente     |
+| POST   | /api/v1/estudio-mercado/chat               | Yes      | Admin, Gerente     |
+| DELETE | /api/v1/estudio-mercado/chat/historial      | Yes      | Admin, Gerente     |
 | GET    | /api/v1/push/config                         | Yes      | Any                |
 | GET    | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
 | PATCH  | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
@@ -664,6 +681,23 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - **El bloqueo de navegación es por ROL, no por puesto**: el bloqueo al Panel de Cocina aplica **solo a rol `Vendedor`** (`esUsuarioCocina()` exige `state.user.rol === 'Vendedor'` **y** puesto de cocina). Un Administrador/Gerente con un puesto de cocina conserva la navegación completa (sidebar + bottom nav) y aterriza en el Panel de Cocina. Regla: la navegación **nunca** se oculta por el puesto; como máximo se restringe por rol.
 - **No existe `body.role-cocina`**: el bloque CSS que ocultaba `.sidebar-nav`, `.bottom-nav` y `.sidebar-toggle` (y quitaba el margen del `.main-content`) fue **eliminado**. Con él, en móvil el cocinero se quedaba sin bottom nav y sin forma de abrir el panel de asistencia (el sidebar es off-canvas y el hamburger está oculto en ≤768px; la única entrada es el botón "Más" del bottom nav) → no podía marcar entrada ni salida.
 - El aterrizaje en el Panel de Cocina es por **destino sugerido** (`navigateTo` no bloquea la navegación): login y restauración de sesión abren `comandero`, pero el usuario puede salir a cualquier pantalla autorizada.
+
+### Estudio de Mercado con Gemini (solo administración)
+- **Pantalla**: `#screen-estudio-mercado`, accesible desde el botón `#btn-estudio-mercado` en el header de **Gastos** (`.admin-only`); `navigateTo('estudio-mercado')` tiene guard de rol (no-gestor → vuelve a `gastos` con toast). Botón "← Volver" (`#btn-estudio-volver`) regresa a `gastos`.
+- **Modelos**: `EstudioMercado` (periodo `DIA|SEMANA|MES|ANIO`, tipo `MANUAL|AUTOMATICO`, estado `GENERANDO|COMPLETADO|ERROR`, `desde`/`hasta`, `titulo`, `resumen`, `fortalezas[]`, `debilidades[]`, `estrategias[]`, `analisis`, `metricas` JSON, `modelo_ia`, `error`, `intentos`, `notificado`), `DocumentoEstudioMercado` (nombre, tipo_archivo, mime, tamano_bytes, texto extraído, caracteres) y `MensajeEstudioMercado` (rol `USUARIO|ASISTENTE`, contenido, documento_id, estudio_id, `permitido`). Se crean solas con `Base.metadata.create_all`.
+- **Datos que recopila** (`EstudioMercadoRepository`): ventas cobradas y ticket promedio, ventas por método de pago, top platillos (unidades e ingresos), gastos por categoría, compras/insumos, descuentos, anulaciones y devoluciones, temporada del periodo (regla Nicaragua: ALTA = dic, ene, mar, abr, jul, ago; MEDIA = feb, nov; BAJA = may, jun, sep, oct; seca nov–abr / lluviosa may–oct), fecha y región.
+- **Generación en segundo plano**: `POST /estudio-mercado/generar` responde 202 con el estudio en `GENERANDO` y ejecuta `BackgroundTasks` (`ejecutar_generacion_estudio()` abre su propia `SessionLocal()`); el frontend hace polling de `GET /estudio-mercado/{id}` cada 4 s (`pollEstudio()`).
+- **Automático mensual**: `_estudio_mercado_watcher()` (tarea de arranque en `main.py`, junto al heartbeat) llama a `_generar_estudio_automatico()`, que crea **un** estudio del mes anterior completo por mes calendario; si falla se reintenta hasta 5 intentos y luego se abandona. Al completarse se notifica a administración por Web Push (`notificar_estudio_mercado()`); el flag `notificado` evita avisos duplicados.
+- **Guardrail de alcance (dos pasos)**: antes de responder, `GeminiService.clasificar_alcance()` pregunta al modelo "SI/NO" si la consulta es del negocio; si es NO se responde una negativa fija y **no se hace la llamada principal**. Temas sensibles (sueldos, márgenes) solo se detallan para Administrador/Gerente. Consultas sobre el uso del POS están permitidas.
+- **Documentos**: `POST /estudio-mercado/documentos` (multipart `archivo`) acepta PDF/DOC/DOCX/XLS/XLSX/CSV; `extraccion_texto.py` extrae el texto y se recorta al adjuntarlo al prompt del chat (`documento_id` en el body). Los documentos se listan/eliminan sin afectar el historial.
+- **Chat asesor**: `POST /estudio-mercado/chat` con `{mensaje, documento_id?}` responde como consultor de marketing/operaciones usando `_contexto_negocio()` + el estudio más reciente; historial en `GET /estudio-mercado/chat/historial` (últimos 60) y limpieza con `DELETE /estudio-mercado/chat/historial`.
+- **Gemini (`app/services/gemini_service.py`)**: `GEMINI_API_KEY`, `GEMINI_MODEL` (`gemini-3.5-flash`), `GEMINI_MODELOS_RESPALDO` (`gemini-3.6-flash,gemini-flash-lite-latest,gemini-flash-latest`), `GEMINI_MAX_INTENTOS` (4), `GEMINI_TIMEOUT` (120). Rota de modelo ante 400/404/429/5xx, con espera creciente; **si un modelo rechaza `generationConfig.thinkingConfig` (`400 INVALID_ARGUMENT`, típico de los "lite") se aprende en `MODELOS_SIN_THINKING` y se reintenta sin él**, de modo que un modelo sin soporte de thinking ya no tumba la petición. Sin `GEMINI_API_KEY` los endpoints responden 500 con mensaje explícito.
+- **Frontend**: bloque `em-*` en `app.js` (`loadEstudioMercado()` usa `Promise.allSettled` para que un endpoint caído no vacíe la pantalla, `renderEmPeriodos()`, `renderHistorialEstudios()`, `renderEmDetalle()`, `renderDocumentosEstudio()`, `renderChatEstudio()`, `generarEstudioMercado()`, `pollEstudio()`, `abrirEstudio()`, `eliminarEstudioMercado()`, `enviarMensajeAsesor()`). Deep link `?estudio=<id>` en `DESTINO_URL`/`aplicarDestino()` y en el `postMessage` del service worker.
+- **Estilos**: bloque `em-*` en `style.css` antes de la sección "Tema oscuro"; todos los colores vía `color-mix()` + variables `--mix-*`, así que el modo oscuro funciona sin reglas nuevas y el claro queda idéntico.
+
+### Método de pago en la orden
+- `Orden.metodo_pago` (`MetodoPago`: `EFECTIVO` por defecto, `TARJETA`, `TRANSFERENCIA`, `PAGO_EN_LINEA`) se elige con los botones `#btn-pago-*` del modal de cobro y viaja en `PUT /ordenes/{id}/pagar {metodo_pago}`; valor inválido → 422.
+- Columna agregada por la migración de startup `_migrate_orden_metodo_pago()` (idempotente); un estudio de mercado la usa para el desglose de ventas por método de pago.
 
 ### Reportes financieros query chain
 ```

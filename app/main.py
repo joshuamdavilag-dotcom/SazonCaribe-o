@@ -42,6 +42,7 @@ from app.api.endpoints.cameras import router as cameras_router
 from app.api.auditoria import router as auditoria_router
 from app.api.endpoints.backups import router as backups_router
 from app.api.endpoints.push import router as push_router
+from app.api.endpoints.estudio_mercado import router as estudio_mercado_router
 
 
 settings = get_settings()
@@ -195,6 +196,12 @@ app.include_router(
 )
 
 app.include_router(
+    estudio_mercado_router,
+    prefix="/api/v1/estudio-mercado",
+    tags=["Estudio de Mercado"]
+)
+
+app.include_router(
     menu_publico_router,
     prefix="/api/public",
     tags=["Carta Pública (Menú Digital)"]
@@ -240,6 +247,7 @@ async def startup_event():
         _migrate_recetas_descuento_lote()
         _migrate_orden_descuentos()
         _migrate_orden_nombre_cliente()
+        _migrate_orden_metodo_pago()
         _migrate_descuentos_frecuentes()
         _migrate_gastos_cierre_caja_id()
         _migrate_adelantos_salario()
@@ -264,6 +272,7 @@ async def startup_event():
 
     asyncio.create_task(_heartbeat_watcher())
     asyncio.create_task(_camera_clip_retention_watcher())
+    asyncio.create_task(_estudio_mercado_watcher())
 
 
 def _is_sqlite() -> bool:
@@ -424,6 +433,27 @@ def _migrate_orden_nombre_cliente():
     """Agrega columna nombre_cliente a ordenes si no existe."""
     _add_column_if_not_exists("ordenes", "nombre_cliente",
         "ALTER TABLE ordenes ADD COLUMN nombre_cliente VARCHAR(100) NULL")
+
+
+def _migrate_orden_metodo_pago():
+    """Agrega la forma de pago a las órdenes y normaliza las existentes."""
+    from sqlalchemy import text
+
+    _add_column_if_not_exists(
+        "ordenes",
+        "metodo_pago",
+        "ALTER TABLE ordenes ADD COLUMN metodo_pago VARCHAR(20) NOT NULL DEFAULT 'EFECTIVO'",
+    )
+    try:
+        with engine.begin() as conexion:
+            conexion.execute(
+                text(
+                    "UPDATE ordenes SET metodo_pago = 'EFECTIVO' "
+                    "WHERE metodo_pago IS NULL OR metodo_pago = ''"
+                )
+            )
+    except Exception as error:
+        logger.warning("[MIGRACION] No se pudo normalizar metodo_pago: %s", error)
 
 
 def _migrate_descuentos_frecuentes():
@@ -1093,6 +1123,54 @@ async def _camera_clip_retention_watcher():
         except Exception:
             logger.exception("Falló la limpieza automática de clips de cámaras")
         await asyncio.sleep(3600)
+
+
+def _generar_estudio_automatico() -> None:
+    """Genera el estudio del mes anterior y avisa a administración."""
+    from app.core.database import SessionLocal
+    from app.models.estudio_mercado import EstadoEstudio
+    from app.services.estudio_mercado_service import EstudioMercadoService
+    from app.services.push_service import PushService
+
+    with SessionLocal() as db:
+        servicio = EstudioMercadoService(db)
+        estudio = servicio.generar_automatico()
+        if estudio is None or estudio.notificado:
+            return
+        push = PushService(db)
+        if estudio.estado == EstadoEstudio.COMPLETADO:
+            push.notificar_estudio_mercado(estudio)
+        else:
+            push.notificar_estudio_mercado_error(estudio)
+        estudio.notificado = True
+        db.commit()
+
+
+async def _estudio_mercado_watcher():
+    """Tarea en segundo plano: estudio de mercado automático mensual."""
+    from app.core.tiempo import ahora_local
+
+    while True:
+        await asyncio.sleep(max(60, settings.ESTUDIO_MERCADO_INTERVALO_SEGUNDOS))
+        try:
+            ahora = ahora_local()
+            if (
+                ahora.day < settings.ESTUDIO_MERCADO_DIA
+                or ahora.hour < settings.ESTUDIO_MERCADO_HORA
+            ):
+                continue
+            if not settings.GEMINI_API_KEY:
+                logger.warning(
+                    "[ESTUDIO] GEMINI_API_KEY no configurada; se omite el estudio automático"
+                )
+                continue
+            await asyncio.to_thread(_generar_estudio_automatico)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "Falló la generación automática del estudio de mercado"
+            )
 
 
 @app.get(

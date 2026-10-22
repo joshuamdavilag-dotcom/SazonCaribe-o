@@ -13,13 +13,17 @@ settings = get_settings()
 is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
 if is_sqlite:
-    # SQLite: check_same_thread=False para FastAPI + StaticPool para hilos
-    engine = create_engine(
-        settings.DATABASE_URL,
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False},
-        echo=settings.DEBUG,
-    )
+    # SQLite: check_same_thread=False para FastAPI. Solo las bases en memoria
+    # necesitan StaticPool (una única conexión compartida); con archivo se usa
+    # el pool normal para que dos peticiones simultáneas no reutilicen la misma
+    # conexión (sqlite3 responde "bad parameter or other API misuse").
+    opciones_sqlite = {
+        "connect_args": {"check_same_thread": False},
+        "echo": settings.DEBUG,
+    }
+    if ":memory:" in settings.DATABASE_URL:
+        opciones_sqlite["poolclass"] = StaticPool
+    engine = create_engine(settings.DATABASE_URL, **opciones_sqlite)
     # Crear directorio de datos si no existe
     os.makedirs(os.path.dirname(settings.SQLITE_PATH) or ".", exist_ok=True)
 else:

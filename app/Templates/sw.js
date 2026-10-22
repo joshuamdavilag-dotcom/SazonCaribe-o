@@ -56,6 +56,7 @@ self.addEventListener('notificationclick', event => {
           tipo: 'destino',
           pantalla: params.get('pantalla'),
           mesa: params.get('mesa'),
+          estudio: params.get('estudio'),
         });
         return cliente;
       }

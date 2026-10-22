@@ -4,7 +4,7 @@ from app.models.nomina import Nomina, AdelantoSalario
 from app.models.inventario import Proveedor, Ingrediente, Insumo, MovimientoInventario, CategoriaInsumo, UnidadMedida, PreparacionCocina, DetallePreparacionCocina
 from app.models.menu import CategoriaMenu, MenuItem, Receta
 from app.models.salon import Zona, Mesa, EstadoMesa
-from app.models.orden import Orden, DetalleOrden, EstadoOrden
+from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
 from app.models.pago import PagoOnline, EstadoPago
@@ -13,6 +13,15 @@ from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
 from app.models.descuento import DescuentoFrecuente, TipoDescuento
 from app.models.push import PushSuscripcion
+from app.models.estudio_mercado import (
+    DocumentoEstudio,
+    EstadoEstudio,
+    EstudioMercado,
+    MensajeEstudio,
+    PeriodoEstudio,
+    RolMensajeEstudio,
+    TipoEstudio,
+)
 
 __all__ = [
     "RegistroAuditoria",
@@ -39,6 +48,7 @@ __all__ = [
     "Orden",
     "DetalleOrden",
     "EstadoOrden",
+    "MetodoPago",
     "CierreCaja",
     "Gasto",
     "CategoriaGasto",
@@ -53,4 +63,11 @@ __all__ = [
     "DescuentoFrecuente",
     "TipoDescuento",
     "PushSuscripcion",
+    "EstudioMercado",
+    "PeriodoEstudio",
+    "TipoEstudio",
+    "EstadoEstudio",
+    "DocumentoEstudio",
+    "MensajeEstudio",
+    "RolMensajeEstudio",
 ]

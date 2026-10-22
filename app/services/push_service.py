@@ -161,6 +161,20 @@ class PushService:
         ).all()
         return [usuario_id for usuario_id, puesto in filas if es_puesto_cocina(puesto)]
 
+    def usuarios_administracion(self) -> list[int]:
+        """Usuarios activos con rol Administrador o Gerente."""
+        return list(
+            self.db.execute(
+                select(Usuario.id)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .where(
+                    Usuario.rol.in_([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]),
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                )
+            ).scalars().all()
+        )
+
     def usuarios_reciben_avisos(self, usuario_ids: Iterable[int]) -> list[int]:
         """Usuarios que pueden recibir los avisos push.
 
@@ -355,6 +369,41 @@ class PushService:
             url=url,
             tag=f"comanda-lista-{orden.id}",
             datos={"orden_id": orden.id, "tipo": "comanda_lista"},
+        )
+
+    def notificar_estudio_mercado(self, estudio) -> int:
+        """Avisa a administración que el estudio de mercado automático está listo."""
+        destinatarios = self.usuarios_reciben_avisos(self.usuarios_administracion())
+        if not destinatarios:
+            return 0
+
+        return self.enviar(
+            usuario_ids=destinatarios,
+            titulo="Estudio de mercado del mes disponible",
+            cuerpo=(
+                f"{estudio.titulo or 'Análisis mensual'} · "
+                f"{estudio.desde.strftime('%d/%m')} al {estudio.hasta.strftime('%d/%m')}"
+            ),
+            url=f"{RUTA_APP}?pantalla=estudio-mercado&estudio={estudio.id}",
+            tag="estudio-mercado",
+            datos={"estudio_id": estudio.id, "tipo": "estudio_mercado"},
+        )
+
+    def notificar_estudio_mercado_error(self, estudio) -> int:
+        """Avisa a administración que el estudio automático no pudo generarse."""
+        destinatarios = self.usuarios_reciben_avisos(self.usuarios_administracion())
+        if not destinatarios:
+            return 0
+
+        return self.enviar(
+            usuario_ids=destinatarios,
+            titulo="El estudio de mercado del mes falló",
+            cuerpo=(estudio.error or "No se pudo completar el análisis. Revisa la configuración de IA.")[
+                :180
+            ],
+            url=f"{RUTA_APP}?pantalla=estudio-mercado",
+            tag="estudio-mercado-error",
+            datos={"estudio_id": estudio.id, "tipo": "estudio_mercado_error"},
         )
 
 

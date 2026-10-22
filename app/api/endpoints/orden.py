@@ -19,6 +19,7 @@ from app.schemas.orden import (
     AplicarDescuentoGlobalRequest,
     AnularOrdenRequest,
     DevolverItemRequest,
+    PagarOrdenRequest,
 )
 from app.services.orden_service import OrdenService
 from app.services.push_service import ejecutar_notificacion_push
@@ -208,16 +209,19 @@ def editar_items(
     summary="Pagar orden y liberar mesa",
     description=(
         "Marca la orden como PAGADA y cambia el estado de la mesa "
-        "vinculada a LIBRE en una sola transacción."
+        "vinculada a LIBRE en una sola transacción. Acepta opcionalmente "
+        "la forma de pago para alimentar el análisis de métodos de pago."
     ),
     dependencies=[Depends(get_current_user)],
 )
 def pagar_orden(
     orden_id: int = Path(..., gt=0),
+    body: Optional[PagarOrdenRequest] = None,
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Marca la orden como pagada y libera la mesa vinculada en una sola transacción."""
-    return service.pagar_orden(orden_id)
+    metodo_pago = body.metodo_pago if body else None
+    return service.pagar_orden(orden_id, metodo_pago)
 
 
 # =====================================================================

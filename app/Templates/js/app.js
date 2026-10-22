@@ -482,9 +482,13 @@ async function sincronizarEstadoPush() {
 const DESTINO_URL = (() => {
   try {
     const params = new URLSearchParams(window.location.search);
-    return { pantalla: params.get('pantalla'), mesa: params.get('mesa') };
+    return {
+      pantalla: params.get('pantalla'),
+      mesa: params.get('mesa'),
+      estudio: params.get('estudio'),
+    };
   } catch (error) {
-    return { pantalla: null, mesa: null };
+    return { pantalla: null, mesa: null, estudio: null };
   }
 })();
 
@@ -494,6 +498,7 @@ function limpiarUrlDestino() {
     const url = new URL(window.location.href);
     url.searchParams.delete('pantalla');
     url.searchParams.delete('mesa');
+    url.searchParams.delete('estudio');
     window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
   } catch (error) {
     /* si el navegador no deja limpiar la URL, el destino sigue funcionando */
@@ -502,7 +507,9 @@ function limpiarUrlDestino() {
 
 limpiarUrlDestino();
 
-async function aplicarDestino(pantalla, mesa) {
+async function aplicarDestino(pantalla, mesa, estudio) {
+  const estudioId = parseInt(estudio, 10);
+  state.pendingEstudioId = Number.isFinite(estudioId) ? estudioId : null;
   const destino = (pantalla && document.getElementById(`screen-${pantalla}`))
     ? pantalla
     : (esUsuarioCocina() ? 'comandero' : 'salon');
@@ -517,14 +524,14 @@ async function aplicarDestino(pantalla, mesa) {
 }
 
 function aplicarDestinoSolicitado() {
-  return aplicarDestino(DESTINO_URL.pantalla, DESTINO_URL.mesa);
+  return aplicarDestino(DESTINO_URL.pantalla, DESTINO_URL.mesa, DESTINO_URL.estudio);
 }
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (evento) => {
     const datos = evento.data || {};
     if (datos.tipo !== 'destino') return;
-    void aplicarDestino(datos.pantalla, datos.mesa);
+    void aplicarDestino(datos.pantalla, datos.mesa, datos.estudio);
   });
 }
 
@@ -756,6 +763,10 @@ function navigateTo(screenId) {
     showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
     screenId = 'menu-view';
   }
+  if (screenId === 'estudio-mercado' && !esGestor) {
+    showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
+    screenId = 'gastos';
+  }
   if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
     void cerrarTodasCamaras();
   }
@@ -800,6 +811,7 @@ function navigateTo(screenId) {
   if (screenId === 'auditoria') { state.auditOffset = 0; loadAuditoria(); }
   if (screenId === 'calendario') loadCalendario();
   if (screenId === 'cameras') loadCameras();
+  if (screenId === 'estudio-mercado') loadEstudioMercado();
 }
 
 /* =========================================================================
@@ -3426,6 +3438,15 @@ async function editarOrdenKDS(ordenId) {
 }
 window.editarOrdenKDS = editarOrdenKDS;
 
+const BOTONES_PAGO_LOCAL = ['btn-pago-efectivo', 'btn-pago-tarjeta', 'btn-pago-transferencia'];
+
+function setBotonesPagoLocal(deshabilitados) {
+  BOTONES_PAGO_LOCAL.forEach(id => {
+    const boton = document.getElementById(id);
+    if (boton) boton.disabled = deshabilitados;
+  });
+}
+
 function openMetodoPago(orden, origen) {
   if (!orden?.id) return showToast('No se encontró la orden que deseas cobrar', 'error');
   state.paymentOrder = { id: orden.id, total: Number(orden.total || 0), origen };
@@ -3436,7 +3457,7 @@ function openMetodoPago(orden, origen) {
   onlineButton.disabled = true;
   document.getElementById('payment-online-status').textContent =
     'Verificando disponibilidad…';
-  document.getElementById('btn-pago-local').disabled = false;
+  setBotonesPagoLocal(false);
   document.getElementById('modal-metodo-pago').classList.add('show');
   verificarDisponibilidadPagoOnline();
 }
@@ -3460,18 +3481,27 @@ function cerrarMetodoPago() {
   document.getElementById('modal-metodo-pago').classList.remove('show');
   state.paymentOrder = null;
   state.paymentBusy = false;
-  document.getElementById('btn-pago-local').disabled = false;
+  setBotonesPagoLocal(false);
   document.getElementById('btn-pago-online').disabled = true;
 }
 
-async function confirmarPagoLocal() {
+async function confirmarPagoLocal(metodo = 'EFECTIVO') {
   const orden = state.paymentOrder;
   if (!orden || state.paymentBusy) return;
-  if (!confirm(`¿Confirmas que recibiste el pago de la Orden #${orden.id} en el local?`)) return;
+  const etiquetas = {
+    EFECTIVO: 'efectivo',
+    TARJETA: 'tarjeta',
+    TRANSFERENCIA: 'transferencia',
+  };
+  const etiqueta = etiquetas[metodo] || 'en el local';
+  if (!confirm(`¿Confirmas el pago de la Orden #${orden.id} en ${etiqueta}?`)) return;
   state.paymentBusy = true;
-  document.getElementById('btn-pago-local').disabled = true;
+  setBotonesPagoLocal(true);
   try {
-    await api(`/ordenes/${orden.id}/pagar`, { method: 'PUT' });
+    await api(`/ordenes/${orden.id}/pagar`, {
+      method: 'PUT',
+      body: JSON.stringify({ metodo_pago: metodo }),
+    });
     showToast(`Orden #${orden.id} pagada con éxito`, 'success');
     cerrarMetodoPago();
     if (orden.origen === 'mesa' && state.currentOcupada?.orden?.id === orden.id) {
@@ -3482,7 +3512,7 @@ async function confirmarPagoLocal() {
     }
   } catch {
     state.paymentBusy = false;
-    document.getElementById('btn-pago-local').disabled = false;
+    setBotonesPagoLocal(false);
   }
 }
 
@@ -7824,6 +7854,530 @@ function updateClock() {
 }
 
 /* =========================================================================
+   Estudio de Mercado (IA)
+   ========================================================================= */
+const EM_ETIQUETAS_PERIODO = { DIA: 'Día', SEMANA: 'Semana', MES: 'Mes', ANIO: 'Año' };
+const EM_ESTADOS = {
+  GENERANDO: { texto: 'Generando…', clase: 'em-badge-generando' },
+  COMPLETADO: { texto: 'Listo', clase: 'em-badge-listo' },
+  ERROR: { texto: 'Falló', clase: 'em-badge-error' },
+};
+const EM_BLOQUES = [
+  { clave: 'metodos_pago', titulo: 'Métodos de pago', icono: 'credit_card' },
+  { clave: 'ganancias', titulo: 'Ganancias y margen', icono: 'trending_up' },
+  { clave: 'populares', titulo: 'Productos populares', icono: 'local_fire_department' },
+  { clave: 'perdidas', titulo: 'Pérdidas y fugas', icono: 'trending_down' },
+];
+
+state.estudioPeriodo = 'SEMANA';
+state.estudios = [];
+state.estudioAbierto = null;
+state.estudioPoll = null;
+state.chatEstudio = [];
+state.documentosEstudio = [];
+state.documentoAdjunto = null;
+state.pendingEstudioId = null;
+
+function emFecha(iso) {
+  if (!iso) return '';
+  const partes = String(iso).slice(0, 10).split('-');
+  if (partes.length !== 3) return String(iso);
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+function emTexto(valor) {
+  return escHtml(valor ?? '').replace(/\n/g, '<br>');
+}
+
+function emMoneda(valor) {
+  const numero = Number(valor || 0);
+  return `C$${numero.toFixed(2)}`;
+}
+
+function emPeriodoActual() {
+  return EM_ETIQUETAS_PERIODO[state.estudioPeriodo] ? state.estudioPeriodo : 'MES';
+}
+
+function renderEmPeriodos() {
+  document.querySelectorAll('#em-periodos .em-chip').forEach(chip => {
+    const activo = chip.dataset.periodo === state.estudioPeriodo;
+    chip.classList.toggle('active', activo);
+    chip.setAttribute('aria-selected', activo ? 'true' : 'false');
+  });
+}
+
+function renderEmEstado(tipo, mensaje, opciones = {}) {
+  const contenedor = document.getElementById('em-estado');
+  if (!contenedor) return;
+  const iconos = { info: 'schedule', error: 'error', ok: 'check_circle' };
+  const boton = opciones.reintentar
+    ? '<button type="button" class="em-link em-estado-accion" onclick="generarEstudioMercado()">Reintentar</button>'
+    : '';
+  contenedor.className = `em-status em-status-${tipo}`;
+  contenedor.innerHTML = `
+    <span class="material-symbols-outlined text-[20px]">${iconos[tipo] || 'info'}</span>
+    <div class="em-status-copy">${emTexto(mensaje)}</div>
+    ${boton}
+  `;
+  contenedor.hidden = false;
+}
+
+function ocultarEmEstado() {
+  const contenedor = document.getElementById('em-estado');
+  if (contenedor) contenedor.hidden = true;
+}
+
+async function loadEstudioMercado() {
+  renderEmPeriodos();
+  const historial = document.getElementById('em-historial');
+  if (historial) historial.innerHTML = '<p class="em-empty">Cargando análisis…</p>';
+  const [estudios, documentos, mensajes] = await Promise.allSettled([
+    api('/estudio-mercado/', { silent: true }),
+    api('/estudio-mercado/documentos', { silent: true }),
+    api('/estudio-mercado/chat/historial', { silent: true }),
+  ]);
+  state.estudios = estudios.status === 'fulfilled' ? estudios.value || [] : [];
+  state.documentosEstudio = documentos.status === 'fulfilled' ? documentos.value || [] : [];
+  state.chatEstudio = mensajes.status === 'fulfilled' ? mensajes.value || [] : [];
+  renderHistorialEstudios();
+  renderDocumentosEstudio();
+  renderChatEstudio();
+
+  if (estudios.status === 'rejected') {
+    if (historial) {
+      historial.innerHTML = `<p class="em-empty em-empty-error">${escHtml(estudios.reason?.message || 'No se pudo cargar el módulo')}</p>`;
+    }
+    return;
+  }
+
+  const pendiente = state.pendingEstudioId;
+  state.pendingEstudioId = null;
+  if (pendiente) {
+    await abrirEstudio(pendiente);
+    return;
+  }
+  if (!state.estudioAbierto) {
+    const ultimo = state.estudios.find(e => e.estado === 'COMPLETADO') || state.estudios[0];
+    if (ultimo) await abrirEstudio(ultimo.id);
+  }
+}
+
+function renderHistorialEstudios() {
+  const contenedor = document.getElementById('em-historial');
+  if (!contenedor) return;
+  if (!state.estudios.length) {
+    contenedor.innerHTML = '<p class="em-empty">Todavía no hay análisis. Genera el primero con el botón de arriba.</p>';
+    return;
+  }
+  contenedor.innerHTML = state.estudios.map(estudio => {
+    const estado = EM_ESTADOS[estudio.estado] || EM_ESTADOS.GENERANDO;
+    const activo = state.estudioAbierto?.id === estudio.id ? ' em-historial-item-on' : '';
+    const origen = estudio.tipo === 'AUTOMATICO' ? 'Automático' : 'Manual';
+    return `
+      <button type="button" class="em-historial-item${activo}" onclick="abrirEstudio(${estudio.id})">
+        <div class="em-historial-top">
+          <span class="em-historial-periodo">${EM_ETIQUETAS_PERIODO[estudio.periodo] || estudio.periodo}</span>
+          <span class="em-badge ${estado.clase}">${estado.texto}</span>
+        </div>
+        <div class="em-historial-titulo">${emTexto(estudio.titulo || 'Estudio sin título')}</div>
+        <div class="em-historial-meta">${emFecha(estudio.desde)} → ${emFecha(estudio.hasta)} · ${origen}</div>
+      </button>
+    `;
+  }).join('');
+}
+
+async function generarEstudioMercado() {
+  const boton = document.getElementById('em-btn-generar');
+  if (!boton || boton.disabled) return;
+  const periodo = emPeriodoActual();
+  boton.disabled = true;
+  boton.dataset.texto = boton.innerHTML;
+  boton.innerHTML = '<span class="material-symbols-outlined text-[18px]">hourglass_top</span> Analizando…';
+  ocultarEmEstado();
+  try {
+    const estudio = await api('/estudio-mercado/generar', {
+      method: 'POST',
+      body: JSON.stringify({ periodo }),
+    });
+    state.estudios = [estudio, ...state.estudios.filter(e => e.id !== estudio.id)];
+    renderHistorialEstudios();
+    if (estudio.estado === 'GENERANDO') {
+      renderEmEstado('info', 'La IA está analizando las ventas, compras y temporada del periodo. Esto puede tardar un minuto.');
+      renderEmDetalle(estudio);
+      await pollEstudio(estudio.id);
+    } else {
+      await abrirEstudio(estudio.id);
+    }
+  } catch (error) {
+    renderEmEstado('error', error.message || 'No se pudo iniciar el análisis.', { reintentar: true });
+  } finally {
+    boton.disabled = false;
+    if (boton.dataset.texto) boton.innerHTML = boton.dataset.texto;
+  }
+}
+
+function detenerPollEstudio() {
+  if (state.estudioPoll) {
+    clearTimeout(state.estudioPoll);
+    state.estudioPoll = null;
+  }
+}
+
+async function pollEstudio(estudioId, intentos = 0) {
+  detenerPollEstudio();
+  if (intentos > 90) {
+    renderEmEstado('error', 'El análisis está tardando más de lo normal. Vuelve a intentarlo en unos minutos.');
+    return;
+  }
+  state.estudioPoll = setTimeout(async () => {
+    try {
+      const estudio = await api(`/estudio-mercado/${estudioId}`, { silent: true });
+      state.estudios = state.estudios.map(e => (e.id === estudio.id ? estudio : e));
+      renderHistorialEstudios();
+      if (estudio.estado === 'GENERANDO') {
+        void pollEstudio(estudioId, intentos + 1);
+        return;
+      }
+      await abrirEstudio(estudioId);
+    } catch (error) {
+      if (intentos < 4) {
+        void pollEstudio(estudioId, intentos + 1);
+        return;
+      }
+      renderEmEstado('error', error.message || 'No se pudo consultar el estado del análisis.');
+    }
+  }, 4000);
+}
+
+async function abrirEstudio(estudioId) {
+  try {
+    const estudio = await api(`/estudio-mercado/${estudioId}`, { silent: true });
+    state.estudioAbierto = estudio;
+    renderHistorialEstudios();
+    renderEmDetalle(estudio);
+    if (estudio.estado === 'GENERANDO') {
+      renderEmEstado('info', 'La IA sigue analizando este periodo…');
+      void pollEstudio(estudioId);
+    } else {
+      ocultarEmEstado();
+    }
+  } catch (error) {
+    renderEmEstado('error', error.message || 'No se pudo abrir el análisis.');
+  }
+}
+
+function renderEmDetalle(estudio) {
+  const contenedor = document.getElementById('em-detalle');
+  if (!contenedor) return;
+  state.estudioAbierto = estudio;
+  if (!estudio) {
+    contenedor.innerHTML = '';
+    return;
+  }
+
+  if (estudio.estado === 'GENERANDO') {
+    contenedor.innerHTML = `
+      <div class="em-panel em-cargando">
+        <span class="em-spinner" aria-hidden="true"></span>
+        <p class="em-cargando-titulo">Analizando ${EM_ETIQUETAS_PERIODO[estudio.periodo] || estudio.periodo} · ${emFecha(estudio.desde)} → ${emFecha(estudio.hasta)}</p>
+        <p class="em-cargando-sub">Cruzando ventas, compras, temporada, métodos de pago y popularidad de productos.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (estudio.estado === 'ERROR') {
+    contenedor.innerHTML = `
+      <div class="em-panel em-cargando">
+        <span class="material-symbols-outlined text-[36px] em-icono-error">error</span>
+        <p class="em-cargando-titulo">No se pudo completar el análisis</p>
+        <p class="em-cargando-sub">${emTexto(estudio.error || 'La IA no devolvió una respuesta válida.')}</p>
+        <button type="button" class="em-generate em-generate-inline" onclick="generarEstudioMercado()">Reintentar</button>
+      </div>
+    `;
+    return;
+  }
+
+  const analisis = estudio.analisis || {};
+  const metricas = estudio.metricas || {};
+  const ventas = metricas.ventas || {};
+  const rentabilidad = metricas.rentabilidad || {};
+  const temporada = metricas.temporada || {};
+
+  const tiles = [
+    { etiqueta: 'Ingresos del periodo', valor: emMoneda(ventas.ingresos), icono: 'payments' },
+    { etiqueta: 'Órdenes cobradas', valor: String(ventas.ordenes ?? 0), icono: 'receipt_long' },
+    { etiqueta: 'Ticket promedio', valor: emMoneda(ventas.ticket_promedio), icono: 'shopping_basket' },
+    { etiqueta: 'Margen estimado', valor: `${Number(rentabilidad.margen_pct || 0).toFixed(1)}%`, icono: 'percent' },
+  ];
+
+  const fortalezas = (estudio.fortalezas || []).map(t => `<li>${emTexto(t)}</li>`).join('');
+  const debilidades = (estudio.debilidades || []).map(t => `<li>${emTexto(t)}</li>`).join('');
+
+  const bloques = EM_BLOQUES.map(({ clave, titulo, icono }) => {
+    const bloque = analisis[clave];
+    if (!bloque) return '';
+    const recomendaciones = Array.isArray(bloque.recomendaciones)
+      ? bloque.recomendaciones.map(r => `<li>${emTexto(r)}</li>`).join('')
+      : '';
+    return `
+      <article class="em-panel em-bloque">
+        <h3 class="em-bloque-titulo">
+          <span class="material-symbols-outlined text-[20px]">${icono}</span> ${titulo}
+        </h3>
+        <p class="em-bloque-texto">${emTexto(bloque.analisis || '')}</p>
+        ${recomendaciones ? `<ul class="em-lista em-lista-acciones">${recomendaciones}</ul>` : ''}
+      </article>
+    `;
+  }).join('');
+
+  const estrategias = Array.isArray(analisis.estrategias)
+    ? analisis.estrategias.map(estrategia => {
+      if (!estrategia || typeof estrategia !== 'object') return '';
+      const impacto = String(estrategia.impacto || 'MEDIO').toUpperCase();
+      const esfuerzo = String(estrategia.esfuerzo || 'MEDIO').toUpperCase();
+      return `
+        <article class="em-estrategia">
+          <div class="em-estrategia-head">
+            <h4>${emTexto(estrategia.titulo || 'Acción')}</h4>
+            <span class="em-tag em-tag-${impacto.toLowerCase()}">Impacto ${impacto}</span>
+            <span class="em-tag em-tag-${esfuerzo.toLowerCase()}">Esfuerzo ${esfuerzo}</span>
+          </div>
+          <p>${emTexto(estrategia.detalle || '')}</p>
+        </article>
+      `;
+    }).join('')
+    : '';
+
+  const proximos = Array.isArray(analisis.proximos_pasos)
+    ? analisis.proximos_pasos.map(p => `<li>${emTexto(p)}</li>`).join('')
+    : '';
+
+  contenedor.innerHTML = `
+    <div class="em-panel em-resumen">
+      <div class="em-resumen-head">
+        <div class="min-w-0">
+          <span class="em-resumen-periodo">${EM_ETIQUETAS_PERIODO[estudio.periodo] || estudio.periodo} · ${emFecha(estudio.desde)} → ${emFecha(estudio.hasta)}</span>
+          <h2 class="em-resumen-titulo">${emTexto(estudio.titulo || 'Estudio de mercado')}</h2>
+        </div>
+        <span class="em-tag em-tag-temporada">Temporada ${emTexto(temporada.temporada || 'MEDIA')} · ${emTexto(temporada.estacion || 'Seca')}</span>
+      </div>
+      <p class="em-resumen-texto">${emTexto(estudio.resumen || '')}</p>
+    </div>
+
+    <div class="em-tiles">${tiles.map(tile => `
+      <div class="em-tile">
+        <span class="material-symbols-outlined text-[20px]">${tile.icono}</span>
+        <div>
+          <span class="em-tile-valor">${tile.valor}</span>
+          <span class="em-tile-etiqueta">${tile.etiqueta}</span>
+        </div>
+      </div>`).join('')}
+    </div>
+
+    <div class="em-grid-2">
+      <article class="em-panel em-bloque em-bloque-fortalezas">
+        <h3 class="em-bloque-titulo"><span class="material-symbols-outlined text-[20px]">military_tech</span> Fortalezas</h3>
+        <ul class="em-lista">${fortalezas || '<li>Sin datos suficientes en el periodo.</li>'}</ul>
+      </article>
+      <article class="em-panel em-bloque em-bloque-debilidades">
+        <h3 class="em-bloque-titulo"><span class="material-symbols-outlined text-[20px]">warning</span> Debilidades</h3>
+        <ul class="em-lista">${debilidades || '<li>Sin datos suficientes en el periodo.</li>'}</ul>
+      </article>
+    </div>
+
+    ${bloques}
+
+    ${estrategias ? `<section class="em-panel em-bloque">
+      <h3 class="em-bloque-titulo"><span class="material-symbols-outlined text-[20px]">lightbulb</span> Estrategias recomendadas</h3>
+      <div class="em-estrategias">${estrategias}</div>
+    </section>` : ''}
+
+    ${proximos ? `<section class="em-panel em-bloque">
+      <h3 class="em-bloque-titulo"><span class="material-symbols-outlined text-[20px]">checklist</span> Próximos pasos</h3>
+      <ul class="em-lista em-lista-acciones">${proximos}</ul>
+    </section>` : ''}
+
+    <div class="em-pie">
+      <span>Generado ${emFecha((estudio.completado_en || estudio.creado_en || '').slice(0, 10))}${estudio.modelo_ia ? ` · ${emTexto(estudio.modelo_ia)}` : ''}</span>
+      <button type="button" class="em-link em-link-danger" onclick="eliminarEstudioMercado(${estudio.id})">Eliminar análisis</button>
+    </div>
+  `;
+}
+
+async function eliminarEstudioMercado(estudioId) {
+  if (!confirm('¿Eliminar este análisis de mercado? Esta acción no se puede deshacer.')) return;
+  try {
+    await api(`/estudio-mercado/${estudioId}`, { method: 'DELETE' });
+    state.estudios = state.estudios.filter(e => e.id !== estudioId);
+    if (state.estudioAbierto?.id === estudioId) {
+      state.estudioAbierto = null;
+      const contenedor = document.getElementById('em-detalle');
+      if (contenedor) contenedor.innerHTML = '';
+      ocultarEmEstado();
+    }
+    renderHistorialEstudios();
+    showToast('Análisis eliminado', 'success');
+  } catch (error) {
+    showToast(error.message || 'No se pudo eliminar el análisis', 'error');
+  }
+}
+
+/* ----------------------------- Chat ----------------------------- */
+
+function renderChatEstudio() {
+  const contenedor = document.getElementById('em-chat-mensajes');
+  if (!contenedor) return;
+  if (!state.chatEstudio.length) {
+    contenedor.innerHTML = '<p class="em-empty">Pregunta lo que necesites: ventas, costos, menú, personal o marketing.</p>';
+    return;
+  }
+  contenedor.innerHTML = state.chatEstudio.map(mensaje => {
+    const esUsuario = mensaje.rol === 'USUARIO';
+    const clases = [
+      'em-msg',
+      esUsuario ? 'em-msg-usuario' : 'em-msg-asesor',
+      mensaje.permitido === false ? 'em-msg-bloqueado' : '',
+    ].filter(Boolean).join(' ');
+    return `<div class="${clases}">${emTexto(mensaje.contenido)}</div>`;
+  }).join('');
+  contenedor.scrollTop = contenedor.scrollHeight;
+}
+
+async function enviarConsultaEstudio(evento) {
+  if (evento) evento.preventDefault();
+  const input = document.getElementById('em-chat-input');
+  const boton = document.getElementById('em-btn-enviar');
+  const texto = (input?.value || '').trim();
+  if (!texto || !boton || boton.disabled) return;
+
+  const documentoId = state.documentoAdjunto?.id || null;
+  state.chatEstudio.push({ rol: 'USUARIO', contenido: texto, permitido: true });
+  if (input) input.value = '';
+  renderChatEstudio();
+
+  boton.disabled = true;
+  boton.textContent = 'Pensando…';
+  try {
+    const respuesta = await api('/estudio-mercado/chat', {
+      method: 'POST',
+      body: JSON.stringify({ mensaje: texto, documento_id: documentoId }),
+      silent: true,
+    });
+    state.chatEstudio.push({
+      rol: 'ASISTENTE',
+      contenido: respuesta.respuesta,
+      permitido: respuesta.permitido,
+    });
+    renderChatEstudio();
+  } catch (error) {
+    showToast(error.message || 'No se pudo obtener la respuesta del asesor', 'error', 6000);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Enviar';
+    if (input) input.focus();
+  }
+}
+
+async function limpiarChatEstudio() {
+  if (!state.chatEstudio.length) return;
+  if (!confirm('¿Borrar toda la conversación con el asesor?')) return;
+  try {
+    await api('/estudio-mercado/chat/historial', { method: 'DELETE' });
+    state.chatEstudio = [];
+    renderChatEstudio();
+  } catch (error) {
+    showToast(error.message || 'No se pudo limpiar el chat', 'error');
+  }
+}
+
+/* -------------------------- Documentos -------------------------- */
+
+function renderDocumentosEstudio() {
+  const contenedor = document.getElementById('em-documentos');
+  if (!contenedor) return;
+  if (!state.documentosEstudio.length) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  contenedor.innerHTML = state.documentosEstudio.map(documento => `
+    <div class="em-doc">
+      <span class="material-symbols-outlined text-[18px]">description</span>
+      <div class="em-doc-copy">
+        <span class="em-doc-nombre">${emTexto(documento.nombre)}</span>
+        <span class="em-doc-meta">${emTexto(documento.tipo_archivo)} · ${documento.caracteres} caracteres</span>
+      </div>
+      <button type="button" class="em-doc-accion" onclick="adjuntarDocumento(${documento.id})" title="Usar en la próxima consulta">Adjuntar</button>
+      <button type="button" class="em-doc-accion em-link-danger" onclick="eliminarDocumentoEstudio(${documento.id})" title="Eliminar">✕</button>
+    </div>
+  `).join('');
+}
+
+function adjuntarDocumento(documentoId) {
+  const documento = state.documentosEstudio.find(d => d.id === documentoId);
+  if (!documento) return;
+  state.documentoAdjunto = documento;
+  const chip = document.getElementById('em-adjunto');
+  if (chip) {
+    chip.hidden = false;
+    chip.innerHTML = `
+      <span class="material-symbols-outlined text-[16px]">attach_file</span>
+      <span>${emTexto(documento.nombre)}</span>
+      <button type="button" class="em-chip-quitar" onclick="quitarDocumentoAdjunto()" title="Quitar">✕</button>
+    `;
+  }
+}
+
+function quitarDocumentoAdjunto() {
+  state.documentoAdjunto = null;
+  const chip = document.getElementById('em-adjunto');
+  if (chip) {
+    chip.hidden = true;
+    chip.innerHTML = '';
+  }
+}
+
+async function subirDocumentoEstudio(archivo) {
+  if (!archivo) return;
+  const chip = document.getElementById('em-adjunto');
+  if (chip) {
+    chip.hidden = false;
+    chip.innerHTML = '<span class="em-spinner em-spinner-sm" aria-hidden="true"></span><span>Extrayendo texto de ' + escHtml(archivo.name) + '…</span>';
+  }
+  const datos = new FormData();
+  datos.append('archivo', archivo);
+  try {
+    const documento = await api('/estudio-mercado/documentos', {
+      method: 'POST',
+      body: datos,
+      silent: true,
+    });
+    state.documentosEstudio = [documento, ...state.documentosEstudio];
+    renderDocumentosEstudio();
+    adjuntarDocumento(documento.id);
+    showToast(`Documento listo: ${documento.caracteres} caracteres extraídos`, 'success');
+  } catch (error) {
+    quitarDocumentoAdjunto();
+    showToast(error.message || 'No se pudo leer el documento', 'error', 7000);
+  } finally {
+    const input = document.getElementById('em-doc-input');
+    if (input) input.value = '';
+  }
+}
+
+async function eliminarDocumentoEstudio(documentoId) {
+  if (!confirm('¿Eliminar este documento del módulo?')) return;
+  try {
+    await api(`/estudio-mercado/documentos/${documentoId}`, { method: 'DELETE' });
+    state.documentosEstudio = state.documentosEstudio.filter(d => d.id !== documentoId);
+    if (state.documentoAdjunto?.id === documentoId) quitarDocumentoAdjunto();
+    renderDocumentosEstudio();
+  } catch (error) {
+    showToast(error.message || 'No se pudo eliminar el documento', 'error');
+  }
+}
+
+/* =========================================================================
    Event Listeners
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
@@ -8392,10 +8946,36 @@ document.addEventListener('DOMContentLoaded', () => {
   // Método de pago
   document.getElementById('close-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
   document.getElementById('cancel-metodo-pago')?.addEventListener('click', cerrarMetodoPago);
-  document.getElementById('btn-pago-local')?.addEventListener('click', confirmarPagoLocal);
+  document.getElementById('btn-pago-efectivo')?.addEventListener('click', () => confirmarPagoLocal('EFECTIVO'));
+  document.getElementById('btn-pago-tarjeta')?.addEventListener('click', () => confirmarPagoLocal('TARJETA'));
+  document.getElementById('btn-pago-transferencia')?.addEventListener('click', () => confirmarPagoLocal('TRANSFERENCIA'));
   document.getElementById('btn-pago-online')?.addEventListener('click', iniciarPagoOnline);
   document.getElementById('modal-metodo-pago')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) cerrarMetodoPago();
+  });
+
+  // Estudio de Mercado
+  document.getElementById('btn-estudio-mercado')?.addEventListener('click', () => navigateTo('estudio-mercado'));
+  document.getElementById('btn-estudio-volver')?.addEventListener('click', () => navigateTo('gastos'));
+  document.getElementById('em-btn-generar')?.addEventListener('click', generarEstudioMercado);
+  document.getElementById('em-btn-refresh')?.addEventListener('click', loadEstudioMercado);
+  document.getElementById('em-periodos')?.addEventListener('click', (event) => {
+    const chip = event.target.closest('.em-chip');
+    if (!chip) return;
+    state.estudioPeriodo = chip.dataset.periodo;
+    renderEmPeriodos();
+  });
+  document.getElementById('em-chat-form')?.addEventListener('submit', enviarConsultaEstudio);
+  document.getElementById('em-chat-input')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      enviarConsultaEstudio();
+    }
+  });
+  document.getElementById('em-btn-limpiar-chat')?.addEventListener('click', limpiarChatEstudio);
+  document.getElementById('em-doc-input')?.addEventListener('change', (event) => {
+    const archivo = event.target.files?.[0];
+    if (archivo) subirDocumentoEstudio(archivo);
   });
 
   // Apodo de mesa ocupada

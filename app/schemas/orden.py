@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
-from app.models.orden import EstadoOrden
+from app.models.orden import EstadoOrden, MetodoPago
 
 
 # =============================================================================
@@ -213,6 +213,18 @@ class OrdenResponse(BaseModel):
     anulada_en: Optional[datetime] = Field(
         default=None,
         description="Fecha y hora de la anulación"
+    )
+    metodo_pago: MetodoPago = Field(
+        default=MetodoPago.EFECTIVO,
+        description="Forma en que el cliente pagó la orden"
+    )
+
+
+class PagarOrdenRequest(BaseModel):
+    """Esquema opcional para declarar la forma de pago al cobrar."""
+    metodo_pago: Optional[MetodoPago] = Field(
+        default=None,
+        description="Forma de pago (Efectivo, Tarjeta, Transferencia, Pago en línea)"
     )
 
 

@@ -19,6 +19,14 @@ class EstadoOrden(str, enum.Enum):
     CANCELADA = "CANCELADA"
 
 
+class MetodoPago(str, enum.Enum):
+    """Forma en que el cliente pagó la orden (base del análisis de métodos de pago)."""
+    EFECTIVO = "EFECTIVO"
+    TARJETA = "TARJETA"
+    TRANSFERENCIA = "TRANSFERENCIA"
+    PAGO_EN_LINEA = "PAGO_EN_LINEA"
+
+
 class Orden(Base):
     """Modelo de ordenes/pedidos del restaurante."""
 
@@ -72,6 +80,13 @@ class Orden(Base):
     nombre_cliente: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,
+    )
+    metodo_pago: Mapped[MetodoPago] = mapped_column(
+        SAEnum(MetodoPago, name="metodo_pago_enum", length=20),
+        nullable=False,
+        default=MetodoPago.EFECTIVO,
+        server_default="EFECTIVO",
+        comment="Forma de pago registrada al cobrar la orden",
     )
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime,

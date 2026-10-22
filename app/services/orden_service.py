@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.tiempo import ahora_local
-from app.models.orden import Orden, DetalleOrden, EstadoOrden
+from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.inventario import MovimientoInventario
 from app.models.personal import Usuario
 from app.models.salon import EstadoMesa
@@ -439,8 +439,17 @@ class OrdenService:
     #  Pagar orden + liberar mesa — PUT /{id}/pagar                       #
     # ================================================================== #
 
-    def pagar_orden(self, orden_id: int) -> Orden:
+    def pagar_orden(
+        self,
+        orden_id: int,
+        metodo_pago: Optional[MetodoPago] = None,
+    ) -> Orden:
         """Marca la orden como PAGADA y libera su mesa en una sola transacción.
+
+        Args:
+            orden_id: ID de la orden a cobrar.
+            metodo_pago: Forma de pago declarada por el cajero. Si se omite
+                se conserva la que ya tenía la orden.
 
         Raises:
             HTTPException 404: si la orden no existe.
@@ -466,6 +475,8 @@ class OrdenService:
         try:
             with self.db.begin_nested():
                 orden.estado = EstadoOrden.PAGADA
+                if metodo_pago is not None:
+                    orden.metodo_pago = metodo_pago
 
                 if orden.mesa_id:
                     mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)

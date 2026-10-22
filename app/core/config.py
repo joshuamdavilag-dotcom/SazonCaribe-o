@@ -151,6 +151,51 @@ class Settings(BaseSettings):
         description="Secreto compartido con TURN para generar credenciales temporales"
     )
 
+    # Gemini (Estudio de Mercado). Sin GEMINI_API_KEY las funciones de IA
+    # responden 503 con un mensaje claro en vez de fallar en silencio.
+    GEMINI_API_KEY: str = Field(
+        default="",
+        description="API key de Google AI Studio para el asistente de estudio de mercado"
+    )
+    GEMINI_MODEL: str = Field(
+        default="gemini-3.5-flash",
+        description="Modelo principal de Gemini (se pruebas los respaldos si falla)"
+    )
+    GEMINI_MODELOS_RESPALDO: str = Field(
+        default="gemini-3.6-flash,gemini-flash-lite-latest,gemini-flash-latest",
+        description="Modelos de respaldo separados por coma ante 429/503"
+    )
+    GEMINI_TIMEOUT: int = Field(
+        default=120,
+        description="Segundos de espera por respuesta de Gemini"
+    )
+    GEMINI_MAX_INTENTOS: int = Field(
+        default=4,
+        description="Intentos totales (rotando modelos) ante errores transitorios"
+    )
+    GEMINI_MAX_CARACTERES_DOCUMENTO: int = Field(
+        default=120000,
+        description="Máximo de caracteres de un documento que se envían a la IA"
+    )
+
+    # Estudio de mercado automático (mensual)
+    ESTUDIO_MERCADO_DIA: int = Field(
+        default=1,
+        ge=1,
+        le=28,
+        description="Día del mes desde el cual se puede generar el estudio automático"
+    )
+    ESTUDIO_MERCADO_HORA: int = Field(
+        default=6,
+        ge=0,
+        le=23,
+        description="Hora local (America/Managua) desde la que corre el estudio automático"
+    )
+    ESTUDIO_MERCADO_INTERVALO_SEGUNDOS: int = Field(
+        default=3600,
+        description="Cada cuántos segundos revisa el watcher si toca generar el estudio"
+    )
+
     # Pagos en línea — permanece deshabilitado hasta registrar un adaptador real.
     PAYMENT_PROVIDER: str = Field(
         default="disabled",
