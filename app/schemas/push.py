@@ -42,3 +42,16 @@ class PushConfigResponse(BaseModel):
     public_key: Optional[str] = None
     habilitado: bool
     vapid_subject: str
+    avisos_fuera_de_turno: bool = True
+
+
+class PushPreferenciasResponse(BaseModel):
+    """Preferencias de avisos push del usuario en sesión."""
+
+    avisos_fuera_de_turno: bool
+
+
+class PushPreferenciasUpdate(BaseModel):
+    """Actualización de las preferencias de avisos push del usuario."""
+
+    avisos_fuera_de_turno: bool

@@ -177,6 +177,11 @@ class Usuario(Base):
         nullable=False,
         default=False
     )
+    avisos_fuera_de_turno: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
 
     # Relación uno-a-uno con Empleado
     empleado: Mapped["Empleado"] = relationship(

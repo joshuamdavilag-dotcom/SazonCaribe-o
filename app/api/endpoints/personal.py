@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, requerir_rol
@@ -20,6 +20,7 @@ from app.schemas.personal import (
     TurnoHabilitadoUpdate,
     TurnoMasivoResponse,
     TurnoUsuarioResponse,
+    AvisosFueraTurnoUpdate,
     RolEnum
 )
 from app.services.personal_service import PersonalService
@@ -309,3 +310,36 @@ def cambiar_turno_habilitado(
         actor=current_user,
     )
     return TurnoUsuarioResponse(usuario=usuario, turnos_cerrados=turnos_cerrados)
+
+
+@router.patch(
+    "/usuarios/{usuario_id}/avisos-fuera-turno",
+    response_model=UsuarioResponse,
+    summary="Cambiar si un usuario recibe avisos fuera de su turno",
+    description=(
+        "Define si el usuario recibe los avisos push de comandas aunque esté "
+        "fuera del sistema (turno cerrado, app cerrada o sin sesión). "
+        "Solo Administradores y Gerentes."
+    ),
+    tags=["Usuarios"],
+    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+)
+def cambiar_avisos_fuera_turno(
+    usuario_id: int,
+    request: AvisosFueraTurnoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> UsuarioResponse:
+    """
+    Cambia la preferencia de avisos fuera de turno de un usuario.
+
+    - **usuario_id**: ID del usuario
+    - **avisos_fuera_de_turno**: true recibe avisos siempre, false solo con turno abierto.
+    """
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if usuario is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    usuario.avisos_fuera_de_turno = bool(request.avisos_fuera_de_turno)
+    db.commit()
+    db.refresh(usuario)
+    return UsuarioResponse.model_validate(usuario)

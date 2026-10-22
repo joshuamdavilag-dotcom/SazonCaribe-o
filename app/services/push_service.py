@@ -5,8 +5,12 @@ Dos flujos:
 - El mesero manda una comanda → se avisa a los usuarios de cocina.
 - La cocina marca la comanda como lista → se avisa al mesero que la creó.
 
-Solo se notifica a quien tiene el turno abierto (asistencia activa y no
-anulada): si el turno ya se cerró, no se entrega ninguna notificación.
+Los avisos se entregan "fuera del sistema": basta con que la cuenta siga
+vigente (usuario y empleado activos) y que el dispositivo tenga la
+suscripción registrada. No importa que el turno esté cerrado, que la app
+esté abierta o que el navegador no tenga sesión. Cada usuario puede
+limitar los avisos a su turno activo con ``Usuario.avisos_fuera_de_turno
+= False``.
 
 Los envíos se ejecutan como tarea en segundo plano para no bloquear ni
 alterar el flujo de las órdenes. Si el push falla, la orden nunca se ve
@@ -157,36 +161,62 @@ class PushService:
         ).all()
         return [usuario_id for usuario_id, puesto in filas if es_puesto_cocina(puesto)]
 
-    def usuarios_con_turno_activo(self, usuario_ids: Iterable[int]) -> list[int]:
-        """Usuarios que están dentro del sistema (turno abierto y no anulado).
+    def usuarios_reciben_avisos(self, usuario_ids: Iterable[int]) -> list[int]:
+        """Usuarios que pueden recibir los avisos push.
 
-        Las notificaciones push solo se entregan a quien está trabajando:
-        si el turno ya se cerró, el registro fue anulado, el usuario está
-        desactivado, el empleado fue dado de baja o al vendedor le
-        deshabilitaron el turno, no se envía nada.
+        La entrega ya NO exige un turno abierto: el aviso llega siempre que
+        la cuenta siga vigente (usuario y empleado activos) y el dispositivo
+        tenga la suscripción registrada. Así se puede recibir la
+        notificación "fuera del sistema" (turno cerrado, app cerrada o
+        navegador sin sesión iniciada).
+
+        Cada usuario puede pedir explícitamente lo contrario con
+        ``Usuario.avisos_fuera_de_turno = False``: en ese caso solo recibe
+        avisos mientras tiene el turno abierto.
         """
         ids = [usuario_id for usuario_id in usuario_ids if usuario_id]
         if not ids:
             return []
+
         filas = self.db.execute(
-            select(Usuario.id, Usuario.rol, Usuario.turno_habilitado)
+            select(
+                Usuario.id,
+                Usuario.rol,
+                Usuario.turno_habilitado,
+                Usuario.avisos_fuera_de_turno,
+            )
             .join(Empleado, Usuario.empleado_id == Empleado.id)
-            .join(Asistencia, Asistencia.empleado_id == Empleado.id)
             .where(
                 Usuario.id.in_(ids),
                 Usuario.activo.is_(True),
                 Empleado.activo.is_(True),
-                Asistencia.hora_salida_real.is_(None),
-                Asistencia.anulada.is_(False),
             )
         ).all()
-        return sorted(
-            {
-                fila[0]
-                for fila in filas
-                if fila[1] != RolEnum.VENDEDOR or fila[2]
-            }
+
+        turnos_abiertos = set(
+            self.db.execute(
+                select(Usuario.id)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .join(Asistencia, Asistencia.empleado_id == Empleado.id)
+                .where(
+                    Usuario.id.in_(ids),
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                    Asistencia.hora_salida_real.is_(None),
+                    Asistencia.anulada.is_(False),
+                )
+            )
+            .scalars()
+            .all()
         )
+
+        destinatarios = set()
+        for usuario_id, rol, turno_habilitado, avisos_fuera_de_turno in filas:
+            if rol == RolEnum.VENDEDOR and not turno_habilitado:
+                continue
+            if avisos_fuera_de_turno or usuario_id in turnos_abiertos:
+                destinatarios.add(usuario_id)
+        return sorted(destinatarios)
 
     # ------------------------------------------------------------------ #
     #  Envío
@@ -281,13 +311,13 @@ class PushService:
     #  Flujos de comanda
     # ------------------------------------------------------------------ #
     def notificar_nueva_comanda(self, orden: Orden) -> int:
-        """Avisa a la cocina que hay una comanda nueva (solo con turno activo)."""
+        """Avisa a la cocina que hay una comanda nueva (aunque no tenga turno)."""
         candidatos = [
             usuario_id
             for usuario_id in self.usuarios_cocina()
             if usuario_id != orden.mesero_id
         ]
-        destinatarios = self.usuarios_con_turno_activo(candidatos)
+        destinatarios = self.usuarios_reciben_avisos(candidatos)
         if not destinatarios:
             return 0
 
@@ -304,11 +334,11 @@ class PushService:
         )
 
     def notificar_comanda_lista(self, orden: Orden) -> int:
-        """Avisa al mesero que su comanda ya está lista (solo con turno activo)."""
+        """Avisa al mesero que su comanda ya está lista (aunque no tenga turno)."""
         if not orden.mesero_id:
             return 0
 
-        destinatarios = self.usuarios_con_turno_activo([orden.mesero_id])
+        destinatarios = self.usuarios_reciben_avisos([orden.mesero_id])
         if not destinatarios:
             return 0
 

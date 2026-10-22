@@ -247,6 +247,10 @@ class UsuarioResponse(UsuarioBase):
         ...,
         description="Si es Vendedor, indica si puede iniciar turno (habilitado por gerencia)"
     )
+    avisos_fuera_de_turno: bool = Field(
+        True,
+        description="Si recibe los avisos push de comandas aunque esté fuera del sistema"
+    )
 
 
 class PasswordResetRequest(BaseModel):
@@ -299,6 +303,19 @@ class TurnoHabilitadoUpdate(BaseModel):
     turno_habilitado: bool = Field(
         ...,
         description="True permite al Vendedor iniciar su turno, False lo bloquea"
+    )
+
+
+class AvisosFueraTurnoUpdate(BaseModel):
+    """Esquema para cambiar si un usuario recibe avisos fuera de su turno."""
+
+    avisos_fuera_de_turno: bool = Field(
+        ...,
+        description=(
+            "True recibe los avisos push aunque esté fuera del sistema "
+            "(turno cerrado, app cerrada o sin sesión); False solo mientras "
+            "su turno está abierto"
+        ),
     )
 
 

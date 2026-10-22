@@ -246,6 +246,22 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | `--amarillo-solar`| `#FFB703`| Warnings, highlights     |
 | `--turquesa-ola` | `#2A9D8F` | Success, secondary       |
 
+### Modo oscuro
+
+- **Mecanismo**: `document.documentElement` lleva el atributo `data-theme="dark"` (sin atributo = claro). El tema elegido se guarda en `localStorage` bajo `pos_tema` (`'dark'`/`'light'`).
+- **Sin FOUC**: script inline en el `<head>` de `index.html` lee `pos_tema` (o `prefers-color-scheme`) **antes** de cargar el CSS y aplica `data-theme`.
+- **API JS** (`app/Templates/js/app.js`, bloque "Tema claro / oscuro"): `temaActual()`, `temaPreferido()`, `aplicarTema(tema, guardar)`, `alternarTema()`, `pintarEstadoTema()`, `actualizarMetaTema()`, `actualizarGraficosTema()`, `iniciarTema()`. Botones con `data-tema-toggle` (+ `data-tema-icono` / `data-tema-texto`): `#btn-tema` en el topbar de escritorio y el ítem "Modo oscuro" del menú móvil.
+- **Regla de CSS (obligatoria)**: nunca escribir un color literal nuevo en una regla que deba adaptarse. Usar `color-mix(in srgb, <color-claro> var(--mix-*-pct), var(--mix-*-base))`:
+  | Variable | Claro | Oscuro |
+  |---|---|---|
+  | `--mix-ink-pct` / `--mix-ink-base` | `100%` / `transparent` | `45%` / `#e8f0f8` |
+  | `--mix-surface-pct` / `--mix-surface-base` | `100%` / `transparent` | `10%` / `#0b1220` |
+  | `--mix-border-pct` / `--mix-border-base` | `100%` / `transparent` | `20%` / `#2a3849` |
+  Con `--mix-*-pct: 100%` + base `transparent`, `color-mix()` devuelve **exactamente** el color original → **el modo claro queda pixel-idéntico**. Los tintes translúcidos (`rgba(...)` de fondo) se dejan tal cual: funcionan en ambos temas.
+- **Dónde va el bloque oscuro**: al **final** de `style.css` (después de todas las reglas claras) para que gane por orden de aparición sin `!important`.
+- **Gráficos**: `actualizarGraficosTema()` ajusta `Chart.defaults.color`/`borderColor` y el `borderColor` del doughnut al color de tarjeta del tema activo.
+- **Assets**: las URLs siguen siendo estables (sin `?v=`); el tema no toca `<link>`/`<script>`.
+
 ## RBAC Rules
 
 | Action                        | Administrador | Gerente | Vendedor |
@@ -408,6 +424,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | DELETE | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
 | GET    | /api/v1/auditoria/                          | Yes      | Admin, Gerente     |
 | GET    | /api/v1/push/config                         | Yes      | Any                |
+| GET    | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
+| PATCH  | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
+| PATCH  | /api/v1/personal/usuarios/{id}/avisos-fuera-turno | Yes | Admin, Gerente    |
 | POST   | /api/v1/push/subscribe                      | Yes      | Any                |
 | POST   | /api/v1/push/unsubscribe                    | Yes      | Any                |
 | GET    | /api/v1/push/subscriptions                  | Yes      | Any                |
@@ -628,7 +647,8 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - **Disparadores** (en la capa de endpoints, `app/api/endpoints/orden.py`):
   - `POST /ordenes/`, `POST /ordenes/{id}/items`, `PUT /ordenes/{id}/items` → `nueva_comanda` → notifica a **cocina**
   - `PATCH /ordenes/{id}/estado` con `ENTREGADA` → `comanda_lista` → notifica al **mesero** (`orden.mesero_id`)
-- **Solo se notifica a quien está dentro del sistema** (`PushService.usuarios_con_turno_activo()`): el destinatario debe cumplir **todas** estas condiciones → `Usuario.activo=True`, `Empleado.activo=True` (no está dado de baja), `Asistencia.hora_salida_real IS NULL` (turno abierto), `Asistencia.anulada=False` y, si su rol es `Vendedor`, `Usuario.turno_habilitado=True` (misma regla que el watcher de heartbeat: quien puede seguir trabajando). Si el turno ya se cerró, fue anulado, el usuario/empleado está inactivo o le deshabilitaron el turno, **no se entrega ninguna notificación** (queda "fuera del sistema"). `usuarios_cocina()` además exige `Usuario.activo=True` y `Empleado.activo=True`. El mesero que creó la orden queda excluido del aviso a cocina (nada de autosnotificaciones).
+- **Entrega "fuera del sistema"** (`PushService.usuarios_reciben_avisos()`): el aviso llega aunque el turno esté cerrado, la app cerrada o el navegador sin sesión. Reglas → `Usuario.activo=True` y `Empleado.activo=True` (obligatorias); si el rol es `Vendedor`, además `Usuario.turno_habilitado=True` (gerencia lo deshabilitó explícitamente = no recibe); `Usuario.avisos_fuera_de_turno` (Boolean NOT NULL **default TRUE**) decide el resto → `True` recibe siempre, `False` solo mientras `Asistencia.hora_salida_real IS NULL` + `Asistencia.anulada=False`. `usuarios_cocina()` exige `Usuario.activo` + `Empleado.activo`. El mesero que creó la orden queda excluido del aviso a cocina (nada de autosnotificaciones).
+- **Preferencia por usuario `Usuario.avisos_fuera_de_turno`**: columna agregada por `_migrate_usuarios_avisos_fuera_de_turno()` (startup, `_add_column_if_not_exists`) con `DEFAULT TRUE` → el comportamiento "afuera del sistema" funciona desde el primer arranque sin tocar nada. Autoservicio: `GET`/`PATCH /api/v1/push/preferencias` (`{avisos_fuera_de_turno: bool}`). Control de gerencia: `PATCH /api/v1/personal/usuarios/{id}/avisos-fuera-turno` (Admin/Gerente, 404 si no existe). `PushConfigResponse` expone el flag y `UsuarioResponse` lo incluye.
 - **Cocina = por Puesto, no por rol**: `es_puesto_cocina()` acepta nombres que contengan `cocin`, `cosin` o `chef` (en producción el puesto es `Cosinero/Chef`, con typo, y NO contiene "cocin").
 - **Los envíos son tarea en segundo plano** (`BackgroundTasks` + `ejecutar_notificacion_push()` que abre su propia `SessionLocal()`): un fallo de push **jamás** rompe el flujo de la orden; el error queda en el log (`[PUSH] ...`) y la suscripción que responde `404`/`410` se elimina (podada automática).
 - **Service worker**: `app/Templates/sw.js`, registrado con `navigator.serviceWorker.register('/Templates/sw.js', { scope: '/Templates/' })` (**URL estable, sin `?v=`**). El scope cubre `/Templates/index.html` (el mount de `StaticFiles` no usa `html=True`, así que `sw.js` se sirve directo). Maneja `push` (muestra notificación con icono `Imagenes/notificacion.png`) y `notificationclick` (si el ERP ya está abierto le manda `postMessage({tipo:'destino', pantalla, mesa})` para navegar sin recargar ni tocar la URL; si está cerrado abre `/Templates/index.html?pantalla=…` y la app limpia los parámetros al cargar).

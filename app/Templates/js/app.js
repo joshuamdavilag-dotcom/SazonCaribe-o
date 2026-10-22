@@ -250,6 +250,7 @@ const pushEstado = {
   suscripcion: null,
   registro: null,
   cargando: false,
+  avisosFueraDeTurno: true,
 };
 
 function urlBase64ToUint8Array(base64) {
@@ -305,6 +306,14 @@ function pintarEstadoPush() {
     if (etiqueta) etiqueta.textContent = activo ? 'Avisos activados' : 'Activar avisos';
   });
 
+  const casilla = document.getElementById('push-avisos-fuera-turno');
+  if (casilla) {
+    casilla.checked = Boolean(pushEstado.avisosFueraDeTurno);
+    casilla.disabled = !activo;
+  }
+  const filaFueraTurno = document.getElementById('push-fuera-turno-fila');
+  if (filaFueraTurno) filaFueraTurno.classList.toggle('push-fuera-turno-off', !activo);
+
   if (!estado) return;
   if (!pushSoportado()) {
     estado.textContent = mensajePushNoSoportado();
@@ -314,9 +323,38 @@ function pintarEstadoPush() {
     estado.textContent = 'Las notificaciones están bloqueadas: habilítalas en los ajustes del navegador.';
     return;
   }
-  estado.textContent = activo
-    ? 'Recibirás avisos de comandas mientras tu turno esté abierto.'
-    : 'Recibe avisos de comandas aunque tengas la app cerrada.';
+  if (!activo) {
+    estado.textContent = 'Activa los avisos para recibirlos aunque la app esté cerrada y aunque no tengas turno abierto.';
+    return;
+  }
+  estado.textContent = pushEstado.avisosFueraDeTurno
+    ? 'Recibirás avisos de comandas aunque no tengas turno abierto ni la app abierta.'
+    : 'Recibirás avisos de comandas solo mientras tu turno esté abierto.';
+}
+
+async function alternarAvisosFueraDeTurno(activado) {
+  const valor = Boolean(activado);
+  pushEstado.avisosFueraDeTurno = valor;
+  pintarEstadoPush();
+  try {
+    const respuesta = await api('/push/preferencias', {
+      method: 'PATCH',
+      body: JSON.stringify({ avisos_fuera_de_turno: valor }),
+      silent: true,
+    });
+    pushEstado.avisosFueraDeTurno = Boolean(respuesta?.avisos_fuera_de_turno ?? valor);
+    pintarEstadoPush();
+    showToast(
+      pushEstado.avisosFueraDeTurno
+        ? 'Recibirás avisos aunque no tengas turno abierto'
+        : 'Solo recibirás avisos mientras tengas el turno abierto'
+    );
+  } catch (error) {
+    console.error(error);
+    pushEstado.avisosFueraDeTurno = !valor;
+    pintarEstadoPush();
+    showToast('No se pudo guardar la preferencia de avisos', 'error');
+  }
 }
 
 async function activarNotificacionesPush() {
@@ -405,6 +443,14 @@ async function sincronizarEstadoPush() {
   if (!pushSoportado()) {
     pintarEstadoPush();
     return;
+  }
+  try {
+    const preferencias = await api('/push/preferencias', { silent: true });
+    if (preferencias) {
+      pushEstado.avisosFueraDeTurno = Boolean(preferencias.avisos_fuera_de_turno);
+    }
+  } catch (error) {
+    console.warn('No se pudo leer la preferencia de avisos push:', error);
   }
   try {
     const registro = await registrarServiceWorkerPush();
@@ -596,6 +642,96 @@ function showToast(message, type = 'success', duration = 3000) {
   t.className = `toast ${type} show`;
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+/* =========================================================================
+   Tema claro / oscuro
+   ========================================================================= */
+const TEMA_KEY = 'pos_tema';
+
+function temaActual() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function temaPreferido() {
+  try {
+    const guardado = localStorage.getItem(TEMA_KEY);
+    if (guardado === 'dark' || guardado === 'light') return guardado;
+  } catch (e) {}
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+
+function colorTema(variable) {
+  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+}
+
+function aplicarTema(tema, guardar = true) {
+  const raiz = document.documentElement;
+  if (tema === 'dark') raiz.setAttribute('data-theme', 'dark');
+  else raiz.removeAttribute('data-theme');
+  if (guardar) {
+    try { localStorage.setItem(TEMA_KEY, tema); } catch (e) {}
+  }
+  pintarEstadoTema();
+  actualizarMetaTema();
+  actualizarGraficosTema();
+}
+
+function alternarTema() {
+  aplicarTema(temaActual() === 'dark' ? 'light' : 'dark');
+}
+
+function pintarEstadoTema() {
+  const oscuro = temaActual() === 'dark';
+  document.querySelectorAll('[data-tema-toggle]').forEach(boton => {
+    boton.setAttribute('aria-pressed', String(oscuro));
+    boton.setAttribute('aria-label', oscuro ? 'Activar modo claro' : 'Activar modo oscuro');
+    boton.setAttribute('title', oscuro ? 'Activar modo claro' : 'Activar modo oscuro');
+    const icono = boton.querySelector('[data-tema-icono]');
+    if (icono) icono.textContent = oscuro ? 'light_mode' : 'dark_mode';
+    const etiqueta = boton.querySelector('[data-tema-texto]');
+    if (etiqueta) etiqueta.textContent = oscuro ? 'Modo claro' : 'Modo oscuro';
+  });
+}
+
+function actualizarMetaTema() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', temaActual() === 'dark' ? '#0b1220' : '#0D233A');
+}
+
+function actualizarGraficosTema() {
+  if (typeof Chart === 'undefined') return;
+  const oscuro = temaActual() === 'dark';
+  Chart.defaults.color = oscuro ? '#a3b6ca' : '#475569';
+  Chart.defaults.borderColor = colorTema('--border-light') || (oscuro ? '#33465c' : '#e2e8f0');
+  if (pieChartInstance && pieChartInstance.data?.datasets?.[0]) {
+    pieChartInstance.data.datasets[0].borderColor = colorTema('--bg-card') || (oscuro ? '#232a36' : '#ffffff');
+    pieChartInstance.update();
+  }
+  if (barChartInstance) barChartInstance.update();
+}
+
+function iniciarTema() {
+  pintarEstadoTema();
+  actualizarMetaTema();
+  document.querySelectorAll('[data-tema-toggle]').forEach(boton => {
+    boton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      alternarTema();
+    });
+  });
+  if (window.matchMedia) {
+    const consulta = window.matchMedia('(prefers-color-scheme: dark)');
+    const alCambiar = () => {
+      let guardado = null;
+      try { guardado = localStorage.getItem(TEMA_KEY); } catch (e) {}
+      if (guardado === 'dark' || guardado === 'light') return;
+      aplicarTema(consulta.matches ? 'dark' : 'light', false);
+    };
+    if (consulta.addEventListener) consulta.addEventListener('change', alCambiar);
+    else if (consulta.addListener) consulta.addListener(alCambiar);
+  }
 }
 
 /* =========================================================================
@@ -1987,13 +2123,13 @@ function renderGastosTable() {
     return;
   }
   tbody.innerHTML = filtered.map(g => `
-    <tr style="border-bottom:1px solid #f1f5f9;" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
-      <td style="padding:12px 16px;font-weight:600;color:#0F3B66;white-space:nowrap;">#${g.id}</td>
-      <td style="padding:12px 16px;color:#374151;white-space:nowrap;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
+    <tr style="border-bottom:1px solid color-mix(in srgb, #f1f5f9 var(--mix-border-pct), var(--mix-border-base));" onmouseenter="this.style.background='var(--hover-bg)'" onmouseleave="this.style.background=''">
+      <td style="padding:12px 16px;font-weight:600;color:color-mix(in srgb, #0F3B66 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">#${g.id}</td>
+      <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
       <td style="padding:12px 16px;"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORIA_BADGE[g.categoria] || 'bg-slate-100 text-slate-600'}">${CATEGORIA_LABELS[g.categoria] || g.categoria}</span></td>
-      <td style="padding:12px 16px;color:#374151;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.concepto)}</td>
-      <td style="padding:12px 16px;text-align:right;font-weight:700;color:#E63946;white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
-      <td style="padding:12px 16px;color:#6b7280;font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
+      <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.concepto)}</td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
+      <td style="padding:12px 16px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
       <td class="admin-only" style="padding:8px 12px;white-space:nowrap;text-align:right;">
         <button type="button" class="btn-action" title="Editar gasto" onclick="openEditarGasto(${g.id})">✏️</button>
         <button type="button" class="btn-action btn-action-danger" title="Eliminar gasto" onclick="openEliminarGasto(${g.id})">🗑️</button>
@@ -2594,11 +2730,11 @@ let descModalTipo = 'PORCENTAJE';
 async function loadDescuentos() {
   const cont = document.getElementById('descuentos-list');
   if (!cont) return;
-  cont.innerHTML = '<p style="color:#9ca3af;padding:12px;grid-column:1/-1;">Cargando descuentos…</p>';
+  cont.innerHTML = '<p style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Cargando descuentos…</p>';
   try {
     const lista = await api('/descuentos/');
     if (!Array.isArray(lista) || !lista.length) {
-      cont.innerHTML = '<p style="color:#9ca3af;padding:12px;grid-column:1/-1;">No hay descuentos creados. Toca "Nuevo Descuento".</p>';
+      cont.innerHTML = '<p style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">No hay descuentos creados. Toca "Nuevo Descuento".</p>';
       return;
     }
     cont.innerHTML = lista.map(d => {
@@ -2612,7 +2748,7 @@ async function loadDescuentos() {
             <p class="font-display text-lg font-extrabold text-brand-navy break-words">${escHtml(d.nombre)}</p>
             <p class="text-[12px] text-slate-500 mt-0.5">${tipoLabel}</p>
           </div>
-          <span class="shrink-0 inline-flex items-center rounded-full px-3 py-1 text-[13px] font-extrabold" style="background:var(--turquesa-ola);color:#fff;">${val}</span>
+          <span class="shrink-0 inline-flex items-center rounded-full px-3 py-1 text-[13px] font-extrabold" style="background:var(--turquesa-ola);color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));">${val}</span>
         </div>
         ${inactivo ? '<p class="text-[11px] font-bold text-slate-400 mt-2">⏸️ NO DISPONIBLE</p>' : ''}
         <div class="flex gap-2 mt-3">
@@ -2623,7 +2759,7 @@ async function loadDescuentos() {
     }).join('');
     state.descuentosList = lista;
   } catch {
-    cont.innerHTML = '<p style="color:#E63946;padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
+    cont.innerHTML = '<p style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
   }
 }
 
@@ -2973,15 +3109,15 @@ function renderZonasList(zonas) {
   const list = document.getElementById('zonas-list');
   if (!list) return;
   if (!zonas || zonas.length === 0) {
-    list.innerHTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;padding:8px;">No hay zonas creadas</p>';
+    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay zonas creadas</p>';
     return;
   }
   list.innerHTML = zonas.map(z => {
     const count = (z.mesas || []).length;
     return `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">📍 ${z.nombre}</span>
-        <span style="font-size:11px;color:#9ca3af;">${count} mesa(s)</span>
+        <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} mesa(s)</span>
         <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarZona(${z.id}, '${z.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene mesas — no se puede eliminar' : 'Eliminar zona'}">🗑</button>
       </div>`;
   }).join('');
@@ -3000,15 +3136,15 @@ function renderGestionMesasList(mesas) {
     MANTENIMIENTO: 'background:#e5e7eb;color:#374151;',
   };
   list.innerHTML = mesas.map(m => `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:6px;">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:10px;margin-bottom:6px;">
       <div style="flex:1;">
         <span style="font-weight:600;font-size:14px;">Mesa ${m.numero}</span>
-        <span style="font-size:12px;color:#6b7280;margin-left:6px;">ID: ${m.id}</span>
+        <span style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-left:6px;">ID: ${m.id}</span>
       </div>
       <span style="font-size:12px;padding:2px 8px;border-radius:999px;${estadoColors[m.estado] || ''}">${m.estado}</span>
-      <span style="font-size:12px;color:#6b7280;">👥 ${m.capacidad}</span>
+      <span style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">👥 ${m.capacidad}</span>
       <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="editarMesa(${m.id})">✏️</button>
-      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:#E63946;" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
+      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
     </div>`).join('');
 }
 
@@ -3138,7 +3274,7 @@ async function loadCocinaOrdenes() {
     renderCocinaCards();
     renderCocinaTabCounts();
   } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#E63946;padding:32px;">Error al cargar órdenes</p>';
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Error al cargar órdenes</p>';
   }
 }
 
@@ -3578,7 +3714,7 @@ function openOrderModal(mesaId, mesaNumero, ordenExistente) {
   }
 
   document.getElementById('order-modal-cart').innerHTML =
-    '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
     '<p class="order-card-empty">Cargando menú…</p>';
 
@@ -3850,7 +3986,7 @@ function renderOrderModalCart() {
   const items = state.currentOrder.items;
 
   if (items.length === 0) {
-    cart.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;font-size:13px;">Vacío — toca un platillo para agregarlo</p>';
+    cart.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca un platillo para agregarlo</p>';
     return;
   }
 
@@ -4665,11 +4801,11 @@ function addRecipeRow(ingredienteId, cantidad, descuentoLote) {
     <select class="form-input recipe-cat-filter" style="flex:1;height:36px;font-size:12px;">${_buildCatInsumoOptions(catId)}</select>
     <select class="form-input recipe-ingrediente" style="flex:2;height:36px;font-size:13px;">${_buildInsumoOptions(catId, ingredienteId)}</select>
     <input type="number" class="form-input recipe-cantidad" style="flex:1;height:36px;font-size:13px;" step="0.001" min="0.001" placeholder="Cant." value="${cantidad || ''}">
-    <label title="Si está activo, este ingrediente NO se descuenta por plato sino solo por Producción de Cocina" style="display:flex;align-items:center;gap:3px;font-size:11px;color:#6b7280;white-space:nowrap;cursor:pointer;">
+    <label title="Si está activo, este ingrediente NO se descuenta por plato sino solo por Producción de Cocina" style="display:flex;align-items:center;gap:3px;font-size:11px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;cursor:pointer;">
       <input type="checkbox" class="recipe-lote" style="width:14px;height:14px;">
       <span>Lote</span>
     </label>
-    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:#E63946;font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
+    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
   `;
 
   const catSelect = row.querySelector('.recipe-cat-filter');
@@ -4734,15 +4870,15 @@ function renderCatList() {
   const list = document.getElementById('cat-list');
   if (!list) return;
   if (!state.categories || state.categories.length === 0) {
-    list.innerHTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;padding:8px;">No hay categorías creadas</p>';
+    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay categorías creadas</p>';
     return;
   }
   list.innerHTML = state.categories.map(c => {
     const count = state.menuItems.filter(i => i.categoria_id === c.id).length;
     return `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">🍽️ ${c.nombre}</span>
-        <span style="font-size:11px;color:#9ca3af;">${count} platillo(s)</span>
+        <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} platillo(s)</span>
         <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
       </div>`;
   }).join('');
@@ -6165,7 +6301,7 @@ async function toggleNominaDetalle() {
   if (!data) return;
 
   const content = document.getElementById('nomina-detalle-content');
-  content.innerHTML = '<span style="color:#6b7280;">Cargando detalle…</span>';
+  content.innerHTML = '<span style="color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Cargando detalle…</span>';
   panel.style.display = 'block';
 
   try {
@@ -6174,7 +6310,7 @@ async function toggleNominaDetalle() {
     );
 
     if (!asistencias || asistencias.length === 0) {
-      content.innerHTML = '<span style="color:#6b7280;">Sin registros en este período.</span>';
+      content.innerHTML = '<span style="color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Sin registros en este período.</span>';
       return;
     }
 
@@ -6192,7 +6328,7 @@ async function toggleNominaDetalle() {
       const he = parseFloat(a.horas_extras || 0);
       const hNorm = Math.max(0, horasTrabajadas - he);
       const fecha = a.fecha;
-      return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #e5e7eb;">
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));">
         <span>${fecha}</span>
         <span>${hNorm.toFixed(1)}h norm + ${he.toFixed(1)}h ext = ${horasTrabajadas.toFixed(1)}h</span>
       </div>`;
@@ -6206,7 +6342,7 @@ async function toggleNominaDetalle() {
       <div style="max-height:160px;overflow-y:auto;">${rows}</div>
     `;
   } catch {
-    content.innerHTML = '<span style="color:#E63946;">Error al cargar el detalle.</span>';
+    content.innerHTML = '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">Error al cargar el detalle.</span>';
   }
 }
 
@@ -6279,13 +6415,13 @@ async function guardarAdelanto(e) {
 
 async function loadNominaHistorial(empleadoId) {
   const container = document.getElementById('nomina-history-list');
-  container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;">Cargando historial…</p>';
+  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando historial…</p>';
 
   try {
     const nominas = await api(`/nomina/empleado/${empleadoId}`);
     renderNominaHistorial(nominas);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:16px;">Error al cargar historial</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar historial</p>';
   }
 }
 
@@ -6453,7 +6589,7 @@ function openAsistenciasModal(empleadoId, nombre) {
   asisEmpleadoId = empleadoId;
   document.getElementById('asis-employee-name').textContent = nombre;
   document.getElementById('asis-table-container').innerHTML =
-    '<p style="text-align:center;color:#9ca3af;padding:24px;">Cargando asistencias…</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Cargando asistencias…</p>';
   document.getElementById('modal-asistencias').classList.add('show');
   loadAsistenciasEmpleado(empleadoId);
 }
@@ -6469,7 +6605,7 @@ async function loadAsistenciasEmpleado(empleadoId) {
     const asistencias = await api(`/asistencia/empleados/${empleadoId}/historial`);
     renderAsistenciasTable(asistencias, container);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:24px;">Error al cargar asistencias</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Error al cargar asistencias</p>';
   }
 }
 
@@ -6497,25 +6633,25 @@ function renderAsistenciasTable(asistencias, container) {
           const entrada = formatLocalTime(a.hora_entrada_real);
           const salida = a.hora_salida_real
             ? formatLocalTime(a.hora_salida_real)
-            : '<span style="color:#E63946;font-weight:600;">Activo</span>';
+            : '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-weight:600;">Activo</span>';
           const ot = parseFloat(a.horas_extras);
           const otBadge = ot > 0
-            ? `<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
-            : '<span style="color:#9ca3af;">0.00h</span>';
+            ? `<span style="background:color-mix(in srgb, #fef9c3 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #854d0e var(--mix-ink-pct), var(--mix-ink-base));padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
+            : '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">0.00h</span>';
           const autoCierre = (a.observaciones || '').includes('Cierre automático')
-            ? `<span title="${escHtml(a.observaciones)}" style="cursor:help;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">⏱️ Auto</span>`
+            ? `<span title="${escHtml(a.observaciones)}" style="cursor:help;background:color-mix(in srgb, #fef3c7 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #92400e var(--mix-ink-pct), var(--mix-ink-base));padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">⏱️ Auto</span>`
             : '';
           const auditado = a.horas_extras_originales != null
-            ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
+            ? `<span title="Original: ${parseFloat(a.horas_extras_originales).toFixed(2)}h\nMotivo: ${a.motivo_modificacion || '—'}\nModificado por: Usuario #${a.modificado_por}" style="cursor:help;background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">✏️ Auditado</span>`
             : '';
           const auditInfo = a.anulada
-            ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
+            ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
             : (auditado || autoCierre
               ? `${auditado}${autoCierre}`
-              : '<span style="color:#9ca3af;font-size:11px;">—</span>');
+              : '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>');
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
           const acciones = a.anulada
-            ? '<span style="color:#9ca3af;font-size:11px;">—</span>'
+            ? '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>'
             : `
               <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
               <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
@@ -6528,7 +6664,7 @@ function renderAsistenciasTable(asistencias, container) {
               <td>${salida}</td>
               <td>${otBadge}</td>
               <td>${auditInfo}</td>
-              <td style="font-size:12px;color:#6b7280;">Turno #${a.turno_id}</td>
+              <td style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Turno #${a.turno_id}</td>
               <td>${acciones}</td>
             </tr>`;
         }).join('')}
@@ -6762,7 +6898,7 @@ function addPreparacionRow() {
       <label class="form-label" style="font-size:12px;">Cantidad</label>
       <input type="number" class="form-input prep-cantidad" data-row="${id}" step="0.01" min="0.01" placeholder="0" style="height:36px;font-size:13px;" oninput="updatePrepSummary()">
     </div>
-    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:#E63946;" title="Eliminar">✕</button>
+    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" title="Eliminar">✕</button>
   `;
   container.appendChild(row);
 }
@@ -6901,7 +7037,7 @@ function renderPieChart(data) {
       datasets: [{
         data: values.map(v => Math.max(v, 0)),
         backgroundColor: colors,
-        borderColor: '#ffffff',
+        borderColor: colorTema('--bg-card') || '#ffffff',
         borderWidth: 2,
       }],
     },
@@ -7011,7 +7147,7 @@ function openDetalleMesaOcupada(mesaId) {
   const apodoInput = document.getElementById('oc-apodo-input');
   if (apodoInput) apodoInput.value = mesa.apodo || '';
   document.getElementById('oc-items-list').innerHTML =
-    '<p style="text-align:center;color:#9ca3af;padding:16px;">Cargando orden…</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando orden…</p>';
   ['oc-subtotal', 'oc-total'].forEach(id => {
     document.getElementById(id).textContent = 'C$0.00';
   });
@@ -7048,7 +7184,7 @@ async function loadOcupadaOrden(mesaId) {
 
     if (!orden) {
       document.getElementById('oc-items-list').innerHTML =
-        '<p style="text-align:center;color:#9ca3af;padding:16px;">No se encontró orden activa para esta mesa.</p>';
+        '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">No se encontró orden activa para esta mesa.</p>';
       document.getElementById('oc-subtotal').textContent = 'C$0.00';
       document.getElementById('oc-total').textContent = 'C$0.00';
       document.getElementById('btn-agregar-pedido').style.display = 'none';
@@ -7068,7 +7204,7 @@ async function loadOcupadaOrden(mesaId) {
     renderOcItems(orden);
   } catch {
     document.getElementById('oc-items-list').innerHTML =
-      '<p style="text-align:center;color:#E63946;padding:16px;">Error al cargar la orden.</p>';
+      '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar la orden.</p>';
   }
 }
 
@@ -7100,7 +7236,7 @@ function renderOcItems(orden) {
   const detalles = orden.detalles || [];
 
   if (detalles.length === 0) {
-    list.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">Sin ítems registrados.</p>';
+    list.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Sin ítems registrados.</p>';
   } else {
     list.innerHTML = detalles.map(d => {
       const producto = state.menuItems.find(mi => mi.id === d.producto_id);
@@ -7112,17 +7248,17 @@ function renderOcItems(orden) {
       const hasDesc = d.descuento_porcentaje || d.descuento_monto;
 
       const descLabel = hasDesc
-        ? `<span style="font-size:11px;color:#E63946;">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
+        ? `<span style="font-size:11px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
         : '';
 
       return `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid color-mix(in srgb, #f3f4f6 var(--mix-border-pct), var(--mix-border-base));">
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:13px;">${nombre} ${descLabel}</div>
-            <div style="font-size:12px;color:#6b7280;">${d.cantidad} × C$${precioBase.toFixed(2)}</div>
+            <div style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">${d.cantidad} × C$${precioBase.toFixed(2)}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;">
-            ${hasDesc ? `<span style="font-size:11px;color:#9ca3af;text-decoration:line-through;">C$${subtotalBase.toFixed(2)}</span>` : ''}
+            ${hasDesc ? `<span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-decoration:line-through;">C$${subtotalBase.toFixed(2)}</span>` : ''}
             <span style="font-weight:600;font-size:14px;color:${hasDesc ? 'var(--rojo-cangrejo)' : 'var(--azul-marino)'};">C$${subtotalFinal.toFixed(2)}</span>
           </div>
         </div>`;
@@ -7306,13 +7442,13 @@ async function loadVentasDia() {
 async function loadHistorialOrdenesDia(target = 'gestor') {
   const container = document.getElementById(target === 'mesero' ? 'historial-ordenes-list-mesero' : 'historial-ordenes-list');
   if (!container) return;
-  container.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:12px;">Cargando historial…</p>';
+  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Cargando historial…</p>';
 
   try {
     const data = await api('/caja/historial-diario');
     renderHistorialOrdenesDia(data.ordenes || [], target);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:#E63946;padding:12px;">Error al cargar historial.</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Error al cargar historial.</p>';
   }
 }
 
@@ -7347,7 +7483,7 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
           const fec = String(o.fecha_creacion || '').replace('T', ' ').slice(0, 16);
           const devueltos = (o.detalles || []).filter(d => (d.cantidad_devuelta || 0) > 0);
           const devueltosTxt = devueltos.length
-            ? `<span class="td-sub" style="color:#FFB703;">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
+            ? `<span class="td-sub" style="color:color-mix(in srgb, #FFB703 var(--mix-ink-pct), var(--mix-ink-base));">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
             : '';
           return `
             <tr>
@@ -7713,6 +7849,10 @@ document.addEventListener('DOMContentLoaded', () => {
       alternarNotificacionesPush();
     });
   });
+  document.getElementById('push-avisos-fuera-turno')?.addEventListener('change', event => {
+    void alternarAvisosFueraDeTurno(event.target.checked);
+  });
+  iniciarTema();
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {
     void cargarNotificaciones();
   });

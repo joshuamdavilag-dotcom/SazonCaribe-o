@@ -7,6 +7,17 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
+  <script>
+    (function () {
+      try {
+        var guardado = localStorage.getItem('pos_tema');
+        if (guardado !== 'dark' && guardado !== 'light') {
+          guardado = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        }
+        if (guardado === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -142,7 +153,14 @@
           <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
           <span data-push-texto>Activar avisos</span>
         </button>
-        <p id="notifications-push-estado" class="notifications-push-estado">Recibe avisos de comandas aunque tengas la app cerrada.</p>
+        <label class="notifications-push-fuera" id="push-fuera-turno-fila" for="push-avisos-fuera-turno">
+          <input type="checkbox" id="push-avisos-fuera-turno" checked>
+          <span class="notifications-push-fuera-texto">
+            <strong>Recibir avisos fuera del sistema</strong>
+            <em>Te llegan aunque no tengas turno abierto, aunque cierres la app y aunque no tengas sesión iniciada.</em>
+          </span>
+        </label>
+        <p id="notifications-push-estado" class="notifications-push-estado">Activa los avisos para recibirlos aunque la app esté cerrada y aunque no tengas turno abierto.</p>
       </div>
       <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
       <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
@@ -210,7 +228,7 @@
           <span>Turno Actual</span>
           <span id="attendance-clock" class="font-mono">--:--</span>
         </div>
-        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:#fff;color:#0F3B66;">
+        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #0F3B66 var(--mix-ink-pct), var(--mix-ink-base));">
           <option value="">Seleccionar turno…</option>
         </select>
         <button id="btn-enable-attendance-notifications" class="w-full py-1.5 text-[11px] rounded-lg font-semibold text-white/80 border border-white/20" type="button">
@@ -219,7 +237,7 @@
         <button id="btn-attendance-toggle" class="btn-turquoise w-full py-1.5 text-xs rounded-lg font-semibold flex items-center justify-center gap-1">
           <span class="material-symbols-outlined text-sm">schedule</span> Iniciar Turno
         </button>
-        <div id="attendance-status" style="font-size:10px;color:#94a3b8;text-align:center;"></div>
+        <div id="attendance-status" style="font-size:10px;color:color-mix(in srgb, #94a3b8 var(--mix-ink-pct), var(--mix-ink-base));text-align:center;"></div>
       </div>
 
       <!-- User -->
@@ -229,6 +247,9 @@
           <div class="user-name" id="user-name">Usuario</div>
           <div class="user-role" id="user-role">Rol</div>
         </div>
+        <button class="btn-tema" type="button" data-tema-toggle aria-label="Activar modo oscuro" title="Activar modo oscuro">
+          <span class="material-symbols-outlined" aria-hidden="true" data-tema-icono>dark_mode</span>
+        </button>
         <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">⏻</button>
       </div>
     </aside>
@@ -257,6 +278,11 @@
                   data-push-toggle aria-pressed="false" aria-label="Activar avisos de comandas">
             <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
             <span data-push-texto>Activar avisos</span>
+          </button>
+          <button id="desktop-tema-toggle" class="desktop-tema-toggle" type="button"
+                  data-tema-toggle aria-pressed="false" aria-label="Activar modo oscuro">
+            <span class="material-symbols-outlined" aria-hidden="true" data-tema-icono>dark_mode</span>
+            <span data-tema-texto>Modo oscuro</span>
           </button>
         </div>
       </div>
@@ -414,7 +440,7 @@
 
           <!-- Grid de comandas renderizado por renderCocinaCards() -->
           <main id="cocina-grid" class="cocina-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" aria-label="Órdenes activas">
-            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando órdenes…</p>
+            <p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Cargando órdenes…</p>
           </main>
         </div>
       </section>
@@ -476,7 +502,7 @@
 
           <!-- Grid de productos renderizado por renderMenuItems() -->
           <main id="menu-grid" class="menu-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-0" aria-label="Productos">
-            <p style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:32px;">Cargando carta…</p>
+            <p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Cargando carta…</p>
           </main>
         </div>
       </section>
@@ -1183,7 +1209,7 @@
           </div>
         </div>
         <!-- Panel de Gestión de Categorías (colapsable) -->
-        <div id="cat-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:12px;">
+        <div id="cat-panel" style="display:none;background:color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #99f6e4 var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:14px;margin-bottom:12px;">
           <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Categorías</div>
           <div style="display:flex;gap:8px;margin-bottom:10px;">
             <input type="text" id="cat-nueva-nombre" class="form-input" placeholder="Nombre de la nueva categoría…" style="flex:1;height:36px;font-size:13px;">
@@ -1203,8 +1229,8 @@
           <label class="form-label" for="dish-image">Imagen del plato</label>
           <input type="file" id="dish-image" class="form-input" accept="image/png,image/jpeg,image/webp,image/gif" style="padding:6px;">
           <div style="margin-top:8px;">
-            <img id="dish-image-preview" alt="Vista previa de la imagen del plato" style="display:none;width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
-            <div id="dish-image-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">Se comprime en el navegador (WebP). Si no eliges imagen se usará el placeholder.</div>
+            <img id="dish-image-preview" alt="Vista previa de la imagen del plato" style="display:none;width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));">
+            <div id="dish-image-hint" style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Se comprime en el navegador (WebP). Si no eliges imagen se usará el placeholder.</div>
           </div>
         </div>
         <div class="form-group">
@@ -1345,7 +1371,7 @@
         <button class="modal-close" onclick="closeUnitEquivModal()" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:16px;">
-        <p style="font-size:14px;color:#374151;margin-bottom:12px;line-height:1.5;">
+        <p style="font-size:14px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;line-height:1.5;">
           Está cambiando la unidad base del insumo. Para actualizar las existencias y recetas correctamente, indique la equivalencia:
         </p>
         <p style="font-size:14px;font-weight:700;color:var(--azul-marino);margin-bottom:16px;" id="unit-equiv-question"></p>
@@ -1353,7 +1379,7 @@
           <label class="form-label" for="unit-equiv-factor">Factor de conversión</label>
           <input type="number" id="unit-equiv-factor" class="form-input" step="0.0001" min="0.0001" placeholder="Ej: 5" style="font-size:18px;text-align:center;">
         </div>
-        <p style="font-size:12px;color:#6b7280;margin-top:4px;" id="unit-equiv-hint"></p>
+        <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;" id="unit-equiv-hint"></p>
         <div style="display:flex;gap:8px;margin-top:16px;">
           <button class="btn btn-secondary" onclick="cancelUnitEquiv()" style="flex:1;">Cancelar</button>
           <button class="btn btn-primary" onclick="confirmUnitEquiv()" style="flex:1;">Convertir y Guardar</button>
@@ -1685,7 +1711,7 @@
           <button class="btn btn-turquoise" id="btn-save-apodo" style="height:34px;padding:0 14px;font-size:12px;white-space:nowrap;">Guardar</button>
         </div>
         <div id="oc-items-list" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
-        <div style="border-top:1px solid #e5e7eb;padding-top:12px;margin-bottom:16px;">
+        <div style="border-top:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));padding-top:12px;margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span class="caption">Subtotal</span>
             <span class="price" id="oc-subtotal">C$0.00</span>
@@ -1700,7 +1726,7 @@
           </div>
         </div>
         <!-- Discount Controls -->
-        <div style="margin-bottom:12px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#f8fafc;">
+        <div style="margin-bottom:12px;border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:10px;padding:12px;background:color-mix(in srgb, #f8fafc var(--mix-surface-pct), var(--mix-surface-base));">
           <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--azul-marino);">🏷️ Aplicar Descuento</div>
           <div style="display:flex;gap:6px;margin-bottom:6px;">
             <select id="oc-discount-type" class="form-input" style="flex:1;height:34px;font-size:12px;">
@@ -1724,10 +1750,10 @@
           <button class="btn btn-secondary" id="btn-pre-cuenta" style="flex:1;">🧾 Pre-Cuenta</button>
         </div>
         <div style="margin-top:8px;">
-          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:#fff;padding:12px;font-weight:700;border-radius:10px;">💰 Cerrar Cuenta y Liberar Mesa</button>
+          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;">💰 Cerrar Cuenta y Liberar Mesa</button>
         </div>
         <div style="margin-top:8px;">
-          <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:#000;padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
+          <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:color-mix(in srgb, #000 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
         </div>
       </div>
     </div>
@@ -1771,7 +1797,7 @@
         <button class="modal-close" id="close-pre-cuenta" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <div id="pre-cuenta-content" style="background:#f8fafc;border:1px dashed #d1d5db;border-radius:12px;padding:20px;font-family:monospace;font-size:13px;"></div>
+        <div id="pre-cuenta-content" style="background:color-mix(in srgb, #f8fafc var(--mix-surface-pct), var(--mix-surface-base));border:1px dashed color-mix(in srgb, #d1d5db var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:20px;font-family:monospace;font-size:13px;"></div>
         <div style="text-align:center;margin-top:16px;">
           <button class="btn btn-secondary" id="close-pre-cuenta-btn" style="padding:10px 24px;">Cerrar</button>
         </div>
@@ -1788,7 +1814,7 @@
       </div>
       <div style="flex:1;overflow-y:auto;padding:0 16px 16px;">
         <!-- Formulario crear/editar mesa -->
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px;">
+        <div style="background:color-mix(in srgb, #f8fafc var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e2e8f0 var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:16px;margin-bottom:16px;">
           <div style="font-weight:700;font-size:14px;margin-bottom:10px;" id="gestion-form-title">Nueva Mesa</div>
           <input type="hidden" id="gestion-mesa-id">
           <div class="grid grid-cols-1 xs:grid-cols-3 gap-2 w-full">
@@ -1815,7 +1841,7 @@
         </div>
 
         <!-- Panel de Gestión de Zonas (colapsable) -->
-        <div id="zonas-panel" style="display:none;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px;margin-bottom:16px;">
+        <div id="zonas-panel" style="display:none;background:color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #99f6e4 var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:14px;margin-bottom:16px;">
           <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Zonas</div>
           <div class="flex w-full min-w-0 gap-2 mb-2.5">
             <input type="text" id="zona-nueva-nombre" class="form-input" placeholder="Nombre de la nueva zona…" style="flex:1;min-width:0;height:36px;font-size:13px;">
@@ -1876,8 +1902,8 @@
           <label class="form-label" for="ne-salario">Salario Base (C$)</label>
           <input type="number" id="ne-salario" class="form-input" step="0.01" min="0.01" placeholder="1500.00" required>
         </div>
-        <div style="border-top:1px solid #e5e7eb;margin:12px 0;padding-top:12px;">
-          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#374151;">Credenciales de Acceso</div>
+        <div style="border-top:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));margin:12px 0;padding-top:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));">Credenciales de Acceso</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="ne-username">Nombre de Usuario</label>
@@ -1913,7 +1939,7 @@
         <button class="modal-close" id="close-reset-password" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#6b7280;margin-bottom:12px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
           Establece una nueva contraseña temporal para <strong id="reset-pwd-username"></strong>.
         </p>
         <div class="form-group">
@@ -1937,10 +1963,10 @@
         <button class="modal-close" id="close-eliminar-empleado" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#374151;margin-bottom:12px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
           ¿Estás seguro de que deseas eliminar/desactivar al empleado <strong id="baja-empleado-nombre"></strong>?
         </p>
-        <div style="padding:10px 12px;background:#fdf2f2;border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:#b91c1c;margin-bottom:14px;">
+        <div style="padding:10px 12px;background:color-mix(in srgb, #fdf2f2 var(--mix-surface-pct), var(--mix-surface-base));border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:color-mix(in srgb, #b91c1c var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:14px;">
           El empleado quedará en estado <strong>Inactivo</strong> y su usuario ya no podrá iniciar sesión. Su historial de asistencias y nóminas se conservará.
         </div>
         <div class="form-group">
@@ -1963,11 +1989,11 @@
         <button class="modal-close" id="close-eliminar-usuario" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#374151;margin-bottom:12px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
           ¿Estás seguro de que deseas eliminar al usuario <strong id="eliminar-usuario-username"></strong>
           (<strong id="eliminar-usuario-nombre"></strong>)?
         </p>
-        <div style="padding:10px 12px;background:#fdf2f2;border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:#b91c1c;margin-bottom:14px;">
+        <div style="padding:10px 12px;background:color-mix(in srgb, #fdf2f2 var(--mix-surface-pct), var(--mix-surface-base));border-left:4px solid var(--rojo-cangrejo);border-radius:6px;font-size:13px;color:color-mix(in srgb, #b91c1c var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:14px;">
           <strong>Sin registros asociados:</strong> el usuario y su empleado se borrarán permanentemente.<br>
           <strong>Con registros contables:</strong> se conservarán archivados (username y cédula renombrados) y quedarán disponibles para recontratar.
         </div>
@@ -2032,15 +2058,15 @@
         <button class="modal-close" id="close-preparacion" aria-label="Cerrar">✕</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
-        <p style="font-size:13px;color:#6b7280;margin-bottom:14px;">
+        <p style="font-size:13px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:14px;">
           Selecciona los insumos y cantidades consumidos en la producción de hoy. El stock se descontará automáticamente.
         </p>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 10px;background:color-mix(in srgb, #f9fafb var(--mix-surface-pct), var(--mix-surface-base));border-radius:8px;">
           <label class="toggle-switch" style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;">
             <input type="checkbox" id="prep-lote-toggle" style="opacity:0;width:0;height:0;">
             <span class="slider" style="position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:20px;transition:.3s;"></span>
           </label>
-          <span style="font-size:13px;color:#374151;">Solo ingredientes de Lote</span>
+          <span style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));">Solo ingredientes de Lote</span>
         </div>
         <div id="preparacion-rows"></div>
         <button type="button" class="btn btn-secondary" id="btn-add-prep-row" style="margin-top:8px;font-size:13px;padding:6px 12px;">➕ Agregar Insumo</button>
@@ -2048,7 +2074,7 @@
           <label class="form-label" for="prep-notas">Notas (opcional)</label>
           <textarea id="prep-notas" class="form-input" rows="2" placeholder="Ej: Producción matutina de tajadas y ensaladas…" style="resize:vertical;"></textarea>
         </div>
-        <div style="margin-top:14px;padding:10px;background:#f0fdfa;border-radius:8px;font-size:13px;color:#374151;" id="prep-summary">Total insumos: 0</div>
+        <div style="margin-top:14px;padding:10px;background:color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));border-radius:8px;font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));" id="prep-summary">Total insumos: 0</div>
         <div class="form-actions" style="margin-top:14px;">
           <button type="button" class="btn btn-secondary" id="cancel-preparacion" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="confirm-preparacion" style="flex:1;">Registrar Producción</button>
@@ -2078,16 +2104,16 @@
         <button class="modal-close" id="close-anular-asistencia" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:16px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:16px;">
           ¿Estás seguro de que deseas eliminar este registro de asistencia
           (<strong>#<span id="anular-asis-id"></span></strong> — <span id="anular-asis-fecha"></span>)?
           Esta acción recalculará o descartará las horas para la nómina.
         </p>
         <div class="form-group">
-          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="anular-asis-motivo" class="form-input" maxlength="500"
                  placeholder="Ej: Asistencia duplicada al iniciar turno dos veces" />
-          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El motivo queda registrado para auditoría. El registro se conserva en el historial marcado como anulado.</p>
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El motivo queda registrado para auditoría. El registro se conserva en el historial marcado como anulado.</p>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-anular-asistencia" style="flex:1;">Cancelar</button>
@@ -2105,16 +2131,16 @@
         <button class="modal-close" id="close-anular-orden" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:10px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:10px;">
           ¿Estás seguro de que deseas anular este pedido? Dejará de contar en las ventas y en el cierre de caja.
         </p>
-        <p style="font-size:13px;color:#374151;margin-bottom:16px;font-weight:600;" id="anular-orden-texto"></p>
+        <p style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;font-weight:600;" id="anular-orden-texto"></p>
         <input type="hidden" id="anular-orden-id">
         <div class="form-group">
-          <label class="form-label" for="anular-orden-motivo">Motivo de la anulación <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="anular-orden-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="anular-orden-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Cliente devolvió el pedido completo" />
-          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El pedido se conserva en la bitácora con quién, cuándo, por qué y el monto.</p>
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El pedido se conserva en la bitácora con quién, cuándo, por qué y el monto.</p>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-anular-orden" style="flex:1;">Cancelar</button>
@@ -2132,7 +2158,7 @@
         <button class="modal-close" id="close-devolver-item" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:13px;color:#6b7280;margin-bottom:14px;">
+        <p style="font-size:13px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:14px;">
           Elige la línea y cuántas unidades se devuelven. El total del pedido se recalcula automáticamente.
         </p>
         <input type="hidden" id="devolver-orden-id">
@@ -2145,10 +2171,10 @@
           <input type="number" id="devolver-cantidad" class="form-input" min="1" step="1" value="1">
         </div>
         <div class="form-group">
-          <label class="form-label" for="devolver-motivo">Motivo de la devolución <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="devolver-motivo">Motivo de la devolución <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="devolver-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Plato salió frío" />
-          <p style="font-size:12px;color:#6b7280;margin-top:6px;">La devolución queda registrada para auditoría.</p>
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">La devolución queda registrada para auditoría.</p>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-devolver-item" style="flex:1;">Cancelar</button>
@@ -2193,10 +2219,10 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="edit-gasto-motivo">Motivo de la modificación <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="edit-gasto-motivo">Motivo de la modificación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="edit-gasto-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Monto mal tecleado al registrar" />
-          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El valor anterior y el nuevo quedan en la bitácora.</p>
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El valor anterior y el nuevo quedan en la bitácora.</p>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-editar-gasto" style="flex:1;">Cancelar</button>
@@ -2214,16 +2240,16 @@
         <button class="modal-close" id="close-eliminar-gasto" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:14px;color:#991b1b;background:#fee2e2;padding:12px 14px;border-radius:8px;margin-bottom:10px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:10px;">
           ¿Estás seguro de que deseas eliminar este gasto? Dejará de contar en los totales.
         </p>
-        <p style="font-size:13px;color:#374151;margin-bottom:16px;font-weight:600;" id="del-gasto-texto"></p>
+        <p style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;font-weight:600;" id="del-gasto-texto"></p>
         <input type="hidden" id="del-gasto-id">
         <div class="form-group">
-          <label class="form-label" for="del-gasto-motivo">Motivo de la eliminación <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="del-gasto-motivo">Motivo de la eliminación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="del-gasto-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Gasto duplicado por error" />
-          <p style="font-size:12px;color:#6b7280;margin-top:6px;">El gasto se conserva en la bitácora con quién, cuándo y por qué.</p>
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El gasto se conserva en la bitácora con quién, cuándo y por qué.</p>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-eliminar-gasto" style="flex:1;">Cancelar</button>
@@ -2241,7 +2267,7 @@
         <button class="modal-close" id="close-edit-ot" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+        <p style="font-size:13px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
           Asistencia del <strong id="edit-ot-fecha"></strong> — Actual: <strong id="edit-ot-current"></strong>h
         </p>
         <div class="form-group">
@@ -2249,9 +2275,9 @@
           <input type="number" id="edit-ot-valor" class="form-input" step="0.01" min="0" placeholder="2.50" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <textarea id="edit-ot-motivo" class="form-input" rows="3" placeholder="Ej: Turno extendido autorizado por gerente…" required style="resize:vertical;"></textarea>
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+          <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Campo obligatorio para auditoría</div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-edit-ot" style="flex:1;">Cancelar</button>
@@ -2269,24 +2295,24 @@
         <button class="modal-close" id="close-editar-horarios" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
-        <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+        <p style="font-size:13px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
           Asistencia del <strong id="editar-horarios-fecha"></strong> — Empleado: <strong id="editar-horarios-empleado"></strong>
         </p>
         <div class="form-group">
-          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="datetime-local" id="editar-hora-entrada" class="form-input" required>
-          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
+          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #2A9D8F var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="editar-hora-salida">Fecha y Hora de Salida (Local)</label>
           <input type="datetime-local" id="editar-hora-salida" class="form-input">
-          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:#2A9D8F;margin-top:4px;">—</div>
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado. Para turnos nocturnos, elige la fecha del día siguiente (ej. salida a las 3:00 AM → día siguiente).</div>
+          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #2A9D8F var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
+          <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado. Para turnos nocturnos, elige la fecha del día siguiente (ej. salida a las 3:00 AM → día siguiente).</div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:#E63946;">*</span></label>
+          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <textarea id="editar-horarios-motivo" class="form-input" rows="3" placeholder="Ej: Corrección de horario por error de registro…" required style="resize:vertical;"></textarea>
-          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Campo obligatorio para auditoría</div>
+          <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Campo obligatorio para auditoría</div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-editar-horarios" style="flex:1;">Cancelar</button>
@@ -2324,15 +2350,15 @@
         <!-- Calculation Result -->
         <div id="nomina-result" style="display:none;" class="nomina-result-card">
           <div style="text-align:center;margin-bottom:16px;">
-            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Período</div>
-            <div style="font-size:14px;font-weight:500;color:#374151;" id="nomina-periodo-text"></div>
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:4px;">Período</div>
+            <div style="font-size:14px;font-weight:500;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));" id="nomina-periodo-text"></div>
           </div>
           <div class="nomina-breakdown">
             <div class="nomina-row" id="nomina-asistencia-row" style="cursor:pointer;" onclick="toggleNominaDetalle()" title="Asistencia registrada en el período (informativo, no afecta el salario base)">
               <span class="nomina-label">⏱️ Asistencia del Período <span style="font-size:11px;color:var(--turquesa-ola);">▸ Ver detalle</span></span>
               <span class="nomina-value" id="nomina-asistencia-dias">—</span>
             </div>
-            <div id="nomina-detalle-panel" style="display:none;background:#f8fafc;border-left:3px solid var(--turquesa-ola);margin:4px 0 8px 12px;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#374151;">
+            <div id="nomina-detalle-panel" style="display:none;background:color-mix(in srgb, #f8fafc var(--mix-surface-pct), var(--mix-surface-base));border-left:3px solid var(--turquesa-ola);margin:4px 0 8px 12px;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));">
               <div id="nomina-detalle-content"></div>
             </div>
             <div class="nomina-row">
@@ -2364,7 +2390,7 @@
             </button>
           </div>
           <div style="text-align:center;margin-top:8px;">
-            <button class="btn" id="btn-registrar-adelanto" style="background:var(--amarillo-solar);color:#1f2937;height:40px;padding:0 20px;font-weight:600;border-radius:8px;">
+            <button class="btn" id="btn-registrar-adelanto" style="background:var(--amarillo-solar);color:color-mix(in srgb, #1f2937 var(--mix-ink-pct), var(--mix-ink-base));height:40px;padding:0 20px;font-weight:600;border-radius:8px;">
               💸 Registrar Adelanto
             </button>
           </div>
@@ -2397,7 +2423,7 @@
           <textarea id="adelanto-observacion" class="form-input" style="resize:vertical;min-height:60px;" placeholder="Opcional: motivo del adelanto" rows="2"></textarea>
         </div>
         <div style="display:flex;gap:10px;justify-content:end;">
-          <button type="button" class="btn" id="cancel-adelanto-btn" style="background:#e5e7eb;color:#374151;">Cancelar</button>
+          <button type="button" class="btn" id="cancel-adelanto-btn" style="background:color-mix(in srgb, #e5e7eb var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="btn-guardar-adelanto" style="font-weight:700;">✅ Guardar Adelanto</button>
         </div>
       </form>

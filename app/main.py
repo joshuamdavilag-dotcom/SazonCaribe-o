@@ -247,6 +247,7 @@ async def startup_event():
         _migrate_asistencia_utc_a_local()
         _migrate_asistencias_anulada()
         _migrate_usuarios_turno_habilitado()
+        _migrate_usuarios_avisos_fuera_de_turno()
         _migrate_mesas_apodo()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
@@ -634,6 +635,18 @@ def _migrate_usuarios_turno_habilitado():
         except Exception as e:
             db.rollback()
             print(f"  [X] Error al agregar 'turno_habilitado' a usuarios: {e}")
+
+
+def _migrate_usuarios_avisos_fuera_de_turno():
+    """Agrega la columna avisos_fuera_de_turno a usuarios si no existe.
+
+    Permite recibir las notificaciones push (avisos de comandas) incluso
+    cuando el usuario está "fuera del sistema" (turno cerrado, app
+    cerrada o sin sesión iniciada). Por defecto queda activada para que los
+    avisos siempre lleguen al dispositivo suscrito.
+    """
+    _add_column_if_not_exists("usuarios", "avisos_fuera_de_turno",
+        "ALTER TABLE usuarios ADD COLUMN avisos_fuera_de_turno BOOLEAN NOT NULL DEFAULT TRUE")
 
 
 def _migrate_mesas_apodo():

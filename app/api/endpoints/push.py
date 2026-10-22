@@ -11,6 +11,8 @@ from app.models.personal import Usuario
 from app.schemas.push import (
     PushConfigResponse,
     PushDesuscripcionRequest,
+    PushPreferenciasResponse,
+    PushPreferenciasUpdate,
     PushSuscripcionCreate,
     PushSuscripcionResponse,
 )
@@ -34,7 +36,9 @@ def get_push_service(db: Session = Depends(get_db)) -> PushService:
     ),
     dependencies=[Depends(get_current_user)],
 )
-def obtener_config_push() -> PushConfigResponse:
+def obtener_config_push(
+    current_user: Usuario = Depends(get_current_user),
+) -> PushConfigResponse:
     """Devuelve la clave pública VAPID y el estado del servicio de push."""
     publica, privada = claves_vapid()
     habilitado = bool(publica and privada and PUSH_DISPONIBLE)
@@ -42,6 +46,50 @@ def obtener_config_push() -> PushConfigResponse:
         public_key=publica if habilitado else None,
         habilitado=habilitado,
         vapid_subject=get_settings().VAPID_SUBJECT,
+        avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
+    )
+
+
+@router.get(
+    "/preferencias",
+    response_model=PushPreferenciasResponse,
+    summary="Preferencias de avisos push del usuario",
+    description=(
+        "Indica si el usuario recibe los avisos de comandas incluso cuando "
+        "está fuera del sistema (turno cerrado, app cerrada o sin sesión)."
+    ),
+    dependencies=[Depends(get_current_user)],
+)
+def obtener_preferencias_push(
+    current_user: Usuario = Depends(get_current_user),
+) -> PushPreferenciasResponse:
+    """Devuelve las preferencias de avisos push del usuario actual."""
+    return PushPreferenciasResponse(
+        avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
+    )
+
+
+@router.patch(
+    "/preferencias",
+    response_model=PushPreferenciasResponse,
+    summary="Actualizar preferencias de avisos push",
+    description=(
+        "Activa o desactiva el recibir los avisos de comandas fuera del "
+        "sistema (turno cerrado, app cerrada o sin sesión iniciada)."
+    ),
+    dependencies=[Depends(get_current_user)],
+)
+def actualizar_preferencias_push(
+    body: PushPreferenciasUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> PushPreferenciasResponse:
+    """Guarda la preferencia de avisos fuera de turno del usuario actual."""
+    current_user.avisos_fuera_de_turno = bool(body.avisos_fuera_de_turno)
+    db.commit()
+    db.refresh(current_user)
+    return PushPreferenciasResponse(
+        avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
     )
 
 
