@@ -7381,9 +7381,9 @@ async function forzarLibrarMesa() {
   if (!confirm('¿Liberar esta mesa? No se encontró orden activa asociada.')) return;
 
   try {
-    await api(`/salon/mesas/${oc.mesaId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ estado: 'LIBRE' }),
+    await api(`/salon/mesas/${oc.mesaId}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ nuevo_estado: 'LIBRE' }),
     });
     const mesa = state.tables.find(t => t.id === oc.mesaId);
     if (mesa) {
@@ -7394,7 +7394,7 @@ async function forzarLibrarMesa() {
     closeDetalleMesaOcupada();
     renderTables(state.tables);
   } catch {
-    showToast('Error al liberar la mesa', 'error');
+    return;
   }
 }
 
