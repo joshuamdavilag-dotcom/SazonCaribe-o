@@ -251,6 +251,9 @@ const pushEstado = {
   registro: null,
   cargando: false,
   avisosFueraDeTurno: true,
+  avisosCocina: false,
+  avisosMesero: true,
+  avisosMeseroTodas: false,
 };
 
 function urlBase64ToUint8Array(base64) {
@@ -294,6 +297,15 @@ async function registrarServiceWorkerPush() {
   }
 }
 
+function resumenAvisosPush() {
+  const partes = [];
+  if (pushEstado.avisosCocina) partes.push('comandas nuevas');
+  if (pushEstado.avisosMesero) {
+    partes.push(pushEstado.avisosMeseroTodas ? 'todas las comandas listas' : 'tus comandas listas');
+  }
+  return partes;
+}
+
 function pintarEstadoPush() {
   const botones = document.querySelectorAll('[data-push-toggle]');
   const estado = document.getElementById('notifications-push-estado');
@@ -306,13 +318,21 @@ function pintarEstadoPush() {
     if (etiqueta) etiqueta.textContent = activo ? 'Avisos activados' : 'Activar avisos';
   });
 
-  const casilla = document.getElementById('push-avisos-fuera-turno');
-  if (casilla) {
-    casilla.checked = Boolean(pushEstado.avisosFueraDeTurno);
-    casilla.disabled = !activo;
-  }
-  const filaFueraTurno = document.getElementById('push-fuera-turno-fila');
-  if (filaFueraTurno) filaFueraTurno.classList.toggle('push-fuera-turno-off', !activo);
+  const casillas = [
+    ['push-avisos-cocina', null, pushEstado.avisosCocina, activo],
+    ['push-avisos-mesero', null, pushEstado.avisosMesero, activo],
+    ['push-avisos-mesero-todas', 'push-mesero-todas-fila', pushEstado.avisosMeseroTodas, activo && pushEstado.avisosMesero],
+    ['push-avisos-fuera-turno', 'push-fuera-turno-fila', pushEstado.avisosFueraDeTurno, activo],
+  ];
+  casillas.forEach(([casillaId, filaId, valor, habilitada]) => {
+    const casilla = document.getElementById(casillaId);
+    if (casilla) {
+      casilla.checked = Boolean(valor);
+      casilla.disabled = !habilitada;
+    }
+    const fila = filaId ? document.getElementById(filaId) : null;
+    if (fila) fila.classList.toggle('push-fuera-turno-off', !habilitada);
+  });
 
   if (!estado) return;
   if (!pushSoportado()) {
@@ -324,37 +344,78 @@ function pintarEstadoPush() {
     return;
   }
   if (!activo) {
-    estado.textContent = 'Activa los avisos para recibirlos aunque la app esté cerrada y aunque no tengas turno abierto.';
+    estado.textContent = 'Activa los avisos y elige qué comandas quieres recibir.';
     return;
   }
+  const partes = resumenAvisosPush();
+  if (partes.length === 0) {
+    estado.textContent = 'No recibirás avisos de comandas: activa al menos un tipo de aviso.';
+    return;
+  }
+  const detalle = partes.join(' y ');
   estado.textContent = pushEstado.avisosFueraDeTurno
-    ? 'Recibirás avisos de comandas aunque no tengas turno abierto ni la app abierta.'
-    : 'Recibirás avisos de comandas solo mientras tu turno esté abierto.';
+    ? `Recibirás ${detalle} aunque no tengas turno abierto ni la app abierta.`
+    : `Recibirás ${detalle} solo mientras tu turno esté abierto.`;
 }
 
-async function alternarAvisosFueraDeTurno(activado) {
-  const valor = Boolean(activado);
-  pushEstado.avisosFueraDeTurno = valor;
+function mensajePreferenciaPush(campo, valor) {
+  if (campo === 'avisos_cocina') {
+    return valor ? 'Ahora recibirás avisos de cocina' : 'Ya no recibirás avisos de cocina';
+  }
+  if (campo === 'avisos_mesero') {
+    return valor
+      ? 'Ahora recibirás avisos cuando tus comandas estén listas'
+      : 'Ya no recibirás avisos de tus comandas listas';
+  }
+  if (campo === 'avisos_mesero_todas') {
+    return valor
+      ? 'Ahora recibirás las comandas listas de todos los meseros'
+      : 'Solo recibirás avisos de tus propias comandas listas';
+  }
+  return valor
+    ? 'Recibirás avisos aunque no tengas turno abierto'
+    : 'Solo recibirás avisos mientras tengas el turno abierto';
+}
+
+async function alternarPreferenciaPush(campo, valor) {
+  const mapa = {
+    avisos_cocina: 'avisosCocina',
+    avisos_mesero: 'avisosMesero',
+    avisos_mesero_todas: 'avisosMeseroTodas',
+    avisos_fuera_de_turno: 'avisosFueraDeTurno',
+  };
+  const clave = mapa[campo];
+  if (!clave) return;
+
+  const anterior = pushEstado[clave];
+  pushEstado[clave] = Boolean(valor);
+  if (campo === 'avisos_mesero' && !valor) pushEstado.avisosMeseroTodas = false;
   pintarEstadoPush();
+
   try {
     const respuesta = await api('/push/preferencias', {
       method: 'PATCH',
-      body: JSON.stringify({ avisos_fuera_de_turno: valor }),
+      body: JSON.stringify({ [campo]: Boolean(valor) }),
       silent: true,
     });
-    pushEstado.avisosFueraDeTurno = Boolean(respuesta?.avisos_fuera_de_turno ?? valor);
+    if (respuesta) {
+      pushEstado.avisosCocina = Boolean(respuesta.avisos_cocina);
+      pushEstado.avisosMesero = Boolean(respuesta.avisos_mesero);
+      pushEstado.avisosMeseroTodas = Boolean(respuesta.avisos_mesero_todas);
+      pushEstado.avisosFueraDeTurno = Boolean(respuesta.avisos_fuera_de_turno);
+    }
     pintarEstadoPush();
-    showToast(
-      pushEstado.avisosFueraDeTurno
-        ? 'Recibirás avisos aunque no tengas turno abierto'
-        : 'Solo recibirás avisos mientras tengas el turno abierto'
-    );
+    showToast(mensajePreferenciaPush(campo, Boolean(valor)));
   } catch (error) {
     console.error(error);
-    pushEstado.avisosFueraDeTurno = !valor;
+    pushEstado[clave] = anterior;
     pintarEstadoPush();
     showToast('No se pudo guardar la preferencia de avisos', 'error');
   }
+}
+
+function alternarAvisosFueraDeTurno(activado) {
+  return alternarPreferenciaPush('avisos_fuera_de_turno', activado);
 }
 
 async function activarNotificacionesPush() {
@@ -401,7 +462,11 @@ async function activarNotificacionesPush() {
 
     pushEstado.suscripcion = suscripcion;
     pintarEstadoPush();
-    showToast('Notificaciones activadas en este dispositivo');
+    if (pushEstado.avisosCocina || pushEstado.avisosMesero) {
+      showToast('Notificaciones activadas en este dispositivo');
+    } else {
+      showToast('Avisos activados: elige qué comandas quieres recibir', 'warning', 6000);
+    }
   } catch (error) {
     console.error(error);
     showToast(error?.message || 'No se pudieron activar las notificaciones', 'error');
@@ -448,6 +513,9 @@ async function sincronizarEstadoPush() {
     const preferencias = await api('/push/preferencias', { silent: true });
     if (preferencias) {
       pushEstado.avisosFueraDeTurno = Boolean(preferencias.avisos_fuera_de_turno);
+      pushEstado.avisosCocina = Boolean(preferencias.avisos_cocina);
+      pushEstado.avisosMesero = Boolean(preferencias.avisos_mesero);
+      pushEstado.avisosMeseroTodas = Boolean(preferencias.avisos_mesero_todas);
     }
   } catch (error) {
     console.warn('No se pudo leer la preferencia de avisos push:', error);
@@ -5978,6 +6046,7 @@ function renderPersonalTable(empleados, usuarios) {
                   <button class="emp-action emp-turq" title="Ver nómina de ${nombreCompleto}" onclick="openNominaModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">payments</span></button>
                   <button class="emp-action emp-sky" title="Ver asistencias de ${nombreCompleto}" onclick="openAsistenciasModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">history</span></button>
                   ${user ? `<button class="emp-action emp-slate" title="Restablecer contraseña de ${username}" onclick="openResetPasswordModal(${user.id}, '${user.username}')"><span class="material-symbols-outlined">key</span></button>` : ''}
+                  ${user ? `<button class="emp-action emp-amber admin-only" title="Avisos push de ${nombreCompleto}" onclick="openAvisosUsuarioModal(${user.id}, '${nq}')"><span class="material-symbols-outlined">notifications</span></button>` : ''}
                   ${user ? `<button class="emp-action emp-danger admin-only" title="Eliminar usuario de ${nombreCompleto}" onclick="openEliminarUsuarioModal(${user.id}, '${user.username}', '${nq}')"><span class="material-symbols-outlined">delete</span></button>` : ''}
                   ${user && user.rol === 'Vendedor' ? `
                   <button class="btn-toggle-turno ${user.turno_habilitado ? 'active text-emerald-600 bg-emerald-50' : 'inactive text-slate-400 bg-slate-100'} admin-only p-1.5 rounded-lg transition-colors" data-id="${user.id}" data-enabled="${user.turno_habilitado ? 'true' : 'false'}" title="${user.turno_habilitado ? 'Deshabilitar Turno' : 'Habilitar Turno'} de ${nombreCompleto}">
@@ -6607,6 +6676,74 @@ async function confirmResetPassword() {
     });
     showToast('Contraseña restablecida con éxito', 'success');
     closeResetPasswordModal();
+  } catch { /* handled by api() */ }
+}
+
+/* =========================================================================
+   Avisos push por usuario (gerencia)
+   ========================================================================= */
+let avisosUsuarioId = null;
+
+function sincronizarFilasAvisosUsuario() {
+  const mesero = document.getElementById('avisos-usuario-mesero');
+  const todas = document.getElementById('avisos-usuario-mesero-todas');
+  const fila = document.getElementById('avisos-usuario-mesero-todas-fila');
+  if (!mesero || !todas || !fila) return;
+  const habilitada = mesero.checked;
+  todas.disabled = !habilitada;
+  if (!habilitada) todas.checked = false;
+  fila.classList.toggle('push-fuera-turno-off', !habilitada);
+}
+
+function aplicarAvisosUsuario(usuario) {
+  const casillas = {
+    'avisos-usuario-cocina': usuario.avisos_cocina,
+    'avisos-usuario-mesero': usuario.avisos_mesero,
+    'avisos-usuario-mesero-todas': usuario.avisos_mesero_todas,
+    'avisos-usuario-fuera-turno': usuario.avisos_fuera_de_turno,
+  };
+  Object.entries(casillas).forEach(([id, valor]) => {
+    const casilla = document.getElementById(id);
+    if (casilla) casilla.checked = Boolean(valor);
+  });
+  sincronizarFilasAvisosUsuario();
+}
+
+async function openAvisosUsuarioModal(usuarioId, nombre) {
+  avisosUsuarioId = usuarioId;
+  document.getElementById('avisos-usuario-nombre').textContent = nombre || `Usuario #${usuarioId}`;
+  document.getElementById('modal-avisos-usuario').classList.add('show');
+  sincronizarFilasAvisosUsuario();
+  try {
+    const usuarios = await api('/personal/usuarios', { silent: true });
+    const usuario = (usuarios || []).find(item => item.id === usuarioId);
+    if (usuario && avisosUsuarioId === usuarioId) aplicarAvisosUsuario(usuario);
+  } catch { /* handled by api() */ }
+}
+
+function closeAvisosUsuarioModal() {
+  document.getElementById('modal-avisos-usuario').classList.remove('show');
+  avisosUsuarioId = null;
+}
+
+async function confirmAvisosUsuario() {
+  if (!avisosUsuarioId) return showToast('Error: no se identificó el usuario', 'error');
+  const usuarioId = avisosUsuarioId;
+  const body = {
+    avisos_cocina: document.getElementById('avisos-usuario-cocina').checked,
+    avisos_mesero: document.getElementById('avisos-usuario-mesero').checked,
+    avisos_mesero_todas: document.getElementById('avisos-usuario-mesero-todas').checked,
+    avisos_fuera_de_turno: document.getElementById('avisos-usuario-fuera-turno').checked,
+  };
+  try {
+    await api(`/personal/usuarios/${usuarioId}/avisos`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    showToast('Avisos del usuario actualizados', 'success');
+    const esPropio = state.user?.id === usuarioId;
+    closeAvisosUsuarioModal();
+    if (esPropio) void sincronizarEstadoPush();
   } catch { /* handled by api() */ }
 }
 
@@ -8406,6 +8543,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('push-avisos-fuera-turno')?.addEventListener('change', event => {
     void alternarAvisosFueraDeTurno(event.target.checked);
   });
+  document.getElementById('push-avisos-cocina')?.addEventListener('change', event => {
+    void alternarPreferenciaPush('avisos_cocina', event.target.checked);
+  });
+  document.getElementById('push-avisos-mesero')?.addEventListener('change', event => {
+    void alternarPreferenciaPush('avisos_mesero', event.target.checked);
+  });
+  document.getElementById('push-avisos-mesero-todas')?.addEventListener('change', event => {
+    void alternarPreferenciaPush('avisos_mesero_todas', event.target.checked);
+  });
+  document.getElementById('avisos-usuario-mesero')?.addEventListener('change', sincronizarFilasAvisosUsuario);
+  document.getElementById('close-avisos-usuario')?.addEventListener('click', closeAvisosUsuarioModal);
+  document.getElementById('cancel-avisos-usuario')?.addEventListener('click', closeAvisosUsuarioModal);
+  document.getElementById('confirm-avisos-usuario')?.addEventListener('click', () => { void confirmAvisosUsuario(); });
   iniciarTema();
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {
     void cargarNotificaciones();

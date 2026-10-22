@@ -182,6 +182,21 @@ class Usuario(Base):
         nullable=False,
         default=True
     )
+    avisos_cocina: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+    avisos_mesero: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
+    avisos_mesero_todas: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
 
     # Relación uno-a-uno con Empleado
     empleado: Mapped["Empleado"] = relationship(

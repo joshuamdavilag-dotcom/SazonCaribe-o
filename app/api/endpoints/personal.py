@@ -20,10 +20,11 @@ from app.schemas.personal import (
     TurnoHabilitadoUpdate,
     TurnoMasivoResponse,
     TurnoUsuarioResponse,
-    AvisosFueraTurnoUpdate,
+    AvisosUsuarioUpdate,
     RolEnum
 )
 from app.services.personal_service import PersonalService
+from app.services.push_service import aplicar_preferencias_avisos
 
 router = APIRouter()
 
@@ -313,33 +314,36 @@ def cambiar_turno_habilitado(
 
 
 @router.patch(
-    "/usuarios/{usuario_id}/avisos-fuera-turno",
+    "/usuarios/{usuario_id}/avisos",
     response_model=UsuarioResponse,
-    summary="Cambiar si un usuario recibe avisos fuera de su turno",
+    summary="Cambiar los avisos de comandas de un usuario",
     description=(
-        "Define si el usuario recibe los avisos push de comandas aunque esté "
-        "fuera del sistema (turno cerrado, app cerrada o sin sesión). "
+        "Define qué avisos push recibe el usuario: comandas nuevas (cocina), "
+        "sus propias comandas listas (mesero), las de todos los meseros y si "
+        "los recibe fuera del sistema. Los campos omitidos no cambian. "
         "Solo Administradores y Gerentes."
     ),
     tags=["Usuarios"],
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
-def cambiar_avisos_fuera_turno(
+def cambiar_avisos_usuario(
     usuario_id: int,
-    request: AvisosFueraTurnoUpdate,
+    request: AvisosUsuarioUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> UsuarioResponse:
     """
-    Cambia la preferencia de avisos fuera de turno de un usuario.
+    Cambia las preferencias de avisos push de un usuario.
 
-    - **usuario_id**: ID del usuario
-    - **avisos_fuera_de_turno**: true recibe avisos siempre, false solo con turno abierto.
+    - **avisos_cocina**: recibe las comandas nuevas.
+    - **avisos_mesero**: recibe sus propias comandas listas.
+    - **avisos_mesero_todas**: recibe también las comandas de otros meseros.
+    - **avisos_fuera_de_turno**: recibe avisos aunque no tenga turno abierto.
     """
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if usuario is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    usuario.avisos_fuera_de_turno = bool(request.avisos_fuera_de_turno)
+    aplicar_preferencias_avisos(usuario, request)
     db.commit()
     db.refresh(usuario)
     return UsuarioResponse.model_validate(usuario)

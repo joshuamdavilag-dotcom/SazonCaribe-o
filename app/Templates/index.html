@@ -153,6 +153,28 @@
           <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
           <span data-push-texto>Activar avisos</span>
         </button>
+        <p class="notifications-push-titulo">¿Qué avisos quieres recibir?</p>
+        <label class="notifications-push-fuera" for="push-avisos-cocina">
+          <input type="checkbox" id="push-avisos-cocina">
+          <span class="notifications-push-fuera-texto">
+            <strong>Avisos de cocina</strong>
+            <em>Comandas nuevas o editadas que entran a preparación.</em>
+          </span>
+        </label>
+        <label class="notifications-push-fuera" for="push-avisos-mesero">
+          <input type="checkbox" id="push-avisos-mesero">
+          <span class="notifications-push-fuera-texto">
+            <strong>Avisos de mesero</strong>
+            <em>Cuando la cocina marca como lista una comanda que tú tomaste.</em>
+          </span>
+        </label>
+        <label class="notifications-push-fuera notifications-push-sub" id="push-mesero-todas-fila" for="push-avisos-mesero-todas">
+          <input type="checkbox" id="push-avisos-mesero-todas">
+          <span class="notifications-push-fuera-texto">
+            <strong>Todas las comandas</strong>
+            <em>También las de otros meseros (útil si atiendes mesas o supervisas).</em>
+          </span>
+        </label>
         <label class="notifications-push-fuera" id="push-fuera-turno-fila" for="push-avisos-fuera-turno">
           <input type="checkbox" id="push-avisos-fuera-turno" checked>
           <span class="notifications-push-fuera-texto">
@@ -2045,6 +2067,55 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-reset-password" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="confirm-reset-password" style="flex:1;">Guardar Contraseña</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Avisos push del usuario (gerencia) -->
+  <div id="modal-avisos-usuario" class="modal-overlay" aria-label="Avisos del usuario">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔔 Avisos de <span id="avisos-usuario-nombre"></span></h3>
+        <button class="modal-close" id="close-avisos-usuario" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:12px;">
+          Elige qué avisos push recibe este usuario. El usuario también puede cambiarlos desde su panel de Notificaciones.
+        </p>
+        <div style="display:grid;gap:8px;">
+          <label class="notifications-push-fuera" for="avisos-usuario-cocina">
+            <input type="checkbox" id="avisos-usuario-cocina">
+            <span class="notifications-push-fuera-texto">
+              <strong>Avisos de cocina</strong>
+              <em>Comandas nuevas o editadas que entran a preparación.</em>
+            </span>
+          </label>
+          <label class="notifications-push-fuera" for="avisos-usuario-mesero">
+            <input type="checkbox" id="avisos-usuario-mesero">
+            <span class="notifications-push-fuera-texto">
+              <strong>Avisos de mesero</strong>
+              <em>Sus propias comandas cuando la cocina las marca listas.</em>
+            </span>
+          </label>
+          <label class="notifications-push-fuera notifications-push-sub" id="avisos-usuario-mesero-todas-fila" for="avisos-usuario-mesero-todas">
+            <input type="checkbox" id="avisos-usuario-mesero-todas">
+            <span class="notifications-push-fuera-texto">
+              <strong>Todas las comandas</strong>
+              <em>También las comandas listas de otros meseros.</em>
+            </span>
+          </label>
+          <label class="notifications-push-fuera" for="avisos-usuario-fuera-turno">
+            <input type="checkbox" id="avisos-usuario-fuera-turno">
+            <span class="notifications-push-fuera-texto">
+              <strong>Recibir avisos fuera del sistema</strong>
+              <em>Aunque no tenga turno abierto, cierre la app o no tenga sesión iniciada.</em>
+            </span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-avisos-usuario" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-avisos-usuario" style="flex:1;">Guardar Avisos</button>
         </div>
       </div>
     </div>

@@ -2,15 +2,17 @@
 
 Dos flujos:
 
-- El mesero manda una comanda → se avisa a los usuarios de cocina.
-- La cocina marca la comanda como lista → se avisa al mesero que la creó.
+- El mesero manda una comanda → se avisa a quien tenga activos los avisos
+  de cocina (``Usuario.avisos_cocina``).
+- La cocina marca la comanda como lista → se avisa al mesero que la creó
+  (si tiene activos sus avisos de mesero) y a quien pidió verlas todas.
 
-Los avisos se entregan "fuera del sistema": basta con que la cuenta siga
-vigente (usuario y empleado activos) y que el dispositivo tenga la
-suscripción registrada. No importa que el turno esté cerrado, que la app
-esté abierta o que el navegador no tenga sesión. Cada usuario puede
-limitar los avisos a su turno activo con ``Usuario.avisos_fuera_de_turno
-= False``.
+Los avisos son opt-in por usuario: nadie recibe nada que no haya activado en
+su panel de notificaciones (la suscripción del dispositivo sigue siendo el
+permiso maestro). Se entregan "fuera del sistema": basta con que la cuenta
+siga vigente (usuario y empleado activos) y que el dispositivo tenga la
+suscripción registrada. Cada usuario puede limitar los avisos a su turno
+activo con ``Usuario.avisos_fuera_de_turno = False``.
 
 Los envíos se ejecutan como tarea en segundo plano para no bloquear ni
 alterar el flujo de las órdenes. Si el push falla, la orden nunca se ve
@@ -29,7 +31,7 @@ from app.core.config import get_settings
 from app.core.vapid import clave_privada_vapid
 from app.models.asistencia import Asistencia
 from app.models.orden import Orden
-from app.models.personal import Empleado, Puesto, Usuario
+from app.models.personal import Empleado, Usuario
 from app.models.push import PushSuscripcion
 from app.schemas.personal import RolEnum
 
@@ -50,6 +52,28 @@ except Exception:  # pragma: no cover - dependencia opcional en tiempo de import
 KEYWORDS_PUESTO_COCINA = ("cocin", "cosin", "chef")
 
 RUTA_APP = "/Templates/index.html"
+
+CAMPOS_PREFERENCIAS_AVISOS = (
+    "avisos_fuera_de_turno",
+    "avisos_cocina",
+    "avisos_mesero",
+    "avisos_mesero_todas",
+)
+
+
+def aplicar_preferencias_avisos(usuario: Usuario, cambios) -> None:
+    """Aplica un cambio parcial de preferencias de avisos al usuario.
+
+    Solo escribe los campos presentes en ``cambios`` (los demás conservan su
+    valor). ``avisos_mesero_todas`` no tiene sentido sin los avisos de mesero,
+    así que se apaga junto con ellos.
+    """
+    for campo in CAMPOS_PREFERENCIAS_AVISOS:
+        valor = getattr(cambios, campo, None)
+        if valor is not None:
+            setattr(usuario, campo, bool(valor))
+    if not usuario.avisos_mesero:
+        usuario.avisos_mesero_todas = False
 
 
 def es_puesto_cocina(nombre_puesto: Optional[str]) -> bool:
@@ -151,15 +175,52 @@ class PushService:
     # ------------------------------------------------------------------ #
     #  Destinatarios
     # ------------------------------------------------------------------ #
-    def usuarios_cocina(self) -> list[int]:
-        """Usuarios activos cuyo puesto corresponde a la cocina."""
-        filas = self.db.execute(
-            select(Usuario.id, Puesto.nombre)
-            .join(Empleado, Usuario.empleado_id == Empleado.id)
-            .join(Puesto, Empleado.puesto_id == Puesto.id)
-            .where(Usuario.activo.is_(True), Empleado.activo.is_(True))
-        ).all()
-        return [usuario_id for usuario_id, puesto in filas if es_puesto_cocina(puesto)]
+    def usuarios_avisos_cocina(self) -> list[int]:
+        """Usuarios activos suscritos a los avisos de comandas nuevas.
+
+        Ya no depende del puesto: cualquier usuario (dueño, programador,
+        mesero) puede activar los avisos de cocina desde su panel.
+        """
+        return list(
+            self.db.execute(
+                select(Usuario.id)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .where(
+                    Usuario.avisos_cocina.is_(True),
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                )
+            ).scalars().all()
+        )
+
+    def usuarios_avisos_mesero_todas(self) -> list[int]:
+        """Usuarios activos que quieren las comandas listas de todos los meseros."""
+        return list(
+            self.db.execute(
+                select(Usuario.id)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .where(
+                    Usuario.avisos_mesero.is_(True),
+                    Usuario.avisos_mesero_todas.is_(True),
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                )
+            ).scalars().all()
+        )
+
+    def usuarios_con_avisos_mesero(self, usuario_ids: Iterable[int]) -> list[int]:
+        """Filtra los IDs dados a quienes tienen activos los avisos de mesero."""
+        ids = [usuario_id for usuario_id in usuario_ids if usuario_id]
+        if not ids:
+            return []
+        return list(
+            self.db.execute(
+                select(Usuario.id).where(
+                    Usuario.id.in_(ids),
+                    Usuario.avisos_mesero.is_(True),
+                )
+            ).scalars().all()
+        )
 
     def usuarios_administracion(self) -> list[int]:
         """Usuarios activos con rol Administrador o Gerente."""
@@ -325,10 +386,10 @@ class PushService:
     #  Flujos de comanda
     # ------------------------------------------------------------------ #
     def notificar_nueva_comanda(self, orden: Orden) -> int:
-        """Avisa a la cocina que hay una comanda nueva (aunque no tenga turno)."""
+        """Avisa a quien tenga activados los avisos de cocina (aunque no tenga turno)."""
         candidatos = [
             usuario_id
-            for usuario_id in self.usuarios_cocina()
+            for usuario_id in self.usuarios_avisos_cocina()
             if usuario_id != orden.mesero_id
         ]
         destinatarios = self.usuarios_reciben_avisos(candidatos)
@@ -348,11 +409,15 @@ class PushService:
         )
 
     def notificar_comanda_lista(self, orden: Orden) -> int:
-        """Avisa al mesero que su comanda ya está lista (aunque no tenga turno)."""
-        if not orden.mesero_id:
-            return 0
+        """Avisa que la comanda ya está lista (aunque el destinatario no tenga turno).
 
-        destinatarios = self.usuarios_reciben_avisos([orden.mesero_id])
+        Reciben el aviso el mesero de la orden (si activó sus avisos de mesero)
+        y todos los usuarios que pidieron ver las comandas de todos los meseros.
+        """
+        candidatos = list(self.usuarios_avisos_mesero_todas())
+        candidatos += self.usuarios_con_avisos_mesero([orden.mesero_id])
+
+        destinatarios = self.usuarios_reciben_avisos(candidatos)
         if not destinatarios:
             return 0
 

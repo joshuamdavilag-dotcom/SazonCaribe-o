@@ -251,6 +251,18 @@ class UsuarioResponse(UsuarioBase):
         True,
         description="Si recibe los avisos push de comandas aunque esté fuera del sistema"
     )
+    avisos_cocina: bool = Field(
+        False,
+        description="Si recibe los avisos de comandas nuevas (cocina)"
+    )
+    avisos_mesero: bool = Field(
+        True,
+        description="Si recibe el aviso cuando sus propias comandas están listas"
+    )
+    avisos_mesero_todas: bool = Field(
+        False,
+        description="Si recibe también las comandas listas de otros meseros"
+    )
 
 
 class PasswordResetRequest(BaseModel):
@@ -306,16 +318,24 @@ class TurnoHabilitadoUpdate(BaseModel):
     )
 
 
-class AvisosFueraTurnoUpdate(BaseModel):
-    """Esquema para cambiar si un usuario recibe avisos fuera de su turno."""
+class AvisosUsuarioUpdate(BaseModel):
+    """Esquema para cambiar los avisos de comandas que recibe un usuario."""
 
-    avisos_fuera_de_turno: bool = Field(
-        ...,
-        description=(
-            "True recibe los avisos push aunque esté fuera del sistema "
-            "(turno cerrado, app cerrada o sin sesión); False solo mientras "
-            "su turno está abierto"
-        ),
+    avisos_fuera_de_turno: Optional[bool] = Field(
+        default=None,
+        description="Recibir avisos aunque no tenga turno abierto"
+    )
+    avisos_cocina: Optional[bool] = Field(
+        default=None,
+        description="Recibir las comandas nuevas que entran a cocina"
+    )
+    avisos_mesero: Optional[bool] = Field(
+        default=None,
+        description="Recibir sus propias comandas cuando la cocina las marca listas"
+    )
+    avisos_mesero_todas: Optional[bool] = Field(
+        default=None,
+        description="Recibir también las comandas listas de otros meseros"
     )
 
 

@@ -16,7 +16,11 @@ from app.schemas.push import (
     PushSuscripcionCreate,
     PushSuscripcionResponse,
 )
-from app.services.push_service import PUSH_DISPONIBLE, PushService
+from app.services.push_service import (
+    PUSH_DISPONIBLE,
+    PushService,
+    aplicar_preferencias_avisos,
+)
 
 router = APIRouter()
 
@@ -24,6 +28,16 @@ router = APIRouter()
 def get_push_service(db: Session = Depends(get_db)) -> PushService:
     """Retorna el servicio de push ligado a la sesión de BD de la petición."""
     return PushService(db)
+
+
+def _preferencias(usuario: Usuario) -> PushPreferenciasResponse:
+    """Serializa las preferencias de avisos del usuario."""
+    return PushPreferenciasResponse(
+        avisos_fuera_de_turno=bool(usuario.avisos_fuera_de_turno),
+        avisos_cocina=bool(usuario.avisos_cocina),
+        avisos_mesero=bool(usuario.avisos_mesero),
+        avisos_mesero_todas=bool(usuario.avisos_mesero_todas),
+    )
 
 
 @router.get(
@@ -47,6 +61,9 @@ def obtener_config_push(
         habilitado=habilitado,
         vapid_subject=get_settings().VAPID_SUBJECT,
         avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
+        avisos_cocina=bool(current_user.avisos_cocina),
+        avisos_mesero=bool(current_user.avisos_mesero),
+        avisos_mesero_todas=bool(current_user.avisos_mesero_todas),
     )
 
 
@@ -55,8 +72,9 @@ def obtener_config_push(
     response_model=PushPreferenciasResponse,
     summary="Preferencias de avisos push del usuario",
     description=(
-        "Indica si el usuario recibe los avisos de comandas incluso cuando "
-        "está fuera del sistema (turno cerrado, app cerrada o sin sesión)."
+        "Indica qué avisos recibe el usuario: comandas nuevas (cocina), sus "
+        "propias comandas listas (mesero), las de otros meseros y si los "
+        "recibe también fuera del sistema."
     ),
     dependencies=[Depends(get_current_user)],
 )
@@ -64,9 +82,7 @@ def obtener_preferencias_push(
     current_user: Usuario = Depends(get_current_user),
 ) -> PushPreferenciasResponse:
     """Devuelve las preferencias de avisos push del usuario actual."""
-    return PushPreferenciasResponse(
-        avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
-    )
+    return _preferencias(current_user)
 
 
 @router.patch(
@@ -74,8 +90,9 @@ def obtener_preferencias_push(
     response_model=PushPreferenciasResponse,
     summary="Actualizar preferencias de avisos push",
     description=(
-        "Activa o desactiva el recibir los avisos de comandas fuera del "
-        "sistema (turno cerrado, app cerrada o sin sesión iniciada)."
+        "Activa o desactiva por separado los avisos de cocina, los de mesero "
+        "y los de todas las comandas, además de la entrega fuera del sistema. "
+        "Los campos omitidos conservan su valor actual."
     ),
     dependencies=[Depends(get_current_user)],
 )
@@ -84,13 +101,11 @@ def actualizar_preferencias_push(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> PushPreferenciasResponse:
-    """Guarda la preferencia de avisos fuera de turno del usuario actual."""
-    current_user.avisos_fuera_de_turno = bool(body.avisos_fuera_de_turno)
+    """Guarda las preferencias de avisos push del usuario actual."""
+    aplicar_preferencias_avisos(current_user, body)
     db.commit()
     db.refresh(current_user)
-    return PushPreferenciasResponse(
-        avisos_fuera_de_turno=bool(current_user.avisos_fuera_de_turno),
-    )
+    return _preferencias(current_user)
 
 
 @router.post(

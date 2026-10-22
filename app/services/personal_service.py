@@ -28,6 +28,7 @@ from app.schemas.personal import (
     EliminarEmpleadoRequest,
     RolEnum,
 )
+from app.services.push_service import es_puesto_cocina
 from app.core.security import obtener_password_hash, verificar_password
 from app.services.asistencia_service import AsistenciaService
 
@@ -535,6 +536,9 @@ class PersonalService:
 
         usuario_data = usuario_in.model_dump()
         usuario_data["username"] = usuario_data["username"].strip().lower()
+        usuario_data["avisos_cocina"] = es_puesto_cocina(
+            empleado.puesto.nombre if empleado.puesto else None
+        )
         password_plano = usuario_data.pop("password")
         usuario_data["password_hash"] = obtener_password_hash(password_plano)
 

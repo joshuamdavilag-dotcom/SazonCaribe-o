@@ -256,6 +256,7 @@ async def startup_event():
         _migrate_asistencias_anulada()
         _migrate_usuarios_turno_habilitado()
         _migrate_usuarios_avisos_fuera_de_turno()
+        _migrate_usuarios_avisos_comandas()
         _migrate_mesas_apodo()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
@@ -677,6 +678,57 @@ def _migrate_usuarios_avisos_fuera_de_turno():
     """
     _add_column_if_not_exists("usuarios", "avisos_fuera_de_turno",
         "ALTER TABLE usuarios ADD COLUMN avisos_fuera_de_turno BOOLEAN NOT NULL DEFAULT TRUE")
+
+
+def _migrate_usuarios_avisos_comandas():
+    """Agrega los interruptores de avisos por tipo de comanda.
+
+    ``avisos_cocina``       recibe las comandas nuevas (antes era exclusivo
+                            del puesto de cocina).
+    ``avisos_mesero``       recibe sus propias comandas cuando están listas.
+    ``avisos_mesero_todas`` recibe también las comandas de otros meseros.
+
+    La primera vez que se crean las columnas se respeta el comportamiento
+    anterior: los puestos de cocina quedan suscritos a las comandas nuevas y
+    todos quedan suscritos a las suyas. En arranques posteriores no se toca
+    ninguna preferencia.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from app.models.personal import Empleado, Puesto, Usuario
+    from app.services.push_service import es_puesto_cocina
+
+    nueva = not _column_exists("usuarios", "avisos_cocina")
+
+    _add_column_if_not_exists("usuarios", "avisos_cocina",
+        "ALTER TABLE usuarios ADD COLUMN avisos_cocina BOOLEAN NOT NULL DEFAULT FALSE")
+    _add_column_if_not_exists("usuarios", "avisos_mesero",
+        "ALTER TABLE usuarios ADD COLUMN avisos_mesero BOOLEAN NOT NULL DEFAULT TRUE")
+    _add_column_if_not_exists("usuarios", "avisos_mesero_todas",
+        "ALTER TABLE usuarios ADD COLUMN avisos_mesero_todas BOOLEAN NOT NULL DEFAULT FALSE")
+
+    if not nueva:
+        return
+
+    with Session(engine) as db:
+        try:
+            usuarios = db.execute(
+                select(Usuario)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .join(Puesto, Empleado.puesto_id == Puesto.id)
+            ).scalars().all()
+            suscritos = 0
+            for usuario in usuarios:
+                puesto = usuario.empleado.puesto if usuario.empleado else None
+                if es_puesto_cocina(puesto.nombre if puesto else None):
+                    usuario.avisos_cocina = True
+                    suscritos += 1
+            db.commit()
+            print(f"  [~] Avisos de cocina activados para {suscritos} usuario(s) de cocina")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error preparando los avisos de comandas: {e}")
 
 
 def _migrate_mesas_apodo():

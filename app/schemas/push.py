@@ -43,15 +43,24 @@ class PushConfigResponse(BaseModel):
     habilitado: bool
     vapid_subject: str
     avisos_fuera_de_turno: bool = True
+    avisos_cocina: bool = False
+    avisos_mesero: bool = True
+    avisos_mesero_todas: bool = False
 
 
 class PushPreferenciasResponse(BaseModel):
     """Preferencias de avisos push del usuario en sesión."""
 
     avisos_fuera_de_turno: bool
+    avisos_cocina: bool
+    avisos_mesero: bool
+    avisos_mesero_todas: bool
 
 
 class PushPreferenciasUpdate(BaseModel):
-    """Actualización de las preferencias de avisos push del usuario."""
+    """Actualización parcial de las preferencias de avisos push."""
 
-    avisos_fuera_de_turno: bool
+    avisos_fuera_de_turno: Optional[bool] = None
+    avisos_cocina: Optional[bool] = None
+    avisos_mesero: Optional[bool] = None
+    avisos_mesero_todas: Optional[bool] = None
