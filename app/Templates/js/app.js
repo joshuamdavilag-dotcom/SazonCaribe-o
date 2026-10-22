@@ -8337,9 +8337,51 @@ function renderEmDetalle(estudio) {
 
     <div class="em-pie">
       <span>Generado ${emFecha((estudio.completado_en || estudio.creado_en || '').slice(0, 10))}${estudio.modelo_ia ? ` · ${emTexto(estudio.modelo_ia)}` : ''}</span>
-      <button type="button" class="em-link em-link-danger" onclick="eliminarEstudioMercado(${estudio.id})">Eliminar análisis</button>
+      <div class="em-pie-acciones">
+        <button type="button" class="em-descargar" id="em-btn-descargar" onclick="descargarEstudioMercado(${estudio.id})">
+          <span class="material-symbols-outlined">download</span> Descargar informe
+        </button>
+        <button type="button" class="em-link em-link-danger" onclick="eliminarEstudioMercado(${estudio.id})">Eliminar análisis</button>
+      </div>
     </div>
   `;
+}
+
+async function descargarEstudioMercado(estudioId) {
+  const boton = document.getElementById('em-btn-descargar');
+  const estudio = state.estudios.find(e => e.id === estudioId) || state.estudioAbierto;
+  if (boton) boton.disabled = true;
+  try {
+    const respuesta = await fetch(`${API_BASE}/estudio-mercado/${estudioId}/exportar`, {
+      headers: state.token ? { Authorization: `Bearer ${state.token}` } : {},
+      cache: 'no-store',
+    });
+    if (!respuesta.ok) {
+      let detalle = `No se pudo descargar el informe (HTTP ${respuesta.status})`;
+      try {
+        const error = await respuesta.json();
+        if (error && error.detail) detalle = error.detail;
+      } catch {
+        /* la respuesta no era JSON */
+      }
+      throw new Error(detalle);
+    }
+    const blob = await respuesta.blob();
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    const fecha = estudio?.desde ? String(estudio.desde).slice(0, 10) : 'informe';
+    enlace.href = url;
+    enlace.download = `estudio-mercado-${fecha}.html`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    showToast('Informe descargado. Ábrelo y usa "Imprimir / Guardar PDF".', 'success', 7000);
+  } catch (error) {
+    showToast(error.message || 'No se pudo descargar el informe', 'error', 6000);
+  } finally {
+    if (boton) boton.disabled = false;
+  }
 }
 
 async function eliminarEstudioMercado(estudioId) {

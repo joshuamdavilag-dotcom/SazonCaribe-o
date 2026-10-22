@@ -5147,6 +5147,29 @@ button.notification-entry:hover { border-radius: 11px; background: color-mix(in 
   color: var(--text-muted);
   font-size: 11px;
 }
+.em-pie-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.em-descargar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, #0f7a6b var(--mix-border-pct), var(--mix-border-base));
+  background: color-mix(in srgb, #e6f4f1 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #0f7a6b var(--mix-ink-pct), var(--mix-ink-base));
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: filter .15s;
+}
+.em-descargar:hover { filter: brightness(.96); }
+.em-descargar:disabled { opacity: .6; cursor: wait; }
+.em-descargar .material-symbols-outlined { font-size: 15px; }
 
 .em-chat {
   display: grid;

@@ -4,8 +4,9 @@ from datetime import date, datetime, time, timedelta
 from typing import Optional, Sequence
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
+from app.models.asistencia import Asistencia
 from app.models.calendario import EventoCalendario
 from app.models.estudio_mercado import (
     DocumentoEstudio,
@@ -16,9 +17,12 @@ from app.models.estudio_mercado import (
     TipoEstudio,
 )
 from app.models.gasto import Gasto
+from app.models.inventario import CategoriaInsumo, Insumo, UnidadMedida
 from app.models.menu import CategoriaMenu, MenuItem
+from app.models.nomina import Nomina
 from app.models.orden import DetalleOrden, EstadoOrden, Orden
-from app.models.salon import Mesa, Zona
+from app.models.personal import Empleado, Puesto
+from app.models.salon import EstadoMesa, Mesa, Zona
 
 
 def rango_datetime(desde: date, hasta: date) -> tuple[datetime, datetime]:
@@ -352,6 +356,227 @@ class EstudioMercadoRepository:
             }
             for fila in filas
         ]
+
+    # ------------------------------------------------------------------ #
+    #  Estado operativo en vivo (para el asesor de IA)
+    # ------------------------------------------------------------------ #
+    def inventario_actual(self, limite: int = 400) -> list[dict]:
+        """Existencias reales de cada insumo, con su unidad y mínimo."""
+        empaque = aliased(UnidadMedida)
+        filas = self.db.execute(
+            select(
+                Insumo.nombre,
+                CategoriaInsumo.nombre,
+                Insumo.cantidad_actual,
+                UnidadMedida.abreviatura,
+                UnidadMedida.nombre,
+                Insumo.stock_minimo,
+                Insumo.costo_unitario,
+                empaque.nombre,
+                empaque.abreviatura,
+                Insumo.factor_empaque,
+            )
+            .outerjoin(CategoriaInsumo, CategoriaInsumo.id == Insumo.categoria_id)
+            .join(UnidadMedida, UnidadMedida.id == Insumo.unidad_medida_id)
+            .outerjoin(empaque, empaque.id == Insumo.unidad_empaque_id)
+            .order_by(Insumo.nombre)
+            .limit(limite)
+        ).all()
+
+        inventario = []
+        for fila in filas:
+            cantidad = round(float(fila[2] or 0), 2)
+            minimo = round(float(fila[5] or 0), 2)
+            inventario.append(
+                {
+                    "insumo": fila[0],
+                    "categoria": fila[1] or "Sin categoría",
+                    "cantidad_actual": cantidad,
+                    "unidad": fila[3],
+                    "unidad_nombre": fila[4],
+                    "stock_minimo": minimo,
+                    "bajo_minimo": cantidad < minimo,
+                    "costo_unitario": round(float(fila[6] or 0), 2),
+                    "valor_stock": round(cantidad * float(fila[6] or 0), 2),
+                    "empaque": fila[7],
+                    "empaque_abreviatura": fila[8],
+                    "factor_empaque": fila[9],
+                }
+            )
+        return inventario
+
+    def menu_actual(self, limite: int = 200) -> list[dict]:
+        """Platillos activos con precio, categoría y tiempo de preparación."""
+        filas = self.db.execute(
+            select(
+                MenuItem.nombre,
+                CategoriaMenu.nombre,
+                MenuItem.precio,
+                MenuItem.tiempo_preparacion,
+            )
+            .outerjoin(CategoriaMenu, CategoriaMenu.id == MenuItem.categoria_id)
+            .where(MenuItem.disponible.is_(True))
+            .order_by(MenuItem.nombre)
+            .limit(limite)
+        ).all()
+        return [
+            {
+                "platillo": fila[0],
+                "categoria": fila[1] or "Sin categoría",
+                "precio": round(float(fila[2] or 0), 2),
+                "tiempo_preparacion_min": fila[3],
+            }
+            for fila in filas
+        ]
+
+    def salon_actual(self) -> dict:
+        """Mesas por estado y zonas con su cantidad de mesas."""
+        mesas = self.db.execute(
+            select(Mesa.estado, func.count(Mesa.id)).group_by(Mesa.estado)
+        ).all()
+        zonas = self.db.execute(
+            select(Zona.nombre, func.count(Mesa.id))
+            .select_from(Zona)
+            .outerjoin(Mesa, Mesa.zona_id == Zona.id)
+            .group_by(Zona.nombre)
+            .order_by(Zona.nombre)
+        ).all()
+        por_estado = [
+            {
+                "estado": fila[0].value if hasattr(fila[0], "value") else str(fila[0]),
+                "mesas": int(fila[1] or 0),
+            }
+            for fila in mesas
+        ]
+        return {
+            "total_mesas": sum(item["mesas"] for item in por_estado),
+            "mesas_por_estado": por_estado,
+            "zonas": [
+                {"zona": fila[0], "mesas": int(fila[1] or 0)} for fila in zonas
+            ],
+        }
+
+    def personal_actual(self) -> dict:
+        """Empleados activos por puesto y asistencias abiertas ahora."""
+        filas = self.db.execute(
+            select(Puesto.nombre, func.count(Empleado.id))
+            .select_from(Empleado)
+            .outerjoin(Puesto, Puesto.id == Empleado.puesto_id)
+            .where(Empleado.activo.is_(True))
+            .group_by(Puesto.nombre)
+            .order_by(Puesto.nombre)
+        ).all()
+        abiertas = self.db.execute(
+            select(func.count(Asistencia.id)).where(
+                Asistencia.hora_salida_real.is_(None),
+                Asistencia.anulada.is_(False),
+            )
+        ).scalar_one()
+        por_puesto = [
+            {"puesto": fila[0] or "Sin puesto", "empleados": int(fila[1] or 0)}
+            for fila in filas
+        ]
+        return {
+            "empleados_activos": sum(item["empleados"] for item in por_puesto),
+            "por_puesto": por_puesto,
+            "turnos_abiertos": int(abiertas or 0),
+        }
+
+    def ventas_por_dia(self, dias: int = 7, hasta: Optional[date] = None) -> list[dict]:
+        """Ingresos y órdenes de los últimos días (incluye hoy)."""
+        fin_dia = hasta or date.today()
+        desde = fin_dia - timedelta(days=max(dias - 1, 0))
+        inicio, fin = rango_datetime(desde, fin_dia)
+        filas = self.db.execute(
+            select(
+                func.date(Orden.fecha_creacion),
+                func.count(Orden.id),
+                func.coalesce(func.sum(Orden.total), 0),
+            )
+            .where(*self._condiciones_ventas(inicio, fin))
+            .group_by(func.date(Orden.fecha_creacion))
+            .order_by(func.date(Orden.fecha_creacion))
+        ).all()
+        return [
+            {
+                "fecha": str(fila[0]),
+                "ordenes": int(fila[1] or 0),
+                "ingresos": round(float(fila[2] or 0), 2),
+            }
+            for fila in filas
+        ]
+
+    def ordenes_abiertas(self) -> dict:
+        """Comandas aún no cobradas (cocina y salón en este momento)."""
+        filas = self.db.execute(
+            select(
+                Orden.id,
+                Orden.estado,
+                Orden.total,
+                Orden.nombre_cliente,
+                Mesa.numero,
+                Zona.nombre,
+                Orden.fecha_creacion,
+            )
+            .outerjoin(Mesa, Mesa.id == Orden.mesa_id)
+            .outerjoin(Zona, Zona.id == Mesa.zona_id)
+            .where(
+                Orden.estado.in_(
+                    [EstadoOrden.PENDIENTE, EstadoOrden.PREPARANDO, EstadoOrden.ENTREGADA]
+                ),
+                Orden.anulada.is_(False),
+            )
+            .order_by(Orden.fecha_creacion)
+        ).all()
+        return {
+            "total": len(filas),
+            "monto_en_curso": round(sum(float(fila[2] or 0) for fila in filas), 2),
+            "ordenes": [
+                {
+                    "orden_id": int(fila[0]),
+                    "estado": fila[1].value if hasattr(fila[1], "value") else str(fila[1]),
+                    "total": round(float(fila[2] or 0), 2),
+                    "cliente": fila[3],
+                    "mesa": fila[4],
+                    "zona": fila[5] or ("Para llevar" if fila[3] else None),
+                    "abierta_en": fila[6].isoformat() if fila[6] else None,
+                }
+                for fila in filas
+            ],
+        }
+
+    def caja_abierta(self) -> dict:
+        """Totales de la sesión de caja actual (registros sin archivar)."""
+        ventas = self.db.execute(
+            select(
+                func.count(Orden.id),
+                func.coalesce(func.sum(Orden.total), 0),
+            ).where(
+                Orden.estado == EstadoOrden.PAGADA,
+                Orden.anulada.is_(False),
+                Orden.cierre_caja_id.is_(None),
+            )
+        ).one()
+        gastos = self.db.execute(
+            select(func.coalesce(func.sum(Gasto.monto), 0)).where(
+                Gasto.eliminado.is_(False),
+                Gasto.cierre_caja_id.is_(None),
+            )
+        ).scalar_one()
+        return {
+            "ordenes_cobradas": int(ventas[0] or 0),
+            "ingresos": round(float(ventas[1] or 0), 2),
+            "gastos_sin_archivar": round(float(gastos or 0), 2),
+        }
+
+    def nomina_pendiente(self) -> dict:
+        """Nóminas calculadas que aún no se pagan."""
+        fila = self.db.execute(
+            select(func.count(Nomina.id), func.coalesce(func.sum(Nomina.pago_neto), 0)).where(
+                Nomina.estado == "PENDIENTE"
+            )
+        ).one()
+        return {"registros": int(fila[0] or 0), "monto": round(float(fila[1] or 0), 2)}
 
     # ------------------------------------------------------------------ #
     #  Persistencia de estudios

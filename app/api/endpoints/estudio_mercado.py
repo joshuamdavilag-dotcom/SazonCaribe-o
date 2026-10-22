@@ -13,6 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, requerir_rol
@@ -214,6 +215,37 @@ def limpiar_chat(
 ) -> None:
     """Borra todos los mensajes del chat de asesoría."""
     service.repo.limpiar_mensajes()
+
+
+@router.get(
+    "/{estudio_id}/exportar",
+    response_class=HTMLResponse,
+    summary="Descargar el informe del estudio de mercado",
+    description=(
+        "Devuelve un informe HTML autocontenido con las gráficas y el análisis "
+        "del estudio, listo para guardar o imprimir como PDF."
+    ),
+    tags=["Estudio de Mercado"],
+)
+def exportar_estudio(
+    estudio_id: int,
+    service: EstudioMercadoService = Depends(get_estudio_service),
+) -> HTMLResponse:
+    """Genera el informe descargable del estudio completado."""
+    estudio = service.repo.obtener_estudio(estudio_id)
+    if estudio is None:
+        raise HTTPException(status_code=404, detail="El estudio no existe.")
+    if estudio.estado != EstadoEstudio.COMPLETADO:
+        raise HTTPException(
+            status_code=400,
+            detail="El estudio todavía no está listo para descargarse.",
+        )
+    contenido = service.exportar_html(estudio)
+    nombre = f"estudio-mercado-{estudio.id}-{estudio.desde.isoformat()}.html"
+    return HTMLResponse(
+        content=contenido,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 @router.get(
