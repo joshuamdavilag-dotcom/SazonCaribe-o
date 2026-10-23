@@ -1,4 +1,4 @@
-﻿/**
+/**
  * =========================================================================
  *  Sazón Caribeño POS — App Controller
  *  Vanilla JS SPA with FastAPI backend + sidebar layout
@@ -2158,11 +2158,11 @@ function renderAuditData(antes, despues) {
 
 const CATEGORIA_BADGE = {
   OPERATIVO: 'bg-[#FFE8E3] text-[#B42318]',
-  MANTENIMIENTO: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
-  SUMINISTROS: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  SERVICIOS: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
-  IMPUESTOS: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  OTROS: 'bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200',
+  MANTENIMIENTO: 'bg-sky-100 text-sky-800',
+  SUMINISTROS: 'bg-amber-100 text-amber-800',
+  SERVICIOS: 'bg-teal-100 text-teal-800',
+  IMPUESTOS: 'bg-indigo-100 text-indigo-800',
+  OTROS: 'bg-slate-200 text-slate-700',
 };
 
 function renderGastoFilters() {
@@ -3663,7 +3663,7 @@ function renderMenuItems(items, containerId) {
     const cat = item.categoria?.nombre || 'Sin categoría';
     const catTagBg = /bebida/i.test(cat) ? 'bg-brand-turquoise/10 text-brand-turquoise'
       : /marisco|ceviche|pescado/i.test(cat) ? 'bg-brand-coral/10 text-brand-coral'
-      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
+      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600'
       : 'bg-slate-100 text-slate-500';
     return `
       <article class="menu-card animate-in h-full" data-item-id="${item.id}">
@@ -4617,7 +4617,7 @@ function renderMenuMgmt(items) {
     const media = getMenuMedia(cat);
     const catTagBg = /bebida/i.test(cat) ? 'bg-brand-turquoise/10 text-brand-turquoise'
       : /marisco|ceviche|pescado/i.test(cat) ? 'bg-brand-coral/10 text-brand-coral'
-      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
+      : /postre/i.test(cat) ? 'bg-amber-100 text-amber-600'
       : 'bg-slate-100 text-slate-500';
     const available = item.disponible !== false;
     const thumb = item.imagen_url
@@ -5279,7 +5279,7 @@ function renderInsumos(insumos) {
     const badgeCls = level === 'ok'
       ? 'bg-[#D6F5F8] text-[#0F766E]'
       : level === 'bajo'
-        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300'
+        ? 'bg-amber-100 text-amber-700 border border-amber-300'
         : 'bg-[#FFE8E3] text-[#E64A2E] border border-[#E64A2E]/30';
     const tint = insumoTint(i.categoria_nombre);
     const catBadge = i.categoria_nombre
