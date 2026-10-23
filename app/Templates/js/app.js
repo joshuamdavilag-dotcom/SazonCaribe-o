@@ -32,6 +32,7 @@ const state = {
   categories: [],
   insumos: [],
   insumoAlerts: [],
+  stockAlertsOpen: false,
   categoriasInsumo: [],
   unidadesMedida: [],
   activeInsumoCatFilter: null,
@@ -5215,6 +5216,11 @@ async function loadInsumoAlerts() {
   } catch { renderAlerts([]); }
 }
 
+function toggleStockAlerts() {
+  state.stockAlertsOpen = !state.stockAlertsOpen;
+  renderAlerts(state.insumoAlerts || []);
+}
+
 function renderAlerts(alerts) {
   const strip = document.getElementById('stock-alerts');
   if (!strip) return;
@@ -5222,11 +5228,27 @@ function renderAlerts(alerts) {
     strip.innerHTML = '<div class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold w-full min-w-0"><span class="material-symbols-outlined shrink-0 text-[16px] text-emerald-600">verified</span><span class="min-w-0">Todo en orden — no hay alertas de stock</span></div>';
     return;
   }
-  strip.innerHTML = alerts.map((a, idx) => `
-    <div class="flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer bg-${idx % 2 ? 'sky' : 'amber'}-50 border border-${idx % 2 ? 'sky' : 'amber'}-200 text-${idx % 2 ? 'sky' : 'amber'}-900 text-xs sm:text-sm font-semibold transition active:scale-[0.98] w-full min-w-0" onclick="openStockModal(${a.id})" title="Ajustar stock de ${a.nombre}">
-      <span class="material-symbols-outlined shrink-0 text-[16px] text-${idx % 2 ? 'sky' : 'amber'}-600">${idx % 2 ? 'schedule' : 'warning'}</span>
-      <span class="min-w-0 truncate">${a.nombre} — ${a.cantidad_actual} ${a.unidad_medida} (mín: ${a.stock_minimo})</span>
-    </div>`).join('');
+  const abierto = !!state.stockAlertsOpen;
+  const filas = alerts.map(a => {
+    const agotado = Number(a.cantidad_actual) <= 0;
+    const icono = agotado ? 'error' : 'warning';
+    const colorIcono = agotado ? 'text-brand-coral' : 'text-amber-600';
+    return `
+    <div class="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer bg-white border border-amber-200 text-amber-900 text-xs sm:text-sm font-semibold transition active:scale-[0.98] w-full min-w-0" onclick="openStockModal(${a.id})" title="Ajustar stock de ${escHtml(a.nombre)}">
+      <span class="material-symbols-outlined shrink-0 text-[16px] ${colorIcono}">${icono}</span>
+      <span class="min-w-0 truncate">${escHtml(a.nombre)} — ${a.cantidad_actual} ${escHtml(a.unidad_medida)} (mín: ${a.stock_minimo})</span>
+    </div>`;
+  }).join('');
+  strip.innerHTML = `
+    <div class="rounded-xl border border-amber-200 bg-amber-50 w-full min-w-0 overflow-hidden">
+      <button type="button" class="w-full flex items-center gap-2 px-3 py-2.5 text-amber-900 text-xs sm:text-sm font-semibold text-left" aria-expanded="${abierto}" aria-controls="stock-alerts-list" onclick="toggleStockAlerts()">
+        <span class="material-symbols-outlined shrink-0 text-[16px] text-amber-600">warning</span>
+        <span class="min-w-0 flex-1">${alerts.length} insumo${alerts.length === 1 ? '' : 's'} con stock crítico</span>
+        <span class="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-600">${abierto ? 'Ocultar' : 'Ver detalle'}</span>
+        <span class="material-symbols-outlined shrink-0 text-[18px] text-amber-600 transition-transform ${abierto ? 'rotate-180' : ''}">expand_more</span>
+      </button>
+      <div id="stock-alerts-list" class="px-2 pb-2 space-y-1.5 max-h-72 overflow-y-auto ${abierto ? '' : 'hidden'}">${filas}</div>
+    </div>`;
 }
 
 function insumoTint(catNombre = '') {
