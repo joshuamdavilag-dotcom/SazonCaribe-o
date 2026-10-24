@@ -1,4 +1,4 @@
-��import asyncio
+import asyncio
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,8 +38,8 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Saz%%n Caribe%�%o API",
-    description="Sistema Integral de Gesti%%n para Restaurantes",
+    title="Saz├│n Caribe├▒o API",
+    description="Sistema Integral de Gesti├│n para Restaurantes",
     version="1.0.0",
     debug=settings.DEBUG
 )
@@ -47,7 +47,7 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def manejador_error_no_controlado(request: Request, exc: Exception) -> JSONResponse:
-    """Convierte cualquier excepci%%n no controlada en JSON con detail (nunca HTML)."""
+    """Convierte cualquier excepci├│n no controlada en JSON con detail (nunca HTML)."""
     logger.exception(
         "Error no controlado en %s %s: %s",
         request.method,
@@ -83,7 +83,7 @@ app.include_router(
 app.include_router(
     nomina_router,
     prefix="/api/v1/nomina",
-    tags=["N%%minas & Pagos"]
+    tags=["N├│minas & Pagos"]
 )
 
 app.include_router(
@@ -95,25 +95,25 @@ app.include_router(
 app.include_router(
     menu_router,
     prefix="/api/v1/menu",
-    tags=["Men%Q% y Recetas"]
+    tags=["Men├║ y Recetas"]
 )
 
 app.include_router(
     salon_router,
     prefix="/api/v1/salon",
-    tags=["Sal%%n y Mesas"]
+    tags=["Sal├│n y Mesas"]
 )
 
 app.include_router(
     orden_router,
     prefix="/api/v1/ordenes",
-    tags=["%�rdenes y Facturaci%%n"]
+    tags=["├ôrdenes y Facturaci├│n"]
 )
 
 app.include_router(
     analitica_router,
     prefix="/api/v1/analitica",
-    tags=["Anal%�tica y Finanzas"]
+    tags=["Anal├¡tica y Finanzas"]
 )
 
 app.include_router(
@@ -125,7 +125,7 @@ app.include_router(
 app.include_router(
     auth_router,
     prefix="/api/v1/auth",
-    tags=["Autenticaci%%n"]
+    tags=["Autenticaci├│n"]
 )
 
 app.include_router(
@@ -143,13 +143,13 @@ app.include_router(
 app.include_router(
     menu_publico_router,
     prefix="/api/public",
-    tags=["Carta P%Q%blica (Men%Q% Digital)"]
+    tags=["Carta P├║blica (Men├║ Digital)"]
 )
 
 app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates")
 
-# Carta Digital p%Q%blica (men%Q% para clientes). Se sirve en /carta/ y consume
-# la API p%Q%blica /api/public (sin autenticaci%%n).
+# Carta Digital p├║blica (men├║ para clientes). Se sirve en /carta/ y consume
+# la API p├║blica /api/public (sin autenticaci├│n).
 app.mount(
     "/carta",
     StaticFiles(directory="app/Templates/carta", html=True),
@@ -159,10 +159,10 @@ app.mount(
 
 @app.on_event("startup")
 async def startup_event():
-    """Evento de inicio de la aplicaci%%n."""
+    """Evento de inicio de la aplicaci├│n."""
     Base.metadata.create_all(bind=engine)
     
-    # Saltar migraciones MySQL-espec%�ficas en SQLite
+    # Saltar migraciones MySQL-espec├¡ficas en SQLite
     is_sqlite = str(engine.url).startswith("sqlite")
     
     if not is_sqlite:
@@ -215,7 +215,7 @@ def _migrate_constraints():
 
 
 def _migrate_unidades_medida():
-    """Agrega columnas de conversi%%n a unidades_medida si no existen."""
+    """Agrega columnas de conversi├│n a unidades_medida si no existen."""
     from sqlalchemy import text
     from sqlalchemy.orm import Session
 
@@ -456,7 +456,7 @@ def _migrate_menu_item_imagen_tiempo():
 
 
 def _migrate_asistencia_utc_a_local():
-    """Migraci%%n one-time: convierte timestamps de asistencia de UTC naive a hora local Managua (+6h).
+    """Migraci├│n one-time: convierte timestamps de asistencia de UTC naive a hora local Managua (+6h).
 
     Los registros previos al fix se guardaban restando 6h (UTC). Se suman 6h para
     dejarlos en hora local fija de Nicaragua. Excluye los datos sembrados de julio
@@ -491,10 +491,10 @@ def _migrate_asistencia_utc_a_local():
             ))
             db.execute(text("INSERT IGNORE INTO _data_migrations (nombre) VALUES (:n)"), {"n": MARCA})
             db.commit()
-            print(f"  [~] Asistencias UTC���local: {resultado.rowcount} registros corregidos (+6h)")
+            print(f"  [~] Asistencias UTCÔåÆlocal: {resultado.rowcount} registros corregidos (+6h)")
         except Exception as e:
             db.rollback()
-            print(f"  [X] Error en migraci%%n de asistencias UTC���local: {e}")
+            print(f"  [X] Error en migraci├│n de asistencias UTCÔåÆlocal: {e}")
 
 
 def _migrate_asistencias_anulada():
@@ -526,7 +526,7 @@ def _migrate_asistencias_anulada():
 def _migrate_usuarios_turno_habilitado():
     """Agrega la columna turno_habilitado a usuarios si no existe.
 
-    Solo en la primera ejecuci%%n habilita a los Vendedores ya registrados
+    Solo en la primera ejecuci├│n habilita a los Vendedores ya registrados
     (turno_habilitado = 1) para que el despliegue no los bloquee de golpe;
     en reinicios posteriores la columna ya existe y no se toca el estado.
     """
@@ -589,16 +589,16 @@ def _migrate_nombres_archivados():
     """Libera nombres retenidos por registros inactivos/eliminados.
 
     - Platillos inactivos (``disponible = False``):
-        * Sin ventas ��� se eliminan f%�sicamente (receta incluida v%�a cascada).
-        * Con ventas ��� se renombran a ``{nombre}_deleted_{id}`` liberando el
+        * Sin ventas ÔåÆ se eliminan f├¡sicamente (receta incluida v├¡a cascada).
+        * Con ventas ÔåÆ se renombran a ``{nombre}_deleted_{id}`` liberando el
           nombre original para un plato nuevo.
     - Usuarios inactivos (``activo = False``):
-        * Se renombran username y la c%�dula de su empleado vinculado a
-          ``{valor}_deleted_{id}``. En la migraci%%n NUNCA se borran usuarios:
-          el borrado f%�sico solo ocurre v%�a DELETE /personal/usuarios/{id}.
+        * Se renombran username y la c├®dula de su empleado vinculado a
+          ``{valor}_deleted_{id}``. En la migraci├│n NUNCA se borran usuarios:
+          el borrado f├¡sico solo ocurre v├¡a DELETE /personal/usuarios/{id}.
 
     Idempotente: los registros que ya tienen el sufijo ``_deleted_{id}`` se
-    omiten, por lo que en reinicios posteriores el costo es m%�nimo.
+    omiten, por lo que en reinicios posteriores el costo es m├¡nimo.
     """
     from sqlalchemy import select, func
     from sqlalchemy.orm import Session
@@ -640,7 +640,7 @@ def _migrate_nombres_archivados():
                         )
             except Exception as e:
                 db.rollback()
-                print(f"  [X] Migraci%%n nombre plato #{item.id}: {e}")
+                print(f"  [X] Migraci├│n nombre plato #{item.id}: {e}")
 
         # --- Usuarios inactivos ---------------------------------------------------
         usuarios = db.execute(
@@ -671,19 +671,19 @@ def _migrate_nombres_archivados():
                         db.commit()
                         print(
                             "  [~] Empleado vinculado al usuario "
-                            f"'#{usuario.id}' desactivado (c%�dula liberada si aplicaba)"
+                            f"'#{usuario.id}' desactivado (c├®dula liberada si aplicaba)"
                         )
             except Exception as e:
                 db.rollback()
-                print(f"  [X] Migraci%%n nombre usuario #{usuario.id}: {e}")
+                print(f"  [X] Migraci├│n nombre usuario #{usuario.id}: {e}")
 
 
 def _fix_unidades_medida():
-    """Corrige magnitudes y cadenas de conversi%%n de unidades existentes.
+    """Corrige magnitudes y cadenas de conversi├│n de unidades existentes.
 
     - Actualiza tipo_magnitud para unidades conocidas que pudieran tener el valor incorrecto.
     - Establece unidad_base_id y factor_conversion donde falten.
-    - Agrega unidades est%�ndar que no existan (Onza, Libra, Botella, Lata, Par, Bolsa, Porci%%n).
+    - Agrega unidades est├índar que no existan (Onza, Libra, Botella, Lata, Par, Bolsa, Porci├│n).
     """
     from sqlalchemy import select, func
     from sqlalchemy.orm import Session
@@ -703,7 +703,7 @@ def _fix_unidades_medida():
         "Par":        {"tipo_magnitud": "UNIDAD"},
         "Paquete":    {"tipo_magnitud": "UNIDAD"},
         "Bolsa":      {"tipo_magnitud": "UNIDAD"},
-        "Porci%%n":    {"tipo_magnitud": "UNIDAD"},
+        "Porci├│n":    {"tipo_magnitud": "UNIDAD"},
     }
 
     CONVERSIONES = {
@@ -724,7 +724,7 @@ def _fix_unidades_medida():
         "Lata":    {"abreviatura": "Lta", "tipo_magnitud": "VOLUMEN"},
         "Par":     {"abreviatura": "Pr",  "tipo_magnitud": "UNIDAD"},
         "Bolsa":   {"abreviatura": "Bol", "tipo_magnitud": "UNIDAD"},
-        "Porci%%n": {"abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
+        "Porci├│n": {"abreviatura": "Por", "tipo_magnitud": "UNIDAD"},
     }
 
     with Session(engine) as db:
@@ -748,7 +748,7 @@ def _fix_unidades_medida():
                 if new_mag and unit.tipo_magnitud != new_mag:
                     old = unit.tipo_magnitud
                     unit.tipo_magnitud = new_mag
-                    print(f"  [~] {nombre}: magnitud {old} ��� {new_mag}")
+                    print(f"  [~] {nombre}: magnitud {old} ÔåÆ {new_mag}")
 
         for nombre, conv in CONVERSIONES.items():
             if nombre in existing:
@@ -763,13 +763,13 @@ def _fix_unidades_medida():
                     if needs_update:
                         unit.unidad_base_id = base_id
                         unit.factor_conversion = conv["factor"]
-                        print(f"  [~] {nombre} ��� base: {base_name} (factor: {conv['factor']})")
+                        print(f"  [~] {nombre} ÔåÆ base: {base_name} (factor: {conv['factor']})")
 
         db.commit()
 
 
 def _auto_seed_admin():
-    """Crea un usuario administrador si la tabla usuarios est%� vac%�a."""
+    """Crea un usuario administrador si la tabla usuarios est├í vac├¡a."""
     from datetime import date
     from decimal import Decimal
     from sqlalchemy import select
@@ -783,7 +783,7 @@ def _auto_seed_admin():
             if existe:
                 return
 
-            print("  ��� Tabla 'usuarios' vac%�a ��� creando administrador autom%�tico...")
+            print("  Ôû© Tabla 'usuarios' vac├¡a ÔÇö creando administrador autom├ítico...")
 
             stmt = select(Puesto).where(Puesto.nombre == "Administrador")
             puesto = db.execute(stmt).scalar_one_or_none()
@@ -817,11 +817,11 @@ def _auto_seed_admin():
             print("    [+] Administrador creado: joshi_0211")
         except Exception as e:
             db.rollback()
-            print(f"  [!] Error al crear administrador autom%�tico: {e}")
+            print(f"  [!] Error al crear administrador autom├ítico: {e}")
 
 
 def _fix_joshi_password():
-    """TEMP: Re-hashea la contrase%�%a de joshi_0211 con bcrypt directo (fix passlib migration)."""
+    """TEMP: Re-hashea la contrase├▒a de joshi_0211 con bcrypt directo (fix passlib migration)."""
     from sqlalchemy import text
     from sqlalchemy.orm import Session
     from app.core.security import obtener_password_hash
@@ -839,14 +839,14 @@ def _fix_joshi_password():
                 {"h": new_hash},
             )
             db.commit()
-            print("  [AUTH FIX] Contrase%�%a de joshi_0211 actualizada")
+            print("  [AUTH FIX] Contrase├▒a de joshi_0211 actualizada")
         except Exception as e:
             db.rollback()
             print(f"  [!] Error en auth fix: {e}")
 
 
 def _auditar_hashes():
-    """Audita hashes de contrase%�%a legacy (no-bcrypt) para diagn%%stico en producci%%n."""
+    """Audita hashes de contrase├▒a legacy (no-bcrypt) para diagn├│stico en producci├│n."""
     from sqlalchemy import text
     from sqlalchemy.orm import Session
 
@@ -864,9 +864,9 @@ def _auditar_hashes():
                 )
                 print(f"  [!] [AUTH AUDIT] {len(problematicos)} usuarios con hash no-bcrypt: {detalle}")
             else:
-                print(f"  [AUTH AUDIT] {len(rows)} usuarios, todos con hash bcrypt v%�lido")
+                print(f"  [AUTH AUDIT] {len(rows)} usuarios, todos con hash bcrypt v├ílido")
         except Exception as e:
-            print(f"  [!] Error en auditor%�a de hashes: {e}")
+            print(f"  [!] Error en auditor├¡a de hashes: {e}")
 
 
 def _fix_orphaned_mesas():
@@ -889,22 +889,22 @@ def _fix_orphaned_mesas():
             """))
             if result.rowcount > 0:
                 db.commit()
-                print(f"  [SALON] {result.rowcount} mesa(s) hu%�rfana(s) liberada(s) autom%�ticamente")
+                print(f"  [SALON] {result.rowcount} mesa(s) hu├®rfana(s) liberada(s) autom├íticamente")
             else:
                 db.rollback()
         except Exception as e:
             db.rollback()
-            print(f"  [!] Error al liberar mesas hu%�rfanas: {e}")
+            print(f"  [!] Error al liberar mesas hu├®rfanas: {e}")
 
 
 def _sancar_turnos_huerfanos():
-    """Cierra turnos de asistencia hu%�rfanos (sin salida) de d%�as anteriores.
+    """Cierra turnos de asistencia hu├®rfanos (sin salida) de d├¡as anteriores.
 
-    Reutiliza la l%%gica de saneamiento de ``app/db/cerrar_turnos_huerfanos.py``:
-    para cada asistencia abierta cuya entrada es de un d%�a anterior al de hoy,
-    fija la salida a las 18:00 (6:00 PM) del d%�a de la entrada, recalcula las
+    Reutiliza la l├│gica de saneamiento de ``app/db/cerrar_turnos_huerfanos.py``:
+    para cada asistencia abierta cuya entrada es de un d├¡a anterior al de hoy,
+    fija la salida a las 18:00 (6:00 PM) del d├¡a de la entrada, recalcula las
     horas extras (con tope de columna NUMERIC(4,2)) y deja el motivo de
-    auditor%�a. Es idempotente: solo toca registros sin salida; los turnos de
+    auditor├¡a. Es idempotente: solo toca registros sin salida; los turnos de
     hoy no se modifican.
     """
     from sqlalchemy.orm import Session
@@ -918,18 +918,18 @@ def _sancar_turnos_huerfanos():
                 db.commit()
                 print(
                     "  [ASISTENCIA] "
-                    f"{len(cerrados)} turno(s) hu%�rfano(s) cerrado(s) "
-                    "autom%�ticamente (salida 6:00 PM del d%�a de entrada)"
+                    f"{len(cerrados)} turno(s) hu├®rfano(s) cerrado(s) "
+                    "autom├íticamente (salida 6:00 PM del d├¡a de entrada)"
                 )
             else:
                 db.rollback()
         except Exception as e:
             db.rollback()
-            print(f"  [!] Error al sanear turnos hu%�rfanos: {e}")
+            print(f"  [!] Error al sanear turnos hu├®rfanos: {e}")
 
 
 async def _heartbeat_watcher():
-    """Tarea en segundo plano: cierra autom%�ticamente turnos sin heartbeat."""
+    """Tarea en segundo plano: cierra autom├íticamente turnos sin heartbeat."""
     from app.services.asistencia_service import AsistenciaService
     while True:
         await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SECONDS)
@@ -953,14 +953,14 @@ async def _heartbeat_watcher():
 )
 def healthcheck() -> Dict[str, str]:
     """
-    Endpoint de verificaci%%n de salud del sistema.
+    Endpoint de verificaci├│n de salud del sistema.
 
     Retorna el estado del servidor y la marca de tiempo.
     """
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "Saz%%n Caribe%�%o API",
+        "service": "Saz├│n Caribe├▒o API",
         "version": "1.0.0"
     }
 
