@@ -236,7 +236,7 @@ class AsistenciaService:
 
         if asistencia.hora_salida_real is not None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_200_OK,
                 detail="Esta asistencia ya cuenta con marca de salida"
             )
 
