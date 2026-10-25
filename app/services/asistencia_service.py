@@ -125,6 +125,15 @@ class AsistenciaService:
     # Asistencia - Check In / Check Out
     # =========================================================================
 
+    def obtener_asistencia_activa(self, empleado_id: int) -> Optional[AsistenciaResponse]:
+        """
+        Obtiene la asistencia abierta (sin marcar salida) del empleado, si existe.
+        """
+        asistencia = self.asistencia_repo.get_abierta_por_empleado(empleado_id)
+        if not asistencia:
+            return None
+        return AsistenciaResponse.model_validate(asistencia)
+
     def registrar_entrada(
         self,
         checkin_in: AsistenciaCheckIn,
@@ -147,7 +156,7 @@ class AsistenciaService:
                 detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
             )
 
-        # CORRECCIÓN: Solo bloquear si el empleado tiene una sesión ABIERTA en este momento.
+        # Solo bloquear si el empleado tiene una sesión ABIERTA actualmente.
         if self.asistencia_repo.get_abierta_por_empleado(checkin_in.empleado_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
