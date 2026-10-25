@@ -183,14 +183,14 @@ class AsistenciaService:
         empleado = self.empleado_repo.get_by_id(checkin_in.empleado_id)
         if not empleado:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_200_OK,
                 detail=f"No se encontró el empleado con ID {checkin_in.empleado_id}"
             )
 
         turno = self.turno_repo.get_by_id(checkin_in.turno_id)
         if not turno:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_200_OK,
                 detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
             ) 
                 
@@ -230,7 +230,7 @@ class AsistenciaService:
         asistencia = self.asistencia_repo.get_by_id(checkout_in.asistencia_id)
         if not asistencia:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_200_OK,
                 detail=f"No se encontró la asistencia con ID {checkout_in.asistencia_id}"
             )
 
