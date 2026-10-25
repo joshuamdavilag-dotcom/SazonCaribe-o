@@ -152,7 +152,7 @@ class AsistenciaService:
             )
         if turno.asistencias:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_200_OK,
                 detail=f"No se puede eliminar '{turno.nombre}': tiene asistencias registradas."
             )
         self.turno_repo.delete(turno_id)
@@ -161,40 +161,8 @@ class AsistenciaService:
     # Asistencia - Check In / Check Out
     # =========================================================================
 
-    def registrar_entrada(
-        self,
-        checkin_in: AsistenciaCheckIn,
-        ip_origen: str | None = None
-    ) -> AsistenciaResponse:
-        """
-        Registra la entrada de un empleado.
+  
 
-        Args:
-            checkin_in: Datos del check-in.
-            ip_origen: Dirección IP de origen (para auditoría).
-
-        Returns:
-            AsistenciaResponse con el registro creado.
-
-        Raises:
-            HTTPException 404: Si el empleado o turno no existen.
-            HTTPException 400: Si el empleado ya registró entrada hoy.
-        """
-   
-        """
-        Registra la salida de un empleado y calcula horas extras.
-
-        Args:
-            checkout_in: Datos del check-out.
-
-        Returns:
-            AsistenciaResponse con el registro actualizado.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si ya tiene registrada una salida.
-        """
-      
     # =========================================================================
     # Consultas de Asistencia
     # =========================================================================
