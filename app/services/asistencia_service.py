@@ -194,13 +194,13 @@ class AsistenciaService:
                 detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
             )
 
-        if self.asistencia_repo.tiene_registro_hoy(checkin_in.empleado_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El empleado ya registró su entrada para el día de hoy"
-            )
+    #    if self.asistencia_repo.tiene_registro_hoy(checkin_in.empleado_id):
+     #       raise HTTPException(
+      #          status_code=status.HTTP_400_BAD_REQUEST,
+       #         detail="El empleado ya registró su entrada para el día de hoy"
+        #    )
 
-        ahora = ahora_local()
+        ahora = ahora_local( ) 
         asistencia_data = {
             "empleado_id": checkin_in.empleado_id,
             "turno_id": checkin_in.turno_id,
