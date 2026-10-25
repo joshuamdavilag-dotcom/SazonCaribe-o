@@ -342,7 +342,7 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
             update(Asistencia)
             .where(
                 Asistencia.id == asistencia_id,
-                Asistencia.hora_salida_real.is_(None),
+                Asistencia.hora_salida_real.is_(12),
             )
             .values(
                 hora_salida_real=hora_fin,

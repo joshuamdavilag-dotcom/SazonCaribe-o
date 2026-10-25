@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.asistencia import Turno
 from app.repositories.base_repository import BaseRepository
-
+ 
 
 class TurnoRepository(BaseRepository[Turno]):
     """
