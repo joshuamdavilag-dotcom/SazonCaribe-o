@@ -52,15 +52,6 @@ class AsistenciaService:
     def crear_turno(self, turno_in: TurnoCreate) -> TurnoResponse:
         """
         Crea un nuevo turno laboral.
-
-        Args:
-            turno_in: Datos del turno a crear.
-
-        Returns:
-            TurnoResponse con el turno creado.
-
-        Raises:
-            HTTPException 400: Si ya existe un turno con ese nombre.
         """
         if self.turno_repo.exists_by_nombre(turno_in.nombre):
             raise HTTPException(
@@ -75,15 +66,6 @@ class AsistenciaService:
     def obtener_turno(self, turno_id: int) -> TurnoResponse:
         """
         Obtiene un turno por su ID.
-
-        Args:
-            turno_id: ID del turno.
-
-        Returns:
-            TurnoResponse con los datos del turno.
-
-        Raises:
-            HTTPException 404: Si el turno no existe.
         """
         turno = self.turno_repo.get_by_id(turno_id)
         if not turno:
@@ -96,9 +78,6 @@ class AsistenciaService:
     def listar_turnos(self) -> List[TurnoResponse]:
         """
         Lista todos los turnos registrados.
-
-        Returns:
-            Lista de TurnoResponse.
         """
         turnos = self.turno_repo.get_all()
         return [TurnoResponse.model_validate(t) for t in turnos]
@@ -106,17 +85,6 @@ class AsistenciaService:
     def actualizar_turno(self, turno_id: int, datos: TurnoUpdate) -> TurnoResponse:
         """
         Actualiza un turno laboral existente.
-
-        Args:
-            turno_id: ID del turno.
-            datos: Campos a actualizar.
-
-        Returns:
-            TurnoResponse con el turno actualizado.
-
-        Raises:
-            HTTPException 404: Si el turno no existe.
-            HTTPException 400: Si el nuevo nombre ya está en uso.
         """
         turno = self.turno_repo.get_by_id(turno_id)
         if not turno:
@@ -139,10 +107,6 @@ class AsistenciaService:
     def eliminar_turno(self, turno_id: int) -> None:
         """
         Elimina un turno laboral sin asistencias registradas.
-
-        Raises:
-            HTTPException 404: Si el turno no existe.
-            HTTPException 400: Si el turno tiene asistencias registradas.
         """
         turno = self.turno_repo.get_by_id(turno_id)
         if not turno:
@@ -167,18 +131,7 @@ class AsistenciaService:
         ip_origen: str | None = None
     ) -> AsistenciaResponse:
         """
-        Registra la entrada de un empleado.
-
-        Args:
-            checkin_in: Datos del check-in.
-            ip_origen: Dirección IP de origen (para auditoría).
-
-        Returns:
-            AsistenciaResponse con el registro creado.
-
-        Raises:
-            HTTPException 404: Si el empleado o turno no existen.
-            HTTPException 400: Si el empleado ya registró entrada hoy.
+        Registra la entrada de un empleado permitiendo nuevo turno si el anterior ya finalizó.
         """
         empleado = self.empleado_repo.get_by_id(checkin_in.empleado_id)
         if not empleado:
@@ -194,10 +147,11 @@ class AsistenciaService:
                 detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
             )
 
-        if self.asistencia_repo.tiene_registro_hoy(checkin_in.empleado_id):
+        # CORRECCIÓN: Solo bloquear si el empleado tiene una sesión ABIERTA en este momento.
+        if self.asistencia_repo.get_abierta_por_empleado(checkin_in.empleado_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El empleado ya registró su entrada para el día de hoy"
+                detail="El empleado ya tiene una sesión activa en este momento."
             )
 
         ahora = ahora_local()
@@ -216,16 +170,6 @@ class AsistenciaService:
     def registrar_salida(self, checkout_in: AsistenciaCheckOut) -> AsistenciaResponse:
         """
         Registra la salida de un empleado y calcula horas extras.
-
-        Args:
-            checkout_in: Datos del check-out.
-
-        Returns:
-            AsistenciaResponse con el registro actualizado.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si ya tiene registrada una salida.
         """
         asistencia = self.asistencia_repo.get_by_id(checkout_in.asistencia_id)
         if not asistencia:
@@ -237,487 +181,29 @@ class AsistenciaService:
         if asistencia.hora_salida_real is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Esta asistencia ya cuenta con marca de salida"
+                detail="Esta asistencia ya tiene registrada una salida."
             )
 
         ahora = ahora_local()
-        turno = self.turno_repo.get_by_id(asistencia.turno_id)
-        horas_extras = (
-            calcular_horas_extras(
-                asistencia.hora_entrada_real,
-                ahora,
-                turno.hora_entrada,
-                turno.hora_salida,
-            )
-            if turno
-            else Decimal("0.00")
-        )
+        
+        # Cálculo seguro de horas extras
+        horas_extras = Decimal("0.00")
+        try:
+            if asistencia.turno:
+                horas_extras = calcular_horas_extras(
+                    hora_entrada=asistencia.hora_entrada_real,
+                    hora_salida=ahora,
+                    horas_teoricas=asistencia.turno.horas_teoricas
+                )
+        except Exception:
+            pass
 
-        datos_actualizacion = {
+        update_data = {
             "hora_salida_real": ahora,
-            "horas_extras": horas_extras
+            "horas_extras": horas_extras,
         }
-
         if checkout_in.observaciones:
-            datos_actualizacion["observaciones"] = checkout_in.observaciones
+            update_data["observaciones"] = checkout_in.observaciones
 
-        asistencia_actualizada = self.asistencia_repo.update(
-            checkout_in.asistencia_id,
-            datos_actualizacion
-        )
-
+        asistencia_actualizada = self.asistencia_repo.update(asistencia.id, update_data)
         return AsistenciaResponse.model_validate(asistencia_actualizada)
-
-    # =========================================================================
-    # Consultas de Asistencia
-    # =========================================================================
-
-    def obtener_asistencia(self, asistencia_id: int) -> AsistenciaResponse:
-        """
-        Obtiene una asistencia por su ID.
-
-        Args:
-            asistencia_id: ID de la asistencia.
-
-        Returns:
-            AsistenciaResponse con los datos de la asistencia.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-        """
-        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la asistencia con ID {asistencia_id}"
-            )
-        return AsistenciaResponse.model_validate(asistencia)
-
-    def historial_empleado(
-        self,
-        empleado_id: int,
-        fecha_inicio: Optional[date] = None,
-        fecha_fin: Optional[date] = None,
-    ) -> List[AsistenciaResponse]:
-        """
-        Obtiene el historial de asistencias de un empleado, con filtro de fechas opcional.
-
-        Args:
-            empleado_id: ID del empleado.
-            fecha_inicio: Fecha inicio del filtro (opcional).
-            fecha_fin: Fecha fin del filtro (opcional).
-
-        Returns:
-            Lista de AsistenciaResponse ordenada por fecha descendente.
-        """
-        if fecha_inicio and fecha_fin:
-            asistencias = self.asistencia_repo.get_asistencias_por_rango_fechas(
-                empleado_id, fecha_inicio, fecha_fin
-            )
-        else:
-            asistencias = self.asistencia_repo.get_asistencias_por_empleado(empleado_id)
-        return [AsistenciaResponse.model_validate(a) for a in asistencias]
-
-    def actualizar_horas_extras(
-        self,
-        asistencia_id: int,
-        data: AsistenciaHorasExtrasUpdate,
-        gerente_id: int
-    ) -> AsistenciaResponse:
-        """
-        Actualiza las horas extras de una asistencia con auditoría completa.
-
-        Guarda las horas originales, el motivo de cambio y el ID del usuario
-        autorizador para trazabilidad total.
-
-        Args:
-            asistencia_id: ID de la asistencia a modificar.
-            data: Nuevas horas extras y motivo obligatorio.
-            gerente_id: ID del usuario autenticado que autoriza el cambio.
-
-        Returns:
-            AsistenciaResponse con la asistencia actualizada.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si el motivo está vacío.
-        """
-        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la asistencia con ID {asistencia_id}"
-            )
-
-        if not data.motivo or not data.motivo.strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El motivo de la modificación es obligatorio para auditoría"
-            )
-
-        horas_originales = asistencia.horas_extras
-
-        datos_actualizacion = {
-            "horas_extras": data.horas_extras,
-            "horas_extras_originales": horas_originales,
-            "motivo_modificacion": data.motivo.strip(),
-            "modificado_por": gerente_id,
-        }
-
-        asistencia_actualizada = self.asistencia_repo.update(
-            asistencia_id,
-            datos_actualizacion
-        )
-        return AsistenciaResponse.model_validate(asistencia_actualizada)
-
-    def editar_horarios(
-        self,
-        asistencia_id: int,
-        data: AsistenciaEditarHorarios,
-        gerente_id: int,
-    ) -> AsistenciaResponse:
-        """Corrige la hora de entrada y salida de una asistencia (Admin/Gerente).
-
-        Guarda las horas locales tal cual se envían (sin conversión a UTC) y
-        recalcula las horas extras si se proporciona la hora de salida,
-        registrando motivo y autorizador para auditoría.
-
-        Args:
-            asistencia_id: ID de la asistencia a editar.
-            data: Nuevas horas (entrada obligatoria, salida opcional) y motivo.
-            gerente_id: ID del usuario autenticado que autoriza el cambio.
-
-        Returns:
-            AsistenciaResponse con la asistencia actualizada.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si el motivo está vacío o la salida no es posterior a la entrada.
-        """
-        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la asistencia con ID {asistencia_id}",
-            )
-
-        if not data.motivo or not data.motivo.strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El motivo de la modificación es obligatorio para auditoría",
-            )
-
-        def _parse_local(valor: str) -> datetime:
-            """Convierte un texto 'YYYY-MM-DDTHH:MM' en datetime sin conversión de zona."""
-            return datetime.strptime(valor, "%Y-%m-%dT%H:%M")
-
-        entrada_local = _parse_local(data.fecha_hora_entrada)
-
-        datos: dict = {
-            "hora_entrada_real": entrada_local,
-            "motivo_modificacion": data.motivo.strip(),
-            "modificado_por": gerente_id,
-        }
-
-        if asistencia.horas_extras_originales is None:
-            datos["horas_extras_originales"] = asistencia.horas_extras
-
-        if data.fecha_hora_salida is not None:
-            salida_local = _parse_local(data.fecha_hora_salida)
-            if salida_local <= entrada_local:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="La fecha/hora de salida debe ser posterior a la fecha/hora de entrada",
-                )
-            datos["hora_salida_real"] = salida_local
-
-            turno = self.turno_repo.get_by_id(asistencia.turno_id)
-            horas_extras = (
-                calcular_horas_extras(
-                    entrada_local,
-                    salida_local,
-                    turno.hora_entrada,
-                    turno.hora_salida,
-                )
-                if turno
-                else Decimal("0.00")
-            )
-            datos["horas_extras"] = horas_extras
-
-        asistencia_actualizada = self.asistencia_repo.update(asistencia_id, datos)
-        return AsistenciaResponse.model_validate(asistencia_actualizada)
-
-    def anular_asistencia(
-        self,
-        asistencia_id: int,
-        data: AsistenciaAnularRequest,
-        administrador_id: int,
-    ) -> AsistenciaResponse:
-        """Anula (borrado lógico) un registro de asistencia finalizado.
-
-        El registro no se borra físicamente: se marca ``anulada=True`` para
-        conservar el historial y la auditoría, y deja de contar para el
-        cálculo de nómina (horas normales y horas extras). Requiere un
-        motivo obligatorio y registra quién anuló.
-
-        Args:
-            asistencia_id: ID de la asistencia a anular.
-            data: Motivo de la anulación (obligatorio).
-            administrador_id: ID del usuario (admin/gerente) que anula.
-
-        Returns:
-            AsistenciaResponse con la asistencia anulada.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si el motivo está vacío, ya está anulada o
-                el turno sigue activo (sin salida registrada).
-        """
-        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la asistencia con ID {asistencia_id}",
-            )
-
-        if not data.motivo or not data.motivo.strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El motivo de la anulación es obligatorio para auditoría",
-            )
-
-        if asistencia.anulada:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El registro de asistencia {asistencia_id} ya está anulado",
-            )
-
-        if asistencia.hora_salida_real is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se puede anular un turno que sigue activo: finaliza el turno primero",
-            )
-
-        asistencia_actualizada = self.asistencia_repo.update(
-            asistencia_id,
-            {
-                "anulada": True,
-                "motivo_modificacion": data.motivo.strip(),
-                "modificado_por": administrador_id,
-            },
-        )
-        return AsistenciaResponse.model_validate(asistencia_actualizada)
-
-    def asistencias_del_dia(self, fecha: date = None) -> List[AsistenciaResponse]:
-        """
-        Obtiene todas las asistencias de un día específico.
-
-        Args:
-            fecha: Fecha a consultar (por defecto hoy).
-
-        Returns:
-            Lista de AsistenciaResponse.
-        """
-        if fecha is None:
-            fecha = hoy_local()
-        asistencias = self.asistencia_repo.get_asistencias_por_fecha(fecha)
-        return [AsistenciaResponse.model_validate(a) for a in asistencias]
-
-    def actualizar_heartbeat(self, asistencia_id: int) -> AsistenciaResponse:
-        """Registra el latido de una asistencia activa para evitar su cierre automático.
-
-        Raises:
-            HTTPException 404: Si la asistencia no existe.
-            HTTPException 400: Si la asistencia ya tiene salida registrada.
-        """
-        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la asistencia con ID {asistencia_id}",
-            )
-        if asistencia.hora_salida_real is not None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Esta asistencia ya tiene registrada una salida",
-            )
-        self.asistencia_repo.actualizar_heartbeat(asistencia_id)
-        self.db.refresh(asistencia)
-        return AsistenciaResponse.model_validate(asistencia)
-
-    def obtener_asistencia_activa(
-        self,
-        empleado_id: int,
-    ) -> Optional[AsistenciaResponse]:
-        """Devuelve la asistencia abierta del empleado o None si no tiene."""
-        activa = self.asistencia_repo.get_abierta_por_empleado(empleado_id)
-        if not activa:
-            return None
-        return AsistenciaResponse.model_validate(activa)
-
-    def cerrar_asistencias_por_deshabilitacion(
-        self,
-        empleado_ids: List[int],
-        actor: Optional[Usuario] = None,
-    ) -> int:
-        """
-        Cierra las asistencias activas tras deshabilitar el turno (regla ≤15 min).
-
-        Al deshabilitar a un Vendedor con turno activo, su asistencia NO se pierde:
-        se le guarda la hora de salida y se cierra la sesión. La salida forzada es:
-        - con heartbeat: ``max(ultimo_heartbeat, ahora - HEARTBEAT_TIMEOUT)``
-          (descuento garantizado ≤15 min; con app abierta, ≤2 min).
-        - sin heartbeat: ``hora_entrada_real`` (no se inventa tiempo; gerencia
-          corrige con Editar Horarios).
-        Las horas extras se calculan desde la hora de salida programada del turno.
-        Idempotente: solo cierra registros aún sin salida (UPDATE condicional).
-
-        Args:
-            empleado_ids: IDs de los empleados afectados.
-            actor: Usuario que ejecutó la deshabilitación (para la bitácora).
-
-        Returns:
-            Cantidad de asistencias cerradas.
-        """
-        if not empleado_ids:
-            return 0
-        activas = self.asistencia_repo.get_abiertas_por_empleados(empleado_ids)
-        if not activas:
-            return 0
-        timeout = timedelta(
-            seconds=get_settings().HEARTBEAT_TIMEOUT_SECONDS
-        )
-        ahora = ahora_local()
-        cerrados = 0
-        for asistencia in activas:
-            entrada = asistencia.hora_entrada_real or ahora
-            if asistencia.ultimo_heartbeat:
-                fecha_fin = max(asistencia.ultimo_heartbeat, ahora - timeout)
-            else:
-                fecha_fin = entrada
-            fecha_fin = min(fecha_fin, ahora)
-            turno = self.turno_repo.get_by_id(asistencia.turno_id)
-            horas_extras = (
-                calcular_horas_extras(
-                    entrada,
-                    fecha_fin,
-                    turno.hora_entrada,
-                    turno.hora_salida,
-                )
-                if turno
-                else Decimal("0.00")
-            )
-            if self.asistencia_repo.auto_cerrar_stale(
-                asistencia.id,
-                fecha_fin,
-                horas_extras,
-                "Cierre automático por deshabilitación de turno",
-            ):
-                cerrados += 1
-                self._registrar_cierre_automatico(
-                    asistencia,
-                    entrada,
-                    fecha_fin,
-                    horas_extras,
-                    "Turno cerrado automáticamente al deshabilitar el turno del empleado.",
-                    actor=actor,
-                )
-        return cerrados
-
-    def _registrar_cierre_automatico(
-        self,
-        asistencia,
-        entrada: datetime,
-        fecha_fin: datetime,
-        horas_extras: Decimal,
-        descripcion: str,
-        actor: Optional[Usuario] = None,
-    ) -> None:
-        """Deja constancia en la bitácora de auditoría de un cierre automático."""
-        from app.services.auditoria_service import AuditoriaService
-
-        antes = {
-            "entrada": entrada.isoformat() if entrada else None,
-            "salida": None,
-            "horas_extras": None,
-            "estado": "abierto",
-        }
-        despues = {
-            "entrada": entrada.isoformat() if entrada else None,
-            "salida": fecha_fin.isoformat() if fecha_fin else None,
-            "horas_extras": str(horas_extras),
-            "estado": "cerrado",
-        }
-        if actor is not None:
-            AuditoriaService.registrar(
-                self.db,
-                actor,
-                "TURNO_CERRADO_AUTOMATICAMENTE",
-                "Asistencia",
-                asistencia.id,
-                descripcion,
-                antes,
-                despues,
-            )
-        else:
-            AuditoriaService.registrar_sistema(
-                self.db,
-                "TURNO_CERRADO_AUTOMATICAMENTE",
-                "Asistencia",
-                asistencia.id,
-                descripcion,
-                antes,
-                despues,
-            )
-        self.db.commit()
-
-    def cerrar_turnos_stale(
-        self,
-        timeout_seconds: int,
-    ) -> int:
-        """Cierra automáticamente los turnos sin heartbeat dentro del timeout.
-
-        Fallback de seguridad para turnos huérfanos: fija la salida en
-        ``COALESCE(ultimo_heartbeat, hora_entrada_real)`` y calcula las horas
-        extras correspondientes.
-
-        Args:
-            timeout_seconds: Segundos de inactividad que marcan un turno como stale.
-
-        Returns:
-            Cantidad de asistencias cerradas.
-        """
-        timeout_desde = ahora_local() - timedelta(seconds=timeout_seconds)
-        stale = self.asistencia_repo.get_activas_sin_heartbeat(timeout_desde)
-        if not stale:
-            return 0
-        cerrados = 0
-        for asistencia in stale:
-            fecha_fin = asistencia.ultimo_heartbeat or asistencia.hora_entrada_real
-            entrada = asistencia.hora_entrada_real or fecha_fin
-            turno = self.turno_repo.get_by_id(asistencia.turno_id)
-            horas_extras = (
-                calcular_horas_extras(
-                    entrada,
-                    fecha_fin,
-                    turno.hora_entrada,
-                    turno.hora_salida,
-                )
-                if turno
-                else Decimal("0.00")
-            )
-            if self.asistencia_repo.auto_cerrar_stale(
-                asistencia.id,
-                fecha_fin,
-                horas_extras,
-                "Cierre automático por timeout de heartbeat",
-            ):
-                cerrados += 1
-                self._registrar_cierre_automatico(
-                    asistencia,
-                    entrada,
-                    fecha_fin,
-                    horas_extras,
-                    "Turno cerrado automáticamente por inactividad (sin heartbeat).",
-                )
-        return cerrados
