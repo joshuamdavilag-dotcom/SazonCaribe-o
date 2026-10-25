@@ -21,12 +21,12 @@ class TurnoBase(BaseModel):
     hora_entrada: time = Field(
         ...,
         description="Hora de entrada del turno",
-        examples=["08:00:00"]
+        examples=["10:00:00"]
     )
     hora_salida: time = Field(
         ...,
         description="Hora de salida del turno",
-        examples=["16:00:00"]
+        examples=["18:00:00"]
     )
     horas_teoricas: int = Field(
         default=8,
