@@ -180,40 +180,7 @@ class AsistenciaService:
             HTTPException 404: Si el empleado o turno no existen.
             HTTPException 400: Si el empleado ya registró entrada hoy.
         """
-        empleado = self.empleado_repo.get_by_id(checkin_in.empleado_id)
-        if not empleado:
-            raise HTTPException(
-                status_code=status.HTTP_200_OK,
-                detail=f"No se encontró el empleado con ID {checkin_in.empleado_id}"
-            )
-
-        turno = self.turno_repo.get_by_id(checkin_in.turno_id)
-        if not turno:
-            raise HTTPException(
-                status_code=status.HTTP_200_OK,
-                detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
-            ) 
-                
-        if self.asistencia_repo.tiene_registro_hoy(checkin_in.empleado_id):
-            raise HTTPException(
-                status_code=status.HTTP_200_OK,
-                detail="El empleado ya registró su entrada para el día de hoy"
-           )  
-
-        ahora = ahora_local( ) 
-        asistencia_data = {
-            "empleado_id": checkin_in.empleado_id,
-            "turno_id": checkin_in.turno_id,
-            "fecha": ahora.date(),
-            "hora_entrada_real": ahora,
-            "observaciones": checkin_in.observaciones,
-            "ip_origen": ip_origen
-        }
-
-        asistencia_creada = self.asistencia_repo.create(asistencia_data)
-        return AsistenciaResponse.model_validate(asistencia_creada)
-
-    def registrar_salida(self, checkout_in: AsistenciaCheckOut) -> AsistenciaResponse:
+   
         """
         Registra la salida de un empleado y calcula horas extras.
 
@@ -227,9 +194,7 @@ class AsistenciaService:
             HTTPException 404: Si la asistencia no existe.
             HTTPException 400: Si ya tiene registrada una salida.
         """
-    
-         
-
+      
     # =========================================================================
     # Consultas de Asistencia
     # =========================================================================
