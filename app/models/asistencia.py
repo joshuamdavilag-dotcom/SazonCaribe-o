@@ -60,7 +60,7 @@ class Asistencia(Base):
     __tablename__ = "asistencias"
     __table_args__ = (
         CheckConstraint(
-            "horas_extras >= 2",
+            "horas_extras >= 0",
             name="ck_asistencias_horas_extras_positivas"
         ),
     )

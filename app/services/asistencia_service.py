@@ -152,7 +152,7 @@ class AsistenciaService:
             )
         if turno.asistencias:
             raise HTTPException(
-                status_code=status.HTTP_200_OK,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"No se puede eliminar '{turno.nombre}': tiene asistencias registradas."
             )
         self.turno_repo.delete(turno_id)
@@ -161,7 +161,112 @@ class AsistenciaService:
     # Asistencia - Check In / Check Out
     # =========================================================================
 
-  
+    def registrar_entrada(
+        self,
+        checkin_in: AsistenciaCheckIn,
+        ip_origen: str | None = None
+    ) -> AsistenciaResponse:
+        """
+        Registra la entrada de un empleado.
+
+        Args:
+            checkin_in: Datos del check-in.
+            ip_origen: Dirección IP de origen (para auditoría).
+
+        Returns:
+            AsistenciaResponse con el registro creado.
+
+        Raises:
+            HTTPException 404: Si el empleado o turno no existen.
+            HTTPException 400: Si el empleado ya registró entrada hoy.
+        """
+        empleado = self.empleado_repo.get_by_id(checkin_in.empleado_id)
+        if not empleado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el empleado con ID {checkin_in.empleado_id}"
+            )
+
+        turno = self.turno_repo.get_by_id(checkin_in.turno_id)
+        if not turno:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró el turno con ID {checkin_in.turno_id}"
+            )
+
+        if self.asistencia_repo.tiene_registro_hoy(checkin_in.empleado_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El empleado ya registró su entrada para el día de hoy"
+            )
+
+        ahora = ahora_local()
+        asistencia_data = {
+            "empleado_id": checkin_in.empleado_id,
+            "turno_id": checkin_in.turno_id,
+            "fecha": ahora.date(),
+            "hora_entrada_real": ahora,
+            "observaciones": checkin_in.observaciones,
+            "ip_origen": ip_origen
+        }
+
+        asistencia_creada = self.asistencia_repo.create(asistencia_data)
+        return AsistenciaResponse.model_validate(asistencia_creada)
+
+    def registrar_salida(self, checkout_in: AsistenciaCheckOut) -> AsistenciaResponse:
+        """
+        Registra la salida de un empleado y calcula horas extras.
+
+        Args:
+            checkout_in: Datos del check-out.
+
+        Returns:
+            AsistenciaResponse con el registro actualizado.
+
+        Raises:
+            HTTPException 404: Si la asistencia no existe.
+            HTTPException 400: Si ya tiene registrada una salida.
+        """
+        asistencia = self.asistencia_repo.get_by_id(checkout_in.asistencia_id)
+        if not asistencia:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la asistencia con ID {checkout_in.asistencia_id}"
+            )
+
+        if asistencia.hora_salida_real is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Esta asistencia ya cuenta con marca de salida"
+            )
+
+        ahora = ahora_local()
+        turno = self.turno_repo.get_by_id(asistencia.turno_id)
+        horas_extras = (
+            calcular_horas_extras(
+                asistencia.hora_entrada_real,
+                ahora,
+                turno.hora_entrada,
+                turno.hora_salida,
+            )
+            if turno
+            else Decimal("0.00")
+        )
+
+        datos_actualizacion = {
+            "hora_salida_real": ahora,
+            "horas_extras": horas_extras
+        }
+
+        if checkout_in.observaciones:
+            datos_actualizacion["observaciones"] = checkout_in.observaciones
+
+        asistencia_actualizada = self.asistencia_repo.update(
+            checkout_in.asistencia_id,
+            datos_actualizacion
+        )
+
+        return AsistenciaResponse.model_validate(asistencia_actualizada)
 
     # =========================================================================
     # Consultas de Asistencia

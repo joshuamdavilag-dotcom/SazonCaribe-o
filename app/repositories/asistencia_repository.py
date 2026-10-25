@@ -154,19 +154,11 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
 
     def tiene_registro_hoy(self, empleado_id: int) -> bool:
         """
-        Verifica si el empleado ya tiene registro en el "día de negocio" vigente.
-
-        "Hoy" abarca la ventana 7:00 AM → 7:00 AM (HORA_INICIO_DIA), no el día
-        calendario, para que los turnos de bar/restaurante que cruzan la
-        medianoche no queden partidos entre dos fechas.
-
-        Args:
-            empleado_id: ID del empleado.
-
-        Returns:
-            True si ya tiene registro, False si no.
+        Verifica si el empleado tiene una sesión ABIERTA actualmente.
+        Ya no bloquea todo el día, solo impide abrir un nuevo turno
+        si el anterior sigue abierto en curso.
         """
-        return self.get_asistencia_del_dia_negocio(empleado_id) is not None
+        return self.get_abierta_por_empleado(empleado_id) is not None
 
     def get_asistencias_por_rango_fechas(
         self,
@@ -215,59 +207,29 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             Lista de asistencias finalizadas en el rango.
         """
-   #     statement = (
-    #        select(Asistencia)
-     #       .where(
-      #          Asistencia.empleado_id == empleado_id,
-       #         Asistencia.fecha >= fecha_inicio,
-        #        Asistencia.fecha <= fecha_fin,
-         #       Asistencia.hora_salida_real.isnot(None),
-          #      Asistencia.anulada == False
-           # )
-            #.order_by(Asistencia.fecha)
-     #   )
-      #  result = self.db.execute(statement)
-       # return list(result.scalars().all())
+        statement = (
+            select(Asistencia)
+            .where(
+                Asistencia.empleado_id == empleado_id,
+                Asistencia.fecha >= fecha_inicio,
+                Asistencia.fecha <= fecha_fin,
+                Asistencia.hora_salida_real.isnot(None),
+                Asistencia.anulada == False
+            )
+            .order_by(Asistencia.fecha)
+        )
+        result = self.db.execute(statement)
+        return list(result.scalars().all())
 
     def get_activas_sin_heartbeat(
         self,
         timeout_desde: datetime,
     ) -> List[Asistencia]:
         """
-        Asistencias activas (sin salida) cuyo dueño ya NO puede permanecer abierto.
-
-        Un usuario mantiene el turno abierto si está activo y (no es Vendedor o
-        tiene ``turno_habilitado``). Solo se auto-cierra lo "deshabilitado":
-        vendedor con turno apagado, usuario inactivo o sin usuario vinculado.
-        La línea base es el último heartbeat (o la hora de entrada si nunca hubo
-        pulso) para incluir asistencias cuyo primer heartbeat nunca llegó.
+        DESACTIVADO: Retorna lista vacía para que el sistema NUNCA
+        cierre ningún turno de forma automática.
         """
-        usuario_puede_seguir = (
-            select(Usuario.id)
-            .where(
-                Usuario.empleado_id == Asistencia.empleado_id,
-                Usuario.activo == True,
-                or_(
-                    Usuario.rol != "Vendedor",
-                    Usuario.turno_habilitado == True,
-                ),
-            )
-            .exists()
-        )
-        statement = (
-            select(Asistencia)
-            .where(
-                Asistencia.hora_salida_real.is_(None),
-                Asistencia.anulada == False,
-                func.coalesce(
-                    Asistencia.ultimo_heartbeat,
-                    Asistencia.hora_entrada_real,
-                ) < timeout_desde,
-                ~usuario_puede_seguir,
-            )
-        )
-        result = self.db.execute(statement)
-        return list(result.scalars().all())
+        return []
 
     def get_abierta_por_empleado(
         self,
@@ -338,18 +300,18 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             True si el turno se cerró, False si ya estaba finalizado.
         """
-      #  stmt = (
-      #      update(Asistencia)
-        #    .where(
-       #         Asistencia.id == asistencia_id,
-       #         Asistencia.hora_salida_real.is_(12),
-        #    )
-        #    .values(
-       #         hora_salida_real=hora_fin,
-        #        horas_extras=horas_extras,
-         #       observaciones=observaciones,
-          #  )
-        #)
-        #result = self.db.execute(stmt)
-        #self.db.commit()
-        #eturn result.rowcount > 0
+        stmt = (
+            update(Asistencia)
+            .where(
+                Asistencia.id == asistencia_id,
+                Asistencia.hora_salida_real.is_(None),
+            )
+            .values(
+                hora_salida_real=hora_fin,
+                horas_extras=horas_extras,
+                observaciones=observaciones,
+            )
+        )
+        result = self.db.execute(stmt)
+        self.db.commit()
+        return result.rowcount > 0
