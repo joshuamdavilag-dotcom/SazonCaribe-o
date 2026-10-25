@@ -227,42 +227,8 @@ class AsistenciaService:
             HTTPException 404: Si la asistencia no existe.
             HTTPException 400: Si ya tiene registrada una salida.
         """
-        asistencia = self.asistencia_repo.get_by_id(checkout_in.asistencia_id)
-        if not asistencia:
-            raise HTTPException(
-                status_code=status.HTTP_200_OK,
-                detail=f"No se encontró la asistencia con ID {checkout_in.asistencia_id}"
-            )
-
-
-
-        ahora = ahora_local()
-        turno = self.turno_repo.get_by_id(asistencia.turno_id)
-        horas_extras = (
-            calcular_horas_extras(
-                asistencia.hora_entrada_real,
-                ahora,
-                turno.hora_entrada,
-                turno.hora_salida,
-            )
-            if turno
-            else Decimal("0.00")
-        )
-
-        datos_actualizacion = {
-            "hora_salida_real": ahora,
-            "horas_extras": horas_extras
-        }
-
-        if checkout_in.observaciones:
-            datos_actualizacion["observaciones"] = checkout_in.observaciones
-
-        asistencia_actualizada = self.asistencia_repo.update(
-            checkout_in.asistencia_id,
-            datos_actualizacion
-        )
-
-        return AsistenciaResponse.model_validate(asistencia_actualizada)
+    
+         
 
     # =========================================================================
     # Consultas de Asistencia
