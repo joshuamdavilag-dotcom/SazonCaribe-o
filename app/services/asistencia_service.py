@@ -234,11 +234,7 @@ class AsistenciaService:
                 detail=f"No se encontró la asistencia con ID {checkout_in.asistencia_id}"
             )
 
-        if asistencia.hora_salida_real is not None:
-            raise HTTPException(
-                status_code=status.HTTP_200_OK,
-                detail="Esta asistencia ya cuenta con marca de salida"
-            )
+
 
         ahora = ahora_local()
         turno = self.turno_repo.get_by_id(asistencia.turno_id)
