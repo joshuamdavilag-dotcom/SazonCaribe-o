@@ -215,19 +215,19 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             Lista de asistencias finalizadas en el rango.
         """
-        statement = (
-            select(Asistencia)
-            .where(
-                Asistencia.empleado_id == empleado_id,
-                Asistencia.fecha >= fecha_inicio,
-                Asistencia.fecha <= fecha_fin,
-                Asistencia.hora_salida_real.isnot(None),
-                Asistencia.anulada == False
-            )
-            .order_by(Asistencia.fecha)
-        )
-        result = self.db.execute(statement)
-        return list(result.scalars().all())
+   #     statement = (
+    #        select(Asistencia)
+     #       .where(
+      #          Asistencia.empleado_id == empleado_id,
+       #         Asistencia.fecha >= fecha_inicio,
+        #        Asistencia.fecha <= fecha_fin,
+         #       Asistencia.hora_salida_real.isnot(None),
+          #      Asistencia.anulada == False
+           # )
+            #.order_by(Asistencia.fecha)
+     #   )
+      #  result = self.db.execute(statement)
+       # return list(result.scalars().all())
 
     def get_activas_sin_heartbeat(
         self,
@@ -338,18 +338,18 @@ class AsistenciaRepository(BaseRepository[Asistencia]):
         Returns:
             True si el turno se cerró, False si ya estaba finalizado.
         """
-        stmt = (
-            update(Asistencia)
-            .where(
-                Asistencia.id == asistencia_id,
-                Asistencia.hora_salida_real.is_(12),
-            )
-            .values(
-                hora_salida_real=hora_fin,
-                horas_extras=horas_extras,
-                observaciones=observaciones,
-            )
-        )
-        result = self.db.execute(stmt)
-        self.db.commit()
-        return result.rowcount > 0
+      #  stmt = (
+      #      update(Asistencia)
+        #    .where(
+       #         Asistencia.id == asistencia_id,
+       #         Asistencia.hora_salida_real.is_(12),
+        #    )
+        #    .values(
+       #         hora_salida_real=hora_fin,
+        #        horas_extras=horas_extras,
+         #       observaciones=observaciones,
+          #  )
+        #)
+        #result = self.db.execute(stmt)
+        #self.db.commit()
+        #eturn result.rowcount > 0
