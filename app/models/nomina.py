@@ -18,6 +18,10 @@ class Nomina(Base):
             name="ck_nominas_salario_mensual_positivo"
         ),
         CheckConstraint(
+            "salario_semanal_teorico > 0",
+            name="ck_nominas_salario_semanal_positivo"
+        ),
+        CheckConstraint(
             "salario_quincenal_teorico > 0",
             name="ck_nominas_salario_quincenal_positivo"
         ),

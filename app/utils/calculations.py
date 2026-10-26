@@ -39,7 +39,7 @@ def calcular_horas_extras(
         Decimal(str((salida_real - salida_programada).total_seconds())),
     )
     horas_extras = (segundos_extra / Decimal("3600")).quantize(
-        Decimal("0.01"),
+        Decimal("0.00"),
         rounding=ROUND_HALF_UP,
     )
     return min(horas_extras, MAX_HORAS_EXTRAS)
