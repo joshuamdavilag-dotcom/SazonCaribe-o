@@ -267,11 +267,13 @@ async def startup_event():
         _seed_harca27_admin()
         _auditar_hashes()
         _fix_orphaned_mesas()
-        _sancar_turnos_huerfanos()
+        if settings.AUTO_CERRAR_TURNOS:
+            _sancar_turnos_huerfanos()
     except Exception as e:
         logger.error("Error durante las migraciones o inicio de BD: %s", e, exc_info=True)
 
-    asyncio.create_task(_heartbeat_watcher())
+    if settings.AUTO_CERRAR_TURNOS:
+        asyncio.create_task(_heartbeat_watcher())
     asyncio.create_task(_camera_clip_retention_watcher())
     asyncio.create_task(_estudio_mercado_watcher())
 
@@ -1123,7 +1125,13 @@ def _sancar_turnos_huerfanos():
     horas extras (con tope de columna NUMERIC(4,2)) y deja el motivo de
     auditoría. Es idempotente: solo toca registros sin salida; los turnos de
     hoy no se modifican.
+
+    Solo corre si ``AUTO_CERRAR_TURNOS`` está activo; por defecto la salida
+    se registra únicamente de forma manual.
     """
+    if not settings.AUTO_CERRAR_TURNOS:
+        return
+
     from sqlalchemy.orm import Session
 
     from app.db.cerrar_turnos_huerfanos import sancar_turnos_huerfanos

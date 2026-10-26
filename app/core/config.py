@@ -80,6 +80,14 @@ class Settings(BaseSettings):
         default=900,
         description="Tiempo máximo sin heartbeat antes de finalizar turno (15 min)"
     )
+    AUTO_CERRAR_TURNOS: bool = Field(
+        default=False,
+        description=(
+            "Cierra turnos automáticamente (heartbeat vencido, turnos huérfanos "
+            "de días anteriores y deshabilitación de turno). Desactivado por "
+            "defecto: la salida solo se registra manualmente."
+        )
+    )
 
     # Día de negocio — corte del "hoy" laboral (los turnos de bar/restaurante cruzan medianoche)
     HORA_INICIO_DIA: int = Field(

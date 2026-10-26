@@ -8,7 +8,9 @@ programada del turno (nunca negativas, tope de columna NUMERIC(4,2) => 99.99)
 y deja el motivo de auditoría. Los registros de HOY (turnos legítimos aún activos)
 NO se tocan. Es idempotente: los registros ya cerrados se ignoran.
 
-Se ejecuta automáticamente en el arranque de la app (``app/main.py``) y también
+Se ejecuta en el arranque de la app (``app/main.py``) solo si
+``AUTO_CERRAR_TURNOS=true``; por defecto esta desactivado y la salida
+se registra unicamente de forma manual. Tambien puede correrse como script:
 puede correrse como script:
 
 Uso:
