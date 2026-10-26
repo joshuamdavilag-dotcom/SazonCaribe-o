@@ -1,7 +1,9 @@
 import json
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.responses import FileResponse
+from types import SimpleNamespace
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -15,53 +17,57 @@ router = APIRouter(
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR]))]
 )
 
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
 
 @router.post("/crear", status_code=status.HTTP_201_CREATED)
 def crear_backup(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """
-    Crea una nueva copia de seguridad (Backup) en formato JSON estructurado.
+    """Crea una copia de seguridad manual y la guarda en la base de datos.
+
     Solo accesible para el rol ADMINISTRADOR.
     """
     try:
-        resultado = backup_service.crear_backup(db=db, actor=current_user)
+        resultado = backup_service.crear_backup_bd(
+            db=db, actor=current_user, origen="manual"
+        )
         return {
             "mensaje": "Copia de seguridad creada correctamente",
-            "backup": resultado
+            "backup": resultado,
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al generar la copia de seguridad: {str(e)}"
+            detail=f"Error al generar la copia de seguridad: {str(e)}",
         )
 
 
 @router.get("/", response_model=List[Dict[str, Any]])
-def listar_backups() -> List[Dict[str, Any]]:
-    """
-    Lista todas las copias de seguridad guardadas en el servidor.
-    Solo accesible para el rol ADMINISTRADOR.
-    """
-    return backup_service.listar_backups()
+def listar_backups(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+    """Lista las copias guardadas (sin el contenido). Solo ADMINISTRADOR."""
+    return backup_service.listar_backups_bd(db)
 
 
-@router.get("/descargar/{filename}")
+@router.get("/estado")
+def estado_backups(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Última copia y fecha de la próxima copia automática."""
+    return backup_service.estado(db)
+
+
+@router.get("/descargar/{backup_id}")
 def descargar_backup(
-    filename: str,
+    backup_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """
-    Descarga el archivo JSON de copia de seguridad indicado.
-    Solo accesible para el rol ADMINISTRADOR.
-    """
-    filepath = backup_service.obtener_ruta_backup(filename)
-    if not filepath:
+    """Descarga el JSON de una copia. Solo ADMINISTRADOR."""
+    registro = backup_service.obtener_backup_bd(db, backup_id)
+    if not registro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="El archivo de copia de seguridad no existe o la ruta es inválida"
+            detail="La copia de seguridad no existe",
         )
 
     AuditoriaService.registrar(
@@ -69,35 +75,34 @@ def descargar_backup(
         actor=current_user,
         accion="DESCARGAR_BACKUP",
         entidad_tipo="BACKUP",
-        entidad_id=None,
-        descripcion=f"Descargó la copia de seguridad '{filename}'"
+        entidad_id=registro.id,
+        descripcion=f"Descargó la copia de seguridad '{registro.nombre}'",
     )
     db.commit()
 
-    return FileResponse(
-        path=filepath,
-        filename=filepath.name,
-        media_type="application/json"
+    return Response(
+        content=registro.contenido,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{registro.nombre}"'
+        },
     )
 
 
-@router.delete("/{filename}")
+@router.delete("/{backup_id}")
 def eliminar_backup(
-    filename: str,
+    backup_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Elimina una copia de seguridad almacenada en el servidor.
-    Solo accesible para el rol ADMINISTRADOR.
-    """
-    exito = backup_service.eliminar_backup(filename=filename, db=db, actor=current_user)
+) -> Dict[str, str]:
+    """Elimina una copia guardada. Solo ADMINISTRADOR."""
+    exito = backup_service.eliminar_backup_bd(db, backup_id, actor=current_user)
     if not exito:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="El archivo no existe o no se pudo eliminar"
+            detail="La copia de seguridad no existe",
         )
-    return {"mensaje": f"Copia de seguridad '{filename}' eliminada correctamente"}
+    return {"mensaje": "Copia de seguridad eliminada correctamente"}
 
 
 @router.post("/subir-y-restaurar")
@@ -105,53 +110,81 @@ async def subir_y_restaurar_backup(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Sube un archivo .json de copia de seguridad al servidor y registra el evento.
+) -> Dict[str, Any]:
+    """Sube un JSON de copia y restaura sus datos reemplazando los actuales.
+
     Solo accesible para el rol ADMINISTRADOR.
     """
-    if not file.filename.endswith(".json"):
+    if not (file.filename or "").lower().endswith(".json"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se permiten archivos de copia de seguridad en formato .json"
+            detail="Solo se permiten archivos de copia de seguridad en formato .json",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="El archivo supera el límite de 100 MB",
         )
 
     try:
-        content = await file.read()
         json_data = json.loads(content.decode("utf-8"))
-        
-        if "metadata" not in json_data or "datos" not in json_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo JSON no tiene la estructura válida de copia de seguridad de Sazón Caribeño"
-            )
-
-        from pathlib import Path
-        dest_path = Path("app/backups") / file.filename
-        with open(dest_path, "wb") as f:
-            f.write(content)
-
-        AuditoriaService.registrar(
-            db=db,
-            actor=current_user,
-            accion="SUBIR_BACKUP",
-            entidad_tipo="BACKUP",
-            entidad_id=None,
-            descripcion=f"Subió e importó el archivo de copia de seguridad '{file.filename}'"
-        )
-        db.commit()
-
-        return {
-            "mensaje": f"Archivo '{file.filename}' subido y guardado exitosamente en el servidor",
-            "registros_guardados": json_data.get("metadata", {}).get("total_registros", 0)
-        }
-    except json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El archivo proporcionado no es un JSON válido"
+            detail="El archivo proporcionado no es un JSON válido",
+        )
+
+    if not isinstance(json_data, dict) or "metadata" not in json_data or "datos" not in json_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "El archivo JSON no tiene la estructura válida de copia de "
+                "seguridad de Sazón Caribeño"
+            ),
+        )
+
+    actor_id = current_user.id
+    actor_username = current_user.username
+    actor_rol = current_user.rol
+
+    try:
+        resultado = backup_service.restaurar_backup_bd(db, json_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al procesar la copia de seguridad: {str(e)}"
+            detail=f"Error al restaurar la copia de seguridad: {str(e)}",
         )
+
+    # La restauración pudo reemplazar la fila del usuario actual: se usa una
+    # instantánea para registrar la auditoría sin volver a consultar la BD.
+    actor = SimpleNamespace(
+        id=actor_id, username=actor_username, rol=actor_rol
+    )
+    try:
+        AuditoriaService.registrar(
+            db=db,
+            actor=actor,
+            accion="RESTAURAR_BACKUP",
+            entidad_tipo="BACKUP",
+            entidad_id=None,
+            descripcion=(
+                f"Restauró la copia '{file.filename}' "
+                f"({resultado['tablas']} tablas, {resultado['registros']} registros)"
+            ),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "mensaje": f"Copia '{file.filename}' restaurada correctamente",
+        "tablas": resultado["tablas"],
+        "registros": resultado["registros"],
+        "fecha_backup": resultado["fecha_backup"],
+    }

@@ -274,6 +274,7 @@ async def startup_event():
 
     if settings.AUTO_CERRAR_TURNOS:
         asyncio.create_task(_heartbeat_watcher())
+    asyncio.create_task(_backup_mensual_watcher())
     asyncio.create_task(_camera_clip_retention_watcher())
     asyncio.create_task(_estudio_mercado_watcher())
 
@@ -1169,6 +1170,29 @@ async def _heartbeat_watcher():
                 db.close()
         except Exception:
             pass
+
+
+async def _backup_mensual_watcher():
+    """Tarea en segundo plano: crea una copia de seguridad automática cada 30 días.
+
+    La copia se guarda dentro de la base de datos (no en disco) para que
+    sobreviva a reinicios y redeploys de Render. Se revisa cada 6 horas.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.services.backup_service import backup_service
+
+    while True:
+        try:
+            with Session(engine) as db:
+                creado = backup_service.crear_si_corresponde_mensual(db)
+                if creado:
+                    logger.info(
+                        "Copia de seguridad automática creada: %s", creado["nombre"]
+                    )
+        except Exception:
+            logger.exception("Falló la copia de seguridad automática mensual")
+        await asyncio.sleep(6 * 3600)
 
 
 async def _camera_clip_retention_watcher():

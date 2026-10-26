@@ -881,6 +881,7 @@ function navigateTo(screenId) {
   if (screenId === 'calendario') loadCalendario();
   if (screenId === 'cameras') loadCameras();
   if (screenId === 'estudio-mercado') loadEstudioMercado();
+  if (screenId === 'backups') loadBackups();
 }
 
 /* =========================================================================
@@ -9257,4 +9258,158 @@ async function sincronizarPuestoUsuario() {
   } catch {
     /* sesión inválida: el interceptor de api() ya maneja el logout */
   }
+}
+
+/* =========================================================================
+   Copias de Seguridad
+   ========================================================================= */
+function formatFechaBackup(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString('es-NI', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function tarjetaBackup(titulo, valor, icono) {
+  return `
+    <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+      <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+        <span class="material-symbols-outlined text-[16px]">${icono}</span>${escHtml(titulo)}
+      </div>
+      <p class="mt-1 text-sm font-semibold text-brand-navy break-words">${valor}</p>
+    </div>`;
+}
+
+async function loadBackups() {
+  const tabla = document.getElementById('backups-tabla');
+  const estado = document.getElementById('backups-estado');
+  if (!tabla || !estado) return;
+
+  tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#6b7280;">Cargando copias…</p>';
+  try {
+    const [lista, info] = await Promise.all([
+      api('/backups/'),
+      api('/backups/estado'),
+    ]);
+
+    estado.innerHTML = [
+      tarjetaBackup('Última copia',
+        info.ultima ? formatFechaBackup(info.ultima.creado_en) : 'Sin copias todavía',
+        'history'),
+      tarjetaBackup('Próxima automática',
+        info.proxima_automatica ? formatFechaBackup(info.proxima_automatica) : 'Se creará al iniciar',
+        'event_repeat'),
+    ].join('');
+
+    if (!lista || lista.length === 0) {
+      tabla.innerHTML = '<div class="nomina-empty">📦 Todavía no hay copias guardadas</div>';
+      return;
+    }
+
+    tabla.innerHTML = `
+      <table class="employee-table">
+        <thead>
+          <tr>
+            <th>Archivo</th>
+            <th>Fecha</th>
+            <th>Origen</th>
+            <th>Registros</th>
+            <th>Tamaño</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lista.map(b => `
+            <tr>
+              <td style="font-size:12px;">${escHtml(b.nombre)}</td>
+              <td>${formatFechaBackup(b.creado_en)}</td>
+              <td>
+                <span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:${b.origen === 'automatico' ? '#dbeafe' : '#e5e7eb'};color:${b.origen === 'automatico' ? '#1e3a8a' : '#374151'};">
+                  ${b.origen === 'automatico' ? 'Automática' : 'Manual'}
+                </span>
+              </td>
+              <td>${b.total_registros}</td>
+              <td>${b.tamano_kb} KB</td>
+              <td>
+                <button class="btn-action-action" title="Descargar" onclick="descargarBackup(${b.id})">⬇️</button>
+                <button class="btn-action-action btn-action-danger" title="Eliminar" onclick="eliminarBackup(${b.id})">🗑️</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch {
+    tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#E63946;">No se pudieron cargar las copias</p>';
+  }
+}
+
+async function crearBackupAhora() {
+  showToast('Generando copia de seguridad…', 'success', 4000);
+  try {
+    const r = await api('/backups/crear', { method: 'POST' });
+    showToast(r.mensaje || 'Copia de seguridad creada', 'success');
+    loadBackups();
+  } catch { /* api() ya muestra el error */ }
+}
+
+async function descargarBackup(id) {
+  try {
+    const res = await fetch(`${API_BASE}/backups/descargar/${id}`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('No se pudo descargar la copia');
+
+    const disposicion = res.headers.get('Content-Disposition') || '';
+    const match = /filename="?([^"]+)"?/.exec(disposicion);
+    const nombre = match ? match[1] : `sazon_backup_${id}.json`;
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    URL.revokeObjectURL(url);
+    showToast('Copia descargada', 'success');
+  } catch (e) {
+    showToast(e.message || 'Error al descargar la copia', 'error');
+  }
+}
+
+async function eliminarBackup(id) {
+  if (!confirm('¿Eliminar esta copia de seguridad? Esta acción no se puede deshacer.')) return;
+  try {
+    await api(`/backups/${id}`, { method: 'DELETE' });
+    showToast('Copia eliminada', 'success');
+    loadBackups();
+  } catch { /* api() ya muestra el error */ }
+}
+
+async function restaurarBackup(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const aviso = `¿Restaurar la copia "${file.name}"?\n\n` +
+    'Se REEMPLAZARÁN los datos actuales de las tablas incluidas en el archivo.\n' +
+    'Si la copia es antigua y no incluye tu usuario, podrías perder el acceso.\n\n' +
+    'Se recomienda crear una copia manual antes de continuar.';
+  if (!confirm(aviso)) {
+    input.value = '';
+    return;
+  }
+
+  const form = new FormData();
+  form.append('file', file);
+  showToast('Restaurando copia… no cierres la ventana', 'warning', 8000);
+  try {
+    const r = await api('/backups/subir-y-restaurar', { method: 'POST', body: form });
+    showToast(
+      `${r.mensaje || 'Copia restaurada'} (${r.tablas} tablas, ${r.registros} registros)`,
+      'success',
+      7000
+    );
+    loadBackups();
+  } catch { /* api() ya muestra el error */ }
+  input.value = '';
 }

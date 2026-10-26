@@ -1,13 +1,13 @@
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, text
+from sqlalchemy import Date, DateTime, Time, desc, select, text
 
 from app.core.database import Base
 from app.models import (
@@ -16,11 +16,26 @@ from app.models import (
     CategoriaMenu, MenuItem, Receta,
     Zona, Mesa, Orden, DetalleOrden,
     CierreCaja, CategoriaGasto, Gasto,
-    EventoCalendario, RegistroAuditoria
+    EventoCalendario, RegistroAuditoria, BackupSistema
 )
 from app.services.auditoria_service import AuditoriaService
 
 BACKUP_DIR = Path("app/backups")
+BACKUP_TABLE = "backups_sistema"
+MAX_BACKUPS = 24  # se conservan las últimas 24 copias (2 años de copias mensuales)
+DIAS_ENTRE_COPIAS = 30
+
+
+def _serialize_value(val: Any) -> Any:
+    """Convierte un valor de BD a algo serializable en JSON."""
+    if isinstance(val, (datetime, date, time)):
+        return val.isoformat()
+    if isinstance(val, Decimal):
+        return float(val)
+    if isinstance(val, Enum):
+        return val.value
+    return val
+
 
 
 def _json_serializer(obj: Any) -> Any:
@@ -188,6 +203,263 @@ class BackupService:
             )
             db.commit()
         return True
+
+    # =========================================================================
+    # Copias de seguridad almacenadas en la base de datos
+    # =========================================================================
+
+    def generar_payload(self, db: Session) -> Dict[str, Any]:
+        """Serializa todas las tablas del sistema (excepto la de copias)."""
+        tablas: Dict[str, List[Dict[str, Any]]] = {}
+        total = 0
+        for table in Base.metadata.sorted_tables:
+            if table.name == BACKUP_TABLE:
+                continue
+            filas = [
+                {col: _serialize_value(row[col]) for col in row.keys()}
+                for row in db.execute(select(table)).mappings()
+            ]
+            tablas[table.name] = filas
+            total += len(filas)
+
+        return {
+            "metadata": {
+                "sistema": "Sazón Caribeño POS",
+                "version": "2.0",
+                "fecha_creacion": datetime.now().isoformat(),
+                "total_registros": total,
+                "tablas": list(tablas.keys()),
+            },
+            "datos": tablas,
+        }
+
+    def crear_backup_bd(
+        self,
+        db: Session,
+        actor: Optional[Usuario] = None,
+        origen: str = "manual",
+    ) -> Dict[str, Any]:
+        """Genera una copia y la guarda dentro de la base de datos."""
+        payload = self.generar_payload(db)
+        contenido = json.dumps(
+            payload, ensure_ascii=False, default=_json_serializer
+        )
+        nombre = f"sazon_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        registro = BackupSistema(
+            nombre=nombre,
+            origen=origen,
+            creado_en=datetime.now(),
+            total_registros=payload["metadata"]["total_registros"],
+            tamano_bytes=len(contenido.encode("utf-8")),
+            contenido=contenido,
+            creado_por=actor.id if actor else None,
+        )
+        db.add(registro)
+        db.commit()
+        db.refresh(registro)
+
+        self._purgar_backups(db)
+
+        if actor:
+            AuditoriaService.registrar(
+                db=db,
+                actor=actor,
+                accion="CREAR_BACKUP",
+                entidad_tipo="BACKUP",
+                entidad_id=registro.id,
+                descripcion=(
+                    f"Copia de seguridad '{nombre}' creada ({origen}, "
+                    f"{registro.total_registros} registros, "
+                    f"{round(registro.tamano_bytes / 1024, 2)} KB)"
+                ),
+            )
+            db.commit()
+
+        return self._backup_a_dict(registro)
+
+    def crear_si_corresponde_mensual(self, db: Session) -> Optional[Dict[str, Any]]:
+        """Crea la copia automática si pasaron 30 días desde la última."""
+        ultima = db.execute(
+            select(BackupSistema)
+            .where(BackupSistema.origen == "automatico")
+            .order_by(desc(BackupSistema.creado_en))
+        ).scalars().first()
+
+        if ultima and (datetime.now() - ultima.creado_en) < timedelta(days=DIAS_ENTRE_COPIAS):
+            return None
+
+        return self.crear_backup_bd(db, actor=None, origen="automatico")
+
+    def listar_backups_bd(self, db: Session) -> List[Dict[str, Any]]:
+        """Lista las copias guardadas en la BD (sin incluir el contenido)."""
+        registros = db.execute(
+            select(BackupSistema).order_by(desc(BackupSistema.creado_en))
+        ).scalars().all()
+        return [self._backup_a_dict(r) for r in registros]
+
+    def obtener_backup_bd(self, db: Session, backup_id: int) -> Optional[BackupSistema]:
+        """Obtiene una copia concreta por ID."""
+        return db.get(BackupSistema, backup_id)
+
+    def estado(self, db: Session) -> Dict[str, Any]:
+        """Resumen para la interfaz: última copia y próxima automática."""
+        backups = self.listar_backups_bd(db)
+        automaticas = [b for b in backups if b["origen"] == "automatico"]
+        ultima = backups[0] if backups else None
+        proxima = None
+        if automaticas:
+            fecha = datetime.fromisoformat(automaticas[0]["creado_en"])
+            proxima = (fecha + timedelta(days=DIAS_ENTRE_COPIAS)).isoformat()
+
+        return {
+            "total": len(backups),
+            "ultima": ultima,
+            "ultima_automatica": automaticas[0] if automaticas else None,
+            "proxima_automatica": proxima,
+            "frecuencia_dias": DIAS_ENTRE_COPIAS,
+        }
+
+    def eliminar_backup_bd(
+        self,
+        db: Session,
+        backup_id: int,
+        actor: Optional[Usuario] = None,
+    ) -> bool:
+        """Elimina una copia guardada en la BD."""
+        registro = db.get(BackupSistema, backup_id)
+        if not registro:
+            return False
+        nombre = registro.nombre
+        db.delete(registro)
+        db.commit()
+
+        if actor:
+            AuditoriaService.registrar(
+                db=db,
+                actor=actor,
+                accion="ELIMINAR_BACKUP",
+                entidad_tipo="BACKUP",
+                entidad_id=backup_id,
+                descripcion=f"Copia de seguridad '{nombre}' eliminada",
+            )
+            db.commit()
+        return True
+
+    def restaurar_backup_bd(
+        self,
+        db: Session,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Restaura un backup reemplazando los datos de las tablas incluidas.
+
+        Solo toca las tablas presentes en el archivo: si un backup viejo no
+        trae alguna tabla, esa tabla se deja intacta.
+        """
+        datos = payload.get("datos")
+        if not isinstance(datos, dict) or not datos:
+            raise ValueError("El archivo no contiene datos para restaurar")
+
+        tablas_por_nombre = {
+            t.name: t for t in Base.metadata.sorted_tables if t.name != BACKUP_TABLE
+        }
+        desconocidas = [nombre for nombre in datos if nombre not in tablas_por_nombre]
+        if desconocidas:
+            raise ValueError(
+                "El archivo contiene tablas desconocidas: " + ", ".join(desconocidas[:5])
+            )
+
+        # Borrar de hijos a padres e insertar de padres a hijos (orden de FKs).
+        try:
+            for table in reversed(Base.metadata.sorted_tables):
+                if table.name in datos:
+                    db.execute(table.delete())
+
+            insertados = 0
+            for table in Base.metadata.sorted_tables:
+                if table.name not in datos:
+                    continue
+                filas = sorted(
+                    datos.get(table.name) or [],
+                    key=lambda fila: fila.get("id") or 0,
+                )
+                limpias = [self._coerce_row(table, fila) for fila in filas]
+                if limpias:
+                    db.execute(table.insert(), limpias)
+                insertados += len(limpias)
+
+            self._reset_secuencias(db)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+        db.expire_all()
+        return {
+            "tablas": len(datos),
+            "registros": insertados,
+            "fecha_backup": (payload.get("metadata") or {}).get("fecha_creacion"),
+        }
+
+    def _coerce_row(self, table: Any, fila: Dict[str, Any]) -> Dict[str, Any]:
+        """Convierte fechas/horas ISO a objetos Python (SQLite no acepta str)."""
+        resultado: Dict[str, Any] = {}
+        for col in table.columns:
+            if col.name not in fila:
+                continue
+            valor = fila[col.name]
+            if isinstance(valor, str):
+                try:
+                    if isinstance(col.type, DateTime):
+                        valor = datetime.fromisoformat(valor)
+                    elif isinstance(col.type, Date):
+                        valor = date.fromisoformat(valor[:10])
+                    elif isinstance(col.type, Time):
+                        valor = time.fromisoformat(valor)
+                except ValueError:
+                    pass
+            resultado[col.name] = valor
+        return resultado
+
+    def _reset_secuencias(self, db: Session) -> None:
+        """Reajusta los SERIAL de PostgreSQL tras insertar IDs explícitos."""
+        if db.get_bind().dialect.name != "postgresql":
+            return
+        for table in Base.metadata.sorted_tables:
+            if "id" not in table.columns:
+                continue
+            try:
+                db.execute(text(
+                    f"SELECT setval(pg_get_serial_sequence('{table.name}', 'id'), "
+                    f"COALESCE((SELECT MAX(id) FROM \"{table.name}\"), 0) + 1, false)"
+                ))
+            except Exception:
+                continue
+
+    def _purgar_backups(self, db: Session) -> None:
+        """Conserva solo las últimas MAX_BACKUPS copias."""
+        ids = db.execute(
+            select(BackupSistema.id)
+            .order_by(desc(BackupSistema.creado_en))
+            .offset(MAX_BACKUPS)
+        ).scalars().all()
+        for backup_id in ids:
+            registro = db.get(BackupSistema, backup_id)
+            if registro:
+                db.delete(registro)
+        if ids:
+            db.commit()
+
+    def _backup_a_dict(self, registro: BackupSistema) -> Dict[str, Any]:
+        return {
+            "id": registro.id,
+            "nombre": registro.nombre,
+            "origen": registro.origen,
+            "creado_en": registro.creado_en.isoformat(),
+            "total_registros": registro.total_registros,
+            "tamano_kb": round(registro.tamano_bytes / 1024, 2),
+            "creado_por": registro.creado_por,
+        }
 
 
 backup_service = BackupService()
