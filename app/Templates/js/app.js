@@ -6195,7 +6195,10 @@ function openNominaModal(empleadoId, nombre) {
   document.getElementById('nomina-employee-name').textContent = nombre;
   document.getElementById('nomina-fecha-inicio').value = '';
   document.getElementById('nomina-fecha-fin').value = '';
+  const preset = document.getElementById('nomina-preset-dias');
+  if (preset) preset.value = '';
   document.getElementById('nomina-result').style.display = 'none';
+  actualizarHintNomina();
   document.getElementById('modal-nomina').classList.add('show');
   loadNominaHistorial(empleadoId);
 }
@@ -6204,6 +6207,60 @@ function closeNominaModal() {
   document.getElementById('modal-nomina').classList.remove('show');
   nominaModalEmpleadoId = null;
   state.nominaActual = null;
+}
+
+function hoyISOLocal() {
+  const hoy = new Date();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${hoy.getFullYear()}-${mes}-${dia}`;
+}
+
+function diasNominaSeleccionados() {
+  const inicio = document.getElementById('nomina-fecha-inicio').value;
+  const fin = document.getElementById('nomina-fecha-fin').value;
+  if (!inicio || !fin) return 0;
+  return Math.round(
+    (new Date(`${fin}T00:00:00`) - new Date(`${inicio}T00:00:00`)) / 86400000
+  ) + 1;
+}
+
+function actualizarHintNomina() {
+  const hint = document.getElementById('nomina-rango-hint');
+  if (!hint) return;
+
+  const dias = diasNominaSeleccionados();
+  if (dias === 0) {
+    hint.textContent = 'Elige las fechas o un atajo de días.';
+    return;
+  }
+  if (dias < 0) {
+    hint.textContent = '⚠️ La fecha fin no puede ser anterior a la fecha inicio.';
+    return;
+  }
+
+  const emp = (state.empleados || []).find(e => e.id === nominaModalEmpleadoId);
+  const mensual = emp ? parseFloat(emp.salario_base || emp.puesto?.salario_base || 0) : 0;
+  const etiquetaDias = `${dias} día${dias === 1 ? '' : 's'}`;
+  if (mensual > 0) {
+    const diario = mensual / 30;
+    hint.textContent =
+      `${etiquetaDias} × C$${diario.toFixed(2)}/día = C$${(diario * dias).toFixed(2)} de salario base (mensual / 30)`;
+  } else {
+    hint.textContent = `${etiquetaDias} · el salario base se prorratea por día (mensual / 30)`;
+  }
+}
+
+function aplicarPresetDiasNomina(valor) {
+  const dias = parseInt(valor, 10);
+  if (!dias) {
+    actualizarHintNomina();
+    return;
+  }
+  const fin = hoyISOLocal();
+  document.getElementById('nomina-fecha-fin').value = fin;
+  document.getElementById('nomina-fecha-inicio').value = desplazarFecha(fin, -(dias - 1));
+  actualizarHintNomina();
 }
 
 /* =========================================================================
@@ -6298,6 +6355,7 @@ async function calcularNomina() {
   const fechaFin = document.getElementById('nomina-fecha-fin').value;
 
   if (!fechaInicio || !fechaFin) return showToast('Selecciona ambas fechas', 'warning');
+  if (fechaFin < fechaInicio) return showToast('La fecha fin no puede ser anterior a la fecha inicio', 'warning');
   if (!nominaModalEmpleadoId) return showToast('Error: no se identificó el empleado', 'error');
 
   const btn = document.getElementById('btn-calcular-nomina');
@@ -6368,9 +6426,10 @@ function renderNominaResult(data) {
     Math.round((new Date(`${data.fecha_fin}T00:00:00`) - new Date(`${data.fecha_inicio}T00:00:00`)) / 86400000) + 1,
     1
   );
-  const tipoPeriodo = diasPeriodo <= 8 ? 'Semanal' : diasPeriodo <= 20 ? 'Quincenal' : 'Mensual';
+  const salarioMensual = parseFloat(data.salario_base_mensual) || 0;
+  const salarioDiarioPeriodo = salarioMensual / 30;
   document.getElementById('nomina-periodo-text').textContent =
-    `${data.fecha_inicio} al ${data.fecha_fin} · ${tipoPeriodo} (${diasPeriodo} día${diasPeriodo === 1 ? '' : 's'})`;
+    `${data.fecha_inicio} al ${data.fecha_fin} · ${diasPeriodo} día${diasPeriodo === 1 ? '' : 's'} · C$${salarioDiarioPeriodo.toFixed(2)}/día`;
 
   const base = parseFloat(data.salario_periodo_teorico ?? data.salario_quincenal_teorico);
   const tarifa = parseFloat(data.tarifa_hora_extra || (parseFloat(data.salario_base_mensual) / 240));

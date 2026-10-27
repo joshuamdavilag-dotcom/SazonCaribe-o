@@ -24,22 +24,22 @@ class NominaService:
     """
 
     HORAS_MENSUALES = Decimal("240")
+    DIAS_MES_COMERCIAL = Decimal("30")
 
-    FACTORES_PERIODO = {
-        "SEMANAL": Decimal("0.25"),
-        "QUINCENAL": Decimal("0.50"),
-        "MENSUAL": Decimal("1.00"),
-    }
+    @classmethod
+    def _dias_periodo(cls, fecha_inicio: date, fecha_fin: date) -> int:
+        """Días inclusivos del período (mínimo 1)."""
+        return max((fecha_fin - fecha_inicio).days + 1, 1)
 
     @classmethod
     def _factor_periodo(cls, fecha_inicio: date, fecha_fin: date) -> Decimal:
-        """Devuelve la fracción del salario mensual según la duración del período."""
-        dias = max((fecha_fin - fecha_inicio).days + 1, 1)
-        if dias <= 8:
-            return cls.FACTORES_PERIODO["SEMANAL"]
-        if dias <= 20:
-            return cls.FACTORES_PERIODO["QUINCENAL"]
-        return cls.FACTORES_PERIODO["MENSUAL"]
+        """Fracción del salario mensual: 1 día = 1/30 del salario.
+
+        Permite pagar cualquier cantidad de días (3, 4, 7, 12, 30…), no solo
+        bloques de semana/quincena/mes.
+        """
+        dias = Decimal(cls._dias_periodo(fecha_inicio, fecha_fin))
+        return dias / cls.DIAS_MES_COMERCIAL
 
     def __init__(self, db: Session) -> None:
         """
@@ -185,14 +185,22 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período.
 
-        El salario base se prorratea según la duración real del período:
-        SEMANAL (hasta 8 días) = salario mensual / 4; QUINCENAL (hasta 20
-        días) = salario mensual / 2; MENSUAL (más de 20 días) = salario
-        mensual. Las horas extras se pagan a tarifa normal 1.0x
-        (salario_base / 240).
+        El salario base se prorratea por día: salario diario = salario
+        mensual / 30, por lo que cualquier período (3, 4, 7, 15, 30 días…)
+        paga exactamente los días del rango. Las horas extras se pagan a
+        tarifa normal 1.0x (salario_base / 240).
         """
         salario_base_mensual = Decimal(str(empleado.salario_base))
 
+        if fecha_fin < fecha_inicio:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La fecha fin no puede ser anterior a la fecha inicio",
+            )
+
+        salario_diario = (
+            salario_base_mensual / self.DIAS_MES_COMERCIAL
+        )
         factor_periodo = self._factor_periodo(fecha_inicio, fecha_fin)
 
         salario_periodo_teorico = (
@@ -200,11 +208,11 @@ class NominaService:
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         salario_semanal_teorico = (
-            salario_base_mensual / Decimal("4")
+            salario_diario * Decimal("7")
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         salario_quincenal_teorico = (
-            salario_base_mensual / Decimal("2")
+            salario_diario * Decimal("15")
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         tarifa_hora = (
@@ -349,8 +357,9 @@ class NominaService:
         """
         Recalcula los montos de una nómina existente con la fórmula actual.
 
-        Recalcula salario base fijo (salario_base / 2), horas extras a
-        tarifa normal 1.0x (salario_base / 240) y adelantos del período.
+        Recalcula salario base prorrateado por día (salario_mensual / 30 ×
+        días del rango), horas extras a tarifa normal 1.0x
+        (salario_base / 240) y adelantos del período.
         Solo es válido para nóminas en estado PENDIENTE.
 
         Args:
@@ -405,9 +414,9 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período específico.
 
-        Usa salario base fijo (salario_base / 2) más compensación por
-        horas extras a tarifa normal (salario_base / 240). No depende
-        de las horas ordinarias registradas.
+        Usa salario base prorrateado por día (salario_mensual / 30 × días
+        del rango) más compensación por horas extras a tarifa normal
+        (salario_base / 240). No depende de las horas ordinarias registradas.
 
         Si `recalcular=True` y ya existe una nómina en estado PENDIENTE
         para el período, recalcula los montos y actualiza el registro

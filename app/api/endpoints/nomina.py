@@ -38,8 +38,8 @@ def get_nomina_service(db: Session = Depends(get_db)) -> NominaService:
     "/generar",
     response_model=List[NominaResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Generar nómina quincenal",
-    description="Genera masivamente las nóminas para un período quincenal específico.",
+    summary="Generar nómina del período",
+    description="Genera masivamente las nóminas para un período específico (cualquier cantidad de días).",
     tags=["Nóminas & Pagos"],
     dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
 )
@@ -48,13 +48,13 @@ def generar_nomina(
     service: NominaService = Depends(get_nomina_service)
 ) -> List[NominaResponse]:
     """
-    Genera nóminas quincenales para todos los empleados activos.
+    Genera nóminas para todos los empleados activos en el período.
 
-    - **fecha_inicio**: Fecha de inicio del período quincenal
-    - **fecha_fin**: Fecha de fin del período quincenal
+    - **fecha_inicio**: Fecha de inicio del período
+    - **fecha_fin**: Fecha de fin del período
 
     El sistema calcula automáticamente:
-    - Salario quincenal teórico (mensual / 2)
+    - Salario base del período (salario_mensual / 30 × días)
     - Horas extras registradas en el período
     - Pago neto total
 
@@ -70,9 +70,9 @@ def generar_nomina(
     summary="Calcular nómina de un empleado",
     description=(
         "Calcula la nómina de un empleado específico para un período. "
-        "Usa salario base fijo (salario_base / 2) más horas extras "
-        "a tarifa normal 1.0x (salario_base / 240) y crea el registro. "
-        "Con `recalcular=True` y una nómina PENDIENTE existente, "
+        "Usa salario base prorrateado por día (salario_mensual / 30 × días) "
+        "más horas extras a tarifa normal 1.0x (salario_base / 240) y crea el "
+        "registro. Con `recalcular=True` y una nómina PENDIENTE existente, "
         "actualiza el registro en lugar de crear un duplicado."
     ),
     tags=["Nóminas & Pagos"]
@@ -92,7 +92,7 @@ def calcular_nomina(
       período, recalcula y actualiza el registro existente.
 
     El cálculo incluye:
-    - Salario base fijo (salario_base / 2)
+    - Salario base prorrateado por día (salario_mensual / 30 × días)
     - Horas extras × tarifa normal (1.0x = salario_base / 240)
     - Pago neto total (menos adelantos)
     """

@@ -2540,17 +2540,33 @@
         <!-- Date Range + Calculate -->
         <div class="nomina-calc-section">
           <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Calcular Nómina del Período</div>
+          <div style="margin-bottom:10px;">
+            <label class="form-label" for="nomina-preset-dias">Días a pagar</label>
+            <select id="nomina-preset-dias" class="form-input" style="height:40px;" onchange="aplicarPresetDiasNomina(this.value)">
+              <option value="">Personalizado (elige las fechas)</option>
+              <option value="1">1 día</option>
+              <option value="2">2 días</option>
+              <option value="3">3 días</option>
+              <option value="4">4 días</option>
+              <option value="5">5 días</option>
+              <option value="6">6 días</option>
+              <option value="7">7 días (semana)</option>
+              <option value="15">15 días (quincena)</option>
+              <option value="30">30 días (mes)</option>
+            </select>
+          </div>
           <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
             <div style="flex:1;min-width:150px;">
               <label class="form-label" for="nomina-fecha-inicio">Fecha Inicio</label>
-              <input type="date" id="nomina-fecha-inicio" class="form-input" style="height:40px;">
+              <input type="date" id="nomina-fecha-inicio" class="form-input" style="height:40px;" oninput="actualizarHintNomina()">
             </div>
             <div style="flex:1;min-width:150px;">
               <label class="form-label" for="nomina-fecha-fin">Fecha Fin</label>
-              <input type="date" id="nomina-fecha-fin" class="form-input" style="height:40px;">
+              <input type="date" id="nomina-fecha-fin" class="form-input" style="height:40px;" oninput="actualizarHintNomina()">
             </div>
             <button class="btn btn-primary" id="btn-calcular-nomina" style="height:40px;padding:0 20px;white-space:nowrap;">🧮 Calcular Nómina</button>
           </div>
+          <div id="nomina-rango-hint" style="margin-top:8px;font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));"></div>
         </div>
 
         <!-- Calculation Result -->

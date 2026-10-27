@@ -80,17 +80,17 @@ class NominaResponse(BaseModel):
     salario_quincenal_teorico: Decimal = Field(
         ...,
         decimal_places=2,
-        description="Salario quincenal de referencia (mensual / 2)"
+        description="Salario quincenal de referencia (mensual / 30 × 15)"
     )
     salario_semanal_teorico: Optional[Decimal] = Field(
         default=None,
         decimal_places=2,
-        description="Salario semanal de referencia (mensual / 4)"
+        description="Salario semanal de referencia (mensual / 30 × 7)"
     )
     salario_periodo_teorico: Optional[Decimal] = Field(
         default=None,
         decimal_places=2,
-        description="Salario base del período calculado (semanal, quincenal o mensual)"
+        description="Salario base del período calculado (mensual / 30 × días del rango)"
     )
     total_horas_extras: Decimal = Field(
         default=Decimal("0.00"),
@@ -110,7 +110,7 @@ class NominaResponse(BaseModel):
     pago_neto: Decimal = Field(
         ...,
         decimal_places=2,
-        description="Pago total (salario quincenal + horas extras - adelantos)"
+        description="Pago total (salario del período + horas extras - adelantos)"
     )
     estado: str = Field(
         ...,
