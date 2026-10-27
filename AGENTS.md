@@ -711,6 +711,13 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `Orden.metodo_pago` (`MetodoPago`: `EFECTIVO` por defecto, `TARJETA`, `TRANSFERENCIA`, `PAGO_EN_LINEA`) se elige con los botones `#btn-pago-*` del modal de cobro y viaja en `PUT /ordenes/{id}/pagar {metodo_pago}`; valor inválido → 422.
 - Columna agregada por la migración de startup `_migrate_orden_metodo_pago()` (idempotente); un estudio de mercado la usa para el desglose de ventas por método de pago.
 
+### Copias de seguridad (Backups)
+- **Almacenamiento**: las copias se guardan **dentro de la base de datos** (`backups_sistema`, modelo `BackupSistema`), no en disco: el filesystem de Render es efímero y se pierde en cada deploy. `contenido` es **`LONGTEXT` en MySQL** (`Text().with_variant(LONGTEXT, "mysql")`): con `TEXT` (máx. 64 KB) el INSERT de un volcado real (~190 KB) fallaba con `Data too long for column 'contenido'`. Migración de arranque `_migrate_backups_contenido()` amplía la columna en instalaciones existentes (idempotente; no-op en SQLite/PostgreSQL).
+- **Payload**: `BackupService.generar_payload()` serializa **todas** las tablas de `Base.metadata.sorted_tables` salvo `backups_sistema`; `_serialize_value()` convierte datetime/date/time/Decimal/Enum y los JSON ya viajan como dict.
+- **Automático**: `_backup_mensual_watcher()` (tarea de arranque) revisa cada 6 h y crea una copia `origen="automatico"` cuando pasaron `DIAS_ENTRE_COPIAS` (30) desde la última. `_purgar_backups()` conserva las últimas `MAX_BACKUPS` (24).
+- **Restauración**: `POST /api/v1/backups/subir-y-restaurar` (Admin) borra de hijos a padres e inserta de padres a hijos según FKs, convierte ISO a `datetime`/`date`/`time` (`_coerce_row`), reajusta secuencias en PostgreSQL (`_reset_secuencias`) y registra `RESTAURAR_BACKUP` en auditoría usando una instantánea del actor (la fila del usuario pudo ser reemplazada).
+- **API** (solo Administrador): `POST /backups/crear`, `GET /backups/`, `GET /backups/estado`, `GET /backups/descargar/{id}`, `DELETE /backups/{id}`, `POST /backups/subir-y-restaurar`.
+
 ### Reportes financieros query chain
 ```
 ReportesService.obtener_cierre()

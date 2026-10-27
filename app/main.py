@@ -252,6 +252,7 @@ async def startup_event():
         _migrate_gastos_cierre_caja_id()
         _migrate_adelantos_salario()
         _migrate_nomina_periodos()
+        _migrate_backups_contenido()
         _migrate_menu_item_imagen_tiempo()
         _migrate_asistencia_utc_a_local()
         _migrate_asistencias_anulada()
@@ -542,6 +543,39 @@ def _migrate_adelantos_salario():
     # create_all ya crea la tabla si el modelo está definido
     _add_column_if_not_exists("nominas", "total_adelantos",
         "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00")
+
+
+def _migrate_backups_contenido():
+    """Amplía backups_sistema.contenido a LONGTEXT.
+
+    MySQL define TEXT con un máximo de 64 KB; un volcado JSON real del POS
+    supera ese límite y el INSERT falla con 'Data too long for column
+    contenido'. LONGTEXT admite hasta 4 GB. En SQLite/PostgreSQL no hace falta.
+    """
+    from sqlalchemy import inspect, text
+    from sqlalchemy.orm import Session
+
+    if engine.dialect.name != "mysql":
+        return
+    inspector = inspect(engine)
+    if not inspector.has_table("backups_sistema"):
+        return
+    cols = {col["name"]: col for col in inspector.get_columns("backups_sistema")}
+    columna = cols.get("contenido")
+    if columna is None:
+        return
+    if "longtext" in str(columna["type"]).lower():
+        return
+    with Session(engine) as db:
+        try:
+            db.execute(text(
+                "ALTER TABLE backups_sistema MODIFY COLUMN contenido LONGTEXT NOT NULL"
+            ))
+            db.commit()
+            print("  [~] Columna 'contenido' de backups_sistema ampliada a LONGTEXT")
+        except Exception as e:
+            db.rollback()
+            print(f"  [X] Error ampliando backups_sistema.contenido: {e}")
 
 
 def _migrate_nomina_periodos():
