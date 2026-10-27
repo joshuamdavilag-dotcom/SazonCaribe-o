@@ -42,3 +42,24 @@ def test_calculo_real_de_nomina_redondea_pago_de_horas_extras_al_final():
 
     assert resultado["pago_horas_extras"] == Decimal("41.67")
     assert resultado["pago_neto"] == Decimal("1291.67")
+
+
+def test_calculo_semanal_prorratea_salario_mensual():
+    class AsistenciaRepositoryFalso:
+        def get_finalizadas_por_rango(self, empleado_id, fecha_inicio, fecha_fin):
+            return []
+
+    servicio = object.__new__(NominaService)
+    servicio.asistencia_repo = AsistenciaRepositoryFalso()
+    servicio._obtener_total_adelantos = lambda empleado_id, inicio, fin: Decimal("0.00")
+    empleado = SimpleNamespace(id=1, salario_base=4000)
+
+    resultado = servicio._calcular_periodo(
+        empleado,
+        date(2026, 10, 20),
+        date(2026, 10, 26),
+    )
+
+    assert resultado["salario_periodo_teorico"] == Decimal("1000.00")
+    assert resultado["pago_neto"] == Decimal("1000.00")
+

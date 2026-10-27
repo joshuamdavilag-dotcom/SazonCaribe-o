@@ -6364,10 +6364,15 @@ function renderNominaResult(data) {
   const resultDiv = document.getElementById('nomina-result');
   resultDiv.style.display = 'block';
 
+  const diasPeriodo = Math.max(
+    Math.round((new Date(`${data.fecha_fin}T00:00:00`) - new Date(`${data.fecha_inicio}T00:00:00`)) / 86400000) + 1,
+    1
+  );
+  const tipoPeriodo = diasPeriodo <= 8 ? 'Semanal' : diasPeriodo <= 20 ? 'Quincenal' : 'Mensual';
   document.getElementById('nomina-periodo-text').textContent =
-    `${data.fecha_inicio} al ${data.fecha_fin}`;
+    `${data.fecha_inicio} al ${data.fecha_fin} · ${tipoPeriodo} (${diasPeriodo} día${diasPeriodo === 1 ? '' : 's'})`;
 
-  const base = parseFloat(data.salario_quincenal_teorico);
+  const base = parseFloat(data.salario_periodo_teorico ?? data.salario_quincenal_teorico);
   const tarifa = parseFloat(data.tarifa_hora_extra || (parseFloat(data.salario_base_mensual) / 240));
   const horasExtras = parseFloat(data.total_horas_extras);
   const montoExtras = parseFloat(data.pago_horas_extras);

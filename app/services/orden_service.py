@@ -1257,18 +1257,21 @@ class OrdenService:
             with self.db.begin_nested():
                 estado_original = orden.estado
 
+                vigentes: list[DetalleOrden] = []
                 for detalle in list(orden.detalles):
                     if detalle.id not in ids_enviados:
                         self._revertir_detalle(
                             detalle, f"Ítem retirado de Orden #{orden_id}"
                         )
                         self.db.delete(detalle)
+                    else:
+                        vigentes.append(detalle)
 
                 for item in items:
                     if item.detalle_id is None:
                         continue
                     detalle = next(
-                        (d for d in orden.detalles if d.id == item.detalle_id), None
+                        (d for d in vigentes if d.id == item.detalle_id), None
                     )
                     if detalle is not None:
                         self._sincronizar_detalle_edicion(detalle, item)
@@ -1290,10 +1293,9 @@ class OrdenService:
                         detalle.orden_id = orden_id
                         self.db.add(detalle)
                         orden.detalles.append(detalle)
+                        vigentes.append(detalle)
 
                 self.db.flush()
-
-                vigentes = [d for d in orden.detalles if d.id in ids_enviados or d.id is None]
                 subtotal = Decimal("0.00")
                 descuento_total = Decimal("0.00")
                 for d in vigentes:

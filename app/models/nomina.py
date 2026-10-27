@@ -18,7 +18,7 @@ class Nomina(Base):
             name="ck_nominas_salario_mensual_positivo"
         ),
         CheckConstraint(
-            "salario_semanal_teorico > 0",
+            "salario_semanal_teorico >= 0",
             name="ck_nominas_salario_semanal_positivo"
         ),
         CheckConstraint(
@@ -72,6 +72,16 @@ class Nomina(Base):
     salario_quincenal_teorico: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False
+    )
+    salario_semanal_teorico: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        default=None
+    )
+    salario_periodo_teorico: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        default=None
     )
     total_horas_extras: Mapped[Decimal] = mapped_column(
         Numeric(5, 2),

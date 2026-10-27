@@ -25,6 +25,22 @@ class NominaService:
 
     HORAS_MENSUALES = Decimal("240")
 
+    FACTORES_PERIODO = {
+        "SEMANAL": Decimal("0.25"),
+        "QUINCENAL": Decimal("0.50"),
+        "MENSUAL": Decimal("1.00"),
+    }
+
+    @classmethod
+    def _factor_periodo(cls, fecha_inicio: date, fecha_fin: date) -> Decimal:
+        """Devuelve la fracción del salario mensual según la duración del período."""
+        dias = max((fecha_fin - fecha_inicio).days + 1, 1)
+        if dias <= 8:
+            return cls.FACTORES_PERIODO["SEMANAL"]
+        if dias <= 20:
+            return cls.FACTORES_PERIODO["QUINCENAL"]
+        return cls.FACTORES_PERIODO["MENSUAL"]
+
     def __init__(self, db: Session) -> None:
         """
         Inicializa el servicio con las dependencias necesarias.
@@ -169,11 +185,23 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período.
 
-        Fórmula: Pago = (salario_base / 2) + (horas_extras × tarifa) − adelantos.
-        El salario base es fijo (no se recalculan horas ordinarias) y las
-        horas extras se pagan a tarifa normal 1.0x (salario_base / 240).
+        El salario base se prorratea según la duración real del período:
+        SEMANAL (hasta 8 días) = salario mensual / 4; QUINCENAL (hasta 20
+        días) = salario mensual / 2; MENSUAL (más de 20 días) = salario
+        mensual. Las horas extras se pagan a tarifa normal 1.0x
+        (salario_base / 240).
         """
         salario_base_mensual = Decimal(str(empleado.salario_base))
+
+        factor_periodo = self._factor_periodo(fecha_inicio, fecha_fin)
+
+        salario_periodo_teorico = (
+            salario_base_mensual * factor_periodo
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        salario_semanal_teorico = (
+            salario_base_mensual / Decimal("4")
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         salario_quincenal_teorico = (
             salario_base_mensual / Decimal("2")
@@ -203,7 +231,7 @@ class NominaService:
         )
 
         pago_neto = (
-            salario_quincenal_teorico + pago_horas_extras - total_adelantos
+            salario_periodo_teorico + pago_horas_extras - total_adelantos
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if pago_neto < 0:
             pago_neto = Decimal("0.00")
@@ -213,7 +241,9 @@ class NominaService:
             "fecha_inicio": fecha_inicio,
             "fecha_fin": fecha_fin,
             "salario_base_mensual": salario_base_mensual,
+            "salario_semanal_teorico": salario_semanal_teorico,
             "salario_quincenal_teorico": salario_quincenal_teorico,
+            "salario_periodo_teorico": salario_periodo_teorico,
             "total_horas_extras": total_horas_extras,
             "pago_horas_extras": pago_horas_extras,
             "total_adelantos": total_adelantos,

@@ -251,6 +251,7 @@ async def startup_event():
         _migrate_descuentos_frecuentes()
         _migrate_gastos_cierre_caja_id()
         _migrate_adelantos_salario()
+        _migrate_nomina_periodos()
         _migrate_menu_item_imagen_tiempo()
         _migrate_asistencia_utc_a_local()
         _migrate_asistencias_anulada()
@@ -541,6 +542,14 @@ def _migrate_adelantos_salario():
     # create_all ya crea la tabla si el modelo está definido
     _add_column_if_not_exists("nominas", "total_adelantos",
         "ALTER TABLE nominas ADD COLUMN total_adelantos DECIMAL(10,2) NOT NULL DEFAULT 0.00")
+
+
+def _migrate_nomina_periodos():
+    """Agrega las columnas de salario semanal y del período a nominas."""
+    _add_column_if_not_exists("nominas", "salario_semanal_teorico",
+        "ALTER TABLE nominas ADD COLUMN salario_semanal_teorico DECIMAL(10,2) NULL")
+    _add_column_if_not_exists("nominas", "salario_periodo_teorico",
+        "ALTER TABLE nominas ADD COLUMN salario_periodo_teorico DECIMAL(10,2) NULL")
 
 
 def _migrate_menu_item_imagen_tiempo():
