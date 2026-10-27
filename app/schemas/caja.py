@@ -67,3 +67,27 @@ class VentasDiaResponse(BaseModel):
         default_factory=list,
         description="Lista de órdenes pagadas del día",
     )
+
+
+class CierreAutomaticoResponse(BaseModel):
+    """Estado del cierre automático de caja a la medianoche (hora Managua)."""
+
+    activo: bool = Field(
+        ..., description="Indica si el cierre automático está habilitado"
+    )
+    ultima_ejecucion: Optional[datetime] = Field(
+        default=None, description="Última vez que el sistema cerró la caja solo"
+    )
+    proxima_ejecucion: Optional[datetime] = Field(
+        default=None,
+        description="Próxima medianoche local en que se ejecutará el cierre",
+    )
+    ultima_fecha: Optional[str] = Field(
+        default=None, description="Último día local procesado por el cierre automático"
+    )
+
+
+class CierreAutomaticoUpdate(BaseModel):
+    """Cuerpo para activar o desactivar el cierre automático de caja."""
+
+    activo: bool = Field(..., description="True para habilitar, False para deshabilitar")

@@ -73,6 +73,7 @@ const state = {
   auditLimit: 50,
   auditPage: null,
   avisoCierreAutomatico: null,
+  cierreAutomatico: null,
 };
 
 /* =========================================================================
@@ -872,7 +873,7 @@ function navigateTo(screenId) {
     const meseroPanel = document.getElementById('ventas-dia-panel');
     if (meseroPanel) meseroPanel.style.display = esGestor ? 'none' : 'block';
     loadHistorialOrdenesDia(esGestor ? 'gestor' : 'mesero');
-    if (esGestor) { loadCierreReportes('diario'); state.auditOffset = 0; loadAuditoria(); }
+    if (esGestor) { loadCierreReportes('diario'); state.auditOffset = 0; loadAuditoria(); loadCierreAutomatico(); }
     else loadVentasDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
@@ -8039,6 +8040,86 @@ async function ejecutarCierreCaja() {
 }
 
 /* =========================================================================
+   Cierre automático de caja (medianoche hora Managua)
+   ========================================================================= */
+function formatearFechaHoraCorta(iso) {
+  if (!iso) return '—';
+  const [fecha, hora] = String(iso).split('T');
+  const [anio, mes, dia] = (fecha || '').split('-');
+  if (!anio) return '—';
+  const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const etiquetaMes = meses[parseInt(mes, 10) - 1] || mes;
+  const etiquetaHora = hora ? formatLocalTime(iso) : '';
+  return `${parseInt(dia, 10)} ${etiquetaMes} ${anio}${etiquetaHora ? `, ${etiquetaHora}` : ''}`;
+}
+
+function renderCierreAutomatico(data) {
+  state.cierreAutomatico = data;
+  const boton = document.getElementById('btn-toggle-cierre-automatico');
+  const etiqueta = document.getElementById('cierre-auto-switch-label');
+  const estado = document.getElementById('cierre-auto-estado');
+  if (!boton) return;
+
+  const activo = !!data.activo;
+  boton.setAttribute('aria-checked', activo ? 'true' : 'false');
+  if (etiqueta) etiqueta.textContent = activo ? 'Activado' : 'Desactivado';
+
+  if (!estado) return;
+  if (activo) {
+    const ultima = formatearFechaHoraCorta(data.ultima_ejecucion);
+    if (data.ultima_fecha !== hoyISOLocal()) {
+      estado.innerHTML = `<strong>Activo</strong> · cierre pendiente (se ejecutará en el próximo chequeo) · último: ${ultima}`;
+      return;
+    }
+    const proxima = formatearFechaHoraCorta(data.proxima_ejecucion);
+    estado.innerHTML =
+      `<strong>Activo</strong> · próximo cierre: ${proxima} · último: ${ultima}`;
+  } else {
+    estado.textContent = 'Desactivado — la caja solo se cierra manualmente.';
+  }
+}
+
+async function loadCierreAutomatico() {
+  try {
+    const data = await api('/caja/cierre-automatico', { silent: true });
+    renderCierreAutomatico(data);
+  } catch {
+    const estado = document.getElementById('cierre-auto-estado');
+    if (estado) estado.textContent = 'No se pudo cargar el estado del cierre automático.';
+  }
+}
+
+async function toggleCierreAutomatico() {
+  const boton = document.getElementById('btn-toggle-cierre-automatico');
+  if (!boton) return;
+
+  const activoActual = boton.getAttribute('aria-checked') === 'true';
+  const nuevoEstado = !activoActual;
+
+  if (!nuevoEstado && !confirm('¿Desactivar el cierre automático de caja? La caja quedará abierta hasta que alguien la cierre manualmente.')) return;
+
+  boton.disabled = true;
+  try {
+    const data = await api('/caja/cierre-automatico', {
+      method: 'PUT',
+      body: JSON.stringify({ activo: nuevoEstado }),
+      silent: true,
+    });
+    renderCierreAutomatico(data);
+    showToast(
+      nuevoEstado
+        ? 'Cierre automático activado: la caja se cerrará a las 12:00 AM (hora Managua)'
+        : 'Cierre automático desactivado',
+      nuevoEstado ? 'success' : 'warning'
+    );
+  } catch {
+    showToast('No se pudo actualizar el cierre automático', 'error');
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+/* =========================================================================
    Clock
    ========================================================================= */
 function updateClock() {
@@ -8873,6 +8954,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Cierre de Caja — Botón cerrar
   document.getElementById('btn-cerrar-caja')?.addEventListener('click', ejecutarCierreCaja);
+  document.getElementById('btn-toggle-cierre-automatico')?.addEventListener('click', toggleCierreAutomatico);
 
   // Venta retroactiva
   document.getElementById('btn-venta-retroactiva')?.addEventListener('click', openVentaRetroactivaModal);

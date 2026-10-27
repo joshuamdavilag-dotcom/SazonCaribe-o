@@ -107,6 +107,7 @@ app/
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
 │   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable; metodo_pago; subtotal, descuento_total, nombre_cliente; descuento_porcentaje/monto/motivo on DetalleOrden; anulada/motivo_anulacion/anulada_por/anulada_en on Orden; cantidad_devuelta/motivo_devolucion/devuelta_en on DetalleOrden)
 │   ├── caja.py              # CierreCaja
+│   ├── configuracion.py     # ConfiguracionSistema (clave/valor persistente: cierre automático de caja)
 │   ├── gasto.py             # Gasto, CategoriaGasto enum (+ eliminado/motivo_eliminacion/eliminado_por/eliminado_en)
 │   ├── calendario.py        # EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 │   ├── push.py              # PushSuscripcion (usuario_id, endpoint unique, p256dh, auth)
@@ -138,7 +139,8 @@ app/
 │   ├── preparacion_service.py   # Producción por lote: registrar_preparacion() valida stock, descuenta insumos (SALIDA + Gasto SUMINISTROS), crea DetallePreparacionCocina
 │   ├── salon_service.py
 │   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
-│   ├── caja_service.py
+│   ├── caja_service.py           # Cierre manual + cierre automático (medianoche Managua) y toggle persistente
+│   ├── configuracion_service.py  # Lectura/escritura de ConfiguracionSistema (clave/valor)
 │   ├── gasto_service.py          # registrar_gasto(), registrar_gasto_automatico()
 │   ├── calendario_service.py     # CRUD de eventos, validación de referencias, respuesta combinada
 │   ├── reportes_service.py       # Utilidad = ingresos - nómina - insumos - gastos_operativos; incluye descuentos en response
@@ -287,6 +289,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Cierre de caja (reportes)     | Y             | Y       | N        |
 | Ver ventas del día (resumen)  | Y             | Y       | Y        |
 | Cerrar caja (archivar)        | Y             | Y       | N        |
+| Cierre automático de caja     | Y             | Y       | N        |
 | Anular pedido / devolver ítem | Y             | Y       | N        |
 | Editar/Eliminar gasto         | Y             | Y       | N        |
 | Consultar auditoría           | Y             | Y       | N        |
@@ -425,6 +428,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/caja/historial-diario               | Yes      | Any                |
 | GET    | /api/v1/caja/ventas-dia                     | Yes      | Any                |
 | POST   | /api/v1/caja/cierre                         | Yes      | Admin, Gerente     |
+| GET    | /api/v1/caja/cierre-automatico              | Yes      | Any                |
+| PUT    | /api/v1/caja/cierre-automatico              | Yes      | Admin, Gerente     |
 | POST   | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/gastos/                             | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/gastos/{id}                         | Yes      | Admin, Gerente     |
@@ -738,6 +743,15 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 1. `GET /caja/historial-diario` → `Orden` WHERE `PAGADA AND fecha=today AND cierre_caja_id IS NULL`
 2. `POST /caja/cierre` → creates `CierreCaja` + links qualifying orders
 3. Next query returns empty set
+
+### Cierre automático de caja (medianoche Managua)
+- **Regla**: `CajaService.cerrar_caja_automatica()` archiva la caja abierta una vez por **día local de Managua** (00:00), sin intervención humana. A diferencia del cierre manual, también archiva **gastos aunque no haya órdenes pagadas** (su acumulación es la causa de los errores de fecha y de cálculo de gastos). Si la caja está completamente vacía no crea `CierreCaja` (evita cierres en cero).
+- **Persistencia**: `ConfiguracionSistema` (`configuracion_sistema`, clave PK / valor / actualizado_en). Claves: `caja_cierre_automatico_activo`, `caja_cierre_automatico_ultima_fecha`, `caja_cierre_automatico_ultima_ejecucion`.
+- **No depende de un timer exacto**: `_cierre_caja_watcher()` (en `app/main.py`) revisa cada 60 s y ejecuta si `hoy_local() != ultima_fecha`. Si Render duerme la instancia a medianoche, el cierre se ejecuta al volver a arrancar o en el siguiente chequeo (catch-up). También marca el día como procesado cuando no había movimientos, para no reintentar cada minuto.
+- **Cierre registrado**: `cerrado_por=None` (no hay usuario), `fecha_cierre=ahora_local()` y evento de auditoría `CIERRE_CAJA_AUTOMATICO` vía `AuditoriaService.registrar_sistema()` (antes/después: órdenes, gastos y totales).
+- **Activación**: `PUT /api/v1/caja/cierre-automatico` (Admin/Gerente) con `{activo: bool}`. Al activarlo, se guarda el día actual como último procesado, por lo que el **primer cierre automático ocurre en la próxima medianoche** (no archiva la caja en el instante de habilitarlo). Desactivarlo deja todo en cierre manual. `GET /api/v1/caja/cierre-automatico` devuelve `activo`, `ultima_ejecucion`, `proxima_ejecucion` y `ultima_fecha`.
+- **UI**: tarjeta `#cierre-automatico-card` dentro de `#cierre-gestor-panel` (pantalla Caja, solo Admin/Gerente) con el interruptor `#btn-toggle-cierre-automatico` (`role="switch"`), estado (`#cierre-auto-estado`, `#cierre-auto-switch-label`) y confirmación al desactivar. `loadCierreAutomatico()` / `toggleCierreAutomatico()` en `app.js`. Los estilos `.cierre-auto-*` en `style.css` usan `color-mix()` + variables `--mix-*`, así que el modo oscuro queda cubierto sin reglas nuevas.
+- **Tests**: `tests/test_cierre_automatico.py` (apagado por defecto, activación, archivado de gastos sin órdenes, caja vacía no crea cierre y el cierre manual sigue exigiendo órdenes).
 
 ### Ventas del día (panel del mesero)
 - El Vendedor no puede ver el Cierre de Caja financiero (`GET /reportes/cierre` es Admin/Gerente → 403, y antes la pantalla quedaba en C$0.00). Ahora tiene un panel acotado de **solo lectura**.

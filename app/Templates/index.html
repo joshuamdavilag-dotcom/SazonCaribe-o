@@ -819,6 +819,21 @@
             <button class="period-tab" data-periodo="mensual">Mes</button>
           </div>
 
+          <!-- Cierre automático de caja (medianoche hora Managua) -->
+          <div id="cierre-automatico-card" class="cierre-auto-card">
+            <div class="cierre-auto-info">
+              <span class="cierre-auto-icon material-symbols-outlined">bedtime</span>
+              <div class="cierre-auto-text">
+                <p class="cierre-auto-title">Cierre automático de caja — 12:00 AM</p>
+                <p class="cierre-auto-sub" id="cierre-auto-estado">Cargando estado…</p>
+              </div>
+            </div>
+            <button id="btn-toggle-cierre-automatico" type="button" class="cierre-auto-switch" role="switch" aria-checked="false" aria-label="Activar cierre automático de caja">
+              <span class="cierre-auto-knob"></span>
+              <span class="cierre-auto-switch-label" id="cierre-auto-switch-label">Desactivado</span>
+            </button>
+          </div>
+
           <!-- Summary Cards -->
           <div id="cierre-summary" class="cierre-summary-grid grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 w-full">
             <div class="cierre-card cierre-card--ingresos">

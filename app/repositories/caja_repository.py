@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
@@ -61,13 +62,22 @@ class CajaRepository:
         total_ventas: float,
         total_ordenes: int,
         cerrado_por: Optional[int],
+        fecha_cierre: Optional[datetime] = None,
     ) -> CierreCaja:
-        """Inserta un registro de cierre de caja y devuelve la entidad con su id asignado."""
-        cierre = CierreCaja(
-            total_ventas=total_ventas,
-            total_ordenes=total_ordenes,
-            cerrado_por=cerrado_por,
-        )
+        """Inserta un registro de cierre de caja y devuelve la entidad con su id asignado.
+
+        Args:
+            fecha_cierre: Hora local exacta del cierre. Si es None se deja el
+                valor por defecto de la columna (usado por el cierre manual).
+        """
+        datos = {
+            "total_ventas": total_ventas,
+            "total_ordenes": total_ordenes,
+            "cerrado_por": cerrado_por,
+        }
+        if fecha_cierre is not None:
+            datos["fecha_cierre"] = fecha_cierre
+        cierre = CierreCaja(**datos)
         self.db.add(cierre)
         self.db.flush()
         return cierre

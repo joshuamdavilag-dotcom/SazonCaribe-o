@@ -5,7 +5,13 @@ from app.core.database import get_db
 from app.api.deps import get_current_user, requerir_rol
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
-from app.schemas.caja import CierreCajaResponse, HistorialDiarioResponse, VentasDiaResponse
+from app.schemas.caja import (
+    CierreAutomaticoResponse,
+    CierreAutomaticoUpdate,
+    CierreCajaResponse,
+    HistorialDiarioResponse,
+    VentasDiaResponse,
+)
 from app.services.caja_service import CajaService
 
 router = APIRouter()
@@ -74,3 +80,46 @@ def cerrar_caja(
 ) -> CierreCajaResponse:
     """Cierra la caja actual y archiva las órdenes pagadas y gastos pendientes."""
     return service.cerrar_caja(current_user.id)
+
+
+@router.get(
+    "/cierre-automatico",
+    response_model=CierreAutomaticoResponse,
+    summary="Estado del cierre automático de caja",
+    description=(
+        "Indica si el cierre automático de medianoche (hora Managua) está "
+        "habilitado, cuándo se ejecutó por última vez y cuándo será el próximo."
+    ),
+    dependencies=[Depends(get_current_user)],
+)
+def estado_cierre_automatico(
+    service: CajaService = Depends(get_caja_service),
+) -> CierreAutomaticoResponse:
+    """Devuelve la configuración actual del cierre automático de caja."""
+    return service.estado_cierre_automatico()
+
+
+@router.put(
+    "/cierre-automatico",
+    response_model=CierreAutomaticoResponse,
+    summary="Activar o desactivar el cierre automático de caja",
+    description=(
+        "Habilita o deshabilita el cierre de caja automático a las 12:00 AM "
+        "(hora de Managua). Al habilitarlo, el primer cierre ocurre en la "
+        "próxima medianoche. Los cierres automáticos quedan en la bitácora."
+    ),
+)
+def configurar_cierre_automatico(
+    body: CierreAutomaticoUpdate,
+    current_user: Usuario = Depends(
+        requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE])
+    ),
+    service: CajaService = Depends(get_caja_service),
+) -> CierreAutomaticoResponse:
+    """Actualiza la preferencia del cierre automático de caja."""
+    return service.configurar_cierre_automatico(
+        body.activo,
+        usuario_id=current_user.id,
+        actor_username=current_user.username,
+        actor_rol=str(current_user.rol),
+    )

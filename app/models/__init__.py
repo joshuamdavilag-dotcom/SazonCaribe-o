@@ -12,6 +12,7 @@ from app.models.calendario import EventoCalendario, TipoEventoCalendario, Estado
 from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
 from app.models.backup import BackupSistema
+from app.models.configuracion import ConfiguracionSistema
 from app.models.descuento import DescuentoFrecuente, TipoDescuento
 from app.models.push import PushSuscripcion
 from app.models.estudio_mercado import (
@@ -27,6 +28,7 @@ from app.models.estudio_mercado import (
 __all__ = [
     "RegistroAuditoria",
     "BackupSistema",
+    "ConfiguracionSistema",
     "Puesto",
     "Empleado",
     "Usuario",

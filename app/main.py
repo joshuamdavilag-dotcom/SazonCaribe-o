@@ -279,6 +279,7 @@ async def startup_event():
     asyncio.create_task(_backup_mensual_watcher())
     asyncio.create_task(_camera_clip_retention_watcher())
     asyncio.create_task(_estudio_mercado_watcher())
+    asyncio.create_task(_cierre_caja_watcher())
 
 
 def _is_sqlite() -> bool:
@@ -1298,6 +1299,57 @@ async def _estudio_mercado_watcher():
             logger.exception(
                 "Falló la generación automática del estudio de mercado"
             )
+
+
+def _ejecutar_cierre_caja_automatico() -> None:
+    """Cierra la caja abierta una vez por día local (medianoche de Managua).
+
+    Se apoya en la fecha guardada en ``configuracion_sistema`` en lugar de un
+    temporizador exacto: si Render duerme la instancia a medianoche, el cierre
+    se ejecuta en el primer chequeo posterior (o al volver a arrancar), sin
+    perder el día.
+    """
+    from app.core.database import SessionLocal
+    from app.core.tiempo import hoy_local
+    from app.services.caja_service import CajaService
+
+    with SessionLocal() as db:
+        servicio = CajaService(db)
+        if not servicio.config.obtener_booleano(servicio.CLAVE_ACTIVO, False):
+            return
+
+        hoy = hoy_local().isoformat()
+        ultima = servicio.config.obtener(servicio.CLAVE_ULTIMA_FECHA, "")
+        if ultima == hoy:
+            return
+
+        cierre = servicio.cerrar_caja_automatica()
+        if cierre is None:
+            servicio.config.guardar(servicio.CLAVE_ULTIMA_FECHA, hoy)
+            db.commit()
+            logger.info(
+                "Cierre automático de caja: sin movimientos pendientes (%s)", hoy
+            )
+            return
+
+        logger.info(
+            "Cierre automático de caja #%s: %s orden(es) y C$%.2f archivados",
+            cierre.id,
+            cierre.total_ordenes,
+            cierre.total_ventas,
+        )
+
+
+async def _cierre_caja_watcher():
+    """Tarea en segundo plano: cierre automático de caja a la medianoche local."""
+    while True:
+        try:
+            await asyncio.to_thread(_ejecutar_cierre_caja_automatico)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Falló el cierre automático de caja")
+        await asyncio.sleep(60)
 
 
 @app.get(
