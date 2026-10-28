@@ -82,8 +82,10 @@ class ReportesService:
         fecha_inicio, fecha_fin = self._calcular_rango(periodo, hoy)
 
         if fecha_inicio is None:
-            ingresos = self.repo.obtener_ingresos_totales_sin_archivar()
-            conteo = self.repo.contar_ordenes_sin_archivar()
+            resumen = self.repo.obtener_resumen_ordenes_sin_archivar()
+            ingresos = resumen["ingresos"]
+            descuentos = resumen["descuentos"]
+            conteo = {"pagadas": resumen["pagadas"], "canceladas": resumen["canceladas"]}
             gastos_clasificados = self.repo.obtener_gastos_clasificados_sin_archivar()
             gastos_nomina = (
                 self.repo.obtener_gastos_nomina(hoy, hoy)
@@ -91,13 +93,14 @@ class ReportesService:
             )
             costos = gastos_clasificados["costo_insumos"]
             gastos_operativos = gastos_clasificados["gastos_operativos"]
-            descuentos = self.repo.obtener_descuentos_totales_sin_archivar()
             top_platillos = self.repo.obtener_top_platillos_sin_archivar()
             fecha_inicio = hoy
             fecha_fin = hoy
         else:
-            ingresos = self.repo.obtener_ingresos_totales(fecha_inicio, fecha_fin)
-            conteo = self.repo.contar_ordenes(fecha_inicio, fecha_fin)
+            resumen = self.repo.obtener_resumen_ordenes(fecha_inicio, fecha_fin)
+            ingresos = resumen["ingresos"]
+            descuentos = resumen["descuentos"]
+            conteo = {"pagadas": resumen["pagadas"], "canceladas": resumen["canceladas"]}
             gastos_clasificados = self.repo.obtener_gastos_clasificados(fecha_inicio, fecha_fin)
             gastos_nomina = (
                 self.repo.obtener_gastos_nomina(fecha_inicio, fecha_fin)
@@ -105,7 +108,6 @@ class ReportesService:
             )
             costos = gastos_clasificados["costo_insumos"]
             gastos_operativos = gastos_clasificados["gastos_operativos"]
-            descuentos = self.repo.obtener_descuentos_totales(fecha_inicio, fecha_fin)
             top_platillos = self.repo.obtener_top_platillos(fecha_inicio, fecha_fin)
 
         ingresos_f = float(ingresos)

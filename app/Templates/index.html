@@ -18,42 +18,11 @@
       } catch (e) {}
     })();
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          screens: {
-            xs: '400px',     
-          },
-          fontFamily: {
-            display: ['Epilogue', 'sans-serif'],
-            sans: ['Plus Jakarta Sans', 'sans-serif'],
-          },
-          colors: {
-            brand: {
-              coral: '#E64A2E',
-              coralHover: '#CF3B20',
-              coralLight: '#FFF0ED',
-              orange: '#F2784B',
-              navy: '#0F3B66',
-              navyDark: '#0D233A',
-              navyDeep: '#081726',
-              turquoise: '#1EB8B8',
-              turquoiseLight: '#E6F9F9',
-              sun: '#F8B319',
-              sand: '#FBF8F3',
-            }
-          },
-          boxShadow: {
-            'card-tropical': '0 20px 40px -15px rgba(8, 23, 38, 0.45), 0 0 25px rgba(30, 184, 184, 0.12)',
-            'btn-coral': '0 10px 20px -5px rgba(230, 74, 46, 0.45)',
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 </head>
@@ -2869,7 +2838,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>

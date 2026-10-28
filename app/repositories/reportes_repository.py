@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Optional, List, Dict
 
@@ -9,6 +9,21 @@ from app.models.orden import Orden, DetalleOrden, EstadoOrden
 from app.models.nomina import Nomina, AdelantoSalario
 from app.models.menu import MenuItem
 from app.models.gasto import Gasto, CategoriaGasto
+
+
+def _rango_datetime(
+    fecha_inicio: date, fecha_fin: date
+) -> tuple[datetime, datetime]:
+    """Convierte un rango de fechas inclusivo en un rango datetime semiabierto.
+
+    Se usa ``[inicio 00:00, fin+1 00:00)`` para que MySQL pueda aprovechar el
+    índice de la columna. ``func.date(columna)`` obliga a recorrer la tabla
+    completa porque aplica una función sobre la columna indexada.
+    """
+    return (
+        datetime.combine(fecha_inicio, time.min),
+        datetime.combine(fecha_fin + timedelta(days=1), time.min),
+    )
 
 
 class ReportesRepository:
@@ -31,14 +46,15 @@ class ReportesRepository:
         Suma de todos los `Orden.total` con estado PAGADA
         dentro del rango de fechas.
         """
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = select(
             func.coalesce(func.sum(Orden.total), Decimal("0.00"))
         ).where(
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.anulada.is_(False),
-                func.date(Orden.fecha_creacion) >= fecha_inicio,
-                func.date(Orden.fecha_creacion) <= fecha_fin,
+                Orden.fecha_creacion >= inicio,
+                Orden.fecha_creacion < fin,
             )
         )
         return self.db.execute(stmt).scalar_one()
@@ -49,13 +65,14 @@ class ReportesRepository:
         fecha_fin: date,
     ) -> Dict[str, int]:
         """Retorna conteo de órdenes pagadas y canceladas en el rango."""
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = select(
             func.sum(case((and_(Orden.estado == EstadoOrden.PAGADA, Orden.anulada.is_(False)), 1), else_=0)).label("pagadas"),
             func.sum(case((Orden.estado == EstadoOrden.CANCELADA, 1), else_=0)).label("canceladas"),
         ).where(
             and_(
-                func.date(Orden.fecha_creacion) >= fecha_inicio,
-                func.date(Orden.fecha_creacion) <= fecha_fin,
+                Orden.fecha_creacion >= inicio,
+                Orden.fecha_creacion < fin,
             )
         )
         row = self.db.execute(stmt).one()
@@ -73,14 +90,15 @@ class ReportesRepository:
         Suma de `Nomina.pago_neto` para nóminas con estado PAGADO
         cuyo `fecha_pago` caiga dentro del rango.
         """
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = select(
             func.coalesce(func.sum(Nomina.pago_neto), Decimal("0.00"))
         ).where(
             and_(
                 Nomina.estado == "PAGADO",
                 Nomina.fecha_pago.isnot(None),
-                func.date(Nomina.fecha_pago) >= fecha_inicio,
-                func.date(Nomina.fecha_pago) <= fecha_fin,
+                Nomina.fecha_pago >= inicio,
+                Nomina.fecha_pago < fin,
             )
         )
         return self.db.execute(stmt).scalar_one()
@@ -95,6 +113,7 @@ class ReportesRepository:
         Retorna los N platillos más vendidos (por cantidad) en el rango.
         Solo considera órdenes PAGADA.
         """
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = select(
             DetalleOrden.producto_id,
             MenuItem.nombre,
@@ -110,8 +129,8 @@ class ReportesRepository:
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.anulada.is_(False),
-                func.date(Orden.fecha_creacion) >= fecha_inicio,
-                func.date(Orden.fecha_creacion) <= fecha_fin,
+                Orden.fecha_creacion >= inicio,
+                Orden.fecha_creacion < fin,
             )
         ).group_by(
             DetalleOrden.producto_id,
@@ -137,17 +156,69 @@ class ReportesRepository:
         fecha_fin: date,
     ) -> Decimal:
         """Suma de todos los descuentos aplicados en órdenes PAGADA del periodo."""
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = select(
             func.coalesce(func.sum(Orden.descuento_total), Decimal("0.00"))
         ).where(
             and_(
                 Orden.estado == EstadoOrden.PAGADA,
                 Orden.anulada.is_(False),
-                func.date(Orden.fecha_creacion) >= fecha_inicio,
-                func.date(Orden.fecha_creacion) <= fecha_fin,
+                Orden.fecha_creacion >= inicio,
+                Orden.fecha_creacion < fin,
             )
         )
         return self.db.execute(stmt).scalar_one()
+
+    def _stmt_resumen_ordenes(self):
+        """Columnas agregadas de órdenes en UNA sola consulta (1 viaje a la BD).
+
+        Reúne ingresos, descuentos y conteos de pagadas/canceladas, que antes
+        se pedían en tres consultas separadas a MySQL remoto.
+        """
+        pagada = and_(Orden.estado == EstadoOrden.PAGADA, Orden.anulada.is_(False))
+        return select(
+            func.coalesce(
+                func.sum(case((pagada, Orden.total), else_=0)), Decimal("0.00")
+            ).label("ingresos"),
+            func.coalesce(
+                func.sum(case((pagada, Orden.descuento_total), else_=0)),
+                Decimal("0.00"),
+            ).label("descuentos"),
+            func.coalesce(
+                func.sum(case((pagada, 1), else_=0)), 0
+            ).label("pagadas"),
+            func.coalesce(
+                func.sum(case((Orden.estado == EstadoOrden.CANCELADA, 1), else_=0)),
+                0,
+            ).label("canceladas"),
+        )
+
+    @staticmethod
+    def _resumen_a_dict(row) -> Dict:
+        return {
+            "ingresos": row.ingresos,
+            "descuentos": row.descuentos,
+            "pagadas": int(row.pagadas or 0),
+            "canceladas": int(row.canceladas or 0),
+        }
+
+    def obtener_resumen_ordenes(
+        self,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> Dict:
+        """Ingresos, descuentos y conteos de órdenes del rango en una consulta."""
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
+        stmt = self._stmt_resumen_ordenes().where(
+            Orden.fecha_creacion >= inicio,
+            Orden.fecha_creacion < fin,
+        )
+        return self._resumen_a_dict(self.db.execute(stmt).one())
+
+    def obtener_resumen_ordenes_sin_archivar(self) -> Dict:
+        """Ingresos, descuentos y conteos de la caja abierta en una consulta."""
+        stmt = self._stmt_resumen_ordenes().where(Orden.cierre_caja_id.is_(None))
+        return self._resumen_a_dict(self.db.execute(stmt).one())
 
     def _stmt_gastos_clasificados(self, *filtros):
         """Consulta que clasifica los gastos de la tabla `gastos` en 3 buckets.
@@ -199,9 +270,10 @@ class ReportesRepository:
         fecha_fin: date,
     ) -> Dict[str, Decimal]:
         """Clasifica los gastos de la tabla `gastos` dentro del rango de fechas."""
+        inicio, fin = _rango_datetime(fecha_inicio, fecha_fin)
         stmt = self._stmt_gastos_clasificados(
-            func.date(Gasto.fecha) >= fecha_inicio,
-            func.date(Gasto.fecha) <= fecha_fin,
+            Gasto.fecha >= inicio,
+            Gasto.fecha < fin,
         )
         row = self.db.execute(stmt).one()
         return {

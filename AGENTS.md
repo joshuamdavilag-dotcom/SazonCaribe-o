@@ -793,6 +793,26 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 - Startup migration `_migrate_insumos_empaque()` adds `unidad_empaque_id` and `factor_empaque` columns if missing
 - **Frontend**: Insumo modal has packaging section (Unidad de Empaque select + Factor input + preview text); Stock modal Detalles tab shows packaging fields
 
+## Rendimiento (red + BD)
+
+Optimizaciones aplicadas para acelerar la primera carga, la navegación entre pantallas y los reportes. **No cambian URLs ni comportamiento visible.**
+
+- **Tailwind precompilado (sin CDN)**: `app/Templates/index.html` ya NO usa `https://cdn.tailwindcss.com` (era ~400 KB de JS + compilación JIT en el navegador). Ahora carga `css/tailwind.min.css` (**~30 KB**, generado y commiteado). Config en `tailwind.config.js` + entrada `tailwind.input.css` (raíz del repo), espejo exacto del tema que estaba inline (screens `xs: 400px`, Epilogue/Plus Jakarta Sans, colores `brand-*`, sombras `card-tropical`/`btn-coral`). **Al agregar clases utilitarias nuevas hay que regenerar**:
+  ```powershell
+  & "C:\Program Files\nodejs\npx.cmd" --yes tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o app/Templates/css/tailwind.min.css --minify
+  ```
+  En PowerShell el `npx`/`npm` `.ps1` está bloqueado por política de ejecución: usar siempre `npx.cmd`/`npm.cmd`. No hay build step en runtime ni en Render.
+- **GZip**: `GZipMiddleware(minimum_size=800)` en `app/main.py` comprime HTML, JS, CSS y JSON de la API (`Content-Encoding: gzip`). Se eligió GZip sobre Brotli para no agregar dependencias.
+- **Caché de estáticos** (`_revalidar_estaticos`): JS/CSS/HTML siguen con `no-cache` + ETag/304 (URLs estables, nunca código viejo — **prohibido volver a `?v=`**); imágenes y fuentes locales (`.png .jpg .jpeg .webp .gif .svg .ico .woff .woff2`, constante `EXTENSIONES_CACHE_LARGA`) usan `public, max-age=604800` (7 días).
+- **Preconnect + `defer`**: `index.html` declara `preconnect` a `fonts.googleapis.com`, `fonts.gstatic.com` (crossorigin) y `cdn.jsdelivr.net`; Chart.js y `app.js` cargan con `defer` (se descargan en paralelo y ejecutan en orden; `app.js` ya arranca en `DOMContentLoaded`).
+- **Índices de rendimiento** (`_migrate_indices_rendimiento()` en el startup, idempotente vía `inspect().get_indexes`): `ix_ordenes_estado_cierre` (estado, cierre_caja_id, anulada), `ix_ordenes_estado_fecha` (estado, fecha_creacion), `ix_detalles_orden_producto`, `ix_gastos_cierre_eliminado`, `ix_gastos_fecha`, `ix_nominas_estado_fecha_pago`, `ix_asistencias_empleado_entrada`, `ix_cierres_caja_fecha`. Se crean solo si faltan; un fallo se registra como warning y no rompe el arranque. `push_suscripciones.usuario_id` no se incluye porque ya tiene `index=True` en el modelo.
+- **Consultas de reportes sargables**: `ReportesRepository._rango_datetime()` convierte el rango de fechas inclusivo en `[inicio 00:00, fin+1 00:00)` sobre las columnas `DateTime`. Se eliminó `func.date(columna)` de ingresos, conteos, nómina, top platillos, descuentos y gastos clasificados: aplicar una función a la columna indexada impedía usar el índice.
+- **Menos viajes a MySQL remoto (Aiven paga latencia por consulta)**:
+  - `ReportesRepository.obtener_resumen_ordenes[_sin_archivar]()` devuelve ingresos + descuentos + pagadas + canceladas en **una** consulta (antes 3). `ReportesService.obtener_cierre()` la usa en ambos modos (DIARIO y rango).
+  - `CajaService.estado_cierre_automatico()` lee las claves `caja_cierre_automatico_*` con `ConfiguracionService.listar_por_prefijo()` (1 consulta en vez de 3).
+  - `loadMenuBrowse()` / `loadMenuManagement()` piden categorías e items con `Promise.all` (+ `silent: true` y `.catch` por llamada) y solo después renderizan.
+- **Medición**: la primera carga deja de bajar ~400 KB de JS del CDN y de compilar Tailwind en el navegador; con GZip el `app.js` de ~405 KB viaja ~4x más chico.
+
 ## Known Issues / TODO
 
 - No Alembic migrations generated yet — using `create_all` on startup

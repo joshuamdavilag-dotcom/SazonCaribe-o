@@ -4570,13 +4570,19 @@ async function submitOrder() {
    Menu Browse (Carta)
    ========================================================================= */
 async function loadMenuBrowse() {
-  await loadCategories();
+  try {
+    const [categorias, items] = await Promise.all([
+      api('/menu/categorias', { silent: true }).catch(() => []),
+      api('/menu/items', { silent: true }).catch(() => []),
+    ]);
+    state.categories = categorias;
+    state.menuItems = items;
+  } catch {
+    state.categories = state.categories || [];
+  }
   renderCartaCatFilters(state.categories);
   activeCartaCatFilter = 'all';
-  try {
-    state.menuItems = await api('/menu/items');
-    applyCartaFilter();
-  } catch { applyCartaFilter(); }
+  applyCartaFilter();
 }
 
 /* =========================================================================
@@ -4587,14 +4593,20 @@ async function loadCategories() {
 }
 
 async function loadMenuManagement() {
-  await loadCategories();
+  try {
+    const [categorias, items] = await Promise.all([
+      api('/menu/categorias', { silent: true }).catch(() => []),
+      api('/menu/items?incluir_inactivos=true', { silent: true }).catch(() => []),
+    ]);
+    state.categories = categorias;
+    state.menuItems = items;
+  } catch {
+    state.categories = state.categories || [];
+  }
   populateCategorySelect();
   renderMenuMgmtCatFilters(state.categories);
   bindMenuMgmtStatusFilters();
-  try {
-    state.menuItems = await api('/menu/items?incluir_inactivos=true');
-    applyMenuMgmtFilter();
-  } catch { applyMenuMgmtFilter(); }
+  applyMenuMgmtFilter();
 }
 
 function populateCategorySelect() {

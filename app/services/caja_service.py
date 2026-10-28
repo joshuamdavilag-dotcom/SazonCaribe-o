@@ -107,11 +107,26 @@ class CajaService:
             raise
 
     def estado_cierre_automatico(self) -> CierreAutomaticoResponse:
-        """Devuelve si el cierre automático está activo y cuándo corre de nuevo."""
-        activo = self.config.obtener_booleano(self.CLAVE_ACTIVO, False)
-        ultima_fecha = self.config.obtener(self.CLAVE_ULTIMA_FECHA, "") or None
-        hoy = hoy_local()
+        """Devuelve si el cierre automático está activo y cuándo corre de nuevo.
 
+        Lee las tres claves en una sola consulta: este estado se pide cada vez
+        que se abre la pantalla de Caja y no debe sumar viajes a la BD.
+        """
+        valores = self.config.listar_por_prefijo("caja_cierre_automatico_")
+        activo = valores.get(self.CLAVE_ACTIVO, "").strip().lower() in {
+            "1", "true", "si", "sí", "on", "activo",
+        }
+        ultima_fecha = valores.get(self.CLAVE_ULTIMA_FECHA) or None
+        ultima_ejecucion = None
+        if valores.get(self.CLAVE_ULTIMA_EJECUCION):
+            try:
+                ultima_ejecucion = datetime.fromisoformat(
+                    valores[self.CLAVE_ULTIMA_EJECUCION]
+                )
+            except ValueError:
+                ultima_ejecucion = None
+
+        hoy = hoy_local()
         proxima = None
         if activo:
             if ultima_fecha != hoy.isoformat():
@@ -121,7 +136,7 @@ class CajaService:
 
         return CierreAutomaticoResponse(
             activo=activo,
-            ultima_ejecucion=self.config.obtener_fecha(self.CLAVE_ULTIMA_EJECUCION),
+            ultima_ejecucion=ultima_ejecucion,
             proxima_ejecucion=proxima,
             ultima_fecha=ultima_fecha,
         )

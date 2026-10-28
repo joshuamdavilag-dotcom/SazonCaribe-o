@@ -2,6 +2,7 @@ import asyncio
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
@@ -79,6 +80,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=800)
 
 # Incluir routers de la API
 app.include_router(
@@ -218,17 +220,27 @@ app.mount(
 )
 
 
+EXTENSIONES_CACHE_LARGA = (
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2",
+)
+
+
 @app.middleware("http")
 async def _revalidar_estaticos(request: Request, call_next):
-    """Los assets del ERP y de la Carta se revalidan siempre (ETag/304).
+    """Cachea los assets del ERP y de la Carta de forma segura.
 
-    Así las URLs de los archivos son estables (nunca hay que versionarlas)
-    y el navegador nunca queda con una copia vieja del JS o del CSS.
+    JS/CSS/HTML mantienen URLs estables y se revalidan siempre (ETag/304), así
+    el navegador nunca queda con código viejo sin tocar ninguna URL. Las
+    imágenes y fuentes locales (que no cambian) se cachean 7 días para evitar
+    viajes innecesarios al servidor en cada carga del ERP.
     """
     response = await call_next(request)
     ruta = request.url.path
     if ruta.startswith("/Templates") or ruta.startswith("/carta"):
-        response.headers["Cache-Control"] = "no-cache"
+        if ruta.lower().endswith(EXTENSIONES_CACHE_LARGA):
+            response.headers["Cache-Control"] = "public, max-age=604800"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
     return response
 
 
@@ -262,6 +274,7 @@ async def startup_event():
         _migrate_mesas_apodo()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
+        _migrate_indices_rendimiento()
         _migrate_nombres_archivados()
         _fix_unidades_medida()
         _auto_seed_admin()
@@ -782,6 +795,45 @@ def _migrate_mesas_apodo():
     """Agrega la columna apodo a mesas si no existe (apodo temporal de cliente)."""
     _add_column_if_not_exists("mesas", "apodo",
         "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL")
+
+
+def _migrate_indices_rendimiento():
+    """Crea índices de rendimiento en columnas muy consultadas (idempotente).
+
+    Las consultas de caja, reportes y nómina filtran por estado, rango de
+    fechas y ``cierre_caja_id`` sobre MySQL remoto (cada consulta paga
+    latencia de red). Sin índices, la base recorre tablas completas a medida
+    que crece el histórico. Se crean solo los índices que faltan.
+    """
+    definiciones = (
+        ("ix_ordenes_estado_cierre", "ordenes", ("estado", "cierre_caja_id", "anulada")),
+        ("ix_ordenes_estado_fecha", "ordenes", ("estado", "fecha_creacion")),
+        ("ix_detalles_orden_producto", "detalles_orden", ("producto_id",)),
+        ("ix_gastos_cierre_eliminado", "gastos", ("cierre_caja_id", "eliminado")),
+        ("ix_gastos_fecha", "gastos", ("fecha",)),
+        ("ix_nominas_estado_fecha_pago", "nominas", ("estado", "fecha_pago")),
+        ("ix_asistencias_empleado_entrada", "asistencias", ("empleado_id", "hora_entrada_real")),
+        ("ix_cierres_caja_fecha", "cierres_caja", ("fecha_cierre",)),
+    )
+
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    for nombre, tabla, columnas in definiciones:
+        if not inspector.has_table(tabla):
+            continue
+        try:
+            existentes = {ix["name"] for ix in inspector.get_indexes(tabla)}
+            if nombre in existentes:
+                continue
+            cols = ", ".join(columnas)
+            with engine.begin() as connection:
+                connection.execute(
+                    text(f"CREATE INDEX {nombre} ON {tabla} ({cols})")
+                )
+            logger.info("Índice de rendimiento creado: %s (%s)", nombre, tabla)
+        except Exception as exc:
+            logger.warning("No se pudo crear el índice %s: %s", nombre, exc)
 
 
 def _migrate_nombres_archivados():
