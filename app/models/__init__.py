@@ -15,6 +15,7 @@ from app.models.backup import BackupSistema
 from app.models.configuracion import ConfiguracionSistema
 from app.models.descuento import DescuentoFrecuente, TipoDescuento
 from app.models.push import PushSuscripcion
+from app.models.novedad import NovedadSistema
 from app.models.estudio_mercado import (
     DocumentoEstudio,
     EstadoEstudio,
@@ -67,6 +68,7 @@ __all__ = [
     "DescuentoFrecuente",
     "TipoDescuento",
     "PushSuscripcion",
+    "NovedadSistema",
     "EstudioMercado",
     "PeriodoEstudio",
     "TipoEstudio",

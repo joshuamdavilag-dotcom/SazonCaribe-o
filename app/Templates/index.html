@@ -108,6 +108,9 @@
           <p id="notifications-summary">Alertas y actividad del turno</p>
         </div>
         <div class="notifications-header-actions">
+          <button id="notifications-novedades" class="notifications-icon-button" type="button" aria-label="Ver novedades del sistema" title="Novedades">
+            <span class="material-symbols-outlined" aria-hidden="true">new_releases</span>
+          </button>
           <button id="notifications-refresh" class="notifications-icon-button" type="button" aria-label="Actualizar notificaciones" title="Actualizar">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
           </button>
@@ -116,7 +119,14 @@
           </button>
         </div>
       </header>
-      <div class="notifications-push" id="notifications-push">
+      <button id="notifications-push-toggle" class="notifications-push-toggle" type="button"
+              aria-expanded="false" aria-controls="notifications-push">
+        <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+        <span class="notifications-push-toggle-texto">Ajustes de avisos</span>
+        <span id="notifications-push-resumen" class="notifications-push-toggle-estado">Inactivos</span>
+        <span class="material-symbols-outlined notifications-push-chevron" aria-hidden="true">expand_more</span>
+      </button>
+      <div class="notifications-push" id="notifications-push" hidden>
         <button id="btn-push-notificaciones" class="notifications-push-button" type="button"
                 data-push-toggle aria-pressed="false">
           <span class="material-symbols-outlined" aria-hidden="true">notifications_active</span>
@@ -154,7 +164,10 @@
         <p id="notifications-push-estado" class="notifications-push-estado">Activa los avisos para recibirlos aunque la app esté cerrada y aunque no tengas turno abierto.</p>
       </div>
       <div id="notifications-list" class="notifications-list" aria-live="polite" aria-busy="false"></div>
-      <footer class="notifications-footer">Se actualiza al abrir este panel</footer>
+      <footer class="notifications-footer">
+        <span>Se actualiza al abrir este panel</span>
+        <button id="notifications-clear" class="notifications-clear" type="button">Limpiar vistas</button>
+      </footer>
     </section>
     <!-- SIDEBAR -->
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú">☰</button>
@@ -221,7 +234,6 @@
       <div id="attendance-panel" class="attendance-panel bg-white/5 rounded-xl p-3 mx-3 mb-2 flex flex-col gap-2" style="display:none;">
         <div class="flex items-center justify-between text-[11px] text-white/60">
           <span>Turno Actual</span>
-          <span id="attendance-clock" class="font-mono">--:--</span>
         </div>
         <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #0F3B66 var(--mix-ink-pct), var(--mix-ink-base));">
           <option value="">Seleccionar turno…</option>
@@ -361,12 +373,6 @@
               <span class="material-symbols-outlined text-[16px] text-slate-400">grid_view</span>
               <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Distribución en Planta</h2>
             </div>
-            <div class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
-              <span class="material-symbols-outlined text-[14px]">schedule</span>
-              <span id="salon-clock">--:-- --</span>
-              <span class="text-slate-300">·</span>
-              <span id="salon-date">---</span>
-            </div>
           </div>
 
           <!-- Grid principal renderizado por renderTables() -->
@@ -412,10 +418,6 @@
               <p class="text-[13px] text-slate-500 mt-1">Monitoreo de comandas en tiempo real</p>
             </div>
             <div class="shrink-0 flex items-center gap-2.5">
-              <div class="text-right">
-                <p id="comandero-clock" class="font-display font-extrabold text-xl text-brand-navy leading-none">--:-- --</p>
-                <p id="comandero-date" class="text-[11px] font-semibold text-slate-400 mt-0.5">---</p>
-              </div>
               <button id="btn-refresh-cocina" type="button" aria-label="Actualizar comandas"
                       class="grid place-items-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-90 transition">
                 <span class="material-symbols-outlined text-[19px]">refresh</span>
@@ -2141,6 +2143,20 @@
           <button type="button" class="btn btn-secondary" id="cancel-avisos-usuario" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="confirm-avisos-usuario" style="flex:1;">Guardar Avisos</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Novedades del sistema -->
+  <div id="modal-novedades" class="modal-overlay" aria-label="Novedades del sistema">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✨ Novedades del sistema</h3>
+        <button class="modal-close" id="close-novedades" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="novedades-list" class="novedades-lista"></div>
+      <div class="form-actions" style="padding:0 20px 20px;">
+        <button type="button" class="btn btn-primary" id="novedades-entendido" style="flex:1;">Entendido</button>
       </div>
     </div>
   </div>

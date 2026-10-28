@@ -43,6 +43,7 @@ from app.api.endpoints.cameras import router as cameras_router
 from app.api.auditoria import router as auditoria_router
 from app.api.endpoints.backups import router as backups_router
 from app.api.endpoints.push import router as push_router
+from app.api.endpoints.novedades import router as novedades_router
 from app.api.endpoints.estudio_mercado import router as estudio_mercado_router
 
 
@@ -198,6 +199,12 @@ app.include_router(
 )
 
 app.include_router(
+    novedades_router,
+    prefix="/api/v1/novedades",
+    tags=["Novedades"]
+)
+
+app.include_router(
     estudio_mercado_router,
     prefix="/api/v1/estudio-mercado",
     tags=["Estudio de Mercado"]
@@ -277,6 +284,7 @@ async def startup_event():
         _migrate_indices_rendimiento()
         _migrate_nombres_archivados()
         _fix_unidades_medida()
+        _sembrar_novedades()
         _auto_seed_admin()
         _fix_joshi_password()
         _seed_harca27_admin()
@@ -293,6 +301,7 @@ async def startup_event():
     asyncio.create_task(_camera_clip_retention_watcher())
     asyncio.create_task(_estudio_mercado_watcher())
     asyncio.create_task(_cierre_caja_watcher())
+    asyncio.create_task(_novedades_watcher())
 
 
 def _is_sqlite() -> bool:
@@ -1402,6 +1411,41 @@ async def _cierre_caja_watcher():
         except Exception:
             logger.exception("Falló el cierre automático de caja")
         await asyncio.sleep(60)
+
+
+def _sembrar_novedades() -> None:
+    """Registra en la BD las novedades declaradas en el código que falten."""
+    from app.core.database import SessionLocal
+    from app.services.novedad_service import NovedadService
+
+    with SessionLocal() as db:
+        nuevas = NovedadService(db).sembrar()
+        if nuevas:
+            logger.info("Novedades del sistema sembradas: %s nueva(s)", nuevas)
+
+
+def _ejecutar_aviso_novedades() -> None:
+    """Envía por push las novedades que todavía no se avisaron."""
+    from app.core.database import SessionLocal
+    from app.services.novedad_service import NovedadService
+
+    with SessionLocal() as db:
+        enviados = NovedadService(db).notificar_pendientes()
+        if enviados:
+            logger.info("Avisos de novedades enviados: %s dispositivo(s)", enviados)
+
+
+async def _novedades_watcher():
+    """Tarea en segundo plano: avisa las novedades nuevas una sola vez."""
+    while True:
+        try:
+            await asyncio.to_thread(_sembrar_novedades)
+            await asyncio.to_thread(_ejecutar_aviso_novedades)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Falló el envío de novedades del sistema")
+        await asyncio.sleep(3600)
 
 
 @app.get(

@@ -454,6 +454,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | POST   | /api/v1/push/unsubscribe                    | Yes      | Any                |
 | GET    | /api/v1/push/subscriptions                  | Yes      | Any                |
 | DELETE | /api/v1/push/subscriptions/{id}             | Yes      | Any (propia)       |
+| GET    | /api/v1/novedades/                          | Yes      | Any                |
 | GET    | /api/v1/descuentos/                         | Yes      | Any                |
 | POST   | /api/v1/descuentos/                         | Yes      | Admin, Gerente     |
 | PUT    | /api/v1/descuentos/{id}                     | Yes      | Admin, Gerente     |
@@ -688,6 +689,21 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - **Frontend**: `activarNotificacionesPush()` / `desactivarNotificacionesPush()` / `sincronizarEstadoPush()` / `pintarEstadoPush()` / `alternarNotificacionesPush()` en `app/Templates/js/app.js`. Botones con atributo `data-push-toggle` (panel de notificaciones `#notifications-push` + topbar de escritorio `#desktop-push-toggle`). Las casillas de tipo de aviso llaman `alternarPreferenciaPush(campo, valor)` (actualización optimista con rollback si falla el PATCH) y `pintarEstadoPush()` resume en `#notifications-push-estado` qué recibirá el usuario.
 - **Endpoints** (`app/api/endpoints/push.py`, todos autenticados): `GET /push/config` (clave pública VAPID + `habilitado`), `POST /push/subscribe` (upsert por `endpoint`), `POST /push/unsubscribe`, `GET /push/subscriptions` (solo las del usuario), `DELETE /push/subscriptions/{id}` (solo propias → 404 ajenas).
 - **Requisito de plataforma**: el service worker exige contexto seguro → en producción HTTPS (o `localhost` en desarrollo).
+
+### Panel de notificaciones (orden, descartes y ajustes plegables)
+- **Un solo reloj por viewport y pantalla**: el reloj global vive en el topbar de escritorio (`#desktop-clock` / `#desktop-date`) y cada pantalla conserva solo su píldora móvil (`*-clock-m`). Se eliminaron `#salon-clock`/`#salon-date` ("Distribución en Planta"), el bloque grande del KDS (`#comandero-clock`/`#comandero-date`) y `#attendance-clock` del sidebar. `updateClock()` actualiza únicamente los ids vigentes; **no re-agregar relojes duplicados**.
+- **Ajustes de avisos plegables**: el bloque `#notifications-push` está oculto por defecto y se abre con `#notifications-push-toggle` (`.notifications-push-toggle`, con chevron y resumen `#notifications-push-resumen` = "Inactivos"/"N tipos"). El estado se guarda en `localStorage` (`pos_notif_ajustes_abiertos`) y el resumen se repinta en `pintarEstadoPush()`. Regla CSS obligatoria: `.notifications-push[hidden] { display: none; }` (el `display: grid` de la clase anula el `hidden` del navegador).
+- **Descartar avisos**: cada entrada lleva una ✕ (`.notification-entry-dismiss` con `data-notification-dismiss`) y el pie tiene `#notifications-clear` ("Limpiar vistas" / "Restablecer descartadas"). Las entradas ahora son `<div role="button" tabindex="0">` (no `<button>`) para permitir el botón anidado; el teclado (Enter/Espacio) navega al destino. Las claves descartadas se guardan en `localStorage` (`pos_notificaciones_vistas`) con forma `orden:{estado}:{id}` / `stock:{id}:{cantidad}` (nunca texto de tiempo transcurrido, que cambia cada minuto) y caducan a las ~12 h (`NOTIF_VISTAS_MAX_EDAD_MS`). Si todas están descartadas, el botón del pie ofrece restablecerlas.
+- **Novedades del sistema**: ver sección siguiente.
+
+### Novedades del sistema (aviso de cada actualización)
+- **Fuente de verdad en código**: `app/core/novedades.py` (`NOVEDADES`). Cada publicación agrega una entrada **al inicio** con `version` único, `publicada_en` (ISO), `titulo`, `resumen` y `detalle` (lista de cambios, texto para el usuario final).
+- **Siembra idempotente**: `NovedadService.sembrar()` (en `app/services/novedad_service.py`) inserta en `novedades_sistema` las versiones que falten (único por `version`) y la llama el arranque (`_sembrar_novedades()` en `main.py`) + `_novedades_watcher()` cada hora.
+- **Difusión push única**: `NovedadService.notificar_pendientes()` envía por Web Push las novedades con `notificada=False` y las marca (`notificada`/`notificada_en`). Si hay varias pendientes (primer despliegue), envía **solo la más reciente** para no saturar. `PushService.notificar_novedad()` usa `usuarios_activos()` + `usuarios_reciben_avisos()` (respetan las reglas de entrega normales) y apunta a `?novedades=1`.
+- **API**: `GET /api/v1/novedades/?limite=30` (cualquier usuario autenticado) → `{novedades, ultima_version}`.
+- **UI**: botón `#notifications-novedades` en el header del panel (punto rojo `novedad-pendiente` si hay versión nueva), modal `#modal-novedades` (`abrirNovedades()`, `cerrarNovedades()`, `renderNovedades()`); `localStorage` guarda la última versión vista (`pos_novedades_vistas`) y `verificarNovedadesAlEntrar()` abre el modal una vez por versión al iniciar sesión. Deep link `?novedades=1` (también desde `sw.js` → `postMessage({... novedades})`).
+- **Tests**: `tests/test_novedades.py` (siembra idempotente, orden, difusión única, sin pendientes).
+
 
 ### Cocinero/Chef (puesto de cocina)
 - El **cocinero se identifica por su Puesto** (`Puesto.nombre` que contenga "cocin" o "chef", case-insensitive), no por rol — los roles siguen siendo Administrador/Gerente/Vendedor

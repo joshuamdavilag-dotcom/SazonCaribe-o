@@ -236,6 +236,19 @@ class PushService:
             ).scalars().all()
         )
 
+    def usuarios_activos(self) -> list[int]:
+        """Todos los usuarios con cuenta y empleado activos."""
+        return list(
+            self.db.execute(
+                select(Usuario.id)
+                .join(Empleado, Usuario.empleado_id == Empleado.id)
+                .where(
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                )
+            ).scalars().all()
+        )
+
     def usuarios_reciben_avisos(self, usuario_ids: Iterable[int]) -> list[int]:
         """Usuarios que pueden recibir los avisos push.
 
@@ -434,6 +447,22 @@ class PushService:
             url=url,
             tag=f"comanda-lista-{orden.id}",
             datos={"orden_id": orden.id, "tipo": "comanda_lista"},
+        )
+
+    def notificar_novedad(self, novedad) -> int:
+        """Avisa a todo el equipo que hay una actualización del sistema."""
+        destinatarios = self.usuarios_reciben_avisos(self.usuarios_activos())
+        if not destinatarios:
+            return 0
+
+        resumen = (novedad.resumen or novedad.titulo or "").strip()
+        return self.enviar(
+            usuario_ids=destinatarios,
+            titulo=f"Novedad {novedad.version} · {novedad.titulo}",
+            cuerpo=resumen[:200],
+            url=f"{RUTA_APP}?novedades=1",
+            tag=f"novedad-{novedad.version}",
+            datos={"novedad_version": novedad.version, "tipo": "novedad"},
         )
 
     def notificar_estudio_mercado(self, estudio) -> int:

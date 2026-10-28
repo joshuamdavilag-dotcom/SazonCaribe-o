@@ -92,6 +92,48 @@ function formatLocalTime(isoStr) {
 /* =========================================================================
    Operational notifications
    ========================================================================= */
+const NOTIF_VISTAS_KEY = 'pos_notificaciones_vistas';
+const NOTIF_VISTAS_MAX_EDAD_MS = 12 * 60 * 60 * 1000;
+let notificacionesVisibles = [];
+
+function leerNotificacionesVistas() {
+  try {
+    const guardadas = JSON.parse(localStorage.getItem(NOTIF_VISTAS_KEY) || '{}');
+    if (!guardadas || typeof guardadas !== 'object') return {};
+    const limite = Date.now() - NOTIF_VISTAS_MAX_EDAD_MS;
+    const vigentes = {};
+    Object.entries(guardadas).forEach(([clave, marca]) => {
+      if (Number(marca) >= limite) vigentes[clave] = Number(marca);
+    });
+    return vigentes;
+  } catch (error) {
+    return {};
+  }
+}
+
+function guardarNotificacionesVistas(vistas) {
+  try {
+    localStorage.setItem(NOTIF_VISTAS_KEY, JSON.stringify(vistas));
+  } catch (error) {
+    /* sin almacenamiento disponible: se comporta como si nada estuviera visto */
+  }
+}
+
+function descartarNotificacion(clave) {
+  if (!clave) return;
+  const vistas = leerNotificacionesVistas();
+  vistas[clave] = Date.now();
+  guardarNotificacionesVistas(vistas);
+}
+
+function limpiarNotificacionesVistas(notificaciones) {
+  const vistas = leerNotificacionesVistas();
+  notificaciones.forEach(item => {
+    if (item?.key) vistas[item.key] = Date.now();
+  });
+  guardarNotificacionesVistas(vistas);
+}
+
 function actualizarContadoresNotificaciones(count) {
   document.querySelectorAll('button[aria-label="Notificaciones"]').forEach(button => {
     let badge = button.querySelector('.notification-count');
@@ -113,11 +155,24 @@ function renderNotifications(notifications, errors = []) {
   const summary = document.getElementById('notifications-summary');
   if (!list || !summary) return;
 
-  const count = notifications.length;
+  const vistas = leerNotificacionesVistas();
+  const visibles = notifications.filter(item => !item.key || !vistas[item.key]);
+  notificacionesVisibles = visibles;
+  const count = visibles.length;
+  const ocultas = notifications.length - count;
   summary.textContent = count
-    ? `${count} aviso${count === 1 ? '' : 's'} para revisar`
-    : 'Todo tranquilo por ahora';
+    ? `${count} aviso${count === 1 ? '' : 's'} para revisar${ocultas ? ` · ${ocultas} descartado${ocultas === 1 ? '' : 's'}` : ''}`
+    : (ocultas ? 'Sin avisos nuevos · los anteriores están descartados' : 'Todo tranquilo por ahora');
   actualizarContadoresNotificaciones(count);
+
+  const limpiar = document.getElementById('notifications-clear');
+  if (limpiar) {
+    limpiar.disabled = !notifications.length;
+    limpiar.textContent = ocultas === notifications.length && notifications.length
+      ? 'Restablecer descartadas'
+      : 'Limpiar vistas';
+    limpiar.dataset.modo = ocultas === notifications.length && notifications.length ? 'restablecer' : 'limpiar';
+  }
 
   const errorMarkup = errors.map(error => `
     <div class="notification-entry notification-entry-error" role="status">
@@ -127,22 +182,28 @@ function renderNotifications(notifications, errors = []) {
         <span>${escHtml(error.message)}</span>
       </span>
     </div>`).join('');
-  const noticesMarkup = notifications.map(item => `
-    <button class="notification-entry ${item.urgent ? 'notification-entry-urgent' : ''}" type="button"
-            data-notification-screen="${item.screen}">
+  const noticesMarkup = visibles.map(item => `
+    <div class="notification-entry ${item.urgent ? 'notification-entry-urgent' : ''}" role="button" tabindex="0"
+         data-notification-screen="${item.screen}" data-notification-key="${escHtml(item.key || '')}"
+         aria-label="${escHtml(item.title)}">
       <span class="notification-entry-icon material-symbols-outlined" aria-hidden="true">${item.icon}</span>
       <span class="notification-entry-copy">
         <strong>${escHtml(item.title)}</strong>
         <span>${escHtml(item.description)}</span>
       </span>
       <span class="material-symbols-outlined notification-entry-arrow" aria-hidden="true">chevron_right</span>
-    </button>`).join('');
+      <button class="notification-entry-dismiss" type="button"
+              data-notification-dismiss="${escHtml(item.key || '')}"
+              aria-label="Descartar aviso" title="Descartar">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>`).join('');
 
   list.innerHTML = errorMarkup + (noticesMarkup || (!errors.length
     ? `<div class="notifications-empty">
          <span class="material-symbols-outlined" aria-hidden="true">task_alt</span>
          <strong>Todo en orden</strong>
-         <span>No hay comandas pendientes ni alertas de inventario.</span>
+         <span>${ocultas ? 'Descartaste los avisos anteriores. Vuelven a aparecer si la situación cambia.' : 'No hay comandas pendientes ni alertas de inventario.'}</span>
        </div>`
     : ''));
 }
@@ -192,6 +253,7 @@ async function cargarNotificaciones() {
         const minutes = getMinutosTranscurrido(order.fecha_creacion);
         notifications.push({
           screen: 'comandero',
+          key: `orden:${key}:${order.id}`,
           title: `${title} #${order.id} · ${mesa}`,
           description: `Hace ${getTiempoTranscurrido(order.fecha_creacion)} · ${order.detalles?.length || 0} artículo${order.detalles?.length === 1 ? '' : 's'}`,
           icon,
@@ -202,6 +264,7 @@ async function cargarNotificaciones() {
   (data.stock || []).forEach(item => {
     notifications.push({
       screen: 'inventory',
+      key: `stock:${item.id}:${item.cantidad_actual}`,
       title: `Stock bajo: ${item.nombre}`,
       description: `${item.cantidad_actual} ${item.unidad_medida} · mínimo ${item.stock_minimo}`,
       icon: 'inventory_2',
@@ -242,6 +305,137 @@ function alternarNotificaciones() {
   pintarEstadoPush();
   void cargarNotificaciones();
   document.getElementById('notifications-close')?.focus();
+}
+
+/* --- Ajustes de avisos: sección plegable ------------------------------- */
+const NOTIF_AJUSTES_KEY = 'pos_notif_ajustes_abiertos';
+
+function aplicarAjustesNotificaciones(abierto) {
+  const bloque = document.getElementById('notifications-push');
+  const boton = document.getElementById('notifications-push-toggle');
+  if (!bloque || !boton) return;
+  bloque.hidden = !abierto;
+  boton.setAttribute('aria-expanded', String(abierto));
+  boton.classList.toggle('abierto', abierto);
+}
+
+function alternarAjustesNotificaciones() {
+  const bloque = document.getElementById('notifications-push');
+  if (!bloque) return;
+  const abierto = bloque.hidden;
+  aplicarAjustesNotificaciones(abierto);
+  try {
+    localStorage.setItem(NOTIF_AJUSTES_KEY, abierto ? '1' : '0');
+  } catch (error) {
+    /* sin almacenamiento: el estado solo dura la sesión */
+  }
+}
+
+/* --- Novedades del sistema --------------------------------------------- */
+const NOVEDADES_VISTAS_KEY = 'pos_novedades_vistas';
+let novedadesCache = [];
+
+function ultimaNovedadVista() {
+  try {
+    return localStorage.getItem(NOVEDADES_VISTAS_KEY) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function marcarNovedadesVistas(version) {
+  if (!version) return;
+  try {
+    localStorage.setItem(NOVEDADES_VISTAS_KEY, version);
+  } catch (error) {
+    /* sin almacenamiento disponible */
+  }
+}
+
+function hayNovedadSinVer(ultimaVersion) {
+  return Boolean(ultimaVersion) && ultimaVersion !== ultimaNovedadVista();
+}
+
+function pintarPuntoNovedades(hayNueva) {
+  const boton = document.getElementById('notifications-novedades');
+  if (boton) boton.classList.toggle('novedad-pendiente', Boolean(hayNueva));
+}
+
+function renderNovedades(novedades, ultimaVersion) {
+  const contenedor = document.getElementById('novedades-list');
+  if (!contenedor) return;
+  const vistas = ultimaNovedadVista();
+  if (!novedades.length) {
+    contenedor.innerHTML = `
+      <p class="novedades-vacio">Todavía no hay novedades publicadas.</p>`;
+    return;
+  }
+  contenedor.innerHTML = novedades.map(item => {
+    const esNueva = Boolean(vistas) && item.version === ultimaVersion;
+    const fecha = item.publicada_en
+      ? new Date(item.publicada_en.replace(' ', 'T')).toLocaleDateString('es-NI', { day: 'numeric', month: 'long' })
+      : '';
+    const detalle = (item.detalle || []).map(linea => `<li>${escHtml(linea)}</li>`).join('');
+    return `
+      <article class="novedad-item ${esNueva ? 'novedad-item-nueva' : ''}">
+        <div class="novedad-item-cabecera">
+          <strong>${escHtml(item.titulo)}</strong>
+          ${esNueva ? '<span class="novedad-chip">Nueva</span>' : ''}
+        </div>
+        <p class="novedad-item-resumen">${escHtml(item.resumen)}</p>
+        ${detalle ? `<ul class="novedad-item-detalle">${detalle}</ul>` : ''}
+        <span class="novedad-item-fecha">Versión ${escHtml(item.version)}${fecha ? ` · ${escHtml(fecha)}` : ''}</span>
+      </article>`;
+  }).join('');
+}
+
+async function cargarNovedades({ silencioso = true, abrir = false } = {}) {
+  try {
+    const datos = await api('/novedades/', { silent: silencioso });
+    novedadesCache = Array.isArray(datos?.novedades) ? datos.novedades : [];
+    const ultima = datos?.ultima_version || '';
+    pintarPuntoNovedades(hayNovedadSinVer(ultima));
+    if (abrir) {
+      renderNovedades(novedadesCache, ultima);
+      marcarNovedadesVistas(ultima);
+      pintarPuntoNovedades(false);
+    }
+    return { novedades: novedadesCache, ultima };
+  } catch (error) {
+    return { novedades: [], ultima: '' };
+  }
+}
+
+async function abrirNovedades({ auto = false } = {}) {
+  const modal = document.getElementById('modal-novedades');
+  if (!modal) return;
+  modal.classList.add('show');
+  const lista = document.getElementById('novedades-list');
+  if (lista && !novedadesCache.length) {
+    lista.innerHTML = `<p class="novedades-vacio">Cargando novedades…</p>`;
+    await cargarNovedades({ silencioso: true });
+  }
+  const ultima = novedadesCache[0]?.version || '';
+  renderNovedades(novedadesCache, ultima);
+  marcarNovedadesVistas(ultima);
+  pintarPuntoNovedades(false);
+  if (!auto) document.getElementById('novedades-entendido')?.focus();
+}
+
+function cerrarNovedades() {
+  document.getElementById('modal-novedades')?.classList.remove('show');
+}
+
+function verificarNovedadesAlEntrar() {
+  void cargarNovedades({ silencioso: true }).then(({ novedades, ultima }) => {
+    if (!novedades.length) return;
+    if (hayNovedadSinVer(ultima)) {
+      renderNovedades(novedades, ultima);
+      marcarNovedadesVistas(ultima);
+      pintarPuntoNovedades(false);
+      document.getElementById('modal-novedades')?.classList.add('show');
+    }
+  });
 }
 
 /* =========================================================================
@@ -312,6 +506,15 @@ function pintarEstadoPush() {
   const botones = document.querySelectorAll('[data-push-toggle]');
   const estado = document.getElementById('notifications-push-estado');
   const activo = Boolean(pushEstado.suscripcion);
+
+  const resumen = document.getElementById('notifications-push-resumen');
+  if (resumen) {
+    const tipos = resumenAvisosPush().length;
+    resumen.textContent = !activo
+      ? 'Inactivos'
+      : (tipos ? `${tipos} tipo${tipos === 1 ? '' : 's'}` : 'Sin tipos');
+    resumen.classList.toggle('push-activo', activo && tipos > 0);
+  }
 
   botones.forEach(boton => {
     boton.classList.toggle('push-activo', activo);
@@ -556,9 +759,10 @@ const DESTINO_URL = (() => {
       pantalla: params.get('pantalla'),
       mesa: params.get('mesa'),
       estudio: params.get('estudio'),
+      novedades: params.get('novedades'),
     };
   } catch (error) {
-    return { pantalla: null, mesa: null, estudio: null };
+    return { pantalla: null, mesa: null, estudio: null, novedades: null };
   }
 })();
 
@@ -569,6 +773,7 @@ function limpiarUrlDestino() {
     url.searchParams.delete('pantalla');
     url.searchParams.delete('mesa');
     url.searchParams.delete('estudio');
+    url.searchParams.delete('novedades');
     window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
   } catch (error) {
     /* si el navegador no deja limpiar la URL, el destino sigue funcionando */
@@ -577,13 +782,18 @@ function limpiarUrlDestino() {
 
 limpiarUrlDestino();
 
-async function aplicarDestino(pantalla, mesa, estudio) {
+async function aplicarDestino(pantalla, mesa, estudio, novedades) {
   const estudioId = parseInt(estudio, 10);
   state.pendingEstudioId = Number.isFinite(estudioId) ? estudioId : null;
   const destino = (pantalla && document.getElementById(`screen-${pantalla}`))
     ? pantalla
     : (esUsuarioCocina() ? 'comandero' : 'salon');
   navigateTo(destino);
+
+  if (novedades === '1') {
+    await abrirNovedades({ auto: true });
+    return;
+  }
 
   if (!mesa) return;
   const mesaId = parseInt(mesa, 10);
@@ -594,14 +804,14 @@ async function aplicarDestino(pantalla, mesa, estudio) {
 }
 
 function aplicarDestinoSolicitado() {
-  return aplicarDestino(DESTINO_URL.pantalla, DESTINO_URL.mesa, DESTINO_URL.estudio);
+  return aplicarDestino(DESTINO_URL.pantalla, DESTINO_URL.mesa, DESTINO_URL.estudio, DESTINO_URL.novedades);
 }
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (evento) => {
     const datos = evento.data || {};
     if (datos.tipo !== 'destino') return;
-    void aplicarDestino(datos.pantalla, datos.mesa, datos.estudio);
+    void aplicarDestino(datos.pantalla, datos.mesa, datos.estudio, datos.novedades);
   });
 }
 
@@ -1988,6 +2198,7 @@ function iniciarIntervalosSesion() {
   }, 15_000);
   actualizarBotonAvisosTurno();
   syncAsistenciaActiva();
+  verificarNovedadesAlEntrar();
 }
 
 /* =========================================================================
@@ -8138,36 +8349,22 @@ function updateClock() {
   const now = new Date();
   const time = now.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
   const dateStr = now.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' });
-  const el1 = document.getElementById('comandero-clock');
-  const el2 = document.getElementById('salon-clock');
-  const el3 = document.getElementById('salon-clock-m');
-  const el4 = document.getElementById('salon-date');
-  const el5 = document.getElementById('attendance-clock');
-  const el6 = document.getElementById('kds-clock-m');
-  const el7 = document.getElementById('comandero-date');
-  const el8 = document.getElementById('carta-clock-m');
-  const el9 = document.getElementById('menu-mgmt-clock-m');
-  const el10 = document.getElementById('inventory-clock-m');
-  const el11 = document.getElementById('personal-clock-m');
-  const el12 = document.getElementById('cuenta-clock-m');
-  const el13 = document.getElementById('gastos-clock-m');
-  const el14 = document.getElementById('desktop-clock');
-  const el15 = document.getElementById('desktop-date');
-  if (el1) el1.textContent = time;
-  if (el2) el2.textContent = time;
-  if (el3) el3.textContent = time;
-  if (el4) el4.textContent = dateStr;
-  if (el5) el5.textContent = time;
-  if (el6) el6.textContent = time;
-  if (el7) el7.textContent = dateStr;
-  if (el8) el8.textContent = time;
-  if (el9) el9.textContent = time;
-  if (el10) el10.textContent = time;
-  if (el11) el11.textContent = time;
-  if (el12) el12.textContent = time;
-  if (el13) el13.textContent = time;
-  if (el14) el14.textContent = time;
-  if (el15) el15.textContent = dateStr;
+  [
+    'salon-clock-m',
+    'kds-clock-m',
+    'carta-clock-m',
+    'menu-mgmt-clock-m',
+    'inventory-clock-m',
+    'personal-clock-m',
+    'cuenta-clock-m',
+    'gastos-clock-m',
+    'desktop-clock',
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = time;
+  });
+  const fecha = document.getElementById('desktop-date');
+  if (fecha) fecha.textContent = dateStr;
 }
 
 /* =========================================================================
@@ -8755,6 +8952,29 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => document.getElementById('menu-search')?.focus(), 0);
   });
   document.getElementById('notifications-close')?.addEventListener('click', () => cerrarNotificaciones({ devolverFoco: true }));
+  document.getElementById('notifications-push-toggle')?.addEventListener('click', alternarAjustesNotificaciones);
+  try {
+    aplicarAjustesNotificaciones(localStorage.getItem(NOTIF_AJUSTES_KEY) === '1');
+  } catch (error) {
+    aplicarAjustesNotificaciones(false);
+  }
+  document.getElementById('notifications-novedades')?.addEventListener('click', () => {
+    void abrirNovedades();
+  });
+  document.getElementById('close-novedades')?.addEventListener('click', cerrarNovedades);
+  document.getElementById('novedades-entendido')?.addEventListener('click', cerrarNovedades);
+  document.getElementById('modal-novedades')?.addEventListener('click', event => {
+    if (event.target === event.currentTarget) cerrarNovedades();
+  });
+  document.getElementById('notifications-clear')?.addEventListener('click', () => {
+    const boton = document.getElementById('notifications-clear');
+    if (boton?.dataset.modo === 'restablecer') {
+      guardarNotificacionesVistas({});
+    } else {
+      limpiarNotificacionesVistas(notificacionesVisibles);
+    }
+    void cargarNotificaciones();
+  });
   document.querySelectorAll('[data-push-toggle]').forEach(boton => {
     boton.addEventListener('click', event => {
       event.preventDefault();
@@ -8783,8 +9003,26 @@ document.addEventListener('DOMContentLoaded', () => {
     void cargarNotificaciones();
   });
   document.getElementById('notifications-panel')?.addEventListener('click', event => {
-    const target = event.target instanceof Element ? event.target.closest('[data-notification-screen]') : null;
+    if (!(event.target instanceof Element)) return;
+    const descartar = event.target.closest('[data-notification-dismiss]');
+    if (descartar) {
+      event.stopPropagation();
+      descartarNotificacion(descartar.dataset.notificationDismiss);
+      void cargarNotificaciones();
+      return;
+    }
+    const target = event.target.closest('[data-notification-screen]');
     if (!target) return;
+    cerrarNotificaciones();
+    navigateTo(target.dataset.notificationScreen);
+  });
+  document.getElementById('notifications-panel')?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target instanceof Element
+      ? event.target.closest('.notification-entry[data-notification-screen]')
+      : null;
+    if (!target || event.target.closest('[data-notification-dismiss]')) return;
+    event.preventDefault();
     cerrarNotificaciones();
     navigateTo(target.dataset.notificationScreen);
   });
@@ -8797,7 +9035,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') cerrarNotificaciones({ devolverFoco: true });
+    if (event.key === 'Escape') {
+      if (document.getElementById('modal-novedades')?.classList.contains('show')) {
+        cerrarNovedades();
+        return;
+      }
+      cerrarNotificaciones({ devolverFoco: true });
+    }
   });
 
   // Login
