@@ -45,6 +45,7 @@ from app.api.endpoints.backups import router as backups_router
 from app.api.endpoints.push import router as push_router
 from app.api.endpoints.novedades import router as novedades_router
 from app.api.endpoints.estudio_mercado import router as estudio_mercado_router
+from app.api.endpoints.correos import router as correos_router
 
 
 settings = get_settings()
@@ -211,6 +212,12 @@ app.include_router(
 )
 
 app.include_router(
+    correos_router,
+    prefix="/api/v1/correos",
+    tags=["Correos"]
+)
+
+app.include_router(
     menu_publico_router,
     prefix="/api/public",
     tags=["Carta Pública (Menú Digital)"]
@@ -286,6 +293,7 @@ async def startup_event():
         _migrate_nombres_archivados()
         _fix_unidades_medida()
         _sembrar_novedades()
+        _sembrar_configuracion_correos()
         _auto_seed_admin()
         _fix_joshi_password()
         _seed_harca27_admin()
@@ -303,6 +311,7 @@ async def startup_event():
     asyncio.create_task(_estudio_mercado_watcher())
     asyncio.create_task(_cierre_caja_watcher())
     asyncio.create_task(_novedades_watcher())
+    asyncio.create_task(_correos_watcher())
 
 
 def _is_sqlite() -> bool:
@@ -1336,15 +1345,27 @@ def _generar_estudio_automatico() -> None:
     with SessionLocal() as db:
         servicio = EstudioMercadoService(db)
         estudio = servicio.generar_automatico()
-        if estudio is None or estudio.notificado:
+        if estudio is None:
             return
         push = PushService(db)
         if estudio.estado == EstadoEstudio.COMPLETADO:
-            push.notificar_estudio_mercado(estudio)
+            if not estudio.notificado:
+                push.notificar_estudio_mercado(estudio)
+                estudio.notificado = True
+                db.commit()
+            from app.services.correo_service import encolar_evento_seguro
+
+            encolar_evento_seguro(
+                "estudio_mercado",
+                referencia_id=estudio.id,
+                desde=estudio.desde,
+                hasta=estudio.hasta,
+            )
         else:
-            push.notificar_estudio_mercado_error(estudio)
-        estudio.notificado = True
-        db.commit()
+            if not estudio.notificado:
+                push.notificar_estudio_mercado_error(estudio)
+                estudio.notificado = True
+                db.commit()
 
 
 async def _estudio_mercado_watcher():
@@ -1458,6 +1479,44 @@ async def _novedades_watcher():
         except Exception:
             logger.exception("Falló el envío de novedades del sistema")
         await asyncio.sleep(3600)
+
+
+def _sembrar_configuracion_correos() -> None:
+    """Crea la configuración de correos que falte (idempotente)."""
+    from app.core.database import SessionLocal
+    from app.services.correo_service import CorreoService
+
+    with SessionLocal() as db:
+        creadas = CorreoService(db).sembrar_configuracion()
+        if creadas:
+            logger.info("Configuración de correos sembrada: %s tipo(s)", creadas)
+
+
+def _procesar_correos() -> None:
+    """Envía la cola pendiente y evalúa los correos programados."""
+    from app.core.database import SessionLocal
+    from app.services.correo_service import CorreoService
+
+    with SessionLocal() as db:
+        servicio = CorreoService(db)
+        encolados = servicio.evaluar_programados()
+        enviados = servicio.procesar_pendientes()
+        if encolados or enviados:
+            logger.info(
+                "Correos: %s encolado(s), %s procesado(s)", encolados, enviados
+            )
+
+
+async def _correos_watcher():
+    """Tarea en segundo plano: cola de correos y envíos programados."""
+    while True:
+        try:
+            await asyncio.to_thread(_procesar_correos)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Falló el procesamiento de correos")
+        await asyncio.sleep(max(30, settings.CORREOS_INTERVALO_SEGUNDOS))
 
 
 @app.get(

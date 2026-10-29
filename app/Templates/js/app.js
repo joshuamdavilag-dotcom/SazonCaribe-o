@@ -74,6 +74,7 @@ const state = {
   auditPage: null,
   avisoCierreAutomatico: null,
   cierreAutomatico: null,
+  correos: { estado: null, destinatarios: [], tipos: [], historial: [], preview: null },
 };
 
 /* =========================================================================
@@ -1091,6 +1092,7 @@ function navigateTo(screenId) {
   if (screenId === 'calendario') loadCalendario();
   if (screenId === 'cameras') loadCameras();
   if (screenId === 'estudio-mercado') loadEstudioMercado();
+  if (screenId === 'correos') loadCorreos();
   if (screenId === 'backups') loadBackups();
 }
 
@@ -1662,6 +1664,7 @@ const PERMISOS_PANTALLA = {
   gastos: ['gastos_gestionar', 'reportes_ver', 'estudio_mercado'],
   backups: ['backups_gestionar'],
   'estudio-mercado': ['estudio_mercado'],
+  correos: ['correos_gestionar'],
   descuentos: ['descuentos_gestionar'],
   auditoria: ['auditoria_ver'],
 };
@@ -1691,7 +1694,8 @@ function applyRoleRestrictions() {
 
   const tieneAlgunAdmin = ['menu_gestionar', 'inventario_gestionar', 'personal_gestionar',
     'gastos_gestionar', 'reportes_ver', 'backups_gestionar', 'estudio_mercado',
-    'caja_cerrar', 'auditoria_ver', 'nomina_gestionar', 'permisos_gestionar'].some(tienePermiso);
+    'caja_cerrar', 'auditoria_ver', 'nomina_gestionar', 'permisos_gestionar',
+    'correos_gestionar'].some(tienePermiso);
   document.body.classList.toggle('permisos-gestor', tieneAlgunAdmin);
   document.body.classList.toggle('permiso-caja-cerrar', tienePermiso('caja_cerrar'));
   document.body.classList.toggle('permiso-auditoria', tienePermiso('auditoria_ver'));

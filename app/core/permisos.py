@@ -166,6 +166,14 @@ PERMISOS: list[dict[str, Any]] = [
         "critico": True,
     },
     {
+        "clave": "correos_gestionar",
+        "nombre": "Gestionar correos",
+        "descripcion": "Destinatarios, tipos de correo y envío de informes.",
+        "grupo": "Administración",
+        "roles": [ADMINISTRADOR, GERENTE],
+        "critico": True,
+    },
+    {
         "clave": "estudio_mercado",
         "nombre": "Estudio de mercado",
         "descripcion": "Generar informes con IA, adjuntar documentos y usar el asesor.",

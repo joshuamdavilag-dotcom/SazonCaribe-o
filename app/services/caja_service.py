@@ -99,6 +99,7 @@ class CajaService:
 
             self.db.commit()
             self.db.refresh(cierre)
+            self._encolar_correo_cierre(cierre)
             return CierreCajaResponse.model_validate(cierre)
 
         except Exception as exc:
@@ -251,12 +252,27 @@ class CajaService:
             )
             self.db.commit()
             self.db.refresh(cierre)
+            self._encolar_correo_cierre(cierre)
             return CierreCajaResponse.model_validate(cierre)
 
         except Exception as exc:
             self.db.rollback()
             print(f"[X] Error en cerrar_caja_automatica: {exc}")
             raise
+
+    def _encolar_correo_cierre(self, cierre) -> None:
+        """Encola el resumen del día si el correo de cierre está activo."""
+        try:
+            from app.core.config import get_settings
+            from app.services.correo_service import CorreoService
+
+            servicio = CorreoService(self.db)
+            fecha = cierre.fecha_cierre or ahora_local()
+            dia = (fecha - timedelta(hours=get_settings().HORA_INICIO_DIA)).date()
+            servicio.encolar("cierre_caja", referencia_id=cierre.id, desde=dia, hasta=dia)
+        except Exception as exc:
+            self.db.rollback()
+            print(f"[CORREOS] No se pudo encolar el cierre #{getattr(cierre, 'id', '?')}: {exc}")
 
     def _actor(self, usuario_id: int, username: str, rol: str):
         """Construye un objeto mínimo compatible con ``AuditoriaService.registrar``."""

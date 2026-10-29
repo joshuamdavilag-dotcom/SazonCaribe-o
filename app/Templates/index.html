@@ -224,6 +224,10 @@
           <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
         </a>
+        <a class="nav-item nav-item-admin" data-screen="correos" data-roles="Administrador,Gerente" data-permiso="correos_gestionar">
+          <span class="material-symbols-outlined nav-icon text-[20px]">mail</span>
+          <span class="nav-label">Correos</span>
+        </a>
         <a class="nav-item nav-item-admin" data-screen="backups" data-roles="Administrador" data-permiso="backups_gestionar">
           <span class="material-symbols-outlined nav-icon text-[20px]">cloud_sync</span>
           <span class="nav-label">Copias de Seguridad</span>
@@ -1272,6 +1276,68 @@
             <div id="calendar-day-content"></div>
           </section>
           <p class="calendar-footnote">Las asistencias son registros reales y solo se muestran para consulta. Los eventos planificados no cambian automáticamente el menú ni el inventario.</p>
+        </div>
+      </section>
+
+      <section id="screen-correos" class="screen w-full max-w-full overflow-x-hidden" aria-label="Correos del sistema">
+        <header class="screen-header p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border-b border-slate-200">
+          <div class="min-w-0">
+            <span class="inline-flex max-w-full items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide sm:tracking-widest text-[#0F3B66] whitespace-nowrap">
+              <span class="sm:hidden">Administración · Comunicaciones</span>
+              <span class="hidden sm:inline">Módulo de Administración · Comunicaciones</span>
+            </span>
+            <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none mt-2">Correos del Sistema</h1>
+            <p class="text-sm text-slate-500 mt-1">Elige qué información comparte cada correo y quién lo recibe</p>
+          </div>
+          <button id="btn-correo-prueba" type="button" class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F7A6B] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-emerald-900/20">
+            <span class="material-symbols-outlined text-[18px]">send</span> Enviar prueba
+          </button>
+        </header>
+
+        <div class="screen-body px-4 pt-3 pb-24 lg:px-6 lg:pb-8 space-y-4 w-full min-w-0">
+          <div id="correos-estado" class="correo-banner correo-banner-info" role="status">
+            <span class="material-symbols-outlined">info</span>
+            <div><strong>Cargando estado…</strong><p>Revisando la configuración de Brevo.</p></div>
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 min-w-0">
+            <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="font-display text-lg font-extrabold text-brand-navy">Destinatarios</h2>
+                <span id="correos-dest-count" class="correo-chip">0</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Lista manual de correos que reciben los informes.</p>
+              <form id="correo-dest-form" class="mt-3 space-y-2" novalidate>
+                <input type="text" id="correo-dest-nombre" class="form-input" maxlength="120" placeholder="Nombre (ej: Dueño)" required>
+                <input type="email" id="correo-dest-email" class="form-input" maxlength="200" placeholder="correo@ejemplo.com" required>
+                <button type="submit" class="btn btn-primary w-full">Agregar destinatario</button>
+              </form>
+              <div id="correos-destinatarios" class="correo-dest-list mt-3">
+                <p class="text-xs text-slate-400">Cargando…</p>
+              </div>
+            </div>
+
+            <div class="xl:col-span-2 rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="font-display text-lg font-extrabold text-brand-navy">Tipos de correo</h2>
+                <span id="correos-tipos-count" class="correo-chip">0 activos</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Activa cada correo y marca las secciones que puede compartir.</p>
+              <div id="correos-tipos" class="correo-tipos mt-3">
+                <p class="text-xs text-slate-400">Cargando…</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="font-display text-lg font-extrabold text-brand-navy">Historial de envíos</h2>
+              <button id="btn-refresh-correos" type="button" class="correo-chip correo-chip-btn">Actualizar</button>
+            </div>
+            <div id="correos-historial" class="mt-3 overflow-x-auto">
+              <p class="text-xs text-slate-400">Cargando…</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2746,6 +2812,45 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-descuento-modal" style="flex:1;">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="save-descuento-btn" style="flex:1;">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Vista previa y envío de correo -->
+  <div id="modal-correo-preview" class="modal-overlay" aria-label="Vista previa del correo">
+    <div class="modal-sheet" style="max-width:780px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="correo-preview-title">✉️ Vista previa</h3>
+        <button class="modal-close" id="close-correo-preview" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-2" id="correo-preview-subtitle"></p>
+      <div class="correo-preview-wrap">
+        <iframe id="correo-preview-iframe" class="correo-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="cancel-correo-preview" style="flex:1;">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-correo-enviar" style="flex:1;">Enviar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Enviar correo de prueba -->
+  <div id="modal-correo-prueba" class="modal-overlay" aria-label="Enviar correo de prueba">
+    <div class="modal-sheet" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🧪 Enviar correo de prueba</h3>
+        <button class="modal-close" id="close-correo-prueba" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="correo-prueba-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="correo-prueba-email">Correo de destino</label>
+          <input type="email" id="correo-prueba-email" class="form-input" maxlength="200" placeholder="correo@ejemplo.com" required>
+        </div>
+        <p class="text-xs text-slate-500">Comprueba que Brevo y el remitente estén bien configurados. No incluye datos del negocio.</p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-correo-prueba" style="flex:1;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Enviar prueba</button>
         </div>
       </form>
     </div>

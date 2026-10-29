@@ -204,6 +204,34 @@ class Settings(BaseSettings):
         description="Cada cuántos segundos revisa el watcher si toca generar el estudio"
     )
 
+    # Correos transaccionales (Brevo). Sin BREVO_API_KEY o sin remitente
+    # verificado el módulo queda visible pero deshabilitado, nunca falla en
+    # silencio.
+    BREVO_API_KEY: str = Field(
+        default="",
+        description="API key de Brevo para enviar correos por HTTPS"
+    )
+    CORREO_REMITENTE: str = Field(
+        default="",
+        description="Correo remitente verificado en Brevo"
+    )
+    CORREO_REMITENTE_NOMBRE: str = Field(
+        default="Sazón Caribeño",
+        description="Nombre visible del remitente"
+    )
+    CORREO_TIMEOUT: int = Field(
+        default=20,
+        description="Segundos de espera al enviar un correo con Brevo"
+    )
+    CORREO_MAX_INTENTOS: int = Field(
+        default=3,
+        description="Intentos totales antes de marcar un envío como ERROR"
+    )
+    CORREOS_INTERVALO_SEGUNDOS: int = Field(
+        default=60,
+        description="Cada cuántos segundos revisa el watcher la cola y los programados"
+    )
+
     # Pagos en línea — permanece deshabilitado hasta registrar un adaptador real.
     PAYMENT_PROVIDER: str = Field(
         default="disabled",
