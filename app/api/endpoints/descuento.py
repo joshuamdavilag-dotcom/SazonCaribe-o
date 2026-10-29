@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import requerir_rol
+from app.api.deps import requerir_permiso, requerir_rol
 from app.core.database import get_db
 from app.schemas.descuento import (
     DescuentoFrecuenteCreate,
@@ -44,7 +44,7 @@ def listar_descuentos(
     summary="Crear descuento predeterminado",
     description="Crea un descuento reutilizable (porcentaje o monto fijo) para el catálogo.",
     tags=["Descuentos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("descuentos_gestionar"))],
 )
 def crear_descuento(
     data_in: DescuentoFrecuenteCreate,
@@ -60,7 +60,7 @@ def crear_descuento(
     summary="Actualizar descuento predeterminado",
     description="Actualiza nombre, tipo, valor o disponibilidad de un descuento del catálogo.",
     tags=["Descuentos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("descuentos_gestionar"))],
 )
 def actualizar_descuento(
     descuento_id: int,
@@ -77,7 +77,7 @@ def actualizar_descuento(
     summary="Eliminar descuento predeterminado",
     description="Elimina un descuento del catálogo.",
     tags=["Descuentos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("descuentos_gestionar"))],
 )
 def eliminar_descuento(
     descuento_id: int,

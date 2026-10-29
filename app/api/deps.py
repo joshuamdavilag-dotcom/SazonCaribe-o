@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.permisos import PERMISOS_POR_CLAVE, tiene_permiso
 from app.core.security import decodificar_access_token
 from app.models.personal import Usuario
 from app.repositories.usuario_repository import UsuarioRepository
@@ -106,3 +107,38 @@ def requerir_rol(roles_permitidos: List[RolEnum]):
         return current_user
 
     return _verificar_rol
+
+
+def requerir_permiso(clave: str):
+    """
+    Fábrica de dependencias que valida un permiso funcional del usuario.
+
+    Los permisos efectivos combinan el rol del usuario con los overrides
+    guardados en ``Usuario.permisos`` (ver ``app.core.permisos``). El
+    Administrador siempre conserva el catálogo completo.
+
+    Uso en endpoints:
+        @router.post("/items", dependencies=[Depends(requerir_permiso("menu_gestionar"))])
+
+    Args:
+        clave: Clave del permiso en el catálogo.
+
+    Returns:
+        Función dependiente que valida el permiso.
+    """
+    permiso = PERMISOS_POR_CLAVE.get(clave)
+    nombre = permiso["nombre"] if permiso else "esta función"
+
+    def _verificar_permiso(current_user: Usuario = Depends(get_current_user)):
+        """Valida que el usuario autenticado tenga el permiso requerido."""
+        if not tiene_permiso(current_user, clave):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"No tienes permiso para {nombre}. "
+                    "Solicítalo a la administración."
+                )
+            )
+        return current_user
+
+    return _verificar_permiso

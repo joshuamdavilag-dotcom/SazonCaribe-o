@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.permisos import permisos_efectivos
 from app.core.security import verificar_password, crear_access_token
 from app.models.personal import Usuario
 from app.repositories.usuario_repository import UsuarioRepository
@@ -92,7 +93,8 @@ def login(
         "sub": str(usuario.id),
         "username": usuario.username,
         "rol": usuario.rol,
-        "puesto": usuario.empleado.puesto.nombre if usuario.empleado and usuario.empleado.puesto else None
+        "puesto": usuario.empleado.puesto.nombre if usuario.empleado and usuario.empleado.puesto else None,
+        "permisos": permisos_efectivos(usuario),
     }
     token = crear_access_token(data=payload)
 
@@ -127,4 +129,5 @@ def obtener_usuario_actual(
         puesto=current_user.empleado.puesto.nombre if current_user.empleado and current_user.empleado.puesto else None,
         turno_habilitado=current_user.turno_habilitado,
         activo=current_user.activo,
+        permisos=permisos_efectivos(current_user),
     )

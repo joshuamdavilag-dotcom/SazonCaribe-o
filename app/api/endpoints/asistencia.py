@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso, requerir_rol
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.personal import Usuario
@@ -44,7 +44,7 @@ def get_asistencia_service(db: Session = Depends(get_db)) -> AsistenciaService:
     summary="Crear turno laboral",
     description="Registra un nuevo turno laboral en el sistema.",
     tags=["Turnos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("turnos_gestionar"))]
 )
 def crear_turno(
     turno_in: TurnoCreate,
@@ -84,7 +84,7 @@ def listar_turnos(
     summary="Actualizar turno",
     description="Actualiza nombre, horas o estado de un turno.",
     tags=["Turnos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("turnos_gestionar"))]
 )
 def actualizar_turno(
     turno_id: int = Path(..., gt=0, description="ID del turno"),
@@ -101,7 +101,7 @@ def actualizar_turno(
     summary="Eliminar turno",
     description="Elimina un turno que no tenga asistencias registradas.",
     tags=["Turnos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("turnos_gestionar"))]
 )
 def eliminar_turno(
     turno_id: int = Path(..., gt=0, description="ID del turno"),
@@ -312,7 +312,7 @@ def historial_empleado(
         "Solo Administradores y Gerentes pueden realizar esta operación."
     ),
     tags=["Asistencia"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("asistencia_admin"))]
 )
 def actualizar_horas_extras(
     asistencia_id: int,
@@ -348,7 +348,7 @@ def actualizar_horas_extras(
         "extras si se proporciona fecha/hora de salida."
     ),
     tags=["Asistencia"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("asistencia_admin"))]
 )
 def editar_horarios(
     asistencia_id: int = Path(..., gt=0, description="ID de la asistencia"),
@@ -372,7 +372,7 @@ def editar_horarios(
         "Solo Administradores y Gerentes pueden realizar esta operación."
     ),
     tags=["Asistencia"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("asistencia_admin"))]
 )
 def anular_asistencia(
     asistencia_id: int = Path(..., gt=0, description="ID de la asistencia a anular"),

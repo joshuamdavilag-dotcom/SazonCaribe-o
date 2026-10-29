@@ -16,7 +16,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.core.database import get_db
 from app.models.estudio_mercado import EstadoEstudio, TipoEstudio
 from app.models.personal import Usuario
@@ -35,7 +35,7 @@ from app.services.push_service import PushService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("estudio_mercado"))]
 )
 
 

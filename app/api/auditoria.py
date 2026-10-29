@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.permisos import tiene_permiso
 from app.models.personal import Usuario
 from app.schemas.auditoria import AuditoriaPageResponse
-from app.schemas.personal import RolEnum
 from app.services.auditoria_service import AuditoriaService
 
 router = APIRouter()
@@ -27,10 +27,10 @@ def listar_registros_auditoria(
     db: Session = Depends(get_db),
 ) -> AuditoriaPageResponse:
     """Lista la bitácora de auditoría paginada, solo para administradores y gerentes."""
-    if current_user.rol not in (RolEnum.ADMINISTRADOR.value, RolEnum.GERENTE.value):
+    if not tiene_permiso(current_user, "auditoria_ver"):
         raise HTTPException(
             status_code=403,
-            detail="Solo administradores y gerentes pueden consultar la bitácora",
+            detail="No tienes permiso para consultar la bitácora de auditoría",
         )
     if desde is not None and hasta is not None and desde > hasta:
         raise HTTPException(

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.caja import (
@@ -72,7 +72,7 @@ def ventas_dia(
         "PAGADA y gastos sin archivar. "
         "El siguiente ciclo de caja comienza en ceros."
     ),
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("caja_cerrar"))],
 )
 def cerrar_caja(
     current_user: Usuario = Depends(get_current_user),
@@ -112,7 +112,7 @@ def estado_cierre_automatico(
 def configurar_cierre_automatico(
     body: CierreAutomaticoUpdate,
     current_user: Usuario = Depends(
-        requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE])
+        requerir_permiso("caja_cerrar")
     ),
     service: CajaService = Depends(get_caja_service),
 ) -> CierreAutomaticoResponse:

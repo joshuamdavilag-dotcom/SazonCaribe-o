@@ -5576,7 +5576,174 @@ body { background: var(--bg-primary); }
 }
 
 /* =========================================================================
-   Tema oscuro — mezcla de color controlada por data-theme
+   Permisos por usuario
+   ========================================================================= */
+body.permisos-gestor:not(.role-administrador):not(.role-gerente) .admin-only {
+  display: revert !important;
+}
+
+body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-gestor-panel {
+  display: revert !important;
+}
+
+.permiso-oculto {
+  display: none !important;
+}
+
+.permisos-resumen {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in srgb, #475569 var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permisos-bloqueo {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--rojo-cangrejo);
+  border-radius: 6px;
+  font-size: 13px;
+  color: color-mix(in srgb, #b91c1c var(--mix-ink-pct), var(--mix-ink-base));
+  background: color-mix(in srgb, #fdf2f2 var(--mix-surface-pct), var(--mix-surface-base));
+}
+
+.permisos-cargando {
+  margin: 0;
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: color-mix(in srgb, #94a3b8 var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permisos-grupos {
+  display: grid;
+  gap: 14px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.permiso-grupo {
+  border: 1px solid color-mix(in srgb, #e2e8f0 var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.permiso-grupo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, #f1f5f9 var(--mix-surface-pct), var(--mix-surface-base));
+}
+
+.permiso-grupo-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: color-mix(in srgb, #0f3b66 var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-grupo-toggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: color-mix(in srgb, #2a9d8f var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-grupo-toggle:hover {
+  text-decoration: underline;
+}
+
+.permiso-lista {
+  display: grid;
+}
+
+.permiso-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-top: 1px solid color-mix(in srgb, #f1f5f9 var(--mix-border-pct), var(--mix-border-base));
+}
+
+.permiso-item input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--turquesa-ola);
+  flex-shrink: 0;
+}
+
+.permiso-item.concedido {
+  background: color-mix(in srgb, #ecfdf5 var(--mix-surface-pct), var(--mix-surface-base));
+}
+
+.permiso-item.bloqueado {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.permiso-texto {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.permiso-texto strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: color-mix(in srgb, #1e293b var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-texto em {
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.35;
+  color: color-mix(in srgb, #64748b var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.permiso-badge-rol {
+  background: color-mix(in srgb, #e0f2fe var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #0369a1 var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-badge-extra {
+  background: color-mix(in srgb, #ecfdf5 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #047857 var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permiso-badge-critico {
+  background: color-mix(in srgb, #fef3c7 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #92400e var(--mix-ink-pct), var(--mix-ink-base));
+}
+
+.permisos-acciones {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.permisos-acciones .btn {
+  min-width: 0;
+  font-size: 12px;
+}
+
+/* =========================================================================
+   Tema oscuro - mezcla de color controlada por data-theme
    ========================================================================= */
 :root {
   color-scheme: light;

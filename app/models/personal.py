@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 
-from sqlalchemy import String, Integer, Date, Boolean, ForeignKey, Numeric, CheckConstraint
+from sqlalchemy import String, Integer, Date, Boolean, ForeignKey, Numeric, CheckConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -196,6 +196,11 @@ class Usuario(Base):
         Boolean,
         nullable=False,
         default=False
+    )
+    permisos: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Overrides de permisos por usuario: {clave: true/false}"
     )
 
     # Relación uno-a-uno con Empleado

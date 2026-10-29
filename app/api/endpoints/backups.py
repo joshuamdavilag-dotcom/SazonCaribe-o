@@ -7,14 +7,14 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import requerir_rol, get_current_user
+from app.api.deps import requerir_permiso, get_current_user
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.services.backup_service import backup_service
 from app.services.auditoria_service import AuditoriaService
 
 router = APIRouter(
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR]))]
+    dependencies=[Depends(requerir_permiso("backups_gestionar"))]
 )
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB

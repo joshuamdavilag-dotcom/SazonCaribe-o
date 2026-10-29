@@ -1038,14 +1038,9 @@ function showApp() {
    Navigation (SPA)
    ========================================================================= */
 function navigateTo(screenId) {
-  const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
-  if (screenId === 'descuentos' && !esGestor) {
-    showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
-    screenId = 'menu-view';
-  }
-  if (screenId === 'estudio-mercado' && !esGestor) {
-    showToast('Acceso restringido — solo Gerente o Administrador', 'warning');
-    screenId = 'gastos';
+  if (state.user && !puedeVerPantalla(screenId)) {
+    showToast('No tienes permiso para acceder a esta pantalla', 'warning');
+    screenId = 'salon';
   }
   if (state.currentScreen === 'cameras' && screenId !== 'cameras') {
     void cerrarTodasCamaras();
@@ -1079,12 +1074,16 @@ function navigateTo(screenId) {
   if (screenId === 'inventory') loadInventory();
   if (screenId === 'personal') loadPersonal();
   if (screenId === 'cuenta') {
-    const esGestor = ['Administrador', 'Gerente'].includes(state.user?.rol);
+    const verCierre = tienePermiso('caja_cerrar');
+    const verReportes = tienePermiso('reportes_ver');
+    const verAuditoria = tienePermiso('auditoria_ver');
     const meseroPanel = document.getElementById('ventas-dia-panel');
-    if (meseroPanel) meseroPanel.style.display = esGestor ? 'none' : 'block';
-    loadHistorialOrdenesDia(esGestor ? 'gestor' : 'mesero');
-    if (esGestor) { loadCierreReportes('diario'); state.auditOffset = 0; loadAuditoria(); loadCierreAutomatico(); }
-    else loadVentasDia();
+    if (meseroPanel) meseroPanel.style.display = verCierre ? 'none' : 'block';
+    loadHistorialOrdenesDia(verCierre ? 'gestor' : 'mesero');
+    if (verCierre) loadCierreAutomatico();
+    if (verReportes) loadCierreReportes('diario');
+    if (verAuditoria) { state.auditOffset = 0; loadAuditoria(); }
+    if (!verCierre && !verReportes) loadVentasDia();
   }
   if (screenId === 'gastos') { state.activeGastoFilter = null; loadGastos(); }
   if (screenId === 'descuentos') loadDescuentos();
@@ -1656,6 +1655,31 @@ function esUsuarioCocina() {
   return puesto.includes('cocin') || puesto.includes('chef');
 }
 
+const PERMISOS_PANTALLA = {
+  'menu-mgmt': ['menu_gestionar', 'menu_imagenes', 'produccion_cocina'],
+  inventory: ['inventario_gestionar', 'inventario_movimientos', 'produccion_cocina'],
+  personal: ['personal_gestionar', 'turnos_gestionar', 'nomina_gestionar', 'asistencia_admin'],
+  gastos: ['gastos_gestionar', 'reportes_ver', 'estudio_mercado'],
+  backups: ['backups_gestionar'],
+  'estudio-mercado': ['estudio_mercado'],
+  descuentos: ['descuentos_gestionar'],
+  auditoria: ['auditoria_ver'],
+};
+
+function tienePermiso(clave) {
+  if (!state.user) return false;
+  if (state.user.rol === 'Administrador') return true;
+  const lista = state.user.permisos;
+  if (!Array.isArray(lista)) return state.user.rol === 'Gerente';
+  return lista.includes(clave);
+}
+
+function puedeVerPantalla(screenId) {
+  const requeridos = PERMISOS_PANTALLA[screenId];
+  if (!requeridos) return true;
+  return requeridos.some(tienePermiso);
+}
+
 function applyRoleRestrictions() {
   const rol = state.user?.rol || '';
   const isElevated = rol === 'Administrador' || rol === 'Gerente';
@@ -1665,15 +1689,27 @@ function applyRoleRestrictions() {
   else if (rol === 'Gerente') document.body.classList.add('role-gerente');
   else if (rol === 'Vendedor') document.body.classList.add('role-vendedor');
 
-  document.querySelectorAll('.nav-item-admin').forEach(btn => {
-    const allowedRoles = (btn.dataset.roles || '').split(',');
-    if (!isElevated) {
-      btn.classList.add('nav-locked');
-      btn.title = 'Requiere rol de Administrador o Gerente';
-    } else {
-      btn.classList.remove('nav-locked');
-      btn.title = '';
-    }
+  const tieneAlgunAdmin = ['menu_gestionar', 'inventario_gestionar', 'personal_gestionar',
+    'gastos_gestionar', 'reportes_ver', 'backups_gestionar', 'estudio_mercado',
+    'caja_cerrar', 'auditoria_ver', 'nomina_gestionar', 'permisos_gestionar'].some(tienePermiso);
+  document.body.classList.toggle('permisos-gestor', tieneAlgunAdmin);
+  document.body.classList.toggle('permiso-caja-cerrar', tienePermiso('caja_cerrar'));
+  document.body.classList.toggle('permiso-auditoria', tienePermiso('auditoria_ver'));
+
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach(btn => {
+    const permisos = (btn.dataset.permiso || '').split(',').filter(Boolean);
+    const permitido = permisos.length > 0
+      ? permisos.some(tienePermiso)
+      : (!btn.classList.contains('nav-item-admin') || isElevated);
+    btn.classList.toggle('nav-locked', !permitido);
+    btn.title = permitido ? '' : 'No tienes permiso para esta función';
+  });
+
+  document.querySelectorAll('[data-permiso]').forEach(el => {
+    if (el.classList.contains('nav-item')) return;
+    const permisos = (el.dataset.permiso || '').split(',').filter(Boolean);
+    const permitido = permisos.length === 0 || permisos.some(tienePermiso);
+    el.classList.toggle('permiso-oculto', !permitido);
   });
 }
 
@@ -1691,7 +1727,13 @@ async function login(username, password) {
     localStorage.setItem('pos_token', data.access_token);
 
     const payload = JSON.parse(atob(data.access_token.split('.')[1]));
-    state.user = { id: parseInt(payload.sub), username: payload.username, rol: payload.rol, puesto: payload.puesto || null };
+    state.user = {
+      id: parseInt(payload.sub),
+      username: payload.username,
+      rol: payload.rol,
+      puesto: payload.puesto || null,
+      permisos: Array.isArray(payload.permisos) ? payload.permisos : [],
+    };
     localStorage.setItem('pos_user', JSON.stringify(state.user));
 
     updateUserBadges();
@@ -6294,6 +6336,7 @@ function renderPersonalTable(empleados, usuarios) {
                   <button class="emp-action emp-sky" title="Ver asistencias de ${nombreCompleto}" onclick="openAsistenciasModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">history</span></button>
                   ${user ? `<button class="emp-action emp-slate" title="Restablecer contraseña de ${username}" onclick="openResetPasswordModal(${user.id}, '${user.username}')"><span class="material-symbols-outlined">key</span></button>` : ''}
                   ${user ? `<button class="emp-action emp-amber admin-only" title="Avisos push de ${nombreCompleto}" onclick="openAvisosUsuarioModal(${user.id}, '${nq}')"><span class="material-symbols-outlined">notifications</span></button>` : ''}
+                  ${user ? `<button class="emp-action emp-slate admin-only" data-permiso="permisos_gestionar" title="Permisos de ${nombreCompleto}" onclick="openPermisosUsuarioModal(${user.id}, '${nq}', '${user.rol}')"><span class="material-symbols-outlined">shield_person</span></button>` : ''}
                   ${user ? `<button class="emp-action emp-danger admin-only" title="Eliminar usuario de ${nombreCompleto}" onclick="openEliminarUsuarioModal(${user.id}, '${user.username}', '${nq}')"><span class="material-symbols-outlined">delete</span></button>` : ''}
                   ${user && user.rol === 'Vendedor' ? `
                   <button class="btn-toggle-turno ${user.turno_habilitado ? 'active text-emerald-600 bg-emerald-50' : 'inactive text-slate-400 bg-slate-100'} admin-only p-1.5 rounded-lg transition-colors" data-id="${user.id}" data-enabled="${user.turno_habilitado ? 'true' : 'false'}" title="${user.turno_habilitado ? 'Deshabilitar Turno' : 'Habilitar Turno'} de ${nombreCompleto}">
@@ -6307,6 +6350,7 @@ function renderPersonalTable(empleados, usuarios) {
         </tbody>
       </table>
     </div>`;
+  applyRoleRestrictions();
 }
 
 /* -------------------------------------------------------------------------
@@ -7055,6 +7099,121 @@ async function confirmAvisosUsuario() {
     const esPropio = state.user?.id === usuarioId;
     closeAvisosUsuarioModal();
     if (esPropio) void sincronizarEstadoPush();
+  } catch { /* handled by api() */ }
+}
+
+/* =========================================================================
+   Permisos por usuario
+   ========================================================================= */
+let permisosUsuarioId = null;
+let permisosUsuarioData = null;
+
+function closePermisosUsuarioModal() {
+  document.getElementById('modal-permisos-usuario').classList.remove('show');
+  permisosUsuarioId = null;
+  permisosUsuarioData = null;
+}
+
+function badgePermiso(item) {
+  const badges = [];
+  if (item.por_defecto) badges.push('<span class="permiso-badge permiso-badge-rol">Rol</span>');
+  if (item.concedido && !item.por_defecto) badges.push('<span class="permiso-badge permiso-badge-extra">Concedido</span>');
+  if (item.critico) badges.push('<span class="permiso-badge permiso-badge-critico">Crítico</span>');
+  return badges.join(' ');
+}
+
+function renderPermisosModal(data) {
+  permisosUsuarioData = data;
+  const resumen = document.getElementById('permisos-usuario-resumen');
+  const bloqueo = document.getElementById('permisos-usuario-bloqueo');
+  const contenedor = document.getElementById('permisos-usuario-grupos');
+  const btnRestablecer = document.getElementById('btn-restablecer-permisos');
+  const btnGuardar = document.getElementById('confirm-permisos-usuario');
+
+  document.getElementById('permisos-usuario-nombre').textContent = data.username;
+  const concedidos = data.permisos.filter(p => p.concedido).length;
+  resumen.textContent = `Rol ${data.rol} · ${concedidos} de ${data.permisos.length} permisos activos`;
+
+  bloqueo.hidden = data.puede_editar;
+  bloqueo.textContent = data.motivo_bloqueo || '';
+  btnRestablecer.disabled = !data.puede_editar;
+  btnGuardar.disabled = !data.puede_editar;
+
+  contenedor.innerHTML = data.grupos.map(grupo => {
+    const items = data.permisos.filter(p => p.grupo === grupo);
+    if (items.length === 0) return '';
+    const claves = items.map(p => p.clave).join(',');
+    return `
+      <section class="permiso-grupo">
+        <div class="permiso-grupo-head">
+          <h4>${escHtml(grupo)}</h4>
+          ${data.puede_editar ? `<button type="button" class="permiso-grupo-toggle" data-grupo="${escHtml(claves)}">Todo / Nada</button>` : ''}
+        </div>
+        <div class="permiso-lista">
+          ${items.map(item => `
+            <label class="permiso-item ${item.concedido ? 'concedido' : ''} ${item.editable ? '' : 'bloqueado'}">
+              <input type="checkbox" data-clave="${escHtml(item.clave)}" data-defecto="${item.por_defecto}" ${item.concedido ? 'checked' : ''} ${item.editable ? '' : 'disabled'}>
+              <span class="permiso-texto">
+                <strong>${escHtml(item.nombre)} ${badgePermiso(item)}</strong>
+                <em>${escHtml(item.descripcion)}</em>
+              </span>
+            </label>`).join('')}
+        </div>
+      </section>`;
+  }).join('');
+}
+
+async function openPermisosUsuarioModal(usuarioId, nombre, rol) {
+  permisosUsuarioId = usuarioId;
+  permisosUsuarioData = null;
+  document.getElementById('permisos-usuario-nombre').textContent = nombre || `Usuario #${usuarioId}`;
+  document.getElementById('permisos-usuario-resumen').textContent = rol ? `Rol ${rol}` : '';
+  document.getElementById('permisos-usuario-bloqueo').hidden = true;
+  document.getElementById('permisos-usuario-grupos').innerHTML = '<p class="permisos-cargando">Cargando permisos…</p>';
+  document.getElementById('btn-restablecer-permisos').disabled = true;
+  document.getElementById('confirm-permisos-usuario').disabled = true;
+  document.getElementById('modal-permisos-usuario').classList.add('show');
+  try {
+    const data = await api(`/personal/usuarios/${usuarioId}/permisos`);
+    if (permisosUsuarioId !== usuarioId) return;
+    renderPermisosModal(data);
+  } catch {
+    document.getElementById('permisos-usuario-grupos').innerHTML = '<p class="permisos-cargando">No se pudieron cargar los permisos.</p>';
+  }
+}
+
+function marcarGrupoPermisos(claves, valor) {
+  claves.forEach(clave => {
+    const checkbox = document.querySelector(`#permisos-usuario-grupos input[data-clave="${clave}"]`);
+    if (checkbox && !checkbox.disabled) checkbox.checked = valor;
+  });
+}
+
+function permisosSeleccionados() {
+  return Array.from(document.querySelectorAll('#permisos-usuario-grupos input[type="checkbox"]'))
+    .filter(cb => cb.checked)
+    .map(cb => cb.dataset.clave);
+}
+
+function restablecerPermisosSegunRol() {
+  if (!permisosUsuarioData) return;
+  document.querySelectorAll('#permisos-usuario-grupos input[type="checkbox"]').forEach(cb => {
+    if (!cb.disabled) cb.checked = cb.dataset.defecto === 'true';
+  });
+  showToast('Permisos restablecidos al rol. Revisa y guarda los cambios.', 'info');
+}
+
+async function guardarPermisosUsuario() {
+  if (!permisosUsuarioId) return showToast('Error: no se identificó el usuario', 'error');
+  const usuarioId = permisosUsuarioId;
+  try {
+    const data = await api(`/personal/usuarios/${usuarioId}/permisos`, {
+      method: 'PUT',
+      body: JSON.stringify({ permisos: permisosSeleccionados() }),
+    });
+    showToast(`Permisos de ${data.username} actualizados`, 'success');
+    renderPermisosModal(data);
+    if (state.user && state.user.id === usuarioId) void sincronizarPuestoUsuario();
   } catch { /* handled by api() */ }
 }
 
@@ -8998,6 +9157,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-avisos-usuario')?.addEventListener('click', closeAvisosUsuarioModal);
   document.getElementById('cancel-avisos-usuario')?.addEventListener('click', closeAvisosUsuarioModal);
   document.getElementById('confirm-avisos-usuario')?.addEventListener('click', () => { void confirmAvisosUsuario(); });
+  document.getElementById('close-permisos-usuario')?.addEventListener('click', closePermisosUsuarioModal);
+  document.getElementById('cancel-permisos-usuario')?.addEventListener('click', closePermisosUsuarioModal);
+  document.getElementById('confirm-permisos-usuario')?.addEventListener('click', () => { void guardarPermisosUsuario(); });
+  document.getElementById('btn-restablecer-permisos')?.addEventListener('click', restablecerPermisosSegunRol);
+  document.getElementById('permisos-usuario-grupos')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.permiso-grupo-toggle');
+    if (!btn) return;
+    const claves = (btn.dataset.grupo || '').split(',').filter(Boolean);
+    const todos = claves.every(clave => document.querySelector(`#permisos-usuario-grupos input[data-clave="${clave}"]`)?.checked);
+    marcarGrupoPermisos(claves, !todos);
+  });
+  document.getElementById('permisos-usuario-grupos')?.addEventListener('change', (e) => {
+    if (e.target.matches('input[type="checkbox"]')) {
+      e.target.closest('.permiso-item')?.classList.toggle('concedido', e.target.checked);
+    }
+  });
   iniciarTema();
   document.getElementById('notifications-refresh')?.addEventListener('click', () => {
     void cargarNotificaciones();
@@ -9652,10 +9827,14 @@ async function sincronizarPuestoUsuario() {
     const me = await api('/auth/me', { silent: true });
     if (!me) return;
     const puesto = me.puesto || null;
-    if (puesto === (state.user?.puesto || null)) return;
-    state.user = { ...state.user, puesto };
+    const permisos = Array.isArray(me.permisos) ? me.permisos : [];
+    const sinCambios = puesto === (state.user?.puesto || null)
+      && JSON.stringify(permisos) === JSON.stringify(state.user?.permisos || []);
+    if (sinCambios) return;
+    state.user = { ...state.user, puesto, permisos };
     localStorage.setItem('pos_user', JSON.stringify(state.user));
     applyRoleRestrictions();
+    if (!puedeVerPantalla(state.currentScreen)) navigateTo('salon');
     if (esUsuarioCocina() && !DESTINO_URL.pantalla) navigateTo('comandero');
   } catch {
     /* sesión inválida: el interceptor de api() ya maneja el logout */

@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso, requerir_rol
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.models.orden import EstadoOrden
@@ -237,7 +237,7 @@ def pagar_orden(
         "Requiere `motivo` obligatorio; la orden deja de contar en ventas "
         "pero se conserva con autor, fecha y motivo en la auditoría."
     ),
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("ordenes_anular"))],
 )
 def anular_orden(
     orden_id: int,
@@ -257,7 +257,7 @@ def anular_orden(
         "Devuelve parte o todas las unidades de una línea de una orden PAGADA "
         "y recalcula el total. Requiere `motivo` obligatorio; queda en auditoría."
     ),
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("ordenes_anular"))],
 )
 def devolver_item(
     orden_id: int,

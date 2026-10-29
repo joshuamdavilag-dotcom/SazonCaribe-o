@@ -4,9 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import requerir_rol
+from app.api.deps import requerir_permiso
 from app.core.database import get_db
-from app.schemas.personal import RolEnum
 from app.schemas.reportes import PeriodoEnum, CierreCajaPeriodoResponse
 from app.services.reportes_service import ReportesService
 
@@ -28,7 +27,7 @@ def get_reportes_service(db: Session = Depends(get_db)) -> ReportesService:
         "de tiempo específico. Solo accesible por Administradores y Gerentes."
     ),
     tags=["Reportes"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("reportes_ver"))],
 )
 def cierre_caja(
     periodo: PeriodoEnum = Query(

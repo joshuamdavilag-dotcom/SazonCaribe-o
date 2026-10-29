@@ -204,15 +204,15 @@
           <span class="material-symbols-outlined nav-icon text-[20px]">videocam</span>
           <span class="nav-label">Cámaras</span>
         </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="menu-mgmt" data-roles="Administrador,Gerente">
+        <a class="nav-item nav-item-admin" data-screen="menu-mgmt" data-roles="Administrador,Gerente" data-permiso="menu_gestionar,menu_imagenes,produccion_cocina">
           <span class="material-symbols-outlined nav-icon text-[20px]">edit_note</span>
           <span class="nav-label">Gestión Menú</span>
         </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="inventory" data-roles="Administrador,Gerente">
+        <a class="nav-item nav-item-admin" data-screen="inventory" data-roles="Administrador,Gerente" data-permiso="inventario_gestionar,inventario_movimientos,produccion_cocina">
           <span class="material-symbols-outlined nav-icon text-[20px]">inventory_2</span>
           <span class="nav-label">Almacén Digital</span>
         </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="personal" data-roles="Administrador,Gerente">
+        <a class="nav-item nav-item-admin" data-screen="personal" data-roles="Administrador,Gerente" data-permiso="personal_gestionar,turnos_gestionar,nomina_gestionar,asistencia_admin">
           <span class="material-symbols-outlined nav-icon text-[20px]">badge</span>
           <span class="nav-label">Personal y Nóminas</span>
         </a>
@@ -220,11 +220,11 @@
           <span class="material-symbols-outlined nav-icon text-[20px]">point_of_sale</span>
           <span class="nav-label">Cierre de Caja</span>
         </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="gastos" data-roles="Administrador,Gerente">
+        <a class="nav-item nav-item-admin" data-screen="gastos" data-roles="Administrador,Gerente" data-permiso="gastos_gestionar,reportes_ver,estudio_mercado">
           <span class="material-symbols-outlined nav-icon text-[20px]">payments</span>
           <span class="nav-label">Gastos</span>
         </a>
-        <a class="nav-item nav-item-admin admin-only" data-screen="backups" data-roles="Administrador">
+        <a class="nav-item nav-item-admin" data-screen="backups" data-roles="Administrador" data-permiso="backups_gestionar">
           <span class="material-symbols-outlined nav-icon text-[20px]">cloud_sync</span>
           <span class="nav-label">Copias de Seguridad</span>
         </a>
@@ -2142,6 +2142,28 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-avisos-usuario" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="confirm-avisos-usuario" style="flex:1;">Guardar Avisos</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Permisos por usuario -->
+  <div id="modal-permisos-usuario" class="modal-overlay" aria-label="Permisos del usuario">
+    <div class="modal-sheet" style="max-width:620px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔐 Permisos de <span id="permisos-usuario-nombre"></span></h3>
+        <button class="modal-close" id="close-permisos-usuario" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p id="permisos-usuario-resumen" class="permisos-resumen"></p>
+        <div id="permisos-usuario-bloqueo" class="permisos-bloqueo" hidden></div>
+        <div id="permisos-usuario-grupos" class="permisos-grupos">
+          <p class="permisos-cargando">Cargando permisos…</p>
+        </div>
+        <div class="form-actions permisos-acciones">
+          <button type="button" class="btn btn-secondary" id="cancel-permisos-usuario" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-secondary" id="btn-restablecer-permisos" style="flex:1;">Restablecer según rol</button>
+          <button type="button" class="btn btn-primary" id="confirm-permisos-usuario" style="flex:1;">Guardar Permisos</button>
         </div>
       </div>
     </div>

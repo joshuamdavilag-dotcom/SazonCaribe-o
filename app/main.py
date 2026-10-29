@@ -278,6 +278,7 @@ async def startup_event():
         _migrate_usuarios_turno_habilitado()
         _migrate_usuarios_avisos_fuera_de_turno()
         _migrate_usuarios_avisos_comandas()
+        _migrate_usuarios_permisos()
         _migrate_mesas_apodo()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
@@ -798,6 +799,17 @@ def _migrate_usuarios_avisos_comandas():
         except Exception as e:
             db.rollback()
             print(f"  [X] Error preparando los avisos de comandas: {e}")
+
+
+def _migrate_usuarios_permisos():
+    """Agrega la columna JSON de overrides de permisos por usuario.
+
+    ``Usuario.permisos`` guarda solo las diferencias respecto de los permisos
+    por defecto del rol (``{clave: true/false}``). Un NULL significa que el
+    usuario usa exactamente los permisos de su rol.
+    """
+    _add_column_if_not_exists("usuarios", "permisos",
+        "ALTER TABLE usuarios ADD COLUMN permisos JSON NULL")
 
 
 def _migrate_mesas_apodo():

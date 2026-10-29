@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.core.database import get_db
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
@@ -41,7 +41,7 @@ def get_nomina_service(db: Session = Depends(get_db)) -> NominaService:
     summary="Generar nómina del período",
     description="Genera masivamente las nóminas para un período específico (cualquier cantidad de días).",
     tags=["Nóminas & Pagos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("nomina_gestionar"))]
 )
 def generar_nomina(
     periodo: NominaGenerarRequest,
@@ -134,7 +134,7 @@ def listar_pendientes(
     summary="Pagar nómina",
     description="Cambia el estado de una nómina a 'PAGADO' y registra la fecha de pago.",
     tags=["Nóminas & Pagos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("nomina_gestionar"))]
 )
 def pagar_nomina(
     nomina_id: int = Path(
@@ -165,7 +165,7 @@ def pagar_nomina(
         "a tarifa 1.0x − adelantos). Actualiza el registro en la base de datos."
     ),
     tags=["Nóminas & Pagos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("nomina_gestionar"))]
 )
 def recalcular_nomina(
     nomina_id: int = Path(
@@ -258,7 +258,7 @@ def obtener_historial_empleado(
         "Crea automáticamente un gasto operativo por el monto del adelanto."
     ),
     tags=["Nóminas & Pagos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("nomina_gestionar"))],
 )
 def registrar_adelanto(
     data: AdelantoSalarioCreate,

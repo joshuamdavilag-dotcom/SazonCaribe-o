@@ -5,9 +5,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import requerir_rol
+from app.api.deps import requerir_permiso
 from app.schemas.analitica import CierreCajaResponse
-from app.schemas.personal import RolEnum
 from app.services.analitica_service import AnaliticaService
 
 router = APIRouter()
@@ -23,7 +22,7 @@ def get_analitica_service(db: Session = Depends(get_db)) -> AnaliticaService:
     response_model=CierreCajaResponse,
     summary="Obtener cierre de caja",
     description="Retorna las métricas financieras del día: total vendido, órdenes pagadas/canceladas y producto estrella.",
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("reportes_ver"))]
 )
 def cierre_caja(
     fecha: Optional[date] = Query(

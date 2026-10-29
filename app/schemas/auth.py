@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,10 @@ class TokenData(BaseModel):
         default=None,
         description="Nombre del puesto del empleado (ej: 'Cocinero/Chef')"
     )
+    permisos: List[str] = Field(
+        default_factory=list,
+        description="Permisos funcionales efectivos del usuario"
+    )
 
 
 class AuthMeResponse(BaseModel):
@@ -80,4 +84,8 @@ class AuthMeResponse(BaseModel):
     activo: bool = Field(
         ...,
         description="Indica si el usuario está activo"
+    )
+    permisos: List[str] = Field(
+        default_factory=list,
+        description="Permisos funcionales efectivos del usuario"
     )

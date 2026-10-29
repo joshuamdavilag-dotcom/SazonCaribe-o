@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.core.database import get_db
 from app.models.personal import Usuario
 from app.schemas.gasto import (
@@ -31,7 +31,7 @@ def get_gasto_service(db: Session = Depends(get_db)) -> GastoService:
     summary="Registrar gasto operativo",
     description="Registra un gasto operativo del restaurante.",
     tags=["Gastos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("gastos_gestionar"))],
 )
 def crear_gasto(
     gasto_in: GastoCreate,
@@ -48,7 +48,7 @@ def crear_gasto(
     summary="Listar gastos",
     description="Lista gastos, con filtro opcional por rango de fechas.",
     tags=["Gastos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("gastos_gestionar"))],
 )
 def listar_gastos(
     fecha_inicio: Optional[date] = Query(default=None),
@@ -68,7 +68,7 @@ def listar_gastos(
         "el estado anterior y el nuevo quedan en la bitácora de auditoría."
     ),
     tags=["Gastos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("gastos_gestionar"))],
 )
 def editar_gasto(
     gasto_id: int,
@@ -89,7 +89,7 @@ def editar_gasto(
         "el gasto deja de contar en totales pero queda registrado en auditoría."
     ),
     tags=["Gastos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))],
+    dependencies=[Depends(requerir_permiso("gastos_gestionar"))],
 )
 def eliminar_gasto(
     gasto_id: int,

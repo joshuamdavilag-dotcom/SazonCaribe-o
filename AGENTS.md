@@ -295,6 +295,23 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Consultar auditoría           | Y             | Y       | N        |
 | Nomina                        | Y             | Y       | N        |
 
+> Los roles de esta tabla son los **valores por defecto**. Sobre ellos, la administración puede conceder o quitar permisos puntuales por usuario (ver "Permisos funcionales por usuario").
+
+### Permisos funcionales por usuario
+
+Sistema de permisos granular encima del rol. No cambia el acceso de nadie al desplegar: los defaults de cada rol reproducen la tabla anterior.
+
+- **Catálogo** (`app/core/permisos.py`): 18 permisos agrupados en `Menú y Carta`, `Inventario`, `Caja y dinero`, `Personal y nómina`, `Administración`. Cada permiso tiene `clave`, `nombre`, `descripcion`, `grupo`, `roles` (defaults) y `critico`.
+- **Overrides**: `Usuario.permisos` (JSON nullable) guarda solo las diferencias `{clave: true/false}`; `NULL` = permisos del rol. Migración de arranque `_migrate_usuarios_permisos()` (idempotente) agrega la columna.
+- **Efectivos** = defaults del rol + overrides. El rol `Administrador` conserva siempre el catálogo completo (no puede quedar bloqueado).
+- **Críticos** (`personal_gestionar`, `permisos_gestionar`, `auditoria_ver`, `backups_gestionar`): solo un Administrador puede concederlos o quitarlos. El Gerente puede gestionar el resto desde la pantalla.
+- **Guardas**: no se pueden editar los permisos de la propia cuenta ni los de un Administrador; claves desconocidas → 400.
+- **Enforcement**: `requerir_permiso(clave)` (`app/api/deps.py`) sustituye a `requerir_rol([ADMIN, GERENTE])` en los endpoints de las funciones cubiertas: menú (imágenes aparte), inventario (gestión, movimientos, producción), caja/cierre, gastos, descuentos (escritura), anular/devolver orden, personal, turnos, nómina, asistencia admin, reportes/analítica, auditoría, copias y estudio de mercado. `requerir_rol` se mantiene en módulos fuera de alcance (salón/mesas, cámaras, calendario, venta retroactiva).
+- **API** (Admin/Gerente con `permisos_gestionar`): `GET /personal/permisos/catalogo`, `GET /personal/usuarios/{id}/permisos`, `PUT /personal/usuarios/{id}/permisos` (conjunto final de claves; el backend calcula y guarda solo los overrides). Cada cambio se registra como `PERMISOS_ACTUALIZADOS` en la bitácora.
+- **Sesión**: el JWT y `GET /auth/me` exponen `permisos` (lista de claves efectivas). El frontend los guarda en `state.user.permisos`, bloquea/desbloquea los ítems de navegación con `data-permiso` y valida `navigateTo()` contra `PERMISOS_PANTALLA`. Los cambios de permisos llegan al usuario por el polling de `/auth/me` (≤60 s) o al volver a la pestaña.
+- **UI**: botón 🔐 en la fila de Personal (visible con `permisos_gestionar`) → `#modal-permisos-usuario`: casillas agrupadas, badges `Rol`/`Concedido`/`Crítico`, "Todo / Nada" por grupo, "Restablecer según rol" (revisar y guardar) y guardado en bloque. Respeta modo claro/oscuro vía `color-mix()`.
+- **Tests**: `tests/test_permisos.py` (defaults de rol, overrides, Admin intocable, autoedición bloqueada, críticos solo Admin, overrides mínimos, claves inválidas).
+
 ## Business Rules
 
 - **Calendario de planificación**: `EventoCalendario` persiste disponibilidad planificada de platillos y llegadas de insumos; consulta autenticada para cualquier rol, escritura Admin/Gerente. Asistencias reales consultadas desde `Asistencia` por fecha calendario y `anulada=False`; incluye empleado, turno, hora de entrada/salida, no se editan desde esta pantalla. Rango API inclusivo máximo 63 días; no programa turnos ni altera disponibilidad de platillos/stock. Los eventos pueden cubrir varias fechas; las horas son opcionales (ambas o ninguna); estados `PLANIFICADO`/`REALIZADO`/`CANCELADO`. La cantidad esperada de entrega se registra en unidad base del insumo y no genera movimiento de inventario. Ver `docs/CALENDARIO.md`.
@@ -450,6 +467,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET    | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
 | PATCH  | /api/v1/push/preferencias                   | Yes      | Any (propia)       |
 | PATCH  | /api/v1/personal/usuarios/{id}/avisos       | Yes      | Admin, Gerente     |
+| GET    | /api/v1/personal/permisos/catalogo          | Yes      | Admin, Gerente     |
+| GET    | /api/v1/personal/usuarios/{id}/permisos     | Yes      | Admin, Gerente     |
+| PUT    | /api/v1/personal/usuarios/{id}/permisos     | Yes      | Admin, Gerente     |
 | POST   | /api/v1/push/subscribe                      | Yes      | Any                |
 | POST   | /api/v1/push/unsubscribe                    | Yes      | Any                |
 | GET    | /api/v1/push/subscriptions                  | Yes      | Any                |

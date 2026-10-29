@@ -3,9 +3,14 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso, requerir_rol
 from app.core.database import get_db
 from app.models.personal import Usuario
+from app.schemas.permiso import (
+    ActualizarPermisosRequest,
+    CatalogoPermisosResponse,
+    PermisosUsuarioResponse,
+)
 from app.schemas.personal import (
     PuestoCreate,
     PuestoResponse,
@@ -24,6 +29,7 @@ from app.schemas.personal import (
     RolEnum
 )
 from app.services.personal_service import PersonalService
+from app.services.permiso_service import PermisoService
 from app.services.push_service import aplicar_preferencias_avisos
 
 router = APIRouter()
@@ -42,6 +48,11 @@ def get_personal_service(db: Session = Depends(get_db)) -> PersonalService:
     return PersonalService(db)
 
 
+def get_permiso_service(db: Session = Depends(get_db)) -> PermisoService:
+    """Dependencia para inyectar el servicio de permisos."""
+    return PermisoService(db)
+
+
 # =============================================================================
 # Endpoints de Puestos
 # =============================================================================
@@ -53,7 +64,7 @@ def get_personal_service(db: Session = Depends(get_db)) -> PersonalService:
     summary="Crear puesto laboral",
     description="Registra un nuevo puesto laboral en el sistema. Solo Administradores y Gerentes.",
     tags=["Puestos"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def crear_puesto(
     puesto_in: PuestoCreate,
@@ -95,7 +106,7 @@ def listar_puestos(
     summary="Registrar empleado",
     description="Registra un nuevo empleado en el restaurante. Solo Administradores y Gerentes.",
     tags=["Empleados"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def registrar_empleado(
     empleado_in: EmpleadoCreate,
@@ -134,7 +145,7 @@ def listar_empleados(
     summary="Actualizar empleado",
     description="Actualiza datos de un empleado existente (nombre, apellido, teléfono, puesto, salario, estado). Solo Administradores y Gerentes.",
     tags=["Empleados"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def editar_empleado(
     empleado_id: int,
@@ -153,7 +164,7 @@ def editar_empleado(
     summary="Dar de baja empleado (borrado lógico)",
     description="Desactiva un empleado (borrado lógico) conservando su historial de asistencias y nóminas. Requiere la contraseña del usuario autenticado. Solo Administradores y Gerentes.",
     tags=["Empleados"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def eliminar_empleado(
     empleado_id: int,
@@ -180,7 +191,7 @@ def eliminar_empleado(
     summary="Crear usuario del sistema",
     description="Registra un nuevo usuario para acceder al sistema. Solo Administradores y Gerentes.",
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def crear_usuario(
     usuario_in: UsuarioCreate,
@@ -225,7 +236,7 @@ def listar_usuarios(
         "del usuario autenticado. Solo Administradores y Gerentes."
     ),
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def eliminar_usuario(
     usuario_id: int,
@@ -247,7 +258,7 @@ def eliminar_usuario(
     summary="Restablecer contraseña de usuario",
     description="Actualiza la contraseña de un usuario existente. Solo Administradores y Gerentes.",
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def restablecer_contrasena(
     usuario_id: int,
@@ -269,7 +280,7 @@ def restablecer_contrasena(
     summary="Habilitar/deshabilitar turno de todos los Vendedores",
     description="Actualiza masivamente la habilitación de turno de todos los usuarios con rol Vendedor. Solo Administradores y Gerentes.",
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("turnos_gestionar"))]
 )
 def habilitar_turno_masivo(
     request: TurnoHabilitadoUpdate,
@@ -291,7 +302,7 @@ def habilitar_turno_masivo(
     summary="Cambiar habilitación de turno de un usuario",
     description="Habilita o deshabilita el inicio de turno de un usuario Vendedor. Solo Administradores y Gerentes.",
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("turnos_gestionar"))]
 )
 def cambiar_turno_habilitado(
     usuario_id: int,
@@ -324,7 +335,7 @@ def cambiar_turno_habilitado(
         "Solo Administradores y Gerentes."
     ),
     tags=["Usuarios"],
-    dependencies=[Depends(requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE]))]
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
 )
 def cambiar_avisos_usuario(
     usuario_id: int,
@@ -347,3 +358,66 @@ def cambiar_avisos_usuario(
     db.commit()
     db.refresh(usuario)
     return UsuarioResponse.model_validate(usuario)
+
+
+# =============================================================================
+# Endpoints de Permisos por usuario
+# =============================================================================
+
+@router.get(
+    "/permisos/catalogo",
+    response_model=CatalogoPermisosResponse,
+    summary="Catálogo de permisos del sistema",
+    description="Lista los permisos funcionales agrupados por área.",
+    tags=["Permisos"],
+    dependencies=[Depends(requerir_permiso("permisos_gestionar"))]
+)
+def obtener_catalogo_permisos(
+    service: PermisoService = Depends(get_permiso_service),
+    current_user: Usuario = Depends(get_current_user),
+) -> CatalogoPermisosResponse:
+    """Retorna el catálogo de permisos con el orden de los grupos."""
+    return service.catalogo(current_user)
+
+
+@router.get(
+    "/usuarios/{usuario_id}/permisos",
+    response_model=PermisosUsuarioResponse,
+    summary="Consultar permisos de un usuario",
+    description=(
+        "Devuelve los permisos efectivos del usuario (rol + overrides), "
+        "indicando cuáles son editables por la sesión actual."
+    ),
+    tags=["Permisos"],
+    dependencies=[Depends(requerir_permiso("permisos_gestionar"))]
+)
+def obtener_permisos_usuario(
+    usuario_id: int,
+    service: PermisoService = Depends(get_permiso_service),
+    current_user: Usuario = Depends(get_current_user),
+) -> PermisosUsuarioResponse:
+    """Consulta los permisos vigentes de un usuario."""
+    return service.obtener(usuario_id, current_user)
+
+
+@router.put(
+    "/usuarios/{usuario_id}/permisos",
+    response_model=PermisosUsuarioResponse,
+    summary="Actualizar permisos de un usuario",
+    description=(
+        "Define el conjunto final de permisos del usuario. Solo se guardan "
+        "las diferencias respecto del rol. El Administrador conserva todo, "
+        "nadie puede editar sus propios permisos y el Gerente no puede "
+        "cambiar los permisos críticos."
+    ),
+    tags=["Permisos"],
+    dependencies=[Depends(requerir_permiso("permisos_gestionar"))]
+)
+def actualizar_permisos_usuario(
+    usuario_id: int,
+    request: ActualizarPermisosRequest,
+    service: PermisoService = Depends(get_permiso_service),
+    current_user: Usuario = Depends(get_current_user),
+) -> PermisosUsuarioResponse:
+    """Reemplaza los permisos vigentes del usuario."""
+    return service.actualizar(usuario_id, request, current_user)

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Upload
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.menu import (
@@ -19,9 +19,12 @@ from app.services.menu_service import MenuService
 
 router = APIRouter()
 
-# Dependencia de RBAC para endpoints de escritura en menú
+# Dependencia de permisos para endpoints de escritura en menú
 _requerir_rol_menu = Depends(
-    requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE])
+    requerir_permiso("menu_gestionar")
+)
+_requerir_permiso_imagenes = Depends(
+    requerir_permiso("menu_imagenes")
 )
 
 
@@ -291,7 +294,7 @@ def eliminar_menu_item(
         "Solo el servidor genera y guarda la ruta en imagen_url."
     ),
     tags=["Menú y Recetas"],
-    dependencies=[_requerir_rol_menu]
+    dependencies=[_requerir_permiso_imagenes]
 )
 def subir_imagen_menu_item(
     item_id: int = Path(..., gt=0, description="ID del plato"),

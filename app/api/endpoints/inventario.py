@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, requerir_rol
+from app.api.deps import get_current_user, requerir_permiso
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
 from app.schemas.inventario import (
@@ -31,9 +31,15 @@ from app.services.preparacion_service import PreparacionService
 
 router = APIRouter()
 
-# Dependencia de RBAC para endpoints de escritura en inventario
+# Dependencia de permisos para endpoints de escritura en inventario
 _requerir_rol_inventario = Depends(
-    requerir_rol([RolEnum.ADMINISTRADOR, RolEnum.GERENTE])
+    requerir_permiso("inventario_gestionar")
+)
+_requerir_permiso_movimientos = Depends(
+    requerir_permiso("inventario_movimientos")
+)
+_requerir_permiso_produccion = Depends(
+    requerir_permiso("produccion_cocina")
 )
 
 
@@ -172,7 +178,7 @@ def obtener_alertas(
     summary="Registrar movimiento de inventario",
     description="Registra una entrada o salida de stock de un ingrediente.",
     tags=["Inventario & Proveedores"],
-    dependencies=[_requerir_rol_inventario]
+    dependencies=[_requerir_permiso_movimientos]
 )
 def registrar_movimiento(
     movimiento_in: MovimientoCreate,
@@ -313,7 +319,7 @@ def crear_insumo(
         "Registra el motivo del cambio."
     ),
     tags=["Inventario"],
-    dependencies=[_requerir_rol_inventario]
+    dependencies=[_requerir_permiso_movimientos]
 )
 def actualizar_stock_insumo(
     insumo_id: int = Path(
@@ -504,7 +510,7 @@ def get_preparacion_service(db: Session = Depends(get_db)) -> PreparacionService
         "Registra cada insumo como movimiento SALIDA y crea el gasto asociado."
     ),
     tags=["Inventario"],
-    dependencies=[_requerir_rol_inventario]
+    dependencies=[_requerir_permiso_produccion]
 )
 def registrar_preparacion(
     data: PreparacionCocinaCreate,
