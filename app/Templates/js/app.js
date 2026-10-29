@@ -9998,3 +9998,16 @@ async function restaurarBackup(input) {
   } catch { /* api() ya muestra el error */ }
   input.value = '';
 }
+
+    // Al renderizar las mesas en el HTML:
+const estiloFondo = mesa.color_fusion 
+    ? `background-color: ${mesa.color_fusion}; border: 2px dashed #ffffff;` 
+    : '';
+
+htmlMesa += `
+    <div class="mesa-card p-4 rounded-xl text-white ${mesa.estado === 'OCUPADA' ? 'bg-rose-600' : 'bg-emerald-600'}" 
+         style="${estiloFondo}">
+        <span>Mesa ${mesa.numero}</span>
+        ${mesa.mesa_fusionada_id ? `<span class="text-xs bg-black/40 px-1.5 py-0.5 rounded">Unida</span>` : ''}
+    </div>
+`;

@@ -1153,3 +1153,12 @@ class EstudioMercadoService:
             ),
         }
         return contexto
+    
+def guardar_estudio(estudio: EstudioMercado) -> None:
+    """Guarda el estudio en la base de datos."""
+    db = Session()
+    try:
+        repo = EstudioMercadoRepository(db)
+        repo.guardar_estudio(estudio)
+    finally:
+        db.close()
