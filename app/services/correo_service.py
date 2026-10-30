@@ -1,4 +1,4 @@
-"""Servicio del módulo de correos: configuración, render y envío con Brevo."""
+﻿"""Servicio del módulo de correos: configuración, render y envío con Brevo."""
 
 import html as html_lib
 import re
@@ -732,96 +732,345 @@ class CorreoService:
             return validadas
         return secciones_por_defecto(config.tipo)
 
-    # ------------------------------------------------------------------ #
-    #  Envío con Brevo API
-    # ------------------------------------------------------------------ #
-    def enviar_brevo(self, destinatarios: list[str], asunto: str, html_content: str) -> None:
-        if not self.habilitado():
-            raise ErrorEnvioCorreo("El servicio de correos no está configurado (falta API Key o remitente).")
-        
-        payload = {
-            "sender": {
-                "name": self.settings.CORREO_REMITENTE_NOMBRE or "Sazón Caribeño",
-                "email": self.settings.CORREO_REMITENTE,
-            },
-            "to": [{"email": email} for email in destinatarios if email_valido(email)],
-            "subject": asunto,
-            "htmlContent": html_content,
-        }
-        if not payload["to"]:
-            raise ErrorEnvioCorreo("No hay destinatarios válidos para enviar el correo.")
+    def _destinatarios_para_envio(self, ids: Optional[list[int]]) -> list[str]:
+        if not ids:
+            return []
+        destinatarios = list(
+            self.db.execute(
+                select(DestinatarioCorreo).where(
+                    DestinatarioCorreo.id.in_(ids),
+                    DestinatarioCorreo.activo.is_(True),
+                )
+            ).scalars()
+        )
+        return [destinatario.email for destinatario in destinatarios]
 
-        headers = {
-            "api-key": self.settings.BREVO_API_KEY,
-            "accept": "application/json",
-            "content-type": "application/json",
-        }
-
-        try:
-            with httpx.Client(timeout=float(self.settings.CORREO_TIMEOUT)) as cliente:
-                res = cliente.post(BREVO_URL, json=payload, headers=headers)
-                if res.status_code not in {200, 201, 202}:
-                    raise ErrorEnvioCorreo(f"Brevo respondió con código {res.status_code}: {res.text}")
-        except httpx.RequestError as exc:
-            raise ErrorEnvioCorreo(f"Error de red al conectar con Brevo: {exc}")
-
-    def enviar_correo_inmediato(
+    def _resolver_envio(
         self,
         tipo: str,
-        asunto: Optional[str] = None,
+        secciones: Optional[list[str]],
+        destinatario_ids: Optional[list[int]],
+        desde: Optional[date],
+        hasta: Optional[date],
+        asunto: Optional[str],
+        referencia_id: Optional[int],
+        usar_config: bool,
+    ) -> dict[str, Any]:
+        if tipo not in TIPOS_POR_CLAVE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de correo desconocido: '{tipo}'.",
+            )
+        config = self._config(tipo)
+
+        claves = secciones if secciones is not None else self._secciones_config(config)
+        validas, invalidas = normalizar_secciones(tipo, claves)
+        if invalidas:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Secciones no disponibles para este correo: " + ", ".join(invalidas)
+                ),
+            )
+
+        ids = destinatario_ids if destinatario_ids is not None else self._ids_config(config)
+        emails = self._destinatarios_para_envio(ids)
+        if not emails:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "No hay destinatarios activos seleccionados. Agrega o marca al "
+                    "menos un destinatario antes de enviar."
+                ),
+            )
+
+        rango_desde, rango_hasta = self._rango(tipo, desde, hasta)
+        asunto_final = (asunto or "").strip() or self._asunto(
+            tipo, rango_desde, rango_hasta
+        )
+        _, html, _ = self.render_html(
+            tipo, validas, rango_desde, rango_hasta, referencia_id
+        )
+        return {
+            "tipo": tipo,
+            "asunto": asunto_final[:200],
+            "secciones": validas,
+            "emails": emails,
+            "html": html,
+            "desde": rango_desde,
+            "hasta": rango_hasta,
+        }
+
+    def _asunto(self, tipo: str, desde: date, hasta: date) -> str:
+        base = ASUNTO_POR_TIPO.get(tipo, "Informe de Sazón Caribeño")
+        if tipo in {"manual", "resumen_semanal", "resumen_mensual"}:
+            return f"{base} · {_fecha(desde)} al {_fecha(hasta)}"
+        return base
+
+    def preparar(
+        self,
+        tipo: str,
         secciones: Optional[list[str]] = None,
         destinatario_ids: Optional[list[int]] = None,
         desde: Optional[date] = None,
         hasta: Optional[date] = None,
-        referencia_id: Optional[int] = None,
+        asunto: Optional[str] = None,
         actor_id: Optional[int] = None,
+        referencia_id: Optional[int] = None,
     ) -> EnvioCorreo:
-        config = self._config(tipo)
-        final_asunto = asunto or ASUNTO_POR_TIPO.get(tipo, "Informe de Sazón Caribeño")
-        d_ini, d_fin = self._rango(tipo, desde, hasta)
-        
-        asunto_gen, html_gen, seks = self.render_html(tipo, secciones, d_ini, d_fin, referencia_id)
-        if asunto:
-            final_asunto = asunto
-
-        ids = destinatario_ids if destinatario_ids is not None else self._ids_config(config)
-        dest_objs = self.db.execute(
-            select(DestinatarioCorreo).where(DestinatarioCorreo.id.in_(ids), DestinatarioCorreo.activo.is_(True))
-        ).scalars().all()
-        
-        emails = [d.email for d in dest_objs if email_valido(d.email)]
-
+        resolucion = self._resolver_envio(
+            tipo,
+            secciones,
+            destinatario_ids,
+            desde,
+            hasta,
+            asunto,
+            referencia_id,
+            usar_config=True,
+        )
         envio = EnvioCorreo(
             tipo=tipo,
-            asunto=final_asunto,
+            asunto=resolucion["asunto"],
             estado=EstadoEnvio.PENDIENTE.value,
-            html=html_gen,
-            destinatarios=emails,
+            html=resolucion["html"],
+            destinatarios=resolucion["emails"],
             referencia_id=referencia_id,
-            desde=d_ini.isoformat() if d_ini else None,
-            hasta=d_fin.isoformat() if d_fin else None,
+            desde=resolucion["desde"].isoformat(),
+            hasta=resolucion["hasta"].isoformat(),
             actor_id=actor_id,
         )
         self.db.add(envio)
         self.db.commit()
         self.db.refresh(envio)
+        return envio
 
-        if not emails:
-            envio.estado = EstadoEnvio.ERROR.value
-            envio.error = "No hay destinatarios activos seleccionados."
-            self.db.commit()
-            return envio
-
+    # ------------------------------------------------------------------ #
+    #  Envío con Brevo API
+    # ------------------------------------------------------------------ #
+    def _enviar_brevo(self, asunto: str, html: str, destinatarios: list[str]) -> None:
+        if not self.habilitado():
+            raise ErrorEnvioCorreo(
+                "El envío de correos no está configurado (BREVO_API_KEY o "
+                "CORREO_REMITENTE faltantes)."
+            )
+        payload = {
+            "sender": {
+                "name": self.settings.CORREO_REMITENTE_NOMBRE or "Sazón Caribeño",
+                "email": self.settings.CORREO_REMITENTE,
+            },
+            "to": [{"email": email} for email in destinatarios],
+            "subject": asunto,
+            "htmlContent": html,
+            "textContent": "Correo del sistema Sazón Caribeño. Abre la versión HTML.",
+        }
         try:
-            self.enviar_brevo(emails, final_asunto, html_gen)
+            respuesta = httpx.post(
+                BREVO_URL,
+                json=payload,
+                headers={
+                    "api-key": self.settings.BREVO_API_KEY,
+                    "accept": "application/json",
+                    "content-type": "application/json",
+                },
+                timeout=self.settings.CORREO_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            raise ErrorEnvioCorreo(f"No se pudo conectar con Brevo: {exc}") from exc
+
+        if respuesta.status_code >= 400:
+            detalle = respuesta.text[:300]
+            raise ErrorEnvioCorreo(
+                f"Brevo rechazó el correo ({respuesta.status_code}): {detalle}"
+            )
+
+    def _procesar(self, envio: EnvioCorreo) -> EnvioCorreo:
+        emails = list(envio.destinatarios or [])
+        try:
+            self._enviar_brevo(envio.asunto, envio.html or "", emails)
             envio.estado = EstadoEnvio.ENVIADO.value
             envio.enviado_en = ahora_local()
-            envio.intentos += 1
-            self.db.commit()
+            envio.error = None
         except Exception as exc:
-            envio.estado = EstadoEnvio.ERROR.value
-            envio.error = str(exc)
-            envio.intentos += 1
-            self.db.commit()
-
+            envio.intentos = int(envio.intentos or 0) + 1
+            envio.error = str(exc)[:1000]
+            if envio.intentos >= max(1, self.settings.CORREO_MAX_INTENTOS):
+                envio.estado = EstadoEnvio.ERROR.value
+            else:
+                envio.estado = EstadoEnvio.PENDIENTE.value
+        self.db.commit()
+        self.db.refresh(envio)
         return envio
+
+    def enviar_ahora(
+        self,
+        tipo: str,
+        secciones: Optional[list[str]] = None,
+        destinatario_ids: Optional[list[int]] = None,
+        desde: Optional[date] = None,
+        hasta: Optional[date] = None,
+        asunto: Optional[str] = None,
+        actor_id: Optional[int] = None,
+        referencia_id: Optional[int] = None,
+    ) -> EnvioCorreo:
+        if not self.habilitado():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=self.estado()["mensaje"],
+            )
+        envio = self.preparar(
+            tipo,
+            secciones,
+            destinatario_ids,
+            desde,
+            hasta,
+            asunto,
+            actor_id,
+            referencia_id,
+        )
+        return self._procesar(envio)
+
+    def enviar_prueba(self, email: str, actor_id: Optional[int] = None) -> EnvioCorreo:
+        email = normalizar_email(email)
+        if not email_valido(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Escribe un correo de prueba válido.",
+            )
+        if not self.habilitado():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=self.estado()["mensaje"],
+            )
+        asunto = "Prueba de correos · Sazón Caribeño"
+        html = (
+            f'<div style="padding:24px;background:{PALETA["fondo"]};'
+            f'font-family:Inter,Arial,sans-serif;">'
+            f'<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;'
+            f'padding:24px;border:1px solid {PALETA["borde"]};">'
+            f'<h1 style="margin:0 0 8px;font-size:20px;color:{PALETA["azul"]};">'
+            "Correos configurados correctamente</h1>"
+            f'<p style="font-size:14px;line-height:1.6;color:{PALETA["texto"]};">'
+            "Este es un mensaje de prueba del sistema de Sazón Caribeño. Si lo "
+            "recibiste, Brevo y el remitente están bien configurados.</p>"
+            f'<p style="font-size:13px;color:{PALETA["suave"]};">'
+            f"Remitente: {_esc(self.settings.CORREO_REMITENTE)}</p>"
+            "</div></div>"
+        )
+        envio = EnvioCorreo(
+            tipo="manual",
+            asunto=asunto,
+            estado=EstadoEnvio.PENDIENTE.value,
+            html=html,
+            destinatarios=[email],
+            actor_id=actor_id,
+        )
+        self.db.add(envio)
+        self.db.commit()
+        self.db.refresh(envio)
+        return self._procesar(envio)
+
+    def encolar(
+        self,
+        tipo: str,
+        referencia_id: Optional[int] = None,
+        desde: Optional[date] = None,
+        hasta: Optional[date] = None,
+    ) -> Optional[EnvioCorreo]:
+        """Encola un correo automático si el tipo está activo y hay destinatarios."""
+        config = self._config(tipo)
+        if not config.activo:
+            return None
+        try:
+            return self.preparar(
+                tipo,
+                self._secciones_config(config),
+                self._ids_config(config),
+                desde,
+                hasta,
+                None,
+                None,
+                referencia_id,
+            )
+        except HTTPException:
+            return None
+
+    # ------------------------------------------------------------------ #
+    #  Cola y programados
+    # ------------------------------------------------------------------ #
+    def procesar_pendientes(self, limite: int = 5) -> int:
+        if not self.habilitado():
+            return 0
+        pendientes = list(
+            self.db.execute(
+                select(EnvioCorreo)
+                .where(EnvioCorreo.estado == EstadoEnvio.PENDIENTE.value)
+                .order_by(EnvioCorreo.id)
+                .limit(limite)
+            ).scalars()
+        )
+        for envio in pendientes:
+            self._procesar(envio)
+        return len(pendientes)
+
+    def _clave_programado(self, tipo: str, ahora: datetime) -> str:
+        if tipo == "resumen_semanal":
+            iso = ahora.isocalendar()
+            return f"{iso.year}-W{iso.week:02d}"
+        if tipo == "resumen_mensual":
+            anterior = rango_mes_anterior(ahora.date())
+            return anterior[0].strftime("%Y-%m")
+        return ahora.date().isoformat()
+
+    def _toca_ahora(self, tipo: str, ahora: datetime, hora: int) -> bool:
+        if ahora.hour < hora:
+            return False
+        if tipo == "resumen_semanal":
+            return ahora.weekday() == 0
+        if tipo == "resumen_mensual":
+            return ahora.day == 1
+        return True
+
+    def evaluar_programados(self) -> int:
+        """Encola los correos programados que correspondan a este momento."""
+        if not self.habilitado():
+            return 0
+        ahora = ahora_local()
+        encolados = 0
+        for tipo in TIPOS_PROGRAMADOS:
+            config = self._config(tipo)
+            if not config.activo:
+                continue
+            if not self._ids_config(config):
+                continue
+            if not self._toca_ahora(tipo, ahora, config.hora):
+                continue
+            clave = self._clave_programado(tipo, ahora)
+            if config.ultima_clave == clave:
+                continue
+            envio = self.encolar(tipo)
+            if envio is None:
+                continue
+            config.ultima_clave = clave
+            self.db.commit()
+            encolados += 1
+        return encolados
+
+    def historial(self, limite: int = 50) -> list[EnvioCorreo]:
+        return list(
+            self.db.execute(
+                select(EnvioCorreo).order_by(EnvioCorreo.id.desc()).limit(limite)
+            ).scalars()
+        )
+
+
+def encolar_evento_seguro(tipo: str, referencia_id: Optional[int] = None, **kwargs) -> None:
+    """Encola un correo de evento sin romper el flujo que lo disparó."""
+    if tipo not in TIPOS_EVENTO:
+        return
+    from app.core.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            CorreoService(db).encolar(tipo, referencia_id=referencia_id, **kwargs)
+    except Exception as exc:  # pragma: no cover - salvaguarda de producción
+        print(f"[CORREOS] No se pudo encolar el correo '{tipo}': {exc}")

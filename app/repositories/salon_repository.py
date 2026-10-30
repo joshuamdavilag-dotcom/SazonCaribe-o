@@ -251,3 +251,38 @@ class SalonRepository:
         self.db.delete(db_mesa)
         self.db.commit()
         return True
+
+    # =========================================================================
+    # Fusiones de mesas
+    # =========================================================================
+
+    def obtener_mesas_por_ids(self, mesa_ids: List[int]) -> List[Mesa]:
+        """Obtiene las mesas indicadas ordenadas por zona y número."""
+        if not mesa_ids:
+            return []
+        statement = (
+            select(Mesa)
+            .where(Mesa.id.in_(mesa_ids))
+            .order_by(Mesa.zona_id, Mesa.numero)
+        )
+        return list(self.db.execute(statement).scalars().all())
+
+    def obtener_mesas_por_grupo(self, grupo_fusion_id: str) -> List[Mesa]:
+        """Obtiene todas las mesas que pertenecen a un grupo de fusión."""
+        statement = (
+            select(Mesa)
+            .where(Mesa.grupo_fusion_id == grupo_fusion_id)
+            .order_by(Mesa.id)
+        )
+        return list(self.db.execute(statement).scalars().all())
+
+    def obtener_colores_fusion_en_uso(self, excluir_grupo: Optional[str] = None) -> List[str]:
+        """Devuelve los colores asignados a grupos de fusión activos."""
+        statement = select(Mesa.color_fusion).where(
+            Mesa.grupo_fusion_id.is_not(None),
+            Mesa.color_fusion.is_not(None),
+        )
+        if excluir_grupo:
+            statement = statement.where(Mesa.grupo_fusion_id != excluir_grupo)
+        return [color for color in self.db.execute(statement).scalars().all() if color]
+

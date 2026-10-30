@@ -76,6 +76,47 @@ class MesaResponse(MesaBase):
         max_length=100,
         description="Apodo temporal de la mesa (ej: nombre del cliente que ocupó la mesa)"
     )
+    grupo_fusion_id: Optional[str] = Field(
+        default=None,
+        max_length=36,
+        description="Identificador del grupo de fusión (None si la mesa no está fusionada)"
+    )
+    color_fusion: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Color hexadecimal que distingue al grupo de fusión"
+    )
+    mesa_principal_id: Optional[int] = Field(
+        default=None,
+        description="ID de la mesa principal del grupo de fusión (None si es la principal o no está fusionada)"
+    )
+
+
+class FusionMesasRequest(BaseModel):
+    """Esquema para fusionar dos o más mesas en un mismo grupo."""
+
+    mesa_ids: List[int] = Field(
+        ...,
+        min_length=2,
+        description="IDs de las mesas a fusionar (al menos dos)",
+        examples=[[1, 2]]
+    )
+    color: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Color hexadecimal opcional para el grupo; si se omite se asigna uno libre"
+    )
+
+
+class FusionMesasResponse(BaseModel):
+    """Resultado de fusionar o separar mesas."""
+
+    grupo_fusion_id: Optional[str] = None
+    color_fusion: Optional[str] = None
+    mesa_principal_id: Optional[int] = None
+    orden_id: Optional[int] = None
+    mesas: List[MesaResponse] = Field(default_factory=list)
+    mensaje: str = ""
 
 
 # =============================================================================

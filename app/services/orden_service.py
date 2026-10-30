@@ -16,6 +16,7 @@ from app.repositories.menu_repository import MenuRepository
 from app.schemas.orden import OrdenCreate, DetalleOrdenCreate, VentaRetroactivaCreate
 from app.services.gasto_service import GastoService
 from app.services.auditoria_service import AuditoriaService
+from app.services.salon_service import SalonService
 
 
 class OrdenService:
@@ -481,8 +482,11 @@ class OrdenService:
                 if orden.mesa_id:
                     mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)
                     if mesa:
-                        mesa.estado = EstadoMesa.LIBRE
-                        mesa.apodo = None
+                        if mesa.grupo_fusion_id:
+                            SalonService(self.db).liberar_grupo_fusion(mesa.id)
+                        else:
+                            mesa.estado = EstadoMesa.LIBRE
+                            mesa.apodo = None
 
             self.db.commit()
             self.db.refresh(orden)
@@ -757,6 +761,8 @@ class OrdenService:
                 with self.db.begin_nested():
                     self.revertir_stock(orden)
                     orden.estado = EstadoOrden.CANCELADA
+                    if orden.mesa_id:
+                        SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
                 self.db.commit()
                 self.db.refresh(orden)
                 return orden

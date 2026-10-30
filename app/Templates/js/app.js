@@ -75,6 +75,7 @@ const state = {
   avisoCierreAutomatico: null,
   cierreAutomatico: null,
   correos: { estado: null, destinatarios: [], tipos: [], historial: [], preview: null },
+  fusion: null,
 };
 
 /* =========================================================================
@@ -3296,15 +3297,24 @@ function tableCardHTML(m) {
   const estado = m.estado || 'LIBRE';
   const s = ESTADO_MESA[estado] || ESTADO_MESA.LIBRE;
   const zona = m.zona_nombre || 'Zona ' + m.zona_id;
+  const fusionColor = /^#[0-9a-fA-F]{6}$/.test(m.color_fusion || '') ? m.color_fusion : '';
+  const esFusion = Boolean(m.grupo_fusion_id && fusionColor);
+  const fusionTitle = esFusion
+    ? (state.tables || [])
+        .filter(t => t.grupo_fusion_id === m.grupo_fusion_id)
+        .map(t => `Mesa ${t.numero}`)
+        .join(' · ')
+    : '';
   const rows = s.rows.map(r => `
         <div class="tm-detail flex items-center gap-1.5 text-xs text-slate-600">
           <span class="material-symbols-outlined text-[14px] text-slate-400">${r.icon}</span><span>${r.text(m)}</span>
         </div>`).join('');
   const footerText = typeof s.footerText === 'function' ? s.footerText(m) : s.footerText;
   return `
-      <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]"
+      <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]${esFusion ? ' mesa-fusionada' : ''}"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
-               aria-label="Mesa ${m.numero}${m.apodo ? ', ' + m.apodo : ''}, ${estado.toLowerCase()}">
+               ${esFusion ? `style="--fusion-color:${fusionColor};"` : ''}
+               aria-label="Mesa ${m.numero}${m.apodo ? ', ' + m.apodo : ''}, ${estado.toLowerCase()}${esFusion ? ', fusionada' : ''}">
         <div class="tm-head flex items-start gap-2.5 flex-wrap">
           <div class="tm-icon grid place-items-center w-8 h-8 rounded-lg shrink-0 ${s.iconBox}">
             <span class="material-symbols-outlined text-[18px]">${s.icon}</span>
@@ -3313,6 +3323,7 @@ function tableCardHTML(m) {
             <h3 class="tm-name font-display font-bold text-sm sm:text-base text-slate-900 whitespace-nowrap">Mesa ${m.numero}</h3>
             <span class="tm-zona block text-[11px] font-medium text-slate-400">${zona}</span>
             ${m.apodo ? `<span class="oc-apodo mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-brand-coral"><span class="material-symbols-outlined text-[12px]">tag</span>${escHtml(m.apodo)}</span>` : ''}
+            ${esFusion ? `<span class="tm-fusion-badge" title="${escHtml(fusionTitle)}"><span class="material-symbols-outlined text-[12px]">link</span>${m.mesa_principal_id === null ? 'Principal' : 'Fusión'}</span>` : ''}
           </div>
           <span class="tm-badge ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${s.badge}">
             <span class="w-1.5 h-1.5 rounded-full ${s.dot}${estado === 'OCUPADA' ? ' animate-ping' : ''}"></span>${s.label}
@@ -3371,12 +3382,19 @@ function actualizarOcupacion() {
 }
 
 function enriquecerMesasOcupadas() {
-  state.tables.filter(t => t.estado === 'OCUPADA' && t.id).forEach(m => {
+  const ocupadas = state.tables.filter(t => t.estado === 'OCUPADA' && t.id);
+  const principales = ocupadas.filter(m => !m.grupo_fusion_id || m.mesa_principal_id === null);
+  principales.forEach(m => {
     api('/ordenes/?mesa_id=' + m.id)
       .then(ords => {
-        const activa = (ords || []).find(o => !['PAGADA', 'CANCELADA'].includes(o.estado));
-        m._orden = activa || null;
-        if (activa) actualizarCardOcupada(m, activa);
+        const activa = (ords || []).find(o => !['PAGADA', 'CANCELADA'].includes(o.estado)) || null;
+        const grupo = m.grupo_fusion_id
+          ? ocupadas.filter(t => t.grupo_fusion_id === m.grupo_fusion_id)
+          : [m];
+        grupo.forEach(t => {
+          t._orden = activa;
+          if (activa) actualizarCardOcupada(t, activa);
+        });
       })
       .catch(() => {});
   });
@@ -7782,9 +7800,11 @@ function openDetalleMesaOcupada(mesaId) {
   const mesa = state.tables.find(t => t.id === mesaId);
   if (!mesa) return showToast('Mesa no encontrada', 'error');
 
-  state.currentOcupada = { mesaId, orden: null };
+  const principal = mesaPrincipalDe(mesa);
+  state.currentOcupada = { mesaId, principalId: principal?.id || mesaId, orden: null };
 
   document.getElementById('oc-mesa-numero').textContent = mesa.apodo ? `${mesa.numero} · «${mesa.apodo}»` : mesa.numero;
+  document.getElementById('oc-orden-id').textContent = '…';
   const apodoInput = document.getElementById('oc-apodo-input');
   if (apodoInput) apodoInput.value = mesa.apodo || '';
   document.getElementById('oc-items-list').innerHTML =
@@ -7792,6 +7812,8 @@ function openDetalleMesaOcupada(mesaId) {
   ['oc-subtotal', 'oc-total'].forEach(id => {
     document.getElementById(id).textContent = 'C$0.00';
   });
+
+  renderFusionInfoEnDetalle(mesa);
 
   document.getElementById('btn-agregar-pedido').style.display = '';
   document.getElementById('btn-pre-cuenta').style.display = '';
@@ -7808,17 +7830,20 @@ function closeDetalleMesaOcupada() {
 }
 
 async function loadOcupadaOrden(mesaId) {
+  const mesa = state.tables.find(t => t.id === mesaId);
+  const principal = mesaPrincipalDe(mesa);
+  const ordenMesaId = principal?.id || mesaId;
   try {
-    const ordenes = await api('/ordenes/?mesa_id=' + mesaId + '&estado=PENDIENTE');
+    const ordenes = await api('/ordenes/?mesa_id=' + ordenMesaId + '&estado=PENDIENTE');
     let orden = null;
     if (ordenes.length > 0) {
       orden = ordenes[0];
     } else {
-      const ordPrep = await api('/ordenes/?mesa_id=' + mesaId + '&estado=PREPARANDO');
+      const ordPrep = await api('/ordenes/?mesa_id=' + ordenMesaId + '&estado=PREPARANDO');
       if (ordPrep.length > 0) orden = ordPrep[0];
     }
     if (!orden) {
-      const all = await api('/ordenes/?mesa_id=' + mesaId);
+      const all = await api('/ordenes/?mesa_id=' + ordenMesaId);
       const activa = all.find(o => !['PAGADA', 'CANCELADA'].includes(o.estado));
       orden = activa || null;
     }
@@ -7942,9 +7967,10 @@ async function agregarAlPedido() {
   if (!oc || !oc.orden) return;
 
   const orden = oc.orden;
-  closeDetalleMesaOcupada();
   const mesa = state.tables.find(t => t.id === oc.mesaId);
-  openOrderModal(oc.mesaId, mesa?.numero || '?', orden);
+  const principal = mesaPrincipalDe(mesa) || mesa;
+  closeDetalleMesaOcupada();
+  openOrderModal(principal?.id || oc.mesaId, principal?.numero || '?', orden);
 }
 
 function openPreCuenta() {
@@ -7954,6 +7980,8 @@ function openPreCuenta() {
   const orden = oc.orden;
   const detalles = orden.detalles || [];
   const mesa = state.tables.find(t => t.id === oc.mesaId);
+  const principal = mesaPrincipalDe(mesa) || mesa;
+  const grupo = mesasDelGrupo(mesa);
   const now = new Date();
   const fecha = now.toLocaleDateString('es-NI');
   const hora = now.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
@@ -7964,7 +7992,11 @@ function openPreCuenta() {
   lines.push('    🍽️  SAZÓN CARIBEÑO');
   lines.push('════════════════════════════════');
   lines.push(`Fecha: ${fecha}  Hora: ${hora}`);
-  const mesaTexto = mesa ? `Mesa: ${mesa.numero}` : (orden.nombre_cliente ? `Cliente: ${orden.nombre_cliente}` : 'Para Llevar');
+  const mesaTexto = principal
+    ? (grupo.length > 1
+      ? `Mesa: ${principal.numero} (Fusión: ${grupo.map(m => m.numero).join(', ')})`
+      : `Mesa: ${principal.numero}`)
+    : (orden.nombre_cliente ? `Cliente: ${orden.nombre_cliente}` : 'Para Llevar');
   lines.push(`${mesaTexto}   Orden: #${orden.id}`);
   lines.push('────────────────────────────────');
 
@@ -7994,6 +8026,190 @@ async function cerrarCuenta() {
   const oc = state.currentOcupada;
   if (!oc || !oc.orden) return;
   openMetodoPago(oc.orden, 'mesa');
+}
+
+/* =========================================================================
+   Fusión de Mesas — grupo con color y una sola comanda
+   ========================================================================= */
+const PALETA_FUSION_UI = ['#2A9D8F', '#E63946', '#FFB703', '#003366', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
+
+function mesaPrincipalDe(mesa) {
+  if (!mesa || !mesa.grupo_fusion_id || mesa.mesa_principal_id === null || mesa.mesa_principal_id === undefined) {
+    return mesa || null;
+  }
+  return state.tables.find(t => t.id === mesa.mesa_principal_id) || mesa;
+}
+
+function mesasDelGrupo(mesa) {
+  if (!mesa) return [];
+  if (!mesa.grupo_fusion_id) return [mesa];
+  return state.tables
+    .filter(t => t.grupo_fusion_id === mesa.grupo_fusion_id)
+    .sort((a, b) => {
+      const ra = a.mesa_principal_id === null ? 0 : 1;
+      const rb = b.mesa_principal_id === null ? 0 : 1;
+      return ra - rb || a.numero - b.numero;
+    });
+}
+
+function colorFusionLibre(grupoId) {
+  const usados = new Set(
+    (state.tables || [])
+      .filter(t => t.grupo_fusion_id && t.grupo_fusion_id !== grupoId && t.color_fusion)
+      .map(t => String(t.color_fusion).toLowerCase())
+  );
+  return PALETA_FUSION_UI.find(c => !usados.has(c.toLowerCase())) || PALETA_FUSION_UI[0];
+}
+
+function renderFusionInfoEnDetalle(mesa) {
+  const info = document.getElementById('oc-fusion-info');
+  const boton = document.getElementById('btn-separar-mesa');
+  if (!info) return;
+  if (!mesa || !mesa.grupo_fusion_id) {
+    info.hidden = true;
+    info.innerHTML = '';
+    if (boton) boton.style.display = 'none';
+    return;
+  }
+  const grupo = mesasDelGrupo(mesa);
+  const principal = grupo.find(t => t.mesa_principal_id === null);
+  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#2A9D8F';
+  info.hidden = false;
+  info.innerHTML = `
+    <span class="oc-fusion-color" style="background:${color};"></span>
+    <div>
+      <strong>Fusión activa${principal ? ` · Mesa principal ${principal.numero}` : ''}</strong>
+      <p>${grupo.map(t => `Mesa ${t.numero}`).join(' · ')}</p>
+      <p>Comparten una sola comanda y se cobran juntas.</p>
+    </div>`;
+  if (boton) {
+    boton.style.display = '';
+    boton.dataset.mesaId = mesa.id;
+    boton.textContent = mesa.mesa_principal_id === null ? '➖ Separar Mesa Principal' : '➖ Separar de Fusión';
+  }
+}
+
+function openFusionModal(mesaId, opciones = {}) {
+  const mesa = state.tables.find(t => t.id === mesaId);
+  if (!mesa) return showToast('Mesa no encontrada', 'error');
+  const grupo = mesasDelGrupo(mesa);
+  state.fusion = {
+    baseId: mesaId,
+    grupo: mesa.grupo_fusion_id || null,
+    seleccion: grupo.map(t => t.id),
+    color: mesa.color_fusion || colorFusionLibre(mesa.grupo_fusion_id || null),
+    reabrir: Boolean(opciones.reabrir),
+    guardando: false,
+  };
+  renderFusionMesas();
+  renderFusionColores();
+  actualizarHintFusion();
+  document.getElementById('modal-fusion-mesa').classList.add('show');
+}
+
+function cerrarFusionModal(reabrir = true) {
+  const fusion = state.fusion;
+  document.getElementById('modal-fusion-mesa')?.classList.remove('show');
+  state.fusion = null;
+  if (reabrir && fusion?.reabrir && state.currentOcupada) {
+    document.getElementById('modal-detalle-mesa-ocupada')?.classList.add('show');
+  }
+}
+
+function renderFusionMesas() {
+  const cont = document.getElementById('fusion-mesas-list');
+  const fusion = state.fusion;
+  if (!cont || !fusion) return;
+  const mesas = (state.tables || [])
+    .filter(t => t.estado === 'LIBRE' || t.estado === 'OCUPADA')
+    .sort((a, b) => String(a.zona_nombre || '').localeCompare(String(b.zona_nombre || ''), 'es') || a.numero - b.numero);
+  if (!mesas.length) {
+    cont.innerHTML = '<p class="correo-vacio">No hay mesas libres u ocupadas para fusionar.</p>';
+    return;
+  }
+  cont.innerHTML = mesas.map(t => {
+    const deOtroGrupo = Boolean(t.grupo_fusion_id && t.grupo_fusion_id !== fusion.grupo);
+    const seleccionada = fusion.seleccion.includes(t.id);
+    const color = /^#[0-9a-fA-F]{6}$/.test(t.color_fusion || '') ? t.color_fusion : '';
+    const estadoTxt = t.estado === 'OCUPADA' ? 'Ocupada' : 'Libre';
+    const principal = t.grupo_fusion_id && t.mesa_principal_id === null ? ' · Principal' : '';
+    return `
+      <label class="fusion-mesa-item${seleccionada ? ' seleccionada' : ''}${deOtroGrupo ? ' deshabilitada' : ''}"${deOtroGrupo ? ' title="Pertenece a otra fusión"' : ''}>
+        <input type="checkbox" data-fusion-id="${t.id}" ${seleccionada ? 'checked' : ''} ${deOtroGrupo ? 'disabled' : ''}>
+        <span class="fusion-mesa-dot" style="background:${color || '#cbd5e1'};"></span>
+        <span class="fusion-mesa-info">
+          <strong>Mesa ${t.numero}${principal}</strong>
+          <span>${escHtml(t.zona_nombre || '')} · ${estadoTxt}${t.apodo ? ' · ' + escHtml(t.apodo) : ''}${deOtroGrupo ? ' · Otra fusión' : ''}</span>
+        </span>
+      </label>`;
+  }).join('');
+}
+
+function renderFusionColores() {
+  const cont = document.getElementById('fusion-colores');
+  const fusion = state.fusion;
+  if (!cont || !fusion) return;
+  cont.innerHTML = PALETA_FUSION_UI.map(color => {
+    const on = String(fusion.color || '').toLowerCase() === color.toLowerCase();
+    return `<button type="button" class="fusion-color${on ? ' on' : ''}" style="background:${color};" data-fusion-color="${color}" aria-label="Color ${color}" aria-pressed="${on}"></button>`;
+  }).join('');
+}
+
+function actualizarHintFusion() {
+  const fusion = state.fusion;
+  if (!fusion) return;
+  const total = fusion.seleccion.length;
+  const hint = document.getElementById('fusion-hint');
+  if (hint) {
+    hint.textContent = fusion.grupo
+      ? `Fusión activa: ${total} mesa${total === 1 ? '' : 's'} en el grupo. Marque mesas libres u ocupadas para sumarlas; compartirán la misma comanda.`
+      : 'Marque al menos dos mesas que comparten una misma cuenta. Al fusionar, las mesas quedan ocupadas, unidas por un color y con una sola comanda.';
+  }
+  const boton = document.getElementById('confirm-fusion-mesa');
+  if (boton) boton.disabled = total < 2 || Boolean(fusion.guardando);
+}
+
+async function confirmarFusion() {
+  const fusion = state.fusion;
+  if (!fusion) return;
+  if (fusion.seleccion.length < 2) return showToast('Selecciona al menos dos mesas', 'warning');
+  if (fusion.guardando) return;
+  fusion.guardando = true;
+  actualizarHintFusion();
+  const detalleAbierto = fusion.reabrir || Boolean(document.getElementById('modal-detalle-mesa-ocupada')?.classList.contains('show'));
+  try {
+    const respuesta = await api('/salon/mesas/fusionar', {
+      method: 'POST',
+      body: JSON.stringify({ mesa_ids: fusion.seleccion, color: fusion.color }),
+    });
+    const destino = respuesta.mesa_principal_id || fusion.seleccion[0];
+    cerrarFusionModal(false);
+    await loadTables();
+    showToast(respuesta.mensaje || 'Mesas fusionadas', 'success');
+    if (detalleAbierto) openDetalleMesaOcupada(destino);
+  } catch {
+    fusion.guardando = false;
+    actualizarHintFusion();
+  }
+}
+
+async function separarMesaFusion(mesaId) {
+  const mesa = state.tables.find(t => t.id === mesaId);
+  if (!mesa || !mesa.grupo_fusion_id) return showToast('La mesa no está fusionada', 'warning');
+  if (!confirm(`¿Separar la Mesa ${mesa.numero} de la fusión?`)) return;
+  const detalleAbierto = Boolean(document.getElementById('modal-detalle-mesa-ocupada')?.classList.contains('show'));
+  try {
+    const respuesta = await api(`/salon/mesas/${mesaId}/separar`, { method: 'POST' });
+    document.getElementById('modal-detalle-mesa-ocupada')?.classList.remove('show');
+    state.currentOcupada = null;
+    await loadTables();
+    showToast(respuesta.mensaje || `Mesa ${mesa.numero} separada de la fusión`, 'success');
+    const destino = respuesta.mesa_principal_id || respuesta.mesas?.[0]?.id;
+    const mesaDestino = state.tables.find(t => t.id === destino);
+    if (detalleAbierto && mesaDestino && mesaDestino.estado === 'OCUPADA') {
+      openDetalleMesaOcupada(destino);
+    }
+  } catch { /* handled by api() */ }
 }
 
 /* =========================================================================
@@ -9998,16 +10214,3 @@ async function restaurarBackup(input) {
   } catch { /* api() ya muestra el error */ }
   input.value = '';
 }
-
-    // Al renderizar las mesas en el HTML:
-const estiloFondo = mesa.color_fusion 
-    ? `background-color: ${mesa.color_fusion}; border: 2px dashed #ffffff;` 
-    : '';
-
-htmlMesa += `
-    <div class="mesa-card p-4 rounded-xl text-white ${mesa.estado === 'OCUPADA' ? 'bg-rose-600' : 'bg-emerald-600'}" 
-         style="${estiloFondo}">
-        <span>Mesa ${mesa.numero}</span>
-        ${mesa.mesa_fusionada_id ? `<span class="text-xs bg-black/40 px-1.5 py-0.5 rounded">Unida</span>` : ''}
-    </div>
-`;

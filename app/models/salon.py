@@ -83,6 +83,22 @@ class Mesa(Base):
         nullable=True,
         default=None
     )
+    grupo_fusion_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        nullable=True,
+        index=True,
+        default=None
+    )
+    color_fusion: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        default=None
+    )
+    mesa_principal_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("mesas.id", name="fk_mesas_principal_id"),
+        nullable=True,
+        default=None
+    )
     zona_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("zonas.id", name="fk_mesas_zona_id"),

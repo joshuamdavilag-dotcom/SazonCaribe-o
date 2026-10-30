@@ -287,6 +287,7 @@ async def startup_event():
         _migrate_usuarios_avisos_comandas()
         _migrate_usuarios_permisos()
         _migrate_mesas_apodo()
+        _migrate_mesas_fusion()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
         _migrate_indices_rendimiento()
@@ -827,6 +828,38 @@ def _migrate_mesas_apodo():
         "ALTER TABLE mesas ADD COLUMN apodo VARCHAR(100) NULL")
 
 
+def _migrate_mesas_fusion():
+    """Agrega las columnas de fusión de mesas y su índice (idempotente).
+
+    ``grupo_fusion_id``  identifica el grupo de mesas fusionadas (UUID).
+    ``color_fusion``     color hexadecimal que distingue al grupo en el salón.
+    ``mesa_principal_id`` mesa que sostiene la comanda del grupo (NULL = principal).
+    """
+    from sqlalchemy import inspect, text
+
+    _add_column_if_not_exists("mesas", "grupo_fusion_id",
+        "ALTER TABLE mesas ADD COLUMN grupo_fusion_id VARCHAR(36) NULL")
+    _add_column_if_not_exists("mesas", "color_fusion",
+        "ALTER TABLE mesas ADD COLUMN color_fusion VARCHAR(20) NULL")
+    _add_column_if_not_exists("mesas", "mesa_principal_id",
+        "ALTER TABLE mesas ADD COLUMN mesa_principal_id INTEGER NULL")
+
+    try:
+        inspector = inspect(engine)
+        if not inspector.has_table("mesas"):
+            return
+        existentes = {ix["name"] for ix in inspector.get_indexes("mesas")}
+        if "ix_mesas_grupo_fusion" in existentes:
+            return
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE INDEX ix_mesas_grupo_fusion ON mesas (grupo_fusion_id)"
+            ))
+        logger.info("Índice creado: ix_mesas_grupo_fusion")
+    except Exception as exc:
+        logger.warning("No se pudo crear el índice ix_mesas_grupo_fusion: %s", exc)
+
+
 def _migrate_indices_rendimiento():
     """Crea índices de rendimiento en columnas muy consultadas (idempotente).
 
@@ -1216,16 +1249,40 @@ def _auditar_hashes():
 
 
 def _fix_orphaned_mesas():
-    """Libera mesas OCUPADA que no tienen orden activa asociada."""
+    """Libera mesas OCUPADA sin orden activa y disuelve fusiones huérfanas.
+
+    Las mesas secundarias de una fusión no tienen orden propia (la comanda vive
+    en la mesa principal), por eso nunca se liberan individualmente: primero se
+    disuelven los grupos sin ninguna comanda activa y solo después se liberan
+    las mesas sueltas.
+    """
     from sqlalchemy import text
     from sqlalchemy.orm import Session
 
     with Session(engine) as db:
         try:
+            grupos = db.execute(text("""
+                UPDATE mesas
+                SET estado = 'LIBRE',
+                    apodo = NULL,
+                    grupo_fusion_id = NULL,
+                    color_fusion = NULL,
+                    mesa_principal_id = NULL
+                WHERE grupo_fusion_id IS NOT NULL
+                  AND grupo_fusion_id NOT IN (
+                    SELECT DISTINCT m2.grupo_fusion_id
+                    FROM mesas m2
+                    JOIN ordenes o ON o.mesa_id = m2.id
+                    WHERE m2.grupo_fusion_id IS NOT NULL
+                      AND o.anulada = 0
+                      AND o.estado IN ('PENDIENTE', 'PREPARANDO', 'ENTREGADA')
+                  )
+            """))
             result = db.execute(text("""
                 UPDATE mesas
                 SET estado = 'LIBRE', apodo = NULL
                 WHERE estado = 'OCUPADA'
+                  AND grupo_fusion_id IS NULL
                   AND id NOT IN (
                     SELECT DISTINCT ordenes.mesa_id
                     FROM ordenes
@@ -1233,9 +1290,12 @@ def _fix_orphaned_mesas():
                       AND ordenes.estado IN ('PENDIENTE', 'PREPARANDO', 'ENTREGADA')
                   )
             """))
-            if result.rowcount > 0:
+            if grupos.rowcount > 0 or result.rowcount > 0:
                 db.commit()
-                print(f"  [SALON] {result.rowcount} mesa(s) huérfana(s) liberada(s) automáticamente")
+                if grupos.rowcount > 0:
+                    print(f"  [SALON] {grupos.rowcount} mesa(s) de fusiones huérfanas disuelta(s)")
+                if result.rowcount > 0:
+                    print(f"  [SALON] {result.rowcount} mesa(s) huérfana(s) liberada(s) automáticamente")
             else:
                 db.rollback()
         except Exception as e:

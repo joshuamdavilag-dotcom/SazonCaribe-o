@@ -14,7 +14,9 @@ from app.schemas.salon import (
     ZonaResponse,
     MesaCreate,
     MesaUpdate,
-    MesaResponse
+    MesaResponse,
+    FusionMesasRequest,
+    FusionMesasResponse
 )
 from app.services.salon_service import SalonService
 
@@ -250,6 +252,48 @@ def asignar_apodo_mesa(
     - El apodo se resetea solo cuando la mesa vuelve a **LIBRE**
     """
     return service.asignar_apodo_mesa(mesa_id, body.apodo)
+
+
+@router.post(
+    "/mesas/fusionar",
+    response_model=FusionMesasResponse,
+    summary="Fusionar mesas",
+    description=(
+        "Une dos o más mesas en un mismo grupo: comparten una sola comanda, "
+        "permanecen OCUPADA y se distinguen por un color propio."
+    ),
+    tags=["Salón y Mesas"]
+)
+def fusionar_mesas(
+    body: FusionMesasRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: SalonService = Depends(get_salon_service)
+) -> FusionMesasResponse:
+    """Fusiona las mesas indicadas y consolida sus comandas activas."""
+    return service.fusionar_mesas(
+        body.mesa_ids,
+        color=body.color,
+        actor=current_user
+    )
+
+
+@router.post(
+    "/mesas/{mesa_id}/separar",
+    response_model=FusionMesasResponse,
+    summary="Separar mesa de una fusión",
+    description=(
+        "Saca una mesa de su grupo de fusión. La mesa queda LIBRE; si era la "
+        "principal, otra mesa del grupo asume y la comanda la sigue."
+    ),
+    tags=["Salón y Mesas"]
+)
+def separar_mesa(
+    mesa_id: int = Path(..., gt=0, description="ID de la mesa"),
+    current_user: Usuario = Depends(get_current_user),
+    service: SalonService = Depends(get_salon_service)
+) -> FusionMesasResponse:
+    """Separa la mesa del grupo de fusión al que pertenece."""
+    return service.separar_mesa(mesa_id, actor=current_user)
 
 
 @router.put(

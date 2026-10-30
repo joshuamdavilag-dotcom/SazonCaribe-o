@@ -1887,6 +1887,30 @@
       </div>
     </div>
   </div>
+  <!-- Modal: fusion de mesas -->
+  <div id="modal-fusion-mesa" class="modal-overlay" aria-label="Fusionar mesas">
+    <div class="modal-sheet" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔗 Fusionar Mesas</h3>
+        <button class="modal-close" id="close-fusion-mesa-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p class="fusion-hint" id="fusion-hint">
+          Marque las mesas que comparten una misma cuenta. Las mesas quedan ocupadas,
+          unidas por un color y con una sola comanda.
+        </p>
+        <div id="fusion-mesas-list" class="fusion-mesas-list"></div>
+        <div class="fusion-color-row">
+          <span class="caption">Color del grupo</span>
+          <div id="fusion-colores" class="fusion-colores"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn btn-secondary" id="cancel-fusion-mesa" style="flex:1;">Cancelar</button>
+          <button class="btn btn-primary" id="confirm-fusion-mesa" style="flex:1;">Fusionar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Detalle Mesa Ocupada -->
   <div id="modal-detalle-mesa-ocupada" class="modal-overlay" aria-label="Detalle de mesa ocupada">
@@ -1936,6 +1960,11 @@
             <input type="text" id="oc-discount-motivo" class="form-input" style="flex:1;height:34px;font-size:12px;" placeholder="Motivo (opcional)">
             <button class="btn btn-turquoise" id="btn-aplicar-descuento" style="height:34px;padding:0 12px;font-size:12px;white-space:nowrap;">Aplicar</button>
           </div>
+        </div>
+        <div id="oc-fusion-info" class="oc-fusion-info" hidden></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="btn btn-secondary" id="btn-fusionar-mesa" style="flex:1;">🔗 Fusionar Mesa</button>
+          <button class="btn btn-secondary" id="btn-separar-mesa" style="flex:1;display:none;">➖ Separar de Fusión</button>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="btn-agregar-pedido" style="flex:1;">➕ Agregar al Pedido</button>
@@ -2839,7 +2868,7 @@
   <div id="modal-correo-prueba" class="modal-overlay" aria-label="Enviar correo de prueba">
     <div class="modal-sheet" style="max-width:440px;">
       <div class="modal-header">
-        <h3 class="modal-title">🧪 Enviar correo de prueba</h3>
+        <h3 class="modal-title">Enviar correo de prueba</h3>
         <button class="modal-close" id="close-correo-prueba" aria-label="Cerrar">✕</button>
       </div>
       <form id="correo-prueba-form" novalidate>
