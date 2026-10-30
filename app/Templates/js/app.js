@@ -9990,6 +9990,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (archivo) subirDocumentoEstudio(archivo);
   });
 
+  // Fusión de mesas
+  document.getElementById('btn-fusionar-mesa')?.addEventListener('click', () => {
+    const oc = state.currentOcupada;
+    if (!oc) return;
+    document.getElementById('modal-detalle-mesa-ocupada')?.classList.remove('show');
+    openFusionModal(oc.id, { reabrir: true });
+  });
+  document.getElementById('btn-separar-mesa')?.addEventListener('click', () => {
+    const oc = state.currentOcupada;
+    if (oc) separarMesaFusion(oc.id);
+  });
+  document.getElementById('close-fusion-mesa-modal')?.addEventListener('click', () => cerrarFusionModal());
+  document.getElementById('cancel-fusion-mesa')?.addEventListener('click', () => cerrarFusionModal());
+  document.getElementById('confirm-fusion-mesa')?.addEventListener('click', confirmarFusion);
+  document.getElementById('fusion-mesas-list')?.addEventListener('change', (e) => {
+    const cb = e.target.closest('input[data-fusion-id]');
+    if (!cb || !state.fusion) return;
+    const id = Number(cb.dataset.fusionId);
+    if (cb.checked) {
+      if (!state.fusion.seleccion.includes(id)) state.fusion.seleccion.push(id);
+    } else {
+      state.fusion.seleccion = state.fusion.seleccion.filter(x => x !== id);
+    }
+    renderFusionMesas();
+    actualizarHintFusion();
+  });
+  document.getElementById('fusion-colores')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-fusion-color]');
+    if (!btn || !state.fusion) return;
+    state.fusion.color = btn.dataset.fusionColor;
+    renderFusionColores();
+  });
+
   // Apodo de mesa ocupada
   document.getElementById('btn-save-apodo')?.addEventListener('click', guardarApodo);
   document.getElementById('oc-apodo-input')?.addEventListener('keydown', (e) => {
