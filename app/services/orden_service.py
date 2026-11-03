@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional, List
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.tiempo import ahora_local
@@ -718,6 +719,7 @@ class OrdenService:
         self,
         orden_id: int,
         nuevo_estado: EstadoOrden,
+        actor: Usuario,
     ) -> Orden:
         """Cambia el estado de la orden validando la máquina de estados.
 
@@ -753,13 +755,57 @@ class OrdenService:
                 detail="Registre el pago mediante el flujo de pagos de la comanda.",
             )
         if nuevo_estado == EstadoOrden.CANCELADA:
-            self._validar_sin_pagos_registrados(orden_id)
+            estado_anterior = orden.estado.value
             try:
                 with self.db.begin_nested():
+                    pagos = list(self.db.execute(
+                        select(PagoComanda)
+                        .where(PagoComanda.orden_id == orden_id)
+                        .order_by(PagoComanda.id)
+                    ).scalars().all())
+                    monto_reembolsado = sum(
+                        (pago.monto for pago in pagos if pago.monto > 0),
+                        Decimal("0.00"),
+                    )
+                    for pago in pagos:
+                        if pago.monto <= 0:
+                            continue
+                        self.db.add(PagoComanda(
+                            orden_id=orden.id,
+                            usuario_id=actor.id,
+                            metodo_pago=pago.metodo_pago,
+                            monto=-pago.monto,
+                        ))
                     self.revertir_stock(orden)
                     orden.estado = EstadoOrden.CANCELADA
                     if orden.mesa_id:
                         SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
+                    AuditoriaService.registrar(
+                        self.db,
+                        actor,
+                        "COMANDA_CANCELADA",
+                        "orden",
+                        orden.id,
+                        (
+                            f"Comanda #{orden.id} cancelada; "
+                            f"reembolso registrado: C${monto_reembolsado:.2f}"
+                        ),
+                        antes={
+                            "estado": estado_anterior,
+                            "pagos": [
+                                {
+                                    "pago_id": pago.id,
+                                    "metodo_pago": pago.metodo_pago.value,
+                                    "monto": str(pago.monto),
+                                }
+                                for pago in pagos
+                            ],
+                        },
+                        despues={
+                            "estado": EstadoOrden.CANCELADA.value,
+                            "monto_reembolsado": str(monto_reembolsado),
+                        },
+                    )
                 self.db.commit()
                 self.db.refresh(orden)
                 return orden

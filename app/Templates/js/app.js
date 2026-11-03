@@ -3801,13 +3801,19 @@ function getMinutosTranscurrido(fechaCreacion) {
 }
 
 async function cambiarEstadoKDS(ordenId, nuevoEstado) {
-  if (nuevoEstado === 'CANCELADA' && !confirm(`¿Cancelar la Orden #${ordenId}?`)) return;
+  if (nuevoEstado === 'CANCELADA'
+    && !confirm(`¿Cancelar la Orden #${ordenId}? Los pagos parciales se registrarán como reembolso.`)) return;
   try {
     await api(`/ordenes/${ordenId}/estado`, {
       method: 'PATCH',
       body: JSON.stringify({ estado: nuevoEstado }),
     });
-    showToast(`Orden #${ordenId} → ${nuevoEstado}`, 'success');
+    showToast(
+      nuevoEstado === 'CANCELADA'
+        ? `Orden #${ordenId} cancelada; reembolso registrado si tenía pagos.`
+        : `Orden #${ordenId} → ${nuevoEstado}`,
+      'success',
+    );
     await loadCocinaOrdenes();
   } catch { /* handled by api() */ }
 }
@@ -3949,8 +3955,8 @@ function renderPaymentHistory(resumen) {
   container.innerHTML = pagos.length
     ? `<div class="payment-history-title">Pagos registrados</div>${pagos.map(pago => `
         <div class="payment-history-item">
-          <span>${escHtml(pago.metodo_pago)} · ${escHtml(pago.cobrador)}</span>
-          <strong>C$${Number(pago.monto).toFixed(2)}</strong>
+          <span>${Number(pago.monto) < 0 ? 'Reembolso · ' : ''}${escHtml(pago.metodo_pago)} · ${escHtml(pago.cobrador)}</span>
+          <strong>${Number(pago.monto) < 0 ? '−' : ''}C$${Math.abs(Number(pago.monto)).toFixed(2)}</strong>
         </div>`).join('')}`
     : '';
 }
@@ -8387,7 +8393,7 @@ function actualizarModoSeleccionFusion() {
     hintText.textContent = state.fusionSeleccionando
       ? state.fusionSeleccionIds.length
         ? 'Toca otra mesa para seleccionarla. Al elegirla, podrás escoger el color de la fusión.'
-        : 'Toca las mesas que compartirán la cuenta. Al menos una debe tener una comanda activa.'
+        : 'Toca las mesas que quieres fusionar.'
       : '';
   }
 }

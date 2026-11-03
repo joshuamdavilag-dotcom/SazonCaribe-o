@@ -462,12 +462,11 @@ class SalonService:
         """Fusiona dos o más mesas en un grupo con color propio.
 
         Reglas:
-        - Al menos una mesa debe tener una comanda activa (la fusión implica
-          clientes presentes y las mesas quedan OCUPADA).
+        - Se pueden fusionar mesas con o sin una comanda activa.
         - No se pueden fusionar mesas de dos grupos distintos.
         - Solo se aceptan mesas LIBRE u OCUPADA.
-        - Las comandas activas se consolidan en una sola orden ligada a la
-          mesa principal; el resto de mesas queda OCUPADA mostrando ese color.
+        - Si hay comandas activas, se consolidan en una sola orden y el grupo
+          queda OCUPADO. Sin comandas, se conserva el estado de cada mesa.
 
         Raises:
             HTTPException 400/404: datos inválidos o mesas inexistentes.
@@ -512,23 +511,16 @@ class SalonService:
         grupo_fusion_id = grupo_existente or uuid4().hex
 
         orden_activa = self._orden_activa_del_grupo(mesas)
-        if not orden_activa:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Ninguna de las mesas seleccionadas tiene una comanda activa. "
-                    "Abra la comanda en una mesa y vuelva a fusionar."
-                )
-            )
-
         if grupo_existente:
             miembros = self.salon_repo.obtener_mesas_por_grupo(grupo_existente)
             principal = next(
                 (m for m in miembros if m.mesa_principal_id is None),
                 miembros[0],
             )
-        else:
+        elif orden_activa:
             principal = next(m for m in mesas if m.id == orden_activa.mesa_id)
+        else:
+            principal = mesas[0]
 
         color_final = color or self._color_fusion_libre(grupo_existente)
 
@@ -543,7 +535,8 @@ class SalonService:
             mesa.grupo_fusion_id = grupo_fusion_id
             mesa.color_fusion = color_final
             mesa.mesa_principal_id = None if mesa.id == principal.id else principal.id
-            mesa.estado = EstadoMesa.OCUPADA
+            if orden:
+                mesa.estado = EstadoMesa.OCUPADA
 
         if actor is not None:
             AuditoriaService.registrar(

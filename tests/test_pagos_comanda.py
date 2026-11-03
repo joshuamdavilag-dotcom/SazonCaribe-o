@@ -12,7 +12,9 @@ from app.models.menu import MenuItem
 from app.models.orden import DetalleOrden, EstadoOrden, MetodoPago, Orden
 from app.models.pago_comanda import PagoComanda
 from app.models.personal import Usuario
+from app.models.auditoria import RegistroAuditoria
 from app.repositories.estudio_mercado_repository import EstudioMercadoRepository
+from app.services.orden_service import OrdenService
 from app.services.pago_comanda_service import PagoComandaService
 from app.services.salon_service import SalonService
 
@@ -145,6 +147,48 @@ class PagoComandaServiceTests(unittest.TestCase):
                 monto=Decimal("10.01"),
             )
         self.assertEqual(raised.exception.status_code, 400)
+
+    def test_canceling_partially_paid_order_registers_refund(self) -> None:
+        self.db.add(PagoComanda(
+            orden_id=self.orden.id,
+            usuario_id=self.usuario.id,
+            metodo_pago=MetodoPago.EFECTIVO,
+            monto=Decimal("3.00"),
+        ))
+        self.db.commit()
+
+        canceled = OrdenService(self.db).cambiar_estado(
+            self.orden.id,
+            EstadoOrden.CANCELADA,
+            self.usuario,
+        )
+
+        pagos = self.db.query(PagoComanda).filter_by(orden_id=self.orden.id).all()
+        self.assertEqual(canceled.estado, EstadoOrden.CANCELADA)
+        self.assertEqual(sum((pago.monto for pago in pagos), Decimal("0.00")), Decimal("0.00"))
+        self.assertEqual(
+            [pago.monto for pago in pagos if pago.usuario_id == self.usuario.id],
+            [Decimal("3.00"), Decimal("-3.00")],
+        )
+        auditoria = self.db.query(RegistroAuditoria).filter_by(
+            accion="COMANDA_CANCELADA",
+            entidad_id=self.orden.id,
+        ).one()
+        self.assertEqual(auditoria.despues["monto_reembolsado"], "3.00")
+
+    def test_canceling_unpaid_order_still_succeeds(self) -> None:
+        canceled = OrdenService(self.db).cambiar_estado(
+            self.orden.id,
+            EstadoOrden.CANCELADA,
+            self.usuario,
+        )
+
+        self.assertEqual(canceled.estado, EstadoOrden.CANCELADA)
+        auditoria = self.db.query(RegistroAuditoria).filter_by(
+            accion="COMANDA_CANCELADA",
+            entidad_id=self.orden.id,
+        ).one()
+        self.assertEqual(auditoria.despues["monto_reembolsado"], "0.00")
 
     def test_market_study_sums_mixed_methods_and_keeps_legacy_orders(self) -> None:
         self.orden.estado = EstadoOrden.PAGADA

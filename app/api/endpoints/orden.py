@@ -146,12 +146,13 @@ def obtener_orden(
 )
 def actualizar_estado(
     background_tasks: BackgroundTasks,
+    current_user: Usuario = Depends(get_current_user),
     orden_id: int = Path(..., gt=0),
     body: ActualizarEstadoOrden = ...,
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Cambia el estado de la orden validando la transición del ciclo de vida."""
-    orden = service.cambiar_estado(orden_id, body.estado)
+    orden = service.cambiar_estado(orden_id, body.estado, current_user)
     if orden.estado == EstadoOrden.ENTREGADA:
         background_tasks.add_task(ejecutar_notificacion_push, orden.id, "comanda_lista")
     return orden
