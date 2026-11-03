@@ -5,14 +5,15 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.orden import EstadoOrden, Orden
-from app.models.salon import EstadoMesa
+from app.models.orden import EstadoOrden, MetodoPago, Orden
 from app.models.pago import EstadoPago, PagoOnline
+from app.models.pago_comanda import PagoComanda
 from app.repositories.pago_repository import PagoRepository
-from app.repositories.salon_repository import SalonRepository
+from app.services.salon_service import SalonService
 from app.services.payment_gateway import (
     GatewayNotConfiguredError,
     GatewayRequestError,
@@ -30,7 +31,6 @@ class PagoService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.pagos = PagoRepository(db)
-        self.salon = SalonRepository(db)
 
     @staticmethod
     def proveedor_configurado() -> str:
@@ -86,7 +86,9 @@ class PagoService:
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail="Las URLs de retorno de pagos deben usar HTTPS.",
                     )
-        orden = self.db.get(Orden, orden_id)
+        orden = self.db.execute(
+            select(Orden).where(Orden.id == orden_id).with_for_update()
+        ).scalar_one_or_none()
         if orden is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -97,10 +99,16 @@ class PagoService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Solo se puede iniciar el pago de una orden abierta.",
             )
-        if orden.total <= 0:
+        pagado = self.db.execute(
+            select(func.coalesce(func.sum(PagoComanda.monto), 0)).where(
+                PagoComanda.orden_id == orden.id
+            )
+        ).scalar_one()
+        saldo = Decimal(str(orden.total)) - Decimal(str(pagado or 0))
+        if saldo <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La orden debe tener un total mayor que cero.",
+                detail="La orden ya está completamente pagada.",
             )
 
         existente = self.pagos.obtener_por_idempotencia(idempotency_key)
@@ -119,7 +127,7 @@ class PagoService:
                 referencia=str(uuid4()),
                 clave_idempotencia=idempotency_key,
                 estado=EstadoPago.PENDIENTE,
-                monto=orden.total,
+                monto=saldo,
                 moneda=settings.PAYMENT_CURRENCY.upper(),
             )
             self.pagos.crear(pago)
@@ -141,10 +149,10 @@ class PagoService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="La clave de idempotencia ya se usó en otra orden.",
             )
-        if pago.monto != orden.total:
+        if pago.monto != saldo:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="El total de la orden cambió; use una clave nueva.",
+                detail="El saldo de la orden cambió; use una clave nueva.",
             )
         if pago.proveedor != gateway.name.strip().lower():
             raise HTTPException(
@@ -318,7 +326,11 @@ class PagoService:
                 detail="El monto recibido en el webhook no es válido.",
             )
 
-        orden = self.db.get(Orden, pago.orden_id)
+        orden = self.db.execute(
+            select(Orden)
+            .where(Orden.id == pago.orden_id)
+            .with_for_update()
+        ).scalar_one_or_none()
         if orden is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -330,21 +342,30 @@ class PagoService:
         if event.status == "paid":
             pago.monto_confirmado = monto_evento
             pago.moneda_confirmada = event.currency.upper()
+            pagos_previos = self.db.execute(
+                select(func.coalesce(func.sum(PagoComanda.monto), 0)).where(
+                    PagoComanda.orden_id == orden.id
+                )
+            ).scalar_one()
+            saldo_actual = Decimal(str(orden.total)) - Decimal(str(pagos_previos or 0))
             if (
                 monto_evento != pago.monto
                 or event.currency.upper() != pago.moneda
-                or orden.total != pago.monto
+                or saldo_actual != pago.monto
                 or orden.estado == EstadoOrden.CANCELADA
             ):
                 pago.estado = EstadoPago.REVISION
             else:
                 pago.estado = EstadoPago.CONFIRMADO
+                self.db.add(PagoComanda(
+                    orden_id=orden.id,
+                    usuario_id=None,
+                    metodo_pago=MetodoPago.PAGO_EN_LINEA,
+                    monto=pago.monto,
+                ))
                 orden.estado = EstadoOrden.PAGADA
                 if orden.mesa_id:
-                    mesa = self.salon.obtener_mesa_por_id(orden.mesa_id)
-                    if mesa:
-                        mesa.estado = EstadoMesa.LIBRE
-                        mesa.apodo = None
+                    SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
         elif event.status == "failed":
             pago.estado = EstadoPago.FALLIDO
         elif event.status == "cancelled":

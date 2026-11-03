@@ -21,7 +21,14 @@ from app.schemas.orden import (
     DevolverItemRequest,
     PagarOrdenRequest,
 )
+from app.schemas.pago import (
+    PagoComandaCreate,
+    EstadoPagosOrdenResponse,
+    DivisionPagoPreviewRequest,
+    DivisionPagoPreviewResponse,
+)
 from app.services.orden_service import OrdenService
+from app.services.pago_comanda_service import PagoComandaService
 from app.services.push_service import ejecutar_notificacion_push
 
 router = APIRouter()
@@ -30,6 +37,13 @@ router = APIRouter()
 def get_orden_service(db: Session = Depends(get_db)) -> OrdenService:
     """Retorna el servicio de órdenes ligado a la sesión de BD de la petición."""
     return OrdenService(db)
+
+
+def get_pago_comanda_service(
+    db: Session = Depends(get_db),
+) -> PagoComandaService:
+    """Retorna el servicio de pagos de comanda ligado a la sesión de BD."""
+    return PagoComandaService(db)
 
 
 # =====================================================================
@@ -217,11 +231,72 @@ def editar_items(
 def pagar_orden(
     orden_id: int = Path(..., gt=0),
     body: Optional[PagarOrdenRequest] = None,
+    current_user: Usuario = Depends(get_current_user),
     service: OrdenService = Depends(get_orden_service),
 ) -> OrdenResponse:
     """Marca la orden como pagada y libera la mesa vinculada en una sola transacción."""
     metodo_pago = body.metodo_pago if body else None
-    return service.pagar_orden(orden_id, metodo_pago)
+    return service.pagar_orden(orden_id, metodo_pago, current_user)
+
+
+@router.get(
+    "/{orden_id}/pagos",
+    response_model=EstadoPagosOrdenResponse,
+    summary="Consultar pagos y saldo de una comanda",
+    dependencies=[Depends(get_current_user)],
+)
+def estado_pagos_orden(
+    orden_id: int = Path(..., gt=0),
+    service: PagoComandaService = Depends(get_pago_comanda_service),
+) -> EstadoPagosOrdenResponse:
+    """Devuelve pagos, saldo pendiente, divisiones y cantidades disponibles."""
+    return service.estado_pagos(orden_id)
+
+
+@router.post(
+    "/{orden_id}/pagos/cotizar-division",
+    response_model=DivisionPagoPreviewResponse,
+    summary="Cotizar la división de un ítem entre comensales",
+    dependencies=[Depends(get_current_user)],
+)
+def cotizar_division_pago(
+    orden_id: int = Path(..., gt=0),
+    body: DivisionPagoPreviewRequest = ...,
+    service: PagoComandaService = Depends(get_pago_comanda_service),
+) -> DivisionPagoPreviewResponse:
+    """Calcula unidades y montos por persona sin registrar todavía un pago."""
+    return service.cotizar_division(
+        orden_id,
+        body.detalle_id,
+        body.cantidad,
+        body.personas,
+    )
+
+
+@router.post(
+    "/{orden_id}/pagos",
+    response_model=EstadoPagosOrdenResponse,
+    summary="Registrar un pago parcial o una parte de un ítem",
+    dependencies=[Depends(get_current_user)],
+)
+def registrar_pago_orden(
+    orden_id: int = Path(..., gt=0),
+    body: PagoComandaCreate = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: PagoComandaService = Depends(get_pago_comanda_service),
+) -> EstadoPagosOrdenResponse:
+    """Registra un cobro y mantiene la comanda abierta mientras quede saldo."""
+    return service.registrar_pago(
+        orden_id=orden_id,
+        metodo_pago=body.metodo_pago,
+        usuario=current_user,
+        monto=body.monto,
+        detalle_id=body.detalle_id,
+        cantidad=body.cantidad,
+        personas=body.personas,
+        parte=body.parte,
+        division_id=body.division_id,
+    )
 
 
 # =====================================================================

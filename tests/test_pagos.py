@@ -9,8 +9,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.models.orden import EstadoOrden, Orden
+from app.models.orden import EstadoOrden, MetodoPago, Orden
 from app.models.pago import EstadoPago, PagoOnline
+from app.models.personal import Usuario
+from app.services.pago_comanda_service import PagoComandaService
 from app.services.pago_service import PagoService
 from app.services.payment_gateway import (
     CheckoutSession,
@@ -27,6 +29,7 @@ class FakeGateway:
 
     def __init__(self) -> None:
         self.checkout_calls = 0
+        self.checkout_amounts = []
         self.event = VerifiedPaymentEvent(
             event_id="evt-1",
             payment_reference="",
@@ -47,6 +50,7 @@ class FakeGateway:
         cancel_url: str,
     ) -> CheckoutSession:
         self.checkout_calls += 1
+        self.checkout_amounts.append(amount)
         return CheckoutSession(
             provider_payment_id="pay-1",
             checkout_url="https://checkout.example.test/pay-1",
@@ -142,6 +146,43 @@ class PagoServiceTests(unittest.TestCase):
             service.procesar_webhook("test-provider", b"signed", {}),
             {"status": "duplicate"},
         )
+
+    def test_checkout_and_webhook_charge_only_remaining_balance(self) -> None:
+        usuario = Usuario(
+            username="cajero",
+            password_hash="hash",
+            rol="Administrador",
+            empleado_id=1,
+        )
+        self.db.add(usuario)
+        self.db.flush()
+        PagoComandaService(self.db).registrar_pago(
+            orden_id=self.orden.id,
+            metodo_pago=MetodoPago.EFECTIVO,
+            usuario=usuario,
+            monto=Decimal("10.00"),
+        )
+        service = PagoService(self.db)
+        pago = service.iniciar_checkout(self.orden.id, "checkout-partial-0001")
+
+        self.assertEqual(pago.monto, Decimal("15.00"))
+        self.assertEqual(self.gateway.checkout_amounts, ["15.00"])
+        self.gateway.event = VerifiedPaymentEvent(
+            event_id="evt-partial-1",
+            payment_reference=pago.referencia,
+            provider_payment_id="pay-1",
+            status="paid",
+            amount="15.00",
+            currency="NIO",
+        )
+
+        result = service.procesar_webhook("test-provider", b"signed", {})
+
+        self.db.refresh(self.orden)
+        self.assertEqual(result, {"status": "confirmado"})
+        self.assertEqual(self.orden.estado, EstadoOrden.PAGADA)
+        resumen = PagoComandaService(self.db).estado_pagos(self.orden.id)
+        self.assertEqual(resumen["pagado_total"], Decimal("25.00"))
 
     def test_changed_order_total_requires_review(self) -> None:
         service = PagoService(self.db)

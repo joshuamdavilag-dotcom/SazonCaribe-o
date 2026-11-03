@@ -8,6 +8,7 @@ from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
 from app.models.pago import PagoOnline, EstadoPago
+from app.models.pago_comanda import PagoComanda, DivisionPagoComanda
 from app.models.calendario import EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
@@ -65,6 +66,8 @@ __all__ = [
     "CategoriaGasto",
     "PagoOnline",
     "EstadoPago",
+    "PagoComanda",
+    "DivisionPagoComanda",
     "EventoCalendario",
     "TipoEventoCalendario",
     "EstadoEventoCalendario",

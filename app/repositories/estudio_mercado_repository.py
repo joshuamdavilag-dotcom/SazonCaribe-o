@@ -21,6 +21,7 @@ from app.models.inventario import CategoriaInsumo, Insumo, UnidadMedida
 from app.models.menu import CategoriaMenu, MenuItem
 from app.models.nomina import Nomina
 from app.models.orden import DetalleOrden, EstadoOrden, Orden
+from app.models.pago_comanda import PagoComanda
 from app.models.personal import Empleado, Puesto
 from app.models.salon import EstadoMesa, Mesa, Zona
 
@@ -114,25 +115,42 @@ class EstudioMercadoRepository:
         }
 
     def metodos_pago(self, desde: date, hasta: date) -> list[dict]:
-        """Órdenes e ingresos agrupados por método de pago."""
+        """Ingresos por método usando pagos parciales y órdenes históricas."""
         inicio, fin = rango_datetime(desde, hasta)
-        filas = self.db.execute(
+        condiciones = self._condiciones_ventas(inicio, fin)
+        pagos = self.db.execute(
+            select(
+                PagoComanda.metodo_pago,
+                func.count(func.distinct(PagoComanda.orden_id)),
+                func.coalesce(func.sum(PagoComanda.monto), 0),
+            )
+            .join(Orden, Orden.id == PagoComanda.orden_id)
+            .where(*condiciones)
+            .group_by(PagoComanda.metodo_pago)
+        ).all()
+        historicas = self.db.execute(
             select(
                 Orden.metodo_pago,
                 func.count(Orden.id),
                 func.coalesce(func.sum(Orden.total), 0),
             )
-            .where(*self._condiciones_ventas(inicio, fin))
+            .where(
+                *condiciones,
+                ~select(PagoComanda.id)
+                .where(PagoComanda.orden_id == Orden.id)
+                .exists(),
+            )
             .group_by(Orden.metodo_pago)
         ).all()
-        return [
-            {
-                "metodo": fila[0].value if hasattr(fila[0], "value") else str(fila[0]),
-                "ordenes": int(fila[1] or 0),
-                "monto": round(float(fila[2] or 0), 2),
-            }
-            for fila in filas
-        ]
+        resumen: dict[str, dict] = {}
+        for metodo, cantidad, monto in [*pagos, *historicas]:
+            clave = metodo.value if hasattr(metodo, "value") else str(metodo)
+            agregado = resumen.setdefault(
+                clave, {"metodo": clave, "ordenes": 0, "monto": 0.0}
+            )
+            agregado["ordenes"] += int(cantidad or 0)
+            agregado["monto"] = round(agregado["monto"] + float(monto or 0), 2)
+        return list(resumen.values())
 
     def productos_vendidos(self, desde: date, hasta: date) -> list[dict]:
         """Unidades e ingresos por platillo en el periodo."""

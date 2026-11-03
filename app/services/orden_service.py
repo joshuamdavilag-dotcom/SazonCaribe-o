@@ -10,6 +10,7 @@ from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.inventario import MovimientoInventario
 from app.models.personal import Usuario
 from app.models.salon import EstadoMesa
+from app.models.pago_comanda import PagoComanda
 from app.repositories.orden_repository import OrdenRepository
 from app.repositories.salon_repository import SalonRepository
 from app.repositories.menu_repository import MenuRepository
@@ -17,6 +18,7 @@ from app.schemas.orden import OrdenCreate, DetalleOrdenCreate, VentaRetroactivaC
 from app.services.gasto_service import GastoService
 from app.services.auditoria_service import AuditoriaService
 from app.services.salon_service import SalonService
+from app.services.pago_comanda_service import PagoComandaService
 
 
 class OrdenService:
@@ -28,6 +30,18 @@ class OrdenService:
         self.salon_repo = SalonRepository(db)
         self.menu_repo = MenuRepository(db)
         self.gasto_service = GastoService(db)
+
+    def _validar_sin_pagos_registrados(self, orden_id: int) -> None:
+        pago = self.db.execute(
+            select(PagoComanda.id)
+            .where(PagoComanda.orden_id == orden_id)
+            .limit(1)
+        ).scalar_one_or_none()
+        if pago:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede modificar ni cancelar una comanda con pagos registrados.",
+            )
 
     def _registrar_descuentos_de_detalles(
         self,
@@ -391,6 +405,7 @@ class OrdenService:
                     f"{orden.estado.value}"
                 ),
             )
+        self._validar_sin_pagos_registrados(orden_id)
 
         try:
             with self.db.begin_nested():
@@ -444,6 +459,7 @@ class OrdenService:
         self,
         orden_id: int,
         metodo_pago: Optional[MetodoPago] = None,
+        actor: Usuario | None = None,
     ) -> Orden:
         """Marca la orden como PAGADA y libera su mesa en una sola transacción.
 
@@ -456,45 +472,20 @@ class OrdenService:
             HTTPException 404: si la orden no existe.
             HTTPException 400: si ya está pagada o cancelada.
         """
-        orden = self.orden_repo.obtener_por_id(orden_id)
-        if not orden:
+        if actor is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontró la orden con ID {orden_id}",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Se requiere un usuario autenticado para registrar el pago.",
             )
-        if orden.estado == EstadoOrden.PAGADA:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La orden ya fue pagada.",
-            )
-        if orden.estado == EstadoOrden.CANCELADA:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se puede pagar una orden cancelada.",
-            )
-
-        try:
-            with self.db.begin_nested():
-                orden.estado = EstadoOrden.PAGADA
-                if metodo_pago is not None:
-                    orden.metodo_pago = metodo_pago
-
-                if orden.mesa_id:
-                    mesa = self.salon_repo.obtener_mesa_por_id(orden.mesa_id)
-                    if mesa:
-                        if mesa.grupo_fusion_id:
-                            SalonService(self.db).liberar_grupo_fusion(mesa.id)
-                        else:
-                            mesa.estado = EstadoMesa.LIBRE
-                            mesa.apodo = None
-
-            self.db.commit()
-            self.db.refresh(orden)
-            return orden
-
-        except Exception:
-            self.db.rollback()
-            raise
+        pagos = PagoComandaService(self.db)
+        estado = pagos.estado_pagos(orden_id)
+        pagos.registrar_pago(
+            orden_id=orden_id,
+            metodo_pago=metodo_pago or MetodoPago.EFECTIVO,
+            usuario=actor,
+            monto=estado["saldo_pendiente"],
+        )
+        return self.orden_repo.obtener_por_id(orden_id)
 
     # ================================================================== #
     #  Anulación / devolución de pedidos cobrados (con auditoría)         #
@@ -756,7 +747,13 @@ class OrdenService:
                 ),
             )
 
+        if nuevo_estado == EstadoOrden.PAGADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registre el pago mediante el flujo de pagos de la comanda.",
+            )
         if nuevo_estado == EstadoOrden.CANCELADA:
+            self._validar_sin_pagos_registrados(orden_id)
             try:
                 with self.db.begin_nested():
                     self.revertir_stock(orden)
@@ -806,6 +803,7 @@ class OrdenService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se puede aplicar descuento a una orden pagada o cancelada.",
             )
+        self._validar_sin_pagos_registrados(orden_id)
 
         detalle = next((d for d in orden.detalles if d.id == detalle_id), None)
         if not detalle:
@@ -892,6 +890,7 @@ class OrdenService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se puede aplicar descuento a una orden pagada o cancelada.",
             )
+        self._validar_sin_pagos_registrados(orden_id)
 
         try:
             with self.db.begin_nested():
@@ -1019,6 +1018,7 @@ class OrdenService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No se encontró la orden con ID {orden_id}",
             )
+        self._validar_sin_pagos_registrados(orden_id)
 
         detalle = next((d for d in orden.detalles if d.id == detalle_id), None)
         if not detalle:
@@ -1238,6 +1238,7 @@ class OrdenService:
                     f"No se puede editar una orden {orden.estado.value}"
                 ),
             )
+        self._validar_sin_pagos_registrados(orden_id)
 
         ids_validos = {d.id for d in orden.detalles}
         for item in items:
