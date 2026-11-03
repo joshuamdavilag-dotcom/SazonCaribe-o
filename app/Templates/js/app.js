@@ -26,6 +26,7 @@ const state = {
   selectedMesa: null,
   currentOrder: { mesaId: null, items: [] },
   tables: [],
+  tablesLoaded: false,
   zonas: [],
   menuItems: [],
   cierreData: null,
@@ -251,7 +252,12 @@ async function cargarNotificaciones() {
   [['pending', 'Nueva comanda', 'schedule'], ['preparing', 'Comanda en preparación', 'soup_kitchen'], ['ready', 'Lista para servir', 'room_service']]
     .forEach(([key, title, icon]) => {
       (data[key] || []).forEach(order => {
-        const mesa = order.mesa_id ? `Mesa ${order.mesa?.numero || order.mesa_id}` : 'Para llevar';
+        const mesaGrupo = order.mesa_id
+          ? state.tables.find(t => t.id === order.mesa_id)
+          : null;
+        const mesa = order.mesa_id
+          ? (mesaGrupo ? textoMesasGrupo(mesaGrupo) : `Mesa ${order.mesa?.numero || order.mesa_id}`)
+          : 'Para llevar';
         const minutes = getMinutosTranscurrido(order.fecha_creacion);
         notifications.push({
           screen: 'comandero',
@@ -3213,11 +3219,12 @@ async function loadTables() {
       const zona = zonas.find(z => z.id === m.zona_id);
       return { ...m, zona_nombre: zona?.nombre || 'Zona ' + m.zona_id };
     });
+    state.tablesLoaded = true;
     renderZonasFilters(zonas);
     applyTableFilters();
     actualizarOcupacion();
     enriquecerMesasOcupadas();
-  } catch { state.tables = []; renderTables([]); actualizarOcupacion(); }
+  } catch { state.tables = []; state.tablesLoaded = false; renderTables([]); actualizarOcupacion(); }
 }
 
 function renderZonasFilters(zonas) {
@@ -3627,6 +3634,10 @@ async function loadCocinaOrdenes() {
   const grid = document.getElementById('cocina-grid');
   if (!grid) return;
   try {
+    if (!state.tablesLoaded) {
+      state.tables = await api('/salon/mesas');
+      state.tablesLoaded = true;
+    }
     const ordenes = await api('/ordenes/');
     cocinaOrdenes = ordenes;
     renderCocinaCards();
@@ -3661,8 +3672,15 @@ function renderCocinaCards() {
 
   grid.innerHTML = filtered.map(o => {
     const esParaLlevar = !o.mesa_id;
+    const mesaOrden = esParaLlevar
+      ? null
+      : state.tables.find(m => m.id === o.mesa_id);
     const zona = esParaLlevar ? 'Salón' : (o.mesa?.zona?.nombre || '—');
-    const mesaLabel = esParaLlevar ? 'Para Llevar' : `Mesa ${o.mesa?.numero || o.mesa_id}`;
+    const mesaLabel = esParaLlevar
+      ? 'Para Llevar'
+      : mesaOrden
+        ? textoMesasGrupo(mesaOrden)
+        : `Mesa ${o.mesa?.numero || o.mesa_id}`;
     const mesero = o.mesero?.username || `Usuario #${o.mesero_id}`;
     const tiempo = getTiempoTranscurrido(o.fecha_creacion);
     const minutos = getMinutosTranscurrido(o.fecha_creacion);
@@ -4064,7 +4082,8 @@ function openOrderModal(mesaId, mesaNumero, ordenExistente) {
   const clienteRow = document.getElementById('order-modal-cliente-row');
   const cobrarRow = document.getElementById('order-modal-cobrar-row');
   if (mesaId) {
-    titleEl.textContent = `Mesa ${mesaNumero}`;
+    const mesa = state.tables.find(t => t.id === mesaId);
+    titleEl.textContent = mesa ? textoMesasGrupo(mesa) : `Mesa ${mesaNumero}`;
     if (clienteRow) clienteRow.style.display = 'none';
     if (cobrarRow) cobrarRow.style.display = 'none';
   } else {
@@ -7803,7 +7822,9 @@ function openDetalleMesaOcupada(mesaId) {
   const principal = mesaPrincipalDe(mesa);
   state.currentOcupada = { mesaId, principalId: principal?.id || mesaId, orden: null };
 
-  document.getElementById('oc-mesa-numero').textContent = mesa.apodo ? `${mesa.numero} · «${mesa.apodo}»` : mesa.numero;
+  const etiquetaMesa = textoMesasGrupo(mesa);
+  document.getElementById('oc-mesa-numero').textContent =
+    mesa.apodo ? `${etiquetaMesa} · «${mesa.apodo}»` : etiquetaMesa;
   document.getElementById('oc-orden-id').textContent = '…';
   const apodoInput = document.getElementById('oc-apodo-input');
   if (apodoInput) apodoInput.value = mesa.apodo || '';
@@ -7884,14 +7905,9 @@ async function forzarLibrarMesa() {
       method: 'PATCH',
       body: JSON.stringify({ nuevo_estado: 'LIBRE' }),
     });
-    const mesa = state.tables.find(t => t.id === oc.mesaId);
-    if (mesa) {
-      mesa.estado = 'LIBRE';
-      mesa.apodo = null;
-    }
     showToast('Mesa liberada correctamente', 'success');
     closeDetalleMesaOcupada();
-    renderTables(state.tables);
+    await loadTables();
   } catch {
     return;
   }
@@ -7994,7 +8010,7 @@ function openPreCuenta() {
   lines.push(`Fecha: ${fecha}  Hora: ${hora}`);
   const mesaTexto = principal
     ? (grupo.length > 1
-      ? `Mesa: ${principal.numero} (Fusión: ${grupo.map(m => m.numero).join(', ')})`
+      ? `${textoMesasGrupo(principal)}:`
       : `Mesa: ${principal.numero}`)
     : (orden.nombre_cliente ? `Cliente: ${orden.nombre_cliente}` : 'Para Llevar');
   lines.push(`${mesaTexto}   Orden: #${orden.id}`);
@@ -8050,6 +8066,15 @@ function mesasDelGrupo(mesa) {
       const rb = b.mesa_principal_id === null ? 0 : 1;
       return ra - rb || a.numero - b.numero;
     });
+}
+
+function textoMesasGrupo(mesa) {
+  if (!mesa) return '';
+  const numeros = mesasDelGrupo(mesa).map(t => t.numero);
+  const lista = numeros.length > 2
+    ? `${numeros.slice(0, -1).join(', ')} y ${numeros[numeros.length - 1]}`
+    : numeros.join(' y ');
+  return `${numeros.length > 1 ? 'Mesas' : 'Mesa'} ${lista}`;
 }
 
 function colorFusionLibre(grupoId) {
@@ -8231,7 +8256,9 @@ async function guardarApodo() {
     const local = state.tables.find(t => t.id === oc.mesaId);
     if (local) local.apodo = mesa.apodo || null;
 
-    document.getElementById('oc-mesa-numero').textContent = mesa.apodo ? `${mesa.numero} · «${mesa.apodo}»` : mesa.numero;
+    const etiquetaMesa = textoMesasGrupo(mesa);
+    document.getElementById('oc-mesa-numero').textContent =
+      mesa.apodo ? `${etiquetaMesa} · «${mesa.apodo}»` : etiquetaMesa;
     renderTables(state.tables);
     enriquecerMesasOcupadas();
     showToast(mesa.apodo ? `Apodo guardado: ${mesa.apodo}` : 'Apodo eliminado', 'success');
@@ -8334,7 +8361,7 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
       <tbody>
         ${sorted.map(o => {
           const mesa = o.mesa_id ? state.tables.find(t => t.id === o.mesa_id) : null;
-          const mesaLabel = mesa ? `Mesa ${mesa.numero}` : (o.nombre_cliente || 'Para Llevar');
+          const mesaLabel = mesa ? textoMesasGrupo(mesa) : (o.nombre_cliente || 'Para Llevar');
           const modalidad = mesa ? 'Salón' : 'Para Llevar';
           const desc = parseFloat(o.descuento_total || 0);
           const fec = String(o.fecha_creacion || '').replace('T', ' ').slice(0, 16);
