@@ -1985,43 +1985,51 @@
   <div id="modal-metodo-pago" class="modal-overlay" aria-label="Método de pago">
     <div class="modal-sheet payment-method-sheet">
       <div class="modal-header">
-        <h3 class="modal-title">💳 Método de pago</h3>
+        <h3 class="modal-title">💳 Registrar pago</h3>
         <button class="modal-close" id="close-metodo-pago" aria-label="Cerrar">✕</button>
       </div>
       <div class="payment-method-content">
         <p class="payment-method-total">
-          Total: <strong id="payment-order-total">C$0.00</strong>
-          <span>Pagado: <strong id="payment-order-paid">C$0.00</strong></span>
-          <span>Saldo: <strong id="payment-order-balance">C$0.00</strong></span>
+          <span>Total <strong id="payment-order-total">C$0.00</strong></span>
+          <span>Pagado <strong id="payment-order-paid">C$0.00</strong></span>
+          <span class="payment-balance">Pendiente <strong id="payment-order-balance">C$0.00</strong></span>
         </p>
-        <label class="payment-field-label" for="payment-mode">¿Qué se va a cobrar?</label>
-        <select id="payment-mode" class="form-input">
-          <option value="saldo">Cobrar el saldo completo</option>
-          <option value="abono">Registrar un abono</option>
-          <option value="item">Cobrar una parte de un ítem</option>
-        </select>
+        <div class="payment-step-title">1. ¿Qué van a pagar?</div>
+        <div class="payment-mode-options" role="group" aria-label="Selecciona qué vas a cobrar">
+          <button type="button" class="payment-mode-choice selected" data-payment-mode="saldo" aria-pressed="true">
+            <span aria-hidden="true">✓</span><strong>Saldo completo</strong>
+          </button>
+          <button type="button" class="payment-mode-choice" data-payment-mode="abono" aria-pressed="false">
+            <span aria-hidden="true">＋</span><strong>Un abono</strong>
+          </button>
+          <button type="button" class="payment-mode-choice" data-payment-mode="item" aria-pressed="false">
+            <span aria-hidden="true">÷</span><strong>Dividir ítem</strong>
+          </button>
+        </div>
         <div id="payment-amount-field" class="payment-fields" hidden>
           <label class="payment-field-label" for="payment-amount">Monto del abono</label>
           <input type="number" id="payment-amount" class="form-input" min="0.01" step="0.01" placeholder="C$0.00">
         </div>
         <div id="payment-item-fields" class="payment-fields" hidden>
-          <label class="payment-field-label" for="payment-item">Platillo</label>
+          <label class="payment-field-label" for="payment-item">¿Qué ítem van a compartir?</label>
           <select id="payment-item" class="form-input"></select>
           <div class="payment-fields-row">
-            <label class="payment-field-label">Unidades a dividir
+            <label class="payment-field-label">Unidades del ítem
               <input type="number" id="payment-quantity" class="form-input" min="1" step="1" value="1">
             </label>
-            <label class="payment-field-label">Personas
+            <label class="payment-field-label">Personas que comparten
               <input type="number" id="payment-personas" class="form-input" min="1" step="1" value="1">
             </label>
           </div>
-          <label class="payment-field-label" for="payment-part">Parte que paga ahora</label>
+          <p class="payment-item-help">Las unidades se reparten entre las personas. Si sobran, se asignan a las primeras partes.</p>
+          <label class="payment-field-label" for="payment-part">¿Qué persona paga ahora?</label>
           <select id="payment-part" class="form-input"></select>
           <p id="payment-item-preview" class="payment-item-preview">Selecciona un ítem para cotizar sus partes.</p>
         </div>
+        <div id="payment-selected-portion" class="payment-selected-portion" hidden></div>
         <div id="payment-open-portions" class="payment-open-portions" hidden></div>
         <div id="payment-history" class="payment-history" hidden></div>
-        <p class="payment-method-hint">¿Cómo pagó el cliente?</p>
+        <div class="payment-step-title">2. ¿Cómo recibió el pago?</div>
         <div class="payment-method-grid">
           <button type="button" class="payment-method-option" id="btn-pago-efectivo">
             <span class="payment-method-icon" aria-hidden="true">💵</span>

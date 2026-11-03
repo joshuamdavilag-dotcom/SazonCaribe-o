@@ -4174,7 +4174,6 @@ function openMetodoPago(orden, origen) {
   clearTimeout(state.paymentQuoteTimer);
   state.paymentMode = 'saldo';
   state.paymentOnlineAvailable = false;
-  document.getElementById('payment-mode').value = 'saldo';
   document.getElementById('payment-amount').value = '';
   document.getElementById('payment-order-total').textContent =
     `C$${state.paymentOrder.total.toFixed(2)}`;
@@ -4227,6 +4226,10 @@ function renderPaymentItems(resumen) {
     const quantity = document.getElementById('payment-quantity');
     quantity.max = items.find(item => String(item.detalle_id) === select.value)?.cantidad_disponible || 1;
     quantity.value = Math.min(Number(quantity.value) || 1, Number(quantity.max));
+    if (state.paymentMode === 'item' && !state.paymentSelection && !state.paymentQuote) {
+      clearTimeout(state.paymentQuoteTimer);
+      state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
+    }
   }
 }
 
@@ -4253,7 +4256,6 @@ function renderPaymentDivisions(resumen) {
         parte: Number(button.dataset.paymentPart),
         label: button.textContent.trim(),
       };
-      document.getElementById('payment-mode').value = 'item';
       document.getElementById('payment-item-preview').textContent =
         `Se cobrará esta parte pendiente: ${state.paymentSelection.label}.`;
       actualizarControlesPago();
@@ -4277,13 +4279,45 @@ function renderPaymentHistory(resumen) {
 function actualizarControlesPago() {
   const mode = state.paymentMode;
   document.getElementById('payment-amount-field').hidden = mode !== 'abono';
-  document.getElementById('payment-item-fields').hidden = mode !== 'item';
+  document.getElementById('payment-item-fields').hidden = mode !== 'item' || Boolean(state.paymentSelection);
+  const selectedPortion = document.getElementById('payment-selected-portion');
+  selectedPortion.hidden = !state.paymentSelection;
+  selectedPortion.innerHTML = state.paymentSelection
+    ? `<strong>Parte seleccionada</strong><span>${escHtml(state.paymentSelection.label)}</span>
+       <button type="button" class="payment-change-portion" data-payment-clear-division>Cambiar parte</button>`
+    : '';
+  document.querySelectorAll('[data-payment-mode]').forEach(button => {
+    const active = button.dataset.paymentMode === mode;
+    button.classList.toggle('selected', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
   const summary = state.paymentSummary;
   const balance = Number(summary?.saldo_pendiente ?? state.paymentOrder?.total ?? 0);
+  const amount = Number(document.getElementById('payment-amount').value);
+  const quotePart = state.paymentQuote?.partes?.find(
+    part => part.numero === Number(document.getElementById('payment-part').value)
+  );
+  const pagoValido = mode === 'saldo'
+    ? balance > 0
+    : mode === 'abono'
+      ? Number.isFinite(amount) && amount > 0 && amount <= balance
+      : Boolean(state.paymentSelection || quotePart);
   document.getElementById('btn-pago-online').disabled =
     state.paymentLoading || mode !== 'saldo' || balance <= 0
     || !state.paymentOnlineAvailable;
-  setBotonesPagoLocal(state.paymentLoading || state.paymentBusy || balance <= 0);
+  setBotonesPagoLocal(state.paymentLoading || state.paymentBusy || !pagoValido);
+}
+
+function seleccionarModoPago(modo) {
+  if (!['saldo', 'abono', 'item'].includes(modo)) return;
+  state.paymentMode = modo;
+  state.paymentSelection = null;
+  state.paymentQuote = null;
+  clearTimeout(state.paymentQuoteTimer);
+  actualizarControlesPago();
+  if (modo === 'item') {
+    state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
+  }
 }
 
 async function cotizarDivisionPago() {
@@ -4294,6 +4328,7 @@ async function cotizarDivisionPago() {
   const parteSelect = document.getElementById('payment-part');
   const preview = document.getElementById('payment-item-preview');
   state.paymentQuote = null;
+  actualizarControlesPago();
   if (!orden || !detalleId || !cantidad || !personas) {
     parteSelect.innerHTML = '';
     preview.textContent = 'Selecciona un ítem e indica cantidad y personas.';
@@ -4320,6 +4355,7 @@ async function cotizarDivisionPago() {
   } catch (error) {
     parteSelect.innerHTML = '';
     preview.textContent = error?.message || 'No se pudo calcular la división.';
+    actualizarControlesPago();
   }
 }
 
@@ -4331,6 +4367,7 @@ function pintarVistaPreviaParte() {
   preview.textContent = selected
     ? `Esta parte pagará ${selected.cantidad} unidad(es): C$${Number(selected.monto).toFixed(2)}.`
     : 'No hay una parte válida seleccionada.';
+  actualizarControlesPago();
 }
 
 async function verificarDisponibilidadPagoOnline() {
@@ -4428,9 +4465,9 @@ async function confirmarPagoLocal(metodo = 'EFECTIVO') {
     } else {
       state.paymentSelection = null;
       state.paymentMode = 'saldo';
-      document.getElementById('payment-mode').value = 'saldo';
       document.getElementById('payment-amount').value = '';
       showToast(`Pago registrado · Saldo pendiente C$${Number(actualizado.saldo_pendiente).toFixed(2)}`, 'success');
+      actualizarControlesPago();
       await actualizarResumenPagos();
     }
   } catch {
@@ -8674,7 +8711,16 @@ function colorFusionLibre(grupoId) {
       .filter(t => t.grupo_fusion_id && t.grupo_fusion_id !== grupoId && t.color_fusion)
       .map(t => String(t.color_fusion).toLowerCase())
   );
-  return PALETA_FUSION_UI.find(c => !usados.has(c.toLowerCase())) || PALETA_FUSION_UI[0];
+  return PALETA_FUSION_UI.find(c => !usados.has(c.toLowerCase())) || null;
+}
+
+function colorFusionEnUso(color, grupoId) {
+  const normalizado = String(color || '').toLowerCase();
+  return (state.tables || []).some(t =>
+    t.grupo_fusion_id
+    && t.grupo_fusion_id !== grupoId
+    && String(t.color_fusion || '').toLowerCase() === normalizado
+  );
 }
 
 function renderFusionInfoEnDetalle(mesa) {
@@ -8824,8 +8870,17 @@ function renderFusionColores() {
   if (!cont || !fusion) return;
   cont.innerHTML = PALETA_FUSION_UI.map(color => {
     const on = String(fusion.color || '').toLowerCase() === color.toLowerCase();
-    return `<button type="button" class="fusion-color${on ? ' on' : ''}" style="background:${color};" data-fusion-color="${color}" aria-label="Color ${color}" aria-pressed="${on}"></button>`;
+    const bloqueado = colorFusionEnUso(color, fusion.grupo);
+    return `<button type="button" class="fusion-color${on ? ' on' : ''}${bloqueado ? ' ocupado' : ''}" style="background:${color};" data-fusion-color="${color}" aria-label="Color ${color}${bloqueado ? ', en uso' : ''}" aria-pressed="${on}" title="${bloqueado ? 'En uso por otra fusión' : `Usar ${color}`}" ${bloqueado ? 'disabled' : ''}>${bloqueado ? '<span aria-hidden="true">×</span>' : ''}</button>`;
   }).join('');
+  const libres = PALETA_FUSION_UI.some(color => !colorFusionEnUso(color, fusion.grupo));
+  if (!fusion.color && libres) {
+    const primeroLibre = PALETA_FUSION_UI.find(color => !colorFusionEnUso(color, fusion.grupo));
+    fusion.color = primeroLibre || null;
+    renderFusionColores();
+    return;
+  }
+  actualizarHintFusion();
 }
 
 function actualizarHintFusion() {
@@ -8834,10 +8889,16 @@ function actualizarHintFusion() {
   const total = fusion.seleccion.length;
   const hint = document.getElementById('fusion-hint');
   if (hint) {
-    hint.textContent = `Se fusionarán ${total} mesas. Elige el color que identificará el grupo en el mapa.`;
+    const hayColor = PALETA_FUSION_UI.some(color => !colorFusionEnUso(color, fusion.grupo));
+    hint.textContent = hayColor
+      ? `Se fusionarán ${total} mesas. Los colores con × ya pertenecen a otra fusión.`
+      : 'Todos los colores están en uso. Quita una fusión antes de continuar.';
   }
   const boton = document.getElementById('confirm-fusion-mesa');
-  if (boton) boton.disabled = total < 2 || Boolean(fusion.guardando);
+  if (boton) {
+    boton.disabled = total < 2 || !fusion.color || colorFusionEnUso(fusion.color, fusion.grupo)
+      || Boolean(fusion.guardando);
+  }
   const agregar = document.getElementById('btn-agregar-fusion-mesa');
   if (agregar) agregar.disabled = Boolean(fusion.guardando);
 }
@@ -8846,6 +8907,9 @@ async function confirmarFusion() {
   const fusion = state.fusion;
   if (!fusion) return;
   if (fusion.seleccion.length < 2) return showToast('Selecciona al menos dos mesas', 'warning');
+  if (!fusion.color || colorFusionEnUso(fusion.color, fusion.grupo)) {
+    return showToast('Elige un color disponible para esta fusión.', 'warning');
+  }
   if (fusion.guardando) return;
   fusion.guardando = true;
   actualizarHintFusion();
@@ -10706,25 +10770,28 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-pago-tarjeta')?.addEventListener('click', () => confirmarPagoLocal('TARJETA'));
   document.getElementById('btn-pago-transferencia')?.addEventListener('click', () => confirmarPagoLocal('TRANSFERENCIA'));
   document.getElementById('btn-pago-online')?.addEventListener('click', iniciarPagoOnline);
-  document.getElementById('payment-mode')?.addEventListener('change', (event) => {
-    state.paymentMode = event.target.value;
+  document.querySelectorAll('[data-payment-mode]').forEach(button => {
+    button.addEventListener('click', () => seleccionarModoPago(button.dataset.paymentMode));
+  });
+  document.getElementById('payment-amount')?.addEventListener('input', actualizarControlesPago);
+  document.getElementById('payment-selected-portion')?.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-payment-clear-division]')) return;
     state.paymentSelection = null;
     state.paymentQuote = null;
-    clearTimeout(state.paymentQuoteTimer);
-    if (state.paymentMode === 'item') {
-      state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
-    }
     actualizarControlesPago();
+    cotizarDivisionPago();
   });
   document.getElementById('payment-item')?.addEventListener('change', () => {
     state.paymentSelection = null;
     state.paymentQuote = null;
+    actualizarControlesPago();
     state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
   });
   ['payment-quantity', 'payment-personas'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => {
       state.paymentSelection = null;
       state.paymentQuote = null;
+      actualizarControlesPago();
       clearTimeout(state.paymentQuoteTimer);
       state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 250);
     });
@@ -10769,7 +10836,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirm-fusion-mesa')?.addEventListener('click', confirmarFusion);
   document.getElementById('fusion-colores')?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-fusion-color]');
-    if (!btn || !state.fusion) return;
+    if (!btn || btn.disabled || !state.fusion) return;
     state.fusion.color = btn.dataset.fusionColor;
     renderFusionColores();
   });

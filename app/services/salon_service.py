@@ -382,11 +382,17 @@ class SalonService:
 
     def _color_fusion_libre(self, grupo_fusion_id: Optional[str] = None) -> str:
         """Elige un color de la paleta que no esté usado por otro grupo."""
-        en_uso = set(self.salon_repo.obtener_colores_fusion_en_uso(grupo_fusion_id))
+        en_uso = {
+            color.lower()
+            for color in self.salon_repo.obtener_colores_fusion_en_uso(grupo_fusion_id)
+        }
         for color in PALETA_FUSION:
-            if color.lower() not in {c.lower() for c in en_uso}:
+            if color.lower() not in en_uso:
                 return color
-        return PALETA_FUSION[len(en_uso) % len(PALETA_FUSION)]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Todos los colores de fusión están en uso. Libera uno antes de fusionar.",
+        )
 
     def _disolver_grupo(self, mesas: List[Mesa]) -> None:
         """Libera todas las mesas del grupo y borra su marca de fusión."""
@@ -522,6 +528,17 @@ class SalonService:
         else:
             principal = mesas[0]
 
+        colores_en_uso = {
+            color_actual.lower()
+            for color_actual in self.salon_repo.obtener_colores_fusion_en_uso(
+                grupo_existente
+            )
+        }
+        if color and color.lower() in colores_en_uso:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ese color ya está siendo utilizado por otra fusión.",
+            )
         color_final = color or self._color_fusion_libre(grupo_existente)
 
         pertenecientes = {m.id: m for m in mesas}

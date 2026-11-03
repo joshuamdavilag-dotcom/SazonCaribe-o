@@ -2627,12 +2627,83 @@ input, select, textarea { font: inherit; }
 .payment-method-content { display: grid; gap: 12px; }
 .payment-method-total {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
   color: var(--text-secondary);
-  font-size: var(--font-label);
+  font-size: 10px;
+  text-align: left;
+}
+.payment-method-total span {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, #e2e8f0 var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 10px;
+  background: color-mix(in srgb, #f8fafc var(--mix-surface-pct), var(--mix-surface-base));
+}
+.payment-method-total .payment-balance {
+  border-color: color-mix(in srgb, #2A9D8F var(--mix-border-pct), var(--mix-border-base));
+  background: color-mix(in srgb, #e8f7f4 var(--mix-surface-pct), var(--mix-surface-base));
+}
+.payment-method-total strong {
+  color: var(--ink-brand);
+  font-size: 14px;
+}
+.payment-step-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.payment-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.payment-mode-choice {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 7px 4px;
+  border: 1px solid color-mix(in srgb, #e2e8f0 var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 10px;
+  background: color-mix(in srgb, #ffffff var(--mix-surface-pct), var(--mix-surface-base));
+  color: var(--text-primary);
+  cursor: pointer;
   text-align: center;
 }
-.payment-method-total strong { color: var(--ink-brand); }
+.payment-mode-choice > span {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #e2e8f0 var(--mix-surface-pct), var(--mix-surface-base));
+  font-size: 13px;
+  font-weight: 900;
+}
+.payment-mode-choice strong {
+  font-size: 10px;
+  line-height: 1.2;
+}
+.payment-mode-choice:hover {
+  border-color: color-mix(in srgb, #2A9D8F var(--mix-border-pct), var(--mix-border-base));
+}
+.payment-mode-choice.selected {
+  border-color: var(--turquesa-ola);
+  background: color-mix(in srgb, #e8f7f4 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #006b5d var(--mix-ink-pct), var(--mix-ink-base));
+}
+.payment-mode-choice.selected > span {
+  background: var(--turquesa-ola);
+  color: #fff;
+}
+.payment-mode-choice:focus-visible {
+  outline: 2px solid var(--turquesa-ola);
+  outline-offset: 2px;
+}
 .payment-fields {
   display: grid;
   gap: 8px;
@@ -2646,7 +2717,35 @@ input, select, textarea { font: inherit; }
 .payment-history[hidden] { display: none; }
 .payment-fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .payment-field-label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+.payment-item-help {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
 .payment-item-preview { margin: 0; color: var(--text-secondary); font-size: 12px; }
+.payment-selected-portion {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, #2A9D8F var(--mix-border-pct), var(--mix-border-base));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #e8f7f4 var(--mix-surface-pct), var(--mix-surface-base));
+  font-size: 12px;
+}
+.payment-selected-portion[hidden] { display: none; }
+.payment-selected-portion strong { color: var(--text-primary); }
+.payment-selected-portion span { color: var(--text-secondary); }
+.payment-change-portion {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--turquesa-ola);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
 .payment-open-portions,
 .payment-history {
   display: grid;
@@ -5940,6 +6039,7 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
 }
 
 .fusion-color {
+  position: relative;
   width: 28px;
   height: 28px;
   border-radius: 999px;
@@ -5951,6 +6051,27 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
 
 .fusion-color:hover {
   transform: scale(1.08);
+}
+
+.fusion-color:disabled,
+.fusion-color.ocupado {
+  opacity: .28;
+  cursor: not-allowed;
+  filter: grayscale(.45);
+}
+
+.fusion-color:disabled:hover {
+  transform: none;
+}
+
+.fusion-color.ocupado span {
+  position: absolute;
+  inset: -2px 0 0;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 24px;
+  text-shadow: 0 1px 3px #000;
 }
 
 .fusion-color.on {
