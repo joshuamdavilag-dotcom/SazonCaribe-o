@@ -3330,6 +3330,12 @@ function tableCardHTML(m) {
           <span class="material-symbols-outlined text-[14px] text-slate-400">${r.icon}</span><span>${r.text(m)}</span>
         </div>`).join('');
   const footerText = typeof s.footerText === 'function' ? s.footerText(m) : s.footerText;
+  const fusionAction = ['LIBRE', 'OCUPADA'].includes(estado)
+    ? `<button type="button" class="tm-fusion-action${seleccionadaParaFusion ? ' selected' : ''}" data-fusion-start="${m.id}" ${seleccionadaParaFusion ? 'aria-pressed="true"' : ''}>
+        <span class="material-symbols-outlined">${seleccionadaParaFusion ? 'check' : 'table_bar'}</span>
+        ${state.fusionSeleccionando ? seleccionadaParaFusion ? 'Mesa seleccionada' : 'Elegir mesa' : 'Fusionar'}
+      </button>`
+    : '';
   return `
       <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]${esFusion ? ' mesa-fusionada' : ''}${seleccionadaParaFusion ? ' fusion-mesa-seleccionada' : ''}"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
@@ -3357,6 +3363,7 @@ function tableCardHTML(m) {
           <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">${s.footerIcon}</span>${footerText}</span>
           ${s.extra ? `<span class="material-symbols-outlined text-[16px]">${s.extra}</span>` : ''}
         </div>
+        ${fusionAction}
       </article>`;
 }
 
@@ -3370,6 +3377,15 @@ function renderTables(mesas) {
   grid.innerHTML = mesas.map(tableCardHTML).join('');
 
   grid.querySelectorAll('[data-mesa-id]').forEach(card => {
+    card.querySelector('[data-fusion-start]')?.addEventListener('click', event => {
+      event.stopPropagation();
+      const mesaId = Number(event.currentTarget.dataset.fusionStart);
+      if (state.fusionSeleccionando) {
+        seleccionarMesaEnMapaParaFusion(mesaId);
+      } else {
+        iniciarSeleccionFusionEnMapa(mesaId);
+      }
+    });
     card.addEventListener('click', () => {
       const mesaId = parseInt(card.dataset.mesaId);
       if (state.fusionSeleccionando) {
@@ -8338,7 +8354,7 @@ function renderFusionInfoEnDetalle(mesa) {
   }
 }
 
-function iniciarSeleccionFusionEnMapa() {
+function iniciarSeleccionFusionEnMapa(mesaId) {
   if (state.fusionSeleccionando) {
     cancelarSeleccionFusionEnMapa();
     return;
@@ -8360,20 +8376,15 @@ function iniciarSeleccionFusionEnMapa() {
   document.body.classList.add('fusion-modo-seleccion');
   actualizarModoSeleccionFusion();
   applyTableFilters();
+  seleccionarMesaEnMapaParaFusion(mesaId);
 }
 
 function actualizarModoSeleccionFusion() {
-  const boton = document.getElementById('btn-iniciar-fusion');
   const hint = document.getElementById('fusion-seleccion-hint');
-  if (boton) {
-    boton.innerHTML = state.fusionSeleccionando
-      ? '<span class="material-symbols-outlined text-[20px]">close</span> Cancelar fusión'
-      : '<span class="material-symbols-outlined text-[20px]">table_bar</span> Fusionar mesas';
-    boton.classList.toggle('fusion-action-active', state.fusionSeleccionando);
-  }
-  if (hint) {
+  const hintText = document.getElementById('fusion-seleccion-hint-text');
+  if (hint && hintText) {
     hint.hidden = !state.fusionSeleccionando;
-    hint.textContent = state.fusionSeleccionando
+    hintText.textContent = state.fusionSeleccionando
       ? state.fusionSeleccionIds.length
         ? 'Toca otra mesa para seleccionarla. Al elegirla, podrás escoger el color de la fusión.'
         : 'Toca las mesas que compartirán la cuenta. Al menos una debe tener una comanda activa.'
@@ -9626,6 +9637,7 @@ async function eliminarDocumentoEstudio(documentoId) {
    Event Listeners
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('btn-cancelar-fusion-mapa')?.addEventListener('click', cancelarSeleccionFusionEnMapa);
   document.addEventListener('click', event => {
     const target = event.target instanceof Element
       ? event.target.closest('button[aria-label="Notificaciones"]')
@@ -10325,7 +10337,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Fusión de mesas desde el mapa del Salón
-  document.getElementById('btn-iniciar-fusion')?.addEventListener('click', iniciarSeleccionFusionEnMapa);
   document.getElementById('btn-separar-mesa')?.addEventListener('click', () => {
     const oc = state.currentOcupada;
     if (oc) separarMesaFusion(oc.id);

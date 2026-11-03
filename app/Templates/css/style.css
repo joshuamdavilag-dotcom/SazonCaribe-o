@@ -5805,6 +5805,10 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
 }
 
 .fusion-map-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin: 0;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, #2A9D8F var(--mix-border-pct), var(--mix-border-base));
@@ -5815,14 +5819,51 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
   font-weight: 700;
 }
 
+.fusion-map-hint button {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, #E63946 var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, #fff1f2 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #b42318 var(--mix-ink-pct), var(--mix-ink-base));
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.fusion-map-hint button:hover {
+  background: color-mix(in srgb, #ffe4e6 var(--mix-surface-pct), var(--mix-surface-base));
+}
+
 .fusion-map-hint[hidden] {
   display: none;
 }
 
-.fusion-action-active {
-  border-color: var(--rojo-cangrejo) !important;
-  background: color-mix(in srgb, #fff1f0 var(--mix-surface-pct), var(--mix-surface-base)) !important;
-  color: color-mix(in srgb, #b42318 var(--mix-ink-pct), var(--mix-ink-base)) !important;
+.tm-fusion-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, #2A9D8F var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 9px;
+  background: color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #0f766e var(--mix-ink-pct), var(--mix-ink-base));
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tm-fusion-action .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.tm-fusion-action:hover,
+.tm-fusion-action.selected {
+  border-color: var(--turquesa-ola);
+  background: color-mix(in srgb, #ccfbf1 var(--mix-surface-pct), var(--mix-surface-base));
 }
 
 .fusion-color-sheet {

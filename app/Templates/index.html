@@ -345,15 +345,15 @@
             <button type="button" id="btn-gestion-mesas" class="admin-only flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-brand-navy/15 bg-white text-brand-navy font-semibold text-sm active:scale-[0.98] transition">
               <span class="material-symbols-outlined text-[20px]">table_restaurant</span> Mesas
             </button>
-            <button type="button" id="btn-iniciar-fusion" class="col-span-2 flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-brand-navy/15 bg-white text-brand-navy font-semibold text-sm active:scale-[0.98] transition">
-              <span class="material-symbols-outlined text-[20px]">table_bar</span> Fusionar mesas
-            </button>
           </div>
         </header>
 
         <!-- Cuerpo de la pantalla -->
         <div class="px-4 pt-3 pb-24 space-y-3 lg:px-6 w-full max-w-full min-w-0">
-          <p id="fusion-seleccion-hint" class="fusion-map-hint" hidden></p>
+          <div id="fusion-seleccion-hint" class="fusion-map-hint" hidden>
+            <span id="fusion-seleccion-hint-text"></span>
+            <button type="button" id="btn-cancelar-fusion-mapa">Cancelar</button>
+          </div>
           <!-- Filtros por estado -->
           <div class="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]" role="tablist" aria-label="Filtrar mesas">
             <button type="button" class="shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold border-2 border-slate-200 bg-white text-slate-600 aria-selected:bg-brand-navy aria-selected:text-white aria-selected:border-brand-navy" data-filter="all" role="tab" aria-selected="true">
