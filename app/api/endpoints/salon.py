@@ -296,6 +296,25 @@ def separar_mesa(
     return service.separar_mesa(mesa_id, actor=current_user)
 
 
+@router.post(
+    "/mesas/{mesa_id}/desfusionar",
+    response_model=FusionMesasResponse,
+    summary="Quitar fusión de mesas",
+    description=(
+        "Disuelve todo el grupo de fusión sin cancelar las comandas activas. "
+        "Las mesas con comandas permanecen ocupadas."
+    ),
+    tags=["Salón y Mesas"],
+)
+def deshacer_fusion(
+    mesa_id: int = Path(..., gt=0, description="ID de una mesa fusionada"),
+    current_user: Usuario = Depends(get_current_user),
+    service: SalonService = Depends(get_salon_service),
+) -> FusionMesasResponse:
+    """Disuelve todo el grupo sin afectar las comandas abiertas."""
+    return service.deshacer_fusion(mesa_id, actor=current_user)
+
+
 @router.put(
     "/mesas/{mesa_id}",
     response_model=MesaResponse,

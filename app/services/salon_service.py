@@ -668,6 +668,88 @@ class SalonService:
             mensaje=f"Mesa {mesa.numero} separada de la fusión.",
         )
 
+    def deshacer_fusion(
+        self,
+        mesa_id: int,
+        actor: Optional[Usuario] = None,
+    ) -> FusionMesasResponse:
+        """Disuelve todo el grupo y conserva ocupadas las mesas con comandas activas."""
+        mesa = self.salon_repo.obtener_mesa_por_id(mesa_id)
+        if not mesa:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la mesa con ID {mesa_id}",
+            )
+        if not mesa.grupo_fusion_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La mesa no está fusionada.",
+            )
+
+        grupo_id = mesa.grupo_fusion_id
+        grupo = self.salon_repo.obtener_mesas_por_grupo(grupo_id)
+        ids = [miembro.id for miembro in grupo]
+        ordenes_activas = list(self.db.execute(
+            select(Orden)
+            .where(
+                Orden.mesa_id.in_(ids),
+                Orden.estado.in_(
+                    (EstadoOrden.PENDIENTE, EstadoOrden.PREPARANDO, EstadoOrden.ENTREGADA)
+                ),
+                Orden.anulada.is_(False),
+            )
+        ).scalars().all())
+        mesas_con_orden = {orden.mesa_id for orden in ordenes_activas}
+
+        for miembro in grupo:
+            miembro.grupo_fusion_id = None
+            miembro.color_fusion = None
+            miembro.mesa_principal_id = None
+            if miembro.id in mesas_con_orden:
+                miembro.estado = EstadoMesa.OCUPADA
+            else:
+                miembro.estado = EstadoMesa.LIBRE
+                miembro.apodo = None
+
+        if actor is not None:
+            AuditoriaService.registrar(
+                self.db,
+                actor,
+                "FUSION_MESAS_DISUELTA",
+                "mesa",
+                mesa_id,
+                f"Fusión de mesas {', '.join(str(m.numero) for m in grupo)} disuelta",
+                antes={
+                    "grupo_fusion_id": grupo_id,
+                    "mesa_ids": ids,
+                    "ordenes_activas": [orden.id for orden in ordenes_activas],
+                },
+                despues={
+                    "grupo_fusion_id": None,
+                    "mesas_ocupadas": sorted(mesas_con_orden),
+                    "ordenes_activas": [orden.id for orden in ordenes_activas],
+                },
+            )
+
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return FusionMesasResponse(
+            grupo_fusion_id=None,
+            color_fusion=None,
+            mesa_principal_id=None,
+            orden_id=ordenes_activas[0].id if ordenes_activas else None,
+            mesas=[MesaResponse.model_validate(miembro) for miembro in grupo],
+            mensaje=(
+                "Fusión quitada. Las comandas activas permanecen abiertas en sus mesas."
+                if ordenes_activas
+                else "Fusión de mesas quitada."
+            ),
+        )
+
     def liberar_grupo_fusion(self, mesa_id: int) -> None:
         """Libera todas las mesas del grupo al cobrar o cancelar la cuenta.
 

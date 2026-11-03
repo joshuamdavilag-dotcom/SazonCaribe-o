@@ -3336,6 +3336,11 @@ function tableCardHTML(m) {
         ${state.fusionSeleccionando ? seleccionadaParaFusion ? 'Mesa seleccionada' : 'Elegir mesa' : 'Fusionar'}
       </button>`
     : '';
+  const desfusionAction = esFusion
+    ? `<button type="button" class="tm-unfusion-action" data-unfusion="${m.id}">
+        <span class="material-symbols-outlined">link_off</span>Quitar fusión
+      </button>`
+    : '';
   return `
       <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]${esFusion ? ' mesa-fusionada' : ''}${seleccionadaParaFusion ? ' fusion-mesa-seleccionada' : ''}"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
@@ -3364,6 +3369,7 @@ function tableCardHTML(m) {
           ${s.extra ? `<span class="material-symbols-outlined text-[16px]">${s.extra}</span>` : ''}
         </div>
         ${fusionAction}
+        ${desfusionAction}
       </article>`;
 }
 
@@ -3385,6 +3391,10 @@ function renderTables(mesas) {
       } else {
         iniciarSeleccionFusionEnMapa(mesaId);
       }
+    });
+    card.querySelector('[data-unfusion]')?.addEventListener('click', event => {
+      event.stopPropagation();
+      void deshacerFusionMesas(Number(event.currentTarget.dataset.unfusion));
     });
     card.addEventListener('click', () => {
       const mesaId = parseInt(card.dataset.mesaId);
@@ -8534,6 +8544,19 @@ async function separarMesaFusion(mesaId) {
     if (detalleAbierto && mesaDestino && mesaDestino.estado === 'OCUPADA') {
       openDetalleMesaOcupada(destino);
     }
+  } catch { /* handled by api() */ }
+}
+
+async function deshacerFusionMesas(mesaId) {
+  const mesa = state.tables.find(t => t.id === mesaId);
+  if (!mesa?.grupo_fusion_id) return showToast('La mesa no está fusionada', 'warning');
+  const grupo = mesasDelGrupo(mesa);
+  const numeros = grupo.map(t => t.numero).join(', ');
+  if (!confirm(`¿Quitar la fusión de las mesas ${numeros}? Las comandas activas seguirán abiertas.`)) return;
+  try {
+    const respuesta = await api(`/salon/mesas/${mesaId}/desfusionar`, { method: 'POST' });
+    await loadTables();
+    showToast(respuesta.mensaje || 'Fusión quitada; las comandas siguen abiertas.', 'success');
   } catch { /* handled by api() */ }
 }
 

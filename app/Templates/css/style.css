@@ -5866,6 +5866,31 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
   background: color-mix(in srgb, #ccfbf1 var(--mix-surface-pct), var(--mix-surface-base));
 }
 
+.tm-unfusion-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, #E63946 var(--mix-border-pct), var(--mix-border-base));
+  border-radius: 9px;
+  background: color-mix(in srgb, #fff1f2 var(--mix-surface-pct), var(--mix-surface-base));
+  color: color-mix(in srgb, #b42318 var(--mix-ink-pct), var(--mix-ink-base));
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tm-unfusion-action .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.tm-unfusion-action:hover {
+  background: color-mix(in srgb, #ffe4e6 var(--mix-surface-pct), var(--mix-surface-base));
+}
+
 .fusion-color-sheet {
   max-width: 380px !important;
 }
