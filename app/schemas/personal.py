@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from enum import Enum
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -92,6 +93,24 @@ class EmpleadoBase(BaseModel):
         description="Teléfono del empleado",
         examples=["3001234567"]
     )
+    email: Optional[str] = Field(
+        default=None,
+        max_length=254,
+        description="Correo de contacto del empleado",
+        examples=["gerencia@restaurante.com"]
+    )
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalizar_email(cls, valor):
+        if valor is None:
+            return None
+        email = str(valor).strip().lower()
+        if not email:
+            return None
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]{2,}", email):
+            raise ValueError("El correo electrónico no tiene un formato válido")
+        return email
 
 
 class EmpleadoCreate(EmpleadoBase):
@@ -130,6 +149,23 @@ class EmpleadoUpdate(BaseModel):
         max_length=20,
         description="Teléfono del empleado",
     )
+    email: Optional[str] = Field(
+        default=None,
+        max_length=254,
+        description="Correo de contacto del empleado",
+    )
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalizar_email(cls, valor):
+        if valor is None:
+            return None
+        email = str(valor).strip().lower()
+        if not email:
+            return None
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]{2,}", email):
+            raise ValueError("El correo electrónico no tiene un formato válido")
+        return email
     puesto_id: Optional[int] = Field(
         default=None,
         gt=0,

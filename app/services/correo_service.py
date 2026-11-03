@@ -33,6 +33,7 @@ from app.models.correo import (
     EnvioCorreo,
     EstadoEnvio,
 )
+from app.models.personal import Empleado, Usuario
 from app.repositories.estudio_mercado_repository import EstudioMercadoRepository
 from app.repositories.inventario_repository import InsumoRepository
 
@@ -369,6 +370,17 @@ class CorreoService:
             config.activo = datos.activo
         if datos.hora is not None:
             config.hora = datos.hora
+
+        if config.activo and not self._destinatarios_para_envio(
+            self._ids_config(config)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "No puedes activar este tipo de correo sin destinatarios "
+                    "activos o sin el correo de un gerente activo."
+                ),
+            )
 
         self.db.commit()
         self.db.refresh(config)
@@ -727,23 +739,40 @@ class CorreoService:
 
     def _sec_activas(self, config: ConfiguracionCorreo) -> list[str]:
         guardadas = config.secciones
-        if isinstance(guardadas, list) and guardadas:
+        if isinstance(guardadas, list):
             validadas, _ = normalizar_secciones(config.tipo, guardadas)
             return validadas
         return secciones_por_defecto(config.tipo)
 
     def _destinatarios_para_envio(self, ids: Optional[list[int]]) -> list[str]:
-        if not ids:
-            return []
-        destinatarios = list(
+        emails = list(
             self.db.execute(
-                select(DestinatarioCorreo).where(
-                    DestinatarioCorreo.id.in_(ids),
-                    DestinatarioCorreo.activo.is_(True),
+                select(Empleado.email)
+                .join(Usuario, Usuario.empleado_id == Empleado.id)
+                .where(
+                    Usuario.rol == "Gerente",
+                    Usuario.activo.is_(True),
+                    Empleado.activo.is_(True),
+                    Empleado.email.is_not(None),
                 )
             ).scalars()
         )
-        return [destinatario.email for destinatario in destinatarios]
+        if ids:
+            emails.extend(
+                self.db.execute(
+                    select(DestinatarioCorreo.email).where(
+                        DestinatarioCorreo.id.in_(ids),
+                        DestinatarioCorreo.activo.is_(True),
+                    )
+                ).scalars()
+            )
+
+        unicos = {}
+        for email in emails:
+            normalizado = normalizar_email(email)
+            if email_valido(normalizado):
+                unicos.setdefault(normalizado, normalizado)
+        return list(unicos.values())
 
     def _resolver_envio(
         self,
@@ -991,8 +1020,23 @@ class CorreoService:
                 None,
                 referencia_id,
             )
-        except HTTPException:
-            return None
+        except HTTPException as exc:
+            self.db.rollback()
+            desde_envio, hasta_envio = self._rango(tipo, desde, hasta)
+            fallido = EnvioCorreo(
+                tipo=tipo,
+                asunto=self._asunto(tipo, desde_envio, hasta_envio),
+                estado=EstadoEnvio.ERROR.value,
+                destinatarios=[],
+                referencia_id=referencia_id,
+                desde=desde_envio.isoformat(),
+                hasta=hasta_envio.isoformat(),
+                error=str(exc.detail),
+            )
+            self.db.add(fallido)
+            self.db.commit()
+            self.db.refresh(fallido)
+            return fallido
 
     # ------------------------------------------------------------------ #
     #  Cola y programados

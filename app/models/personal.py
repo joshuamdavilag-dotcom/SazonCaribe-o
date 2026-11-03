@@ -72,6 +72,10 @@ class Empleado(Base):
         String(20),
         nullable=True
     )
+    email: Mapped[Optional[str]] = mapped_column(
+        String(254),
+        nullable=True
+    )
     puesto_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("puestos.id", name="fk_empleados_puesto_id"),

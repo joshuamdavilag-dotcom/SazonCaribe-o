@@ -290,6 +290,7 @@ async def startup_event():
         _migrate_mesas_fusion()
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
+        _migrate_empleados_email()
         _migrate_indices_rendimiento()
         _migrate_nombres_archivados()
         _fix_unidades_medida()
@@ -430,6 +431,15 @@ def _migrate_insumos_empaque():
         "ALTER TABLE insumos ADD COLUMN unidad_empaque_id INT NULL")
     _add_column_if_not_exists("insumos", "factor_empaque",
         "ALTER TABLE insumos ADD COLUMN factor_empaque FLOAT NULL")
+
+
+def _migrate_empleados_email():
+    """Agrega el correo de contacto a empleados existentes."""
+    _add_column_if_not_exists(
+        "empleados",
+        "email",
+        "ALTER TABLE empleados ADD COLUMN email VARCHAR(254) NULL",
+    )
 
 
 def _migrate_orden_mesa_nullable():

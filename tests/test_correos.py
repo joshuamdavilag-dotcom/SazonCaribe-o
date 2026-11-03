@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
@@ -10,11 +11,15 @@ import app.models  # noqa: F401  (registra todas las tablas en Base.metadata)
 from app.core.config import Settings
 from app.core.correos import TIPOS_CORREO
 from app.core.database import Base
+from app.api.endpoints.correos import vista_previa
 from app.models.correo import ConfiguracionCorreo, EnvioCorreo, EstadoEnvio
+from app.models.personal import Empleado, Puesto, Usuario
 from app.schemas.correo import (
     ConfiguracionCorreoUpdate,
     DestinatarioCorreoCreate,
+    CorreoVistaPreviaRequest,
 )
+from app.schemas.personal import EmpleadoCreate
 from app.services import correo_service
 from app.services.correo_service import CorreoService, ErrorEnvioCorreo
 
@@ -146,6 +151,115 @@ def test_sin_destinatarios_no_envia():
         db.close()
 
 
+def test_destinatarios_automaticos_solo_gerentes_activos_y_sin_duplicados():
+    db = _session()
+    try:
+        servicio = _servicio(db)
+        destinatario = _destinatario(db, email="gerente@test.com")
+        puesto = Puesto(nombre="Gerencia", salario_base=Decimal("1000.00"))
+        db.add(puesto)
+        db.flush()
+        gerente = Empleado(
+            nombre="Ana",
+            apellido="Gómez",
+            puesto_id=puesto.id,
+            fecha_ingreso=date.today(),
+            salario_base=Decimal("1000.00"),
+            email=" GERENTE@Test.com ",
+            activo=True,
+        )
+        admin = Empleado(
+            nombre="Luis",
+            apellido="Pérez",
+            puesto_id=puesto.id,
+            fecha_ingreso=date.today(),
+            salario_base=Decimal("1000.00"),
+            email="admin@test.com",
+            activo=True,
+        )
+        gerente_inactivo = Empleado(
+            nombre="Eva",
+            apellido="Ruiz",
+            puesto_id=puesto.id,
+            fecha_ingreso=date.today(),
+            salario_base=Decimal("1000.00"),
+            email="inactivo@test.com",
+            activo=False,
+        )
+        db.add_all([gerente, admin, gerente_inactivo])
+        db.flush()
+        db.add_all([
+            Usuario(username="gerente", password_hash="x", rol="Gerente", empleado_id=gerente.id, activo=True),
+            Usuario(username="admin", password_hash="x", rol="Administrador", empleado_id=admin.id, activo=True),
+            Usuario(username="inactivo", password_hash="x", rol="Gerente", empleado_id=gerente_inactivo.id, activo=False),
+        ])
+        db.commit()
+
+        assert servicio._destinatarios_para_envio([destinatario.id]) == ["gerente@test.com"]
+        resolucion = servicio._resolver_envio(
+            "manual", ["ventas"], [destinatario.id], None, None, None, None, True
+        )
+        assert resolucion["emails"] == ["gerente@test.com"]
+        assert resolucion["secciones"] == ["ventas"]
+        assert "Resumen de ventas" in resolucion["html"]
+        assert "Nómina pagada" not in resolucion["html"]
+    finally:
+        db.close()
+
+
+def test_correo_empleado_se_normaliza_y_valida():
+    datos = EmpleadoCreate(
+        nombre="Ana",
+        apellido="Gómez",
+        cedula_identidad="12345678",
+        email="  GERENCIA@Ejemplo.com ",
+        puesto_id=1,
+        salario_base=Decimal("1000.00"),
+    )
+    assert datos.email == "gerencia@ejemplo.com"
+
+    with pytest.raises(ValueError):
+        EmpleadoCreate(
+            nombre="Ana",
+            apellido="Gómez",
+            email="correo-invalido",
+            puesto_id=1,
+            salario_base=Decimal("1000.00"),
+        )
+
+
+def test_secciones_vacias_no_vuelven_a_incluir_secciones_por_defecto():
+    db = _session()
+    try:
+        servicio = _servicio(db)
+        destinatario = _destinatario(db)
+        servicio.guardar_configuracion(
+            "manual",
+            ConfiguracionCorreoUpdate(secciones=[], destinatario_ids=[destinatario.id]),
+        )
+        _, html, secciones = servicio.render_html("manual")
+        assert secciones == []
+        assert "Sin información en este correo." in html
+        assert "Resumen de ventas" not in html
+    finally:
+        db.close()
+
+
+def test_vista_previa_funciona_sin_destinatarios_y_respeta_secciones_vacias():
+    db = _session()
+    try:
+        servicio = _servicio(db)
+        resultado = vista_previa(
+            CorreoVistaPreviaRequest(tipo="manual", secciones=[]),
+            servicio=servicio,
+        )
+        assert resultado["secciones"] == []
+        assert "Sin información en este correo." in resultado["html"]
+        assert "Resumen de ventas" not in resultado["html"]
+    finally:
+        db.close()
+
+
 def test_fallo_brevo_registra_error(monkeypatch):
     db = _session()
     try:
@@ -211,6 +325,24 @@ def test_programado_no_corre_antes_de_la_hora(monkeypatch):
         monkeypatch.setattr(correo_service, "ahora_local", lambda: lunes_temprano)
 
         assert servicio.evaluar_programados() == 0
+    finally:
+        db.close()
+
+
+def test_envio_automatico_sin_destinatarios_queda_en_historial_como_error():
+    db = _session()
+    try:
+        servicio = _servicio(db)
+        config = servicio._config("cierre_caja")
+        config.activo = True
+        db.commit()
+
+        envio = servicio.encolar("cierre_caja")
+
+        assert envio is not None
+        assert envio.estado == EstadoEnvio.ERROR.value
+        assert "destinatarios" in envio.error.lower()
+        assert db.get(EnvioCorreo, envio.id) is not None
     finally:
         db.close()
 

@@ -82,7 +82,7 @@ const state = {
   auditPage: null,
   avisoCierreAutomatico: null,
   cierreAutomatico: null,
-  correos: { estado: null, destinatarios: [], tipos: [], historial: [], preview: null },
+  correos: { estado: null, destinatarios: [], tipos: [], historial: [], preview: null, error: null },
   fusion: null,
   fusionSeleccionando: false,
   fusionSeleccionIds: [],
@@ -1113,6 +1113,309 @@ function navigateTo(screenId) {
   if (screenId === 'estudio-mercado') loadEstudioMercado();
   if (screenId === 'correos') loadCorreos();
   if (screenId === 'backups') loadBackups();
+}
+
+/* =========================================================================
+   Correos
+   ========================================================================= */
+function obtenerConfigCorreo(tipo) {
+  return state.correos.tipos.find(item => item.tipo === tipo);
+}
+
+async function loadCorreos() {
+  const pendientes = await Promise.allSettled([
+    api('/correos/estado'),
+    api('/correos/catalogo'),
+    api('/correos/destinatarios'),
+    api('/correos/historial?limite=50'),
+  ]);
+  const errores = pendientes.filter(item => item.status === 'rejected');
+  if (pendientes[0].status === 'fulfilled') state.correos.estado = pendientes[0].value;
+  if (pendientes[1].status === 'fulfilled') state.correos.tipos = pendientes[1].value;
+  if (pendientes[2].status === 'fulfilled') state.correos.destinatarios = pendientes[2].value;
+  if (pendientes[3].status === 'fulfilled') state.correos.historial = pendientes[3].value;
+  state.correos.error = errores.length
+    ? 'No se pudieron cargar todos los datos de correos. Actualiza la pantalla.'
+    : null;
+  renderCorreos();
+  if (errores.length) showToast(state.correos.error, 'error', 5000);
+}
+
+function renderCorreos() {
+  renderCorreoEstado();
+  renderCorreoDestinatarios();
+  renderCorreoTipos();
+  renderCorreoHistorial();
+}
+
+function renderCorreoEstado() {
+  const contenedor = document.getElementById('correos-estado');
+  const estado = state.correos.estado;
+  if (!contenedor) return;
+  if (state.correos.error || !estado) {
+    contenedor.className = 'correo-banner correo-banner-warn';
+    contenedor.innerHTML = `
+      <span class="material-symbols-outlined">warning</span>
+      <div><strong>No se pudo verificar el servicio de correo</strong>
+      <p>${escHtml(state.correos.error || 'No se recibió el estado del servicio.')}</p></div>`;
+    return;
+  }
+  const clase = estado.habilitado ? 'correo-banner-ok' : 'correo-banner-warn';
+  const icono = estado.habilitado ? 'mark_email_read' : 'warning';
+  contenedor.className = `correo-banner ${clase}`;
+  contenedor.innerHTML = `
+    <span class="material-symbols-outlined">${icono}</span>
+    <div>
+      <strong>${escHtml(estado.habilitado ? 'Servicio de correo listo' : 'Servicio de correo no disponible')}</strong>
+      <p>${escHtml(estado.mensaje || '')}</p>
+      <p class="correo-banner-meta">${Number(estado.pendientes || 0)} pendientes · ${Number(estado.enviados || 0)} enviados · ${Number(estado.errores || 0)} con error</p>
+    </div>`;
+}
+
+function renderCorreoDestinatarios() {
+  const contenedor = document.getElementById('correos-destinatarios');
+  const count = document.getElementById('correos-dest-count');
+  if (!contenedor || !count) return;
+  const destinatarios = state.correos.destinatarios || [];
+  count.textContent = `${destinatarios.filter(item => item.activo).length} activos`;
+  if (!destinatarios.length) {
+    contenedor.innerHTML = '<p class="correo-vacio">Aún no hay destinatarios adicionales.</p>';
+    return;
+  }
+  contenedor.innerHTML = destinatarios.map(item => `
+    <div class="correo-dest ${item.activo ? '' : 'inactivo'}" data-correo-dest-id="${item.id}">
+      <div class="correo-dest-info">
+        <input class="form-input" data-dest-campo="nombre" maxlength="120" value="${escHtml(item.nombre)}" aria-label="Nombre del destinatario">
+        <input class="form-input" data-dest-campo="email" type="email" maxlength="200" value="${escHtml(item.email)}" aria-label="Correo del destinatario">
+      </div>
+      <label class="correo-toggle" title="${item.activo ? 'Desactivar' : 'Activar'} destinatario">
+        <input type="checkbox" data-dest-campo="activo" ${item.activo ? 'checked' : ''}>
+        <span class="correo-toggle-track"></span>
+      </label>
+      <button type="button" class="correo-icon-btn" data-correo-accion="guardar-dest" title="Guardar destinatario">
+        <span class="material-symbols-outlined">save</span>
+      </button>
+      <button type="button" class="correo-icon-btn correo-icon-danger" data-correo-accion="eliminar-dest" title="Eliminar destinatario">
+        <span class="material-symbols-outlined">delete</span>
+      </button>
+    </div>`).join('');
+}
+
+function renderCorreoTipos() {
+  const contenedor = document.getElementById('correos-tipos');
+  const count = document.getElementById('correos-tipos-count');
+  if (!contenedor || !count) return;
+  const tipos = state.correos.tipos || [];
+  const activos = tipos.filter(item => item.activo).length;
+  count.textContent = `${activos} activos`;
+  if (!tipos.length) {
+    contenedor.innerHTML = '<p class="correo-vacio">No hay tipos de correo disponibles.</p>';
+    return;
+  }
+
+  contenedor.innerHTML = tipos.map(tipo => {
+    const disponibles = tipo.secciones_disponibles || [];
+    const recipientes = state.correos.destinatarios || [];
+    return `
+      <article class="correo-tipo ${tipo.activo ? 'activo' : ''}" data-correo-tipo="${escHtml(tipo.tipo)}">
+        <div class="correo-tipo-head">
+          <label class="correo-toggle" title="${tipo.activo ? 'Desactivar envío automático' : 'Activar envío automático'}">
+            <input type="checkbox" data-tipo-campo="activo" ${tipo.activo ? 'checked' : ''}>
+            <span class="correo-toggle-track"></span>
+          </label>
+          <div class="correo-tipo-info">
+            <h3>${escHtml(tipo.nombre)}</h3>
+            <p>${escHtml(tipo.descripcion)}</p>
+          </div>
+          <div class="correo-tipo-badges">
+            ${tipo.programado ? '<span class="correo-badge correo-badge-programado">Programado</span>' : ''}
+            ${tipo.evento ? '<span class="correo-badge correo-badge-evento">Por evento</span>' : ''}
+          </div>
+          ${tipo.programado ? `
+            <label class="correo-hora">Hora
+              <input class="form-input" type="number" min="0" max="23" value="${Number(tipo.hora ?? 8)}" data-tipo-campo="hora" aria-label="Hora de envío">
+            </label>` : ''}
+        </div>
+        <div>
+          <p class="text-xs font-bold text-slate-500 mb-1">Destinatarios adicionales</p>
+          <div class="correo-secciones">
+            ${recipientes.length ? recipientes.map(dest => {
+              const checked = (tipo.destinatario_ids || []).includes(dest.id);
+              return `<label class="correo-seccion">
+                <input type="checkbox" data-tipo-destinatario="${dest.id}" ${checked ? 'checked' : ''} ${!dest.activo && !checked ? 'disabled' : ''}>
+                <span><strong>${escHtml(dest.nombre)}</strong><em>${escHtml(dest.email)}${dest.activo ? '' : ' · inactivo'}</em></span>
+              </label>`;
+            }).join('') : '<span class="correo-vacio">Agrega destinatarios para seleccionarlos aquí.</span>'}
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Los gerentes activos con correo en su perfil también reciben cada envío.</p>
+        </div>
+        <div>
+          <p class="text-xs font-bold text-slate-500 mb-1">Información incluida</p>
+          <div class="correo-secciones">
+            ${disponibles.map(seccion => `
+              <label class="correo-seccion ${seccion.sensible ? 'sensible' : ''}">
+                <input type="checkbox" data-tipo-seccion="${escHtml(seccion.clave)}" ${(tipo.secciones || []).includes(seccion.clave) ? 'checked' : ''}>
+                <span><strong>${escHtml(seccion.nombre)}</strong><em>${escHtml(seccion.descripcion)}</em></span>
+              </label>`).join('')}
+          </div>
+        </div>
+        <div class="correo-tipo-acciones">
+          <button type="button" class="btn btn-secondary btn-sm" data-correo-accion="guardar-config">Guardar ajustes</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-correo-accion="preview">Vista previa</button>
+          <button type="button" class="btn btn-primary btn-sm" data-correo-accion="send">Enviar ahora</button>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function renderCorreoHistorial() {
+  const contenedor = document.getElementById('correos-historial');
+  if (!contenedor) return;
+  const envios = state.correos.historial || [];
+  if (!envios.length) {
+    contenedor.innerHTML = '<p class="correo-vacio">Todavía no hay envíos registrados.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <table class="correo-tabla">
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Asunto / error</th><th>Destinatarios</th><th>Estado</th></tr></thead>
+      <tbody>${envios.map(envio => {
+        const estado = String(envio.estado || '').toUpperCase();
+        const estadoClase = estado === 'ENVIADO' ? 'correo-estado-ok' : estado === 'ERROR' ? 'correo-estado-error' : 'correo-estado-pendiente';
+        const nombres = obtenerConfigCorreo(envio.tipo)?.nombre || envio.tipo;
+        const fecha = envio.creado_en ? new Date(envio.creado_en).toLocaleString('es-NI') : '—';
+        return `<tr>
+          <td>${escHtml(fecha)}</td>
+          <td>${escHtml(nombres)}</td>
+          <td><span class="correo-asunto">${escHtml(envio.asunto)}</span>${envio.error ? `<span class="correo-error">${escHtml(envio.error)}</span>` : ''}</td>
+          <td>${(envio.destinatarios || []).map(escHtml).join('<br>') || '—'}</td>
+          <td><span class="correo-estado ${estadoClase}">${escHtml(estado || '—')}</span>${Number(envio.intentos || 0) ? `<small class="block text-slate-400">${Number(envio.intentos)} intentos</small>` : ''}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+function actualizarDatosTipoCorreo(card) {
+  const tipo = obtenerConfigCorreo(card?.dataset.correoTipo);
+  if (!tipo) return;
+  const activo = card.querySelector('[data-tipo-campo="activo"]');
+  if (activo) tipo.activo = activo.checked;
+  const hora = card.querySelector('[data-tipo-campo="hora"]');
+  if (hora) tipo.hora = Math.max(0, Math.min(23, Number(hora.value) || 0));
+  tipo.secciones = [...card.querySelectorAll('[data-tipo-seccion]:checked')].map(input => input.dataset.tipoSeccion);
+  tipo.destinatario_ids = [...card.querySelectorAll('[data-tipo-destinatario]:checked')]
+    .map(input => Number(input.dataset.tipoDestinatario))
+    .filter(id => state.correos.destinatarios.some(dest => dest.id === id && dest.activo));
+  card.classList.toggle('activo', tipo.activo);
+  document.getElementById('correos-tipos-count').textContent =
+    `${state.correos.tipos.filter(item => item.activo).length} activos`;
+}
+
+async function guardarConfiguracionCorreo(tipo, notificar = true) {
+  const config = obtenerConfigCorreo(tipo);
+  if (!config) return false;
+  const actualizada = await api(`/correos/configuracion/${encodeURIComponent(tipo)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      activo: config.activo,
+      hora: config.hora,
+      secciones: config.secciones,
+      destinatario_ids: config.destinatario_ids,
+    }),
+  });
+  state.correos.tipos = state.correos.tipos.map(item => item.tipo === tipo ? actualizada : item);
+  renderCorreoTipos();
+  if (notificar) showToast('Configuración de correo guardada');
+  return true;
+}
+
+async function mostrarVistaPreviaCorreo(tipo) {
+  const config = obtenerConfigCorreo(tipo);
+  if (!config) return;
+  const preview = await api('/correos/vista-previa', {
+    method: 'POST',
+    body: JSON.stringify({ tipo, secciones: config.secciones }),
+  });
+  document.getElementById('correo-preview-title').textContent = `✉️ ${config.nombre}`;
+  document.getElementById('correo-preview-subtitle').textContent =
+    `${preview.asunto} · ${preview.secciones.length} secciones seleccionadas`;
+  document.getElementById('correo-preview-iframe').srcdoc = preview.html;
+  state.correos.preview = { tipo };
+  document.getElementById('modal-correo-preview').classList.add('show');
+}
+
+async function enviarCorreoActual(tipo) {
+  const config = obtenerConfigCorreo(tipo);
+  if (!config) return;
+  await guardarConfiguracionCorreo(tipo, false);
+  const resultado = await api('/correos/enviar', {
+    method: 'POST',
+    body: JSON.stringify({ tipo }),
+  });
+  showToast(resultado.estado === 'ENVIADO' ? 'Correo enviado correctamente' : `Correo registrado: ${resultado.estado}`);
+  cerrarPreviewCorreo();
+  await loadCorreos();
+}
+
+function cerrarPreviewCorreo() {
+  document.getElementById('modal-correo-preview')?.classList.remove('show');
+  const iframe = document.getElementById('correo-preview-iframe');
+  if (iframe) iframe.srcdoc = '';
+  state.correos.preview = null;
+}
+
+async function guardarDestinatarioCorreo(id, contenedor) {
+  const nombre = contenedor.querySelector('[data-dest-campo="nombre"]').value.trim();
+  const email = contenedor.querySelector('[data-dest-campo="email"]').value.trim();
+  const activo = contenedor.querySelector('[data-dest-campo="activo"]').checked;
+  const actualizado = await api(`/correos/destinatarios/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre, email, activo }),
+  });
+  state.correos.destinatarios = state.correos.destinatarios.map(item => item.id === id ? actualizado : item);
+  renderCorreos();
+  showToast('Destinatario actualizado');
+}
+
+async function eliminarDestinatarioCorreo(id) {
+  if (!confirm('¿Eliminar este destinatario?')) return;
+  await api(`/correos/destinatarios/${id}`, { method: 'DELETE' });
+  state.correos.destinatarios = state.correos.destinatarios.filter(item => item.id !== id);
+  state.correos.tipos.forEach(tipo => {
+    tipo.destinatario_ids = (tipo.destinatario_ids || []).filter(destId => destId !== id);
+  });
+  renderCorreos();
+  showToast('Destinatario eliminado');
+}
+
+async function agregarDestinatarioCorreo(event) {
+  event.preventDefault();
+  const nombre = document.getElementById('correo-dest-nombre').value.trim();
+  const email = document.getElementById('correo-dest-email').value.trim();
+  await api('/correos/destinatarios', {
+    method: 'POST',
+    body: JSON.stringify({ nombre, email }),
+  });
+  event.target.reset();
+  await loadCorreos();
+  showToast('Destinatario agregado');
+}
+
+async function abrirPruebaCorreo() {
+  document.getElementById('correo-prueba-form')?.reset();
+  document.getElementById('modal-correo-prueba')?.classList.add('show');
+}
+
+async function enviarPruebaCorreo(event) {
+  event.preventDefault();
+  const email = document.getElementById('correo-prueba-email').value.trim();
+  const resultado = await api('/correos/probar', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  document.getElementById('modal-correo-prueba').classList.remove('show');
+  showToast(resultado.estado === 'ENVIADO' ? 'Correo de prueba enviado' : `Prueba registrada: ${resultado.estado}`);
+  await loadCorreos();
 }
 
 /* =========================================================================
@@ -6590,13 +6893,14 @@ function renderPersonalTable(empleados, usuarios) {
       </span>
     </div>
     <div class="overflow-x-auto">
-      <table id="personal-table" class="employee-table w-full text-sm min-w-[720px]">
+      <table id="personal-table" class="employee-table w-full text-sm min-w-[820px]">
         <thead>
           <tr>
             <th>Empleado</th>
             <th>Puesto</th>
             <th>Salario</th>
             <th>Teléfono</th>
+            <th>Correo</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -6627,8 +6931,10 @@ function renderPersonalTable(empleados, usuarios) {
               <td><span class="emp-rol-badge ${rol.cls}">${rol.emoji} ${e.puesto?.nombre || '—'}</span></td>
               <td class="salary-cell text-[#0F3B66] font-bold whitespace-nowrap">C$${salario}</td>
               <td class="whitespace-nowrap">${e.telefono || '—'}</td>
+              <td class="whitespace-nowrap">${!tienePermiso('personal_gestionar') ? 'Restringido' : e.email ? escHtml(e.email) : '<span class="text-slate-400">Sin correo</span>'}</td>
               <td>
                 <div class="flex items-center gap-1.5">
+                  <button class="emp-action emp-slate admin-only" data-permiso="personal_gestionar" title="Editar correo de ${nombreCompleto}" onclick="openEditarEmailEmpleado(${e.id})"><span class="material-symbols-outlined">mail</span></button>
                   <button class="emp-action emp-turq" title="Ver nómina de ${nombreCompleto}" onclick="openNominaModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">payments</span></button>
                   <button class="emp-action emp-sky" title="Ver asistencias de ${nombreCompleto}" onclick="openAsistenciasModal(${e.id}, '${nq}')"><span class="material-symbols-outlined">history</span></button>
                   ${user ? `<button class="emp-action emp-slate" title="Restablecer contraseña de ${username}" onclick="openResetPasswordModal(${user.id}, '${user.username}')"><span class="material-symbols-outlined">key</span></button>` : ''}
@@ -7267,6 +7573,7 @@ async function saveNuevoEmpleado(e) {
   const apellido = document.getElementById('ne-apellido').value.trim();
   const cedula = document.getElementById('ne-cedula').value.trim();
   const telefono = document.getElementById('ne-telefono').value.trim();
+  const email = document.getElementById('ne-email').value.trim();
   const puesto_id = parseInt(document.getElementById('ne-puesto').value);
   const salario = parseFloat(document.getElementById('ne-salario').value);
   const username = document.getElementById('ne-username').value.trim();
@@ -7283,7 +7590,7 @@ async function saveNuevoEmpleado(e) {
   try {
     const empleado = await api('/personal/empleados', {
       method: 'POST',
-      body: JSON.stringify({ nombre, apellido, cedula_identidad: cedula, telefono: telefono || null, puesto_id, salario_base: salario }),
+      body: JSON.stringify({ nombre, apellido, cedula_identidad: cedula, telefono: telefono || null, email: email || null, puesto_id, salario_base: salario }),
     });
 
     await api('/personal/usuarios', {
@@ -7294,6 +7601,34 @@ async function saveNuevoEmpleado(e) {
     showToast('Empleado y usuario creados con éxito', 'success');
     closeNuevoEmpleadoModal();
     loadPersonal();
+  } catch { /* handled by api() */ }
+}
+
+function openEditarEmailEmpleado(empleadoId) {
+  const empleado = state.empleados.find(item => item.id === empleadoId);
+  if (!empleado) return showToast('No se encontró el empleado', 'error');
+  document.getElementById('email-empleado-id').value = empleado.id;
+  document.getElementById('email-empleado-nombre').textContent = `${empleado.nombre} ${empleado.apellido}`;
+  document.getElementById('email-empleado-valor').value = empleado.email || '';
+  document.getElementById('modal-email-empleado').classList.add('show');
+}
+
+function closeEditarEmailEmpleado() {
+  document.getElementById('modal-email-empleado')?.classList.remove('show');
+}
+
+async function guardarEmailEmpleado(event) {
+  event.preventDefault();
+  const empleadoId = Number(document.getElementById('email-empleado-id').value);
+  const email = document.getElementById('email-empleado-valor').value.trim();
+  try {
+    await api(`/personal/empleados/${empleadoId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ email: email || null }),
+    });
+    closeEditarEmailEmpleado();
+    showToast('Correo del perfil actualizado');
+    await loadPersonal();
   } catch { /* handled by api() */ }
 }
 
@@ -10203,8 +10538,66 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-nuevo-empleado')?.addEventListener('click', closeNuevoEmpleadoModal);
   document.getElementById('cancel-nuevo-empleado')?.addEventListener('click', closeNuevoEmpleadoModal);
   document.getElementById('nuevo-empleado-form')?.addEventListener('submit', saveNuevoEmpleado);
+  document.getElementById('close-email-empleado')?.addEventListener('click', closeEditarEmailEmpleado);
+  document.getElementById('cancel-email-empleado')?.addEventListener('click', closeEditarEmailEmpleado);
+  document.getElementById('email-empleado-form')?.addEventListener('submit', guardarEmailEmpleado);
   document.getElementById('btn-toggle-puesto-panel')?.addEventListener('click', togglePuestoPanel);
   document.getElementById('btn-save-puesto')?.addEventListener('click', guardarPuesto);
+
+  // Correos del sistema
+  document.getElementById('correo-dest-form')?.addEventListener('submit', (e) => {
+    agregarDestinatarioCorreo(e).catch(() => { /* handled by api() */ });
+  });
+  document.getElementById('correos-tipos')?.addEventListener('change', (e) => {
+    const card = e.target.closest('[data-correo-tipo]');
+    if (card) actualizarDatosTipoCorreo(card);
+  });
+  document.getElementById('correos-tipos')?.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-correo-accion]');
+    if (!button) return;
+    const card = button.closest('[data-correo-tipo]');
+    const tipo = card?.dataset.correoTipo;
+    if (!tipo) return;
+    actualizarDatosTipoCorreo(card);
+    const accion = button.dataset.correoAccion;
+    const operaciones = {
+      'guardar-config': () => guardarConfiguracionCorreo(tipo),
+      preview: () => mostrarVistaPreviaCorreo(tipo),
+      send: () => enviarCorreoActual(tipo),
+    };
+    operaciones[accion]?.().catch(() => { /* handled by api() */ });
+  });
+  document.getElementById('correos-destinatarios')?.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-correo-accion]');
+    if (!button) return;
+    const fila = button.closest('[data-correo-dest-id]');
+    const id = Number(fila?.dataset.correoDestId);
+    if (!id) return;
+    if (button.dataset.correoAccion === 'guardar-dest') {
+      guardarDestinatarioCorreo(id, fila).catch(() => { /* handled by api() */ });
+    } else if (button.dataset.correoAccion === 'eliminar-dest') {
+      eliminarDestinatarioCorreo(id).catch(() => { /* handled by api() */ });
+    }
+  });
+  document.getElementById('btn-refresh-correos')?.addEventListener('click', () => {
+    loadCorreos().catch(() => { /* handled by api() */ });
+  });
+  document.getElementById('btn-correo-prueba')?.addEventListener('click', abrirPruebaCorreo);
+  document.getElementById('correo-prueba-form')?.addEventListener('submit', (e) => {
+    enviarPruebaCorreo(e).catch(() => { /* handled by api() */ });
+  });
+  document.getElementById('close-correo-prueba')?.addEventListener('click', () => {
+    document.getElementById('modal-correo-prueba')?.classList.remove('show');
+  });
+  document.getElementById('cancel-correo-prueba')?.addEventListener('click', () => {
+    document.getElementById('modal-correo-prueba')?.classList.remove('show');
+  });
+  document.getElementById('close-correo-preview')?.addEventListener('click', cerrarPreviewCorreo);
+  document.getElementById('cancel-correo-preview')?.addEventListener('click', cerrarPreviewCorreo);
+  document.getElementById('btn-correo-enviar')?.addEventListener('click', () => {
+    const tipo = state.correos.preview?.tipo;
+    if (tipo) enviarCorreoActual(tipo).catch(() => { /* handled by api() */ });
+  });
 
   // Reset Password modal
   document.getElementById('close-reset-password')?.addEventListener('click', closeResetPasswordModal);

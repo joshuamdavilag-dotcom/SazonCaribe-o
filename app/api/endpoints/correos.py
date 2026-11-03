@@ -1,10 +1,11 @@
 """Endpoints del módulo de correos."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, requerir_permiso
 from app.core.database import get_db
+from app.core.correos import normalizar_secciones
 from app.models.personal import Usuario
 from app.schemas.correo import (
     ConfiguracionCorreoResponse,
@@ -138,22 +139,26 @@ def vista_previa(
     datos: CorreoVistaPreviaRequest,
     servicio: CorreoService = Depends(get_correo_service),
 ):
-    resolucion = servicio._resolver_envio(
-        datos.tipo,
-        datos.secciones,
-        None,
-        datos.desde,
-        datos.hasta,
-        None,
-        None,
-        usar_config=True,
+    secciones = datos.secciones
+    if secciones is not None:
+        validas, invalidas = normalizar_secciones(datos.tipo, secciones)
+        if invalidas:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Secciones no disponibles: " + ", ".join(invalidas),
+            )
+        secciones = validas
+    desde, hasta = servicio._rango(datos.tipo, datos.desde, datos.hasta)
+    asunto_base, html, secciones = servicio.render_html(
+        datos.tipo, secciones, desde, hasta
     )
+    asunto = servicio._asunto(datos.tipo, desde, hasta) or asunto_base
     return {
-        "asunto": resolucion["asunto"],
-        "html": resolucion["html"],
-        "desde": resolucion["desde"],
-        "hasta": resolucion["hasta"],
-        "secciones": resolucion["secciones"],
+        "asunto": asunto,
+        "html": html,
+        "desde": desde,
+        "hasta": hasta,
+        "secciones": secciones,
     }
 
 
