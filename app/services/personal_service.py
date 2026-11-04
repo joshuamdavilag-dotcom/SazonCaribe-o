@@ -22,6 +22,7 @@ from app.schemas.personal import (
     EmpleadoCreate,
     EmpleadoUpdate,
     EmpleadoResponse,
+    EmpleadoBajaResponse,
     UsuarioCreate,
     UsuarioResponse,
     PasswordResetRequest,
@@ -30,6 +31,7 @@ from app.schemas.personal import (
 )
 from app.services.push_service import es_puesto_cocina
 from app.core.security import obtener_password_hash, verificar_password
+from app.core.tiempo import hoy_local
 from app.services.asistencia_service import AsistenciaService
 
 
@@ -204,8 +206,23 @@ class PersonalService:
                 detail=f"No se encontró el empleado con ID {empleado_id}"
             )
 
-        empleado_desactivado = self.empleado_repo.desactivar(empleado_id)
+        if empleado.activo:
+            self._registrar_datos_baja(empleado)
+            self.db.commit()
+            self.db.refresh(empleado)
+        empleado_desactivado = empleado
         return EmpleadoResponse.model_validate(empleado_desactivado)
+
+    def listar_empleados_dados_de_baja(self) -> List[EmpleadoBajaResponse]:
+        """Lista los expedientes inactivos con los datos disponibles de su baja."""
+        empleados = self.empleado_repo.get_inactivos()
+        return [EmpleadoBajaResponse.model_validate(e) for e in empleados]
+
+    @staticmethod
+    def _registrar_datos_baja(empleado: Empleado) -> None:
+        empleado.activo = False
+        empleado.fecha_baja = hoy_local()
+        empleado.salario_base_al_baja = empleado.salario_base
 
     def dar_de_baja_empleado(
         self,
@@ -261,9 +278,12 @@ class PersonalService:
 
         usuario = self.usuario_repo.get_by_empleado_id(empleado_id)
         if usuario and usuario.activo:
-            self.usuario_repo.update(usuario.id, {"activo": False})
+            usuario.activo = False
 
-        empleado_desactivado = self.empleado_repo.desactivar(empleado_id)
+        self._registrar_datos_baja(empleado)
+        self.db.commit()
+        self.db.refresh(empleado)
+        empleado_desactivado = empleado
         return EmpleadoResponse.model_validate(empleado_desactivado)
 
     def eliminar_usuario(
@@ -357,10 +377,16 @@ class PersonalService:
             nueva_cedula = self._nombre_archivado(
                 empleado.cedula_identidad, empleado.id, 20
             )
-            self.empleado_repo.update(empleado.id, {
+            datos_empleado = {
                 "cedula_identidad": nueva_cedula,
-                "activo": False,
-            })
+            }
+            if empleado.activo:
+                datos_empleado.update({
+                    "activo": False,
+                    "fecha_baja": hoy_local(),
+                    "salario_base_al_baja": empleado.salario_base,
+                })
+            self.empleado_repo.update(empleado.id, datos_empleado)
             mensaje = (
                 f"El usuario '{usuario.username}' fue archivado como "
                 f"'{nuevo_username}' y su empleado {empleado.nombre} fue "
@@ -482,6 +508,12 @@ class PersonalService:
             )
 
         update_data = empleado_in.model_dump(exclude_unset=True)
+
+        if update_data.get("activo") is False and empleado.activo:
+            update_data["fecha_baja"] = hoy_local()
+            update_data["salario_base_al_baja"] = update_data.get(
+                "salario_base", empleado.salario_base
+            )
 
         if "puesto_id" in update_data:
             puesto = self.puesto_repo.get_by_id(update_data["puesto_id"])

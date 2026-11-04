@@ -86,10 +86,18 @@ class Empleado(Base):
         nullable=False,
         default=date.today
     )
+    fecha_baja: Mapped[Optional[date]] = mapped_column(
+        Date,
+        nullable=True
+    )
     salario_base: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
         default=Decimal("0")
+    )
+    salario_base_al_baja: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True
     )
     activo: Mapped[bool] = mapped_column(
         Boolean,

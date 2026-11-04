@@ -6882,6 +6882,100 @@ async function loadPersonal() {
   syncMassTurnoButton();
 }
 
+async function toggleEmpleadosBaja() {
+  const panel = document.getElementById('empleados-baja-panel');
+  const button = document.getElementById('btn-toggle-empleados-baja');
+  const visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : '';
+  button.setAttribute('aria-expanded', String(!visible));
+  if (!visible) await loadEmpleadosBaja();
+}
+
+async function loadEmpleadosBaja() {
+  const content = document.getElementById('empleados-baja-content');
+  content.innerHTML = '<p class="p-6 text-center text-sm text-slate-500">Cargando historial…</p>';
+  try {
+    const empleados = await api('/personal/empleados/bajas');
+    renderEmpleadosBaja(empleados);
+  } catch {
+    content.innerHTML = '<p class="p-6 text-center text-sm text-slate-500">No se pudo cargar el historial. Intenta actualizar.</p>';
+  }
+}
+
+function fechaLaboralTexto(fecha) {
+  if (!fecha) return 'No registrada';
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  if (!anio || !mes || !dia) return 'No registrada';
+  return new Date(anio, mes - 1, dia).toLocaleDateString('es-NI');
+}
+
+function tiempoLaboradoTexto(fechaIngreso, fechaBaja) {
+  if (!fechaIngreso || !fechaBaja) return 'No disponible';
+  const [anioInicio, mesInicio, diaInicio] = fechaIngreso.split('-').map(Number);
+  const [anioFin, mesFin, diaFin] = fechaBaja.split('-').map(Number);
+  const inicio = Date.UTC(anioInicio, mesInicio - 1, diaInicio);
+  const fin = Date.UTC(anioFin, mesFin - 1, diaFin);
+  if (![inicio, fin].every(Number.isFinite) || fin < inicio) return 'No disponible';
+
+  let totalMeses = (anioFin - anioInicio) * 12 + mesFin - mesInicio;
+  const fechaConMeses = cantidad => {
+    const indiceMes = mesInicio - 1 + cantidad;
+    const anio = anioInicio + Math.floor(indiceMes / 12);
+    const mes = indiceMes % 12;
+    const ultimoDia = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+    return Date.UTC(anio, mes, Math.min(diaInicio, ultimoDia));
+  };
+  while (totalMeses > 0 && fechaConMeses(totalMeses) > fin) totalMeses -= 1;
+  const anios = Math.floor(totalMeses / 12);
+  const meses = totalMeses % 12;
+  const dias = Math.round((fin - fechaConMeses(totalMeses)) / 86400000);
+
+  const partes = [];
+  if (anios) partes.push(`${anios} año${anios === 1 ? '' : 's'}`);
+  if (meses) partes.push(`${meses} mes${meses === 1 ? '' : 'es'}`);
+  if (dias || partes.length === 0) partes.push(`${dias} día${dias === 1 ? '' : 's'}`);
+  return partes.join(', ');
+}
+
+function renderEmpleadosBaja(empleados) {
+  const content = document.getElementById('empleados-baja-content');
+  const resumen = document.getElementById('empleados-baja-resumen');
+  resumen.textContent = `${empleados.length} empleado${empleados.length === 1 ? '' : 's'} · fechas y salario mensual conservados al dar de baja`;
+  if (!empleados.length) {
+    content.innerHTML = '<p class="p-6 text-center text-sm text-slate-500">No hay empleados dados de baja.</p>';
+    return;
+  }
+
+  content.innerHTML = `
+    <table class="employee-table w-full text-sm min-w-[850px]">
+      <thead><tr>
+        <th>Empleado</th><th>Puesto</th><th>Fecha de contratación</th>
+        <th>Fecha de baja</th><th>Tiempo trabajado</th><th>Paga mensual</th>
+      </tr></thead>
+      <tbody>${empleados.map(empleado => {
+        const salarioHistorico = empleado.salario_base_al_baja != null;
+        const salario = salarioHistorico
+          ? empleado.salario_base_al_baja
+          : empleado.salario_base;
+        const salarioNota = salarioHistorico
+          ? 'Al dar de baja'
+          : 'Referencia actual · baja antigua';
+        const puesto = empleado.puesto?.nombre || '—';
+        return `<tr>
+          <td class="font-semibold">${escHtml(`${empleado.nombre} ${empleado.apellido}`)}</td>
+          <td>${escHtml(puesto)}</td>
+          <td>${fechaLaboralTexto(empleado.fecha_ingreso)}</td>
+          <td>${fechaLaboralTexto(empleado.fecha_baja)}</td>
+          <td>${tiempoLaboradoTexto(empleado.fecha_ingreso, empleado.fecha_baja)}</td>
+          <td class="whitespace-nowrap">
+            <span class="font-bold">C$${parseFloat(salario || 0).toFixed(2)}</span>
+            <span class="block text-xs text-slate-500">${salarioNota}</span>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
 const EMP_AVATAR_TINTS = [
   ['#0F3B66', '#E3EAF3'], ['#006B6B', '#E0F2EF'], ['#B4462A', '#FDEBE6'],
   ['#7A5AF8', '#ECE8FE'], ['#D97706', '#FEF3E2'], ['#0E7490', '#E0F2FE'],
@@ -7206,7 +7300,10 @@ async function confirmEliminarEmpleado() {
     });
     showToast('Empleado dado de baja correctamente');
     closeEliminarEmpleadoModal();
-    loadPersonal();
+    await loadPersonal();
+    if (document.getElementById('empleados-baja-panel')?.style.display !== 'none') {
+      await loadEmpleadosBaja();
+    }
   } catch (e) {
     pw.focus();
     pw.select();
@@ -10594,6 +10691,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('adelanto-form')?.addEventListener('submit', guardarAdelanto);
 
   // Nuevo Empleado modal
+  document.getElementById('btn-toggle-empleados-baja')?.addEventListener('click', toggleEmpleadosBaja);
+  document.getElementById('btn-refresh-empleados-baja')?.addEventListener('click', loadEmpleadosBaja);
   document.getElementById('btn-nuevo-empleado')?.addEventListener('click', async () => {
     await loadPuestos();
     populatePuestoSelect();

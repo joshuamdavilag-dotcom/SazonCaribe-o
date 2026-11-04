@@ -17,6 +17,7 @@ from app.schemas.personal import (
     EmpleadoCreate,
     EmpleadoUpdate,
     EmpleadoResponse,
+    EmpleadoBajaResponse,
     UsuarioCreate,
     UsuarioResponse,
     PasswordResetRequest,
@@ -137,6 +138,20 @@ def listar_empleados(
     Retorna la lista de empleados activos.
     """
     return service.listar_empleados(solo_activos=True)
+
+
+@router.get(
+    "/empleados/bajas",
+    response_model=List[EmpleadoBajaResponse],
+    summary="Listar empleados dados de baja",
+    description="Consulta el historial laboral de empleados inactivos. Requiere permiso de gestión de personal.",
+    tags=["Empleados"],
+    dependencies=[Depends(requerir_permiso("personal_gestionar"))]
+)
+def listar_empleados_dados_de_baja(
+    service: PersonalService = Depends(get_personal_service)
+) -> List[EmpleadoBajaResponse]:
+    return service.listar_empleados_dados_de_baja()
 
 
 @router.put(

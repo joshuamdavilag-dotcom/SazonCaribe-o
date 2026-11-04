@@ -291,6 +291,7 @@ async def startup_event():
         _migrate_ordenes_anulacion()
         _migrate_gastos_eliminacion()
         _migrate_empleados_email()
+        _migrate_empleados_baja()
         _migrate_indices_rendimiento()
         _migrate_nombres_archivados()
         _fix_unidades_medida()
@@ -439,6 +440,20 @@ def _migrate_empleados_email():
         "empleados",
         "email",
         "ALTER TABLE empleados ADD COLUMN email VARCHAR(254) NULL",
+    )
+
+
+def _migrate_empleados_baja():
+    """Agrega datos de fecha y salario capturados al dar de baja."""
+    _add_column_if_not_exists(
+        "empleados",
+        "fecha_baja",
+        "ALTER TABLE empleados ADD COLUMN fecha_baja DATE NULL",
+    )
+    _add_column_if_not_exists(
+        "empleados",
+        "salario_base_al_baja",
+        "ALTER TABLE empleados ADD COLUMN salario_base_al_baja NUMERIC(10, 2) NULL",
     )
 
 

@@ -67,7 +67,15 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         Returns:
             Lista de empleados inactivos.
         """
-        statement = select(Empleado).where(Empleado.activo == False)
+        statement = (
+            select(Empleado)
+            .where(Empleado.activo.is_(False))
+            .order_by(
+                Empleado.fecha_baja.is_(None),
+                Empleado.fecha_baja.desc(),
+                Empleado.id.desc(),
+            )
+        )
         result = self.db.execute(statement)
         return list(result.scalars().all())
 

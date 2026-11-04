@@ -213,6 +213,20 @@ class EmpleadoResponse(EmpleadoBase):
     )
 
 
+class EmpleadoBajaResponse(BaseModel):
+    """Información laboral de un empleado dado de baja."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    apellido: str
+    fecha_ingreso: date
+    fecha_baja: Optional[date]
+    salario_base: Decimal
+    salario_base_al_baja: Optional[Decimal]
+    puesto: Optional[PuestoResponse] = None
+
+
 # =============================================================================
 # Usuario Schemas
 # =============================================================================

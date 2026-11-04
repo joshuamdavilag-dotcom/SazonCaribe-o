@@ -664,7 +664,7 @@
             <h1 class="font-display text-2xl font-extrabold text-brand-navy tracking-tight leading-none">Personal y Nóminas</h1>
             <p class="text-sm text-slate-500 mt-1">Empleados, roles, asistencias y pagos del equipo</p>
           </div>
-          <div class="flex items-center gap-2 w-full sm:w-auto">
+          <div class="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
             <button id="btn-turnos" type="button"
                     class="admin-only flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
               <span class="material-symbols-outlined text-[18px] text-slate-500">schedule</span> Gestión de Turnos
@@ -677,6 +677,10 @@
             <button id="btn-nuevo-empleado" type="button"
                     class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#003366] text-white text-sm font-semibold active:scale-95 transition shadow-sm shadow-brand-navy/25">
               <span class="material-symbols-outlined text-[18px]">person_add</span> Agregar Empleado
+            </button>
+            <button id="btn-toggle-empleados-baja" type="button" data-permiso="personal_gestionar" aria-expanded="false"
+                    class="permiso-oculto flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px]">person_off</span> Bajas
             </button>
           </div>
         </header>
@@ -709,6 +713,20 @@
               </table>
             </div>
           </div>
+          <section id="empleados-baja-panel" class="w-full overflow-hidden rounded-xl border border-slate-200 bg-white" style="display:none;" aria-label="Empleados dados de baja">
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
+              <div>
+                <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Empleados dados de baja</h3>
+                <p id="empleados-baja-resumen" class="text-xs text-slate-500 mt-1">Historial laboral y salario mensual registrado al momento de la baja</p>
+              </div>
+              <button id="btn-refresh-empleados-baja" type="button" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold">
+                <span class="material-symbols-outlined text-[16px]">refresh</span> Actualizar
+              </button>
+            </div>
+            <div id="empleados-baja-content" class="overflow-x-auto">
+              <p class="p-6 text-center text-sm text-slate-500">Cargando historial…</p>
+            </div>
+          </section>
         </div>
       </section>
 
