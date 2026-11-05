@@ -126,7 +126,7 @@ class PagoComandaServiceTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.status_code, 409)
 
-        with patch.object(SalonService, "liberar_grupo_fusion") as liberar:
+        with patch.object(SalonService, "liberar_mesa_si_sin_comandas") as liberar:
             complete = service.registrar_pago(
                 orden_id=self.orden.id,
                 metodo_pago=MetodoPago.TRANSFERENCIA,

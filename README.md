@@ -281,10 +281,10 @@ Resumen de las reglas más relevantes. El detalle exhaustivo está en `AGENTS.md
 ### Órdenes
 
 - Máquina de estados: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA`; cualquier estado puede pasar a `CANCELADA` (revierte stock). Estados terminales: `PAGADA`, `CANCELADA`.
-- **Una sola orden activa por mesa**. Los ítems nuevos se agregan con `POST /ordenes/{id}/items`.
+- **Varias comandas por mesa o fusión**. Una mesa `LIBRE` u `OCUPADA` puede recibir comandas simultáneas; la mesa pasa a `OCUPADA` con la primera y solo vuelve a `LIBRE` cuando se cobra o cancela la última. En una fusión, todas las comandas se registran en la mesa principal y el grupo se disuelve al terminar la última.
 - `mesa_id` es **nullable**: `NULL` = para llevar / venta directa (no marca mesa ocupada).
 - **Edición de comanda**: `PUT /ordenes/{id}/items` reemplaza el contenido con el estado final deseado, ajustando inventario por diferencia y recalculando totales.
-- **Pago**: `PUT /ordenes/{id}/pagar` marca `PAGADA` y libera la mesa y su apodo en una sola transacción.
+- **Pago**: `PUT /ordenes/{id}/pagar` cobra una comanda; la mesa (y su apodo) se liberan solo si no quedan otras comandas activas. Para agregar ítems a una comanda existente se usa `POST /ordenes/{id}/items`.
 - **Descuentos**: por línea (`descuento_porcentaje` / `descuento_monto`) o global (prorrateado). `Orden.total = subtotal − descuento_total`.
 
 ### Inventario
