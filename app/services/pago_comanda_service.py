@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status
@@ -5,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.config import get_settings
 from app.models.orden import DetalleOrden, EstadoOrden, MetodoPago, Orden
 from app.models.pago import EstadoPago, PagoOnline
 from app.models.pago_comanda import DivisionPagoComanda, PagoComanda
@@ -28,6 +32,17 @@ class PagoComandaService:
 
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    @staticmethod
+    def _folio_factura(orden_id: int, pago_id: int) -> str:
+        payload = f"sazon-caribeno:factura-pago:v1:{orden_id}:{pago_id}".encode()
+        firma = hmac.new(
+            get_settings().SECRET_KEY.encode(),
+            payload,
+            hashlib.sha256,
+        ).digest()[:12]
+        folio = base64.b32encode(firma).decode("ascii").rstrip("=")
+        return f"FC-{folio}"
 
     @staticmethod
     def _importe_linea(detalle: DetalleOrden) -> Decimal:
@@ -186,6 +201,8 @@ class PagoComandaService:
                     "division_id": pago.division_id,
                     "parte": pago.parte,
                     "cantidad": pago.cantidad,
+                    "folio_factura": self._folio_factura(orden.id, pago.id)
+                    if pago.monto > 0 else None,
                 }
                 for pago in pagos
             ],

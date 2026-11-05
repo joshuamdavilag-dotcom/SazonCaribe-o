@@ -4291,10 +4291,73 @@ function renderPaymentHistory(resumen) {
   container.innerHTML = pagos.length
     ? `<div class="payment-history-title">Pagos registrados</div>${pagos.map(pago => `
         <div class="payment-history-item">
-          <span>${Number(pago.monto) < 0 ? 'Reembolso · ' : ''}${escHtml(pago.metodo_pago)} · ${escHtml(pago.cobrador)}</span>
+          <div class="payment-history-copy">
+            <span>${Number(pago.monto) < 0 ? 'Reembolso · ' : ''}${escHtml(pago.metodo_pago)} · ${escHtml(pago.cobrador)}</span>
+            ${pago.folio_factura ? `<small class="payment-history-folio">${escHtml(pago.folio_factura)}</small>` : ''}
+          </div>
           <strong>${Number(pago.monto) < 0 ? '−' : ''}C$${Math.abs(Number(pago.monto)).toFixed(2)}</strong>
+          ${pago.folio_factura ? `<button type="button" class="payment-invoice-button" data-payment-invoice="${pago.id}">Imprimir factura</button>` : ''}
         </div>`).join('')}`
     : '';
+  container.querySelectorAll('[data-payment-invoice]').forEach(button => {
+    button.addEventListener('click', () => imprimirFacturaPago(Number(button.dataset.paymentInvoice)));
+  });
+}
+
+function imprimirFacturaPago(pagoId) {
+  const orden = state.paymentOrder;
+  const pago = state.paymentSummary?.pagos?.find(item => item.id === pagoId);
+  if (!orden || !pago?.folio_factura || Number(pago.monto) <= 0) {
+    return showToast('No se encontró la factura de este pago.', 'error');
+  }
+  const popup = window.open('', '_blank', 'width=420,height=700');
+  if (!popup) {
+    return showToast('Permite las ventanas emergentes para imprimir la factura.', 'warning');
+  }
+
+  const division = pago.division_id
+    ? state.paymentSummary.divisiones?.find(item => item.id === pago.division_id)
+    : null;
+  const concepto = division
+    ? `${division.producto_nombre} · Persona ${pago.parte} · ${pago.cantidad} unidad(es)`
+    : `Pago de la comanda #${orden.id}`;
+  const fecha = String(pago.creado_en || '').replace('T', ' ').slice(0, 19);
+  popup.document.write(`<!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Factura ${escHtml(pago.folio_factura)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { max-width: 360px; margin: 24px auto; padding: 18px; color: #17212b; font: 14px Arial, sans-serif; }
+          header, footer { text-align: center; }
+          h1 { margin: 0 0 5px; font-size: 19px; }
+          h2 { margin: 18px 0 12px; font-size: 15px; }
+          p { margin: 6px 0; }
+          .folio { margin: 12px 0; padding: 10px; border: 1px dashed #536878; font: bold 15px monospace; letter-spacing: .08em; }
+          .linea { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #ccd3d9; border-bottom: 1px solid #ccd3d9; }
+          .total { display: flex; justify-content: space-between; margin-top: 14px; font-size: 18px; font-weight: bold; }
+          footer { margin-top: 22px; color: #536878; font-size: 11px; }
+          @media print { body { margin: 0 auto; padding: 8px; } .print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <header><h1>Sazón Caribeño</h1><p>Factura interna / comprobante de pago</p></header>
+        <div class="folio">Folio seguro: ${escHtml(pago.folio_factura)}</div>
+        <p><strong>Comanda:</strong> #${Number(orden.id)}</p>
+        <p><strong>Fecha:</strong> ${escHtml(fecha)}</p>
+        <p><strong>Atendió:</strong> ${escHtml(pago.cobrador)}</p>
+        <h2>Detalle del pago</h2>
+        <div class="linea"><span>${escHtml(concepto)}<br>${escHtml(pago.metodo_pago)}</span><strong>C$${Number(pago.monto).toFixed(2)}</strong></div>
+        <div class="total"><span>Total pagado</span><span>C$${Number(pago.monto).toFixed(2)}</span></div>
+        <footer>Comprobante interno del pago aplicado a la comanda. No sustituye una factura fiscal autorizada.</footer>
+        <button class="print" type="button" onclick="window.print()">Imprimir</button>
+      </body>
+    </html>`);
+  popup.document.close();
+  popup.focus();
+  popup.setTimeout(() => popup.print(), 250);
 }
 
 function actualizarControlesPago() {
@@ -4474,9 +4537,23 @@ async function confirmarPagoLocal(metodo = 'EFECTIVO') {
     });
     state.paymentBusy = false;
     state.paymentSummary = actualizado;
+    state.paymentSelection = null;
+    state.paymentQuote = null;
+    state.paymentMode = 'saldo';
+    document.getElementById('payment-amount').value = '';
+    state.paymentLoading = false;
+    renderPaymentItems(actualizado);
+    renderPaymentDivisions(actualizado);
+    renderPaymentHistory(actualizado);
+    actualizarControlesPago();
+    const facturaActual = [...(actualizado.pagos || [])]
+      .reverse()
+      .find(pago => Number(pago.monto) > 0);
+    const mensajeFactura = facturaActual?.folio_factura
+      ? ` · Factura ${facturaActual.folio_factura} disponible para imprimir`
+      : '';
     if (actualizado.completada) {
-      showToast(`Orden #${orden.id} pagada por completo`, 'success');
-      cerrarMetodoPago();
+      showToast(`Orden #${orden.id} pagada por completo${mensajeFactura}`, 'success');
       const detalleAbierto = orden.origen === 'mesa' && state.currentOcupada?.orden?.id === orden.id;
       if (detalleAbierto) {
         await loadTables();
@@ -4492,12 +4569,8 @@ async function confirmarPagoLocal(metodo = 'EFECTIVO') {
         await loadCocinaOrdenes();
       }
     } else {
-      state.paymentSelection = null;
-      state.paymentMode = 'saldo';
-      document.getElementById('payment-amount').value = '';
-      showToast(`Pago registrado · Saldo pendiente C$${Number(actualizado.saldo_pendiente).toFixed(2)}`, 'success');
+      showToast(`Pago registrado · Saldo pendiente C$${Number(actualizado.saldo_pendiente).toFixed(2)}${mensajeFactura}`, 'success');
       actualizarControlesPago();
-      await actualizarResumenPagos();
     }
   } catch {
     state.paymentBusy = false;

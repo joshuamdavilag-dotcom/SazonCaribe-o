@@ -87,6 +87,7 @@ class PagoComandaResponse(BaseModel):
     division_id: int | None = None
     parte: int | None = None
     cantidad: int | None = None
+    folio_factura: str | None = None
 
 
 class ParteDivisionResponse(BaseModel):

@@ -88,6 +88,14 @@ class PagoComandaServiceTests(unittest.TestCase):
             [MetodoPago.EFECTIVO, MetodoPago.TARJETA],
         )
         self.assertTrue(all(p["usuario_id"] == self.usuario.id for p in complete["pagos"]))
+        folios = [p["folio_factura"] for p in complete["pagos"]]
+        self.assertEqual(len(folios), len(set(folios)))
+        self.assertTrue(all(folio.startswith("FC-") and len(folio) == 23 for folio in folios))
+        resumen = service.estado_pagos(self.orden.id)
+        self.assertEqual(
+            [p["folio_factura"] for p in resumen["pagos"]],
+            folios,
+        )
 
     def test_item_quantity_is_split_across_people_and_each_part_is_paid_once(self) -> None:
         service = PagoComandaService(self.db)
