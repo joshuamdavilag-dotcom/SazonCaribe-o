@@ -362,11 +362,11 @@ class SalonService:
     # Fusión de mesas
     # =========================================================================
 
-    def _orden_activa_del_grupo(self, mesas: List[Mesa]) -> Optional[Orden]:
-        """Devuelve la comanda activa de cualquiera de las mesas del grupo."""
+    def _ordenes_activas_del_grupo(self, mesas: List[Mesa]) -> List[Orden]:
+        """Devuelve todas las comandas activas de las mesas del grupo."""
         ids = [m.id for m in mesas if m.id]
         if not ids:
-            return None
+            return []
         statement = (
             select(Orden)
             .where(
@@ -378,7 +378,12 @@ class SalonService:
             )
             .order_by(Orden.fecha_creacion, Orden.id)
         )
-        return self.db.execute(statement).scalars().first()
+        return list(self.db.execute(statement).scalars().all())
+
+    def _orden_activa_del_grupo(self, mesas: List[Mesa]) -> Optional[Orden]:
+        """Devuelve la primera comanda activa de cualquiera de las mesas del grupo."""
+        ordenes = self._ordenes_activas_del_grupo(mesas)
+        return ordenes[0] if ordenes else None
 
     def _color_fusion_libre(self, grupo_fusion_id: Optional[str] = None) -> str:
         """Elige un color de la paleta que no esté usado por otro grupo."""
@@ -616,19 +621,25 @@ class SalonService:
 
         grupo_id = mesa.grupo_fusion_id
         grupo = self.salon_repo.obtener_mesas_por_grupo(grupo_id)
-        orden = self._orden_activa_del_grupo(grupo)
+        ordenes = self._ordenes_activas_del_grupo(grupo)
+        orden = ordenes[0] if ordenes else None
         restantes = [m for m in grupo if m.id != mesa.id]
         era_principal = mesa.mesa_principal_id is None
 
         if len(restantes) < 2:
             restante = restantes[0] if restantes else None
             apodo_heredado = mesa.apodo
-            if orden and restante is not None:
-                orden.mesa_id = restante.id
+            if era_principal and restante is not None:
+                for activa in ordenes:
+                    activa.mesa_id = restante.id
             self._disolver_grupo(grupo)
+            if not era_principal and any(
+                activa.mesa_id == mesa.id for activa in ordenes
+            ):
+                mesa.estado = EstadoMesa.OCUPADA
             if restante is not None:
-                restante.estado = EstadoMesa.OCUPADA if orden else EstadoMesa.LIBRE
-                restante.apodo = apodo_heredado if orden else None
+                restante.estado = EstadoMesa.OCUPADA if ordenes else EstadoMesa.LIBRE
+                restante.apodo = apodo_heredado if ordenes else None
             grupo_final: List[Mesa] = restantes
             principal_id = restante.id if restante is not None else None
             color = None
@@ -639,16 +650,17 @@ class SalonService:
                     miembro.mesa_principal_id = (
                         None if miembro.id == nuevo_principal.id else nuevo_principal.id
                     )
-                if orden:
-                    orden.mesa_id = nuevo_principal.id
+                for activa in ordenes:
+                    activa.mesa_id = nuevo_principal.id
                 principal_id = nuevo_principal.id
             else:
                 principal_id = next(
                     (m.id for m in restantes if m.mesa_principal_id is None),
                     restantes[0].id,
                 )
-            mesa.estado = EstadoMesa.LIBRE
-            mesa.apodo = None
+            tiene_ordenes = any(activa.mesa_id == mesa.id for activa in ordenes)
+            mesa.estado = EstadoMesa.OCUPADA if tiene_ordenes else EstadoMesa.LIBRE
+            mesa.apodo = mesa.apodo if tiene_ordenes else None
             mesa.grupo_fusion_id = None
             mesa.color_fusion = None
             mesa.mesa_principal_id = None
@@ -767,14 +779,29 @@ class SalonService:
             ),
         )
 
-    def liberar_grupo_fusion(self, mesa_id: int) -> None:
-        """Libera todas las mesas del grupo al cobrar o cancelar la cuenta.
+    def liberar_mesa_si_sin_comandas(self, mesa_id: int) -> None:
+        """Libera la mesa o fusión solo cuando no quedan comandas activas.
 
-        No hace commit: lo controla el llamador (``OrdenService``) dentro de su
-        propia transacción.
+        Se llama al cobrar o cancelar una comanda. Si la mesa pertenece a una
+        fusión, el grupo se disuelve únicamente cuando termina la última comanda
+        activa del grupo. Sin fusión, la mesa vuelve a ``LIBRE`` al cobrar su
+        última comanda.
+
+        No hace commit: lo controla el llamador (``OrdenService`` /
+        ``PagoComandaService``) dentro de su propia transacción.
         """
         mesa = self.salon_repo.obtener_mesa_por_id(mesa_id)
-        if not mesa or not mesa.grupo_fusion_id:
+        if not mesa:
             return
-        grupo = self.salon_repo.obtener_mesas_por_grupo(mesa.grupo_fusion_id)
-        self._disolver_grupo(grupo)
+
+        if mesa.grupo_fusion_id:
+            grupo = self.salon_repo.obtener_mesas_por_grupo(mesa.grupo_fusion_id)
+            if self._orden_activa_del_grupo(grupo):
+                return
+            self._disolver_grupo(grupo)
+            return
+
+        if self._orden_activa_del_grupo([mesa]):
+            return
+        mesa.estado = EstadoMesa.LIBRE
+        mesa.apodo = None

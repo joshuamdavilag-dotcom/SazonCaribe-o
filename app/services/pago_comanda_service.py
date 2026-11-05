@@ -405,7 +405,7 @@ class PagoComandaService:
                     orden.estado = EstadoOrden.PAGADA
                     orden.metodo_pago = metodo_pago
                     if orden.mesa_id:
-                        SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
+                        SalonService(self.db).liberar_mesa_si_sin_comandas(orden.mesa_id)
                 else:
                     orden.metodo_pago = metodo_pago
 

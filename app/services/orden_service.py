@@ -10,7 +10,7 @@ from app.core.tiempo import ahora_local
 from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.inventario import MovimientoInventario
 from app.models.personal import Usuario
-from app.models.salon import EstadoMesa
+from app.models.salon import EstadoMesa, Mesa
 from app.models.pago_comanda import PagoComanda
 from app.repositories.orden_repository import OrdenRepository
 from app.repositories.salon_repository import SalonRepository
@@ -283,32 +283,37 @@ class OrdenService:
         return detalles_creados, subtotal_acumulado, descuento_acumulado
 
     # ================================================================== #
-    #  One-active-order-per-mesa validation                               #
+    #  Mesa validation for new comandas                                   #
     # ================================================================== #
 
-    def _validar_orden_activa_por_mesa(self, mesa_id: int) -> None:
-        """Impide crear una segunda orden activa en la misma mesa (bloquea con 400)."""
-        ordenes_activas = self.orden_repo.obtener_ordenes_filtradas(
-            mesa_id=mesa_id,
-        )
-        activas = [
-            o for o in ordenes_activas
-            if o.estado in (
-                EstadoOrden.PENDIENTE,
-                EstadoOrden.PREPARANDO,
-                EstadoOrden.ENTREGADA,
+    def _mesa_para_orden(self, mesa_id: int) -> Mesa:
+        """Valida que una mesa admita una nueva comanda y resuelve su principal.
+
+        Una mesa ``OCUPADA`` puede recibir varias comandas simultáneas. Si la
+        mesa pertenece a una fusión, la comanda se registra en la mesa principal
+        para que todo el grupo comparta la misma cuenta.
+        """
+        mesa = self.salon_repo.obtener_mesa_por_id(mesa_id)
+        if not mesa:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="La mesa especificada no existe",
             )
-        ]
-        if activas:
+
+        if mesa.estado not in (EstadoMesa.LIBRE, EstadoMesa.OCUPADA):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"La mesa {mesa_id} ya tiene una orden activa "
-                    f"(Orden #{activas[0].id}). "
-                    f"Use POST /ordenes/{activas[0].id}/items "
-                    f"para agregar ítems."
+                    f"La mesa {mesa.numero} no está disponible. "
+                    f"Estado actual: {mesa.estado.value}"
                 ),
             )
+
+        if mesa.grupo_fusion_id and mesa.mesa_principal_id is not None:
+            principal = self.salon_repo.obtener_mesa_por_id(mesa.mesa_principal_id)
+            if principal:
+                return principal
+        return mesa
 
     # ================================================================== #
     #  Crear orden (POST /)                                               #
@@ -320,44 +325,35 @@ class OrdenService:
         mesero_id: int,
         actor: Usuario | None = None,
     ) -> Orden:
-        """Crea una orden nueva (mesa u para llevar) validando stock y estado de mesa.
+        """Crea una comanda nueva (mesa u para llevar) validando stock y mesa.
+
+        Varias comandas pueden coexistir en la misma mesa o fusión mientras la
+        mesa esté ``LIBRE`` u ``OCUPADA``. La mesa queda ``OCUPADA`` al crear la
+        primera comanda.
 
         Raises:
             HTTPException 404: si la mesa indicada no existe.
-            HTTPException 400: si la mesa no está LIBRE o ya tiene orden activa.
+            HTTPException 400: si la mesa está reservada o en mantenimiento.
         """
-        if orden_in.mesa_id:
-            mesa = self.salon_repo.obtener_mesa_por_id(orden_in.mesa_id)
-            if not mesa:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="La mesa especificada no existe",
-                )
-
-            if mesa.estado != EstadoMesa.LIBRE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        f"La mesa {mesa.numero} no está disponible. "
-                        f"Estado actual: {mesa.estado.value}"
-                    ),
-                )
-
-            self._validar_orden_activa_por_mesa(orden_in.mesa_id)
+        mesa = None
+        mesa_id = orden_in.mesa_id
+        if mesa_id:
+            mesa = self._mesa_para_orden(mesa_id)
+            mesa_id = mesa.id
 
         try:
             with self.db.begin_nested():
                 detalles_creados, subtotal, descuento_total = self._procesar_detalles(
                     orden_in.detalles,
                     contexto=(
-                        f"Descuento por Orden Mesa {orden_in.mesa_id}"
-                        if orden_in.mesa_id
+                        f"Descuento por Orden Mesa {mesa_id}"
+                        if mesa_id
                         else "Descuento por Orden Para Llevar"
                     ),
                 )
 
                 orden_db = Orden(
-                    mesa_id=orden_in.mesa_id,
+                    mesa_id=mesa_id,
                     mesero_id=mesero_id,
                     total=max(subtotal - descuento_total, Decimal("0.00")),
                     subtotal=subtotal,
@@ -371,8 +367,14 @@ class OrdenService:
                 self._registrar_descuentos_de_detalles(
                     orden_db.id, detalles_creados, actor
                 )
-                if orden_in.mesa_id:
-                    mesa.estado = EstadoMesa.OCUPADA
+                if mesa:
+                    if mesa.grupo_fusion_id:
+                        for miembro in self.salon_repo.obtener_mesas_por_grupo(
+                            mesa.grupo_fusion_id
+                        ):
+                            miembro.estado = EstadoMesa.OCUPADA
+                    else:
+                        mesa.estado = EstadoMesa.OCUPADA
 
             self.db.commit()
             self.db.refresh(orden_db)
@@ -779,7 +781,7 @@ class OrdenService:
                     self.revertir_stock(orden)
                     orden.estado = EstadoOrden.CANCELADA
                     if orden.mesa_id:
-                        SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
+                        SalonService(self.db).liberar_mesa_si_sin_comandas(orden.mesa_id)
                     AuditoriaService.registrar(
                         self.db,
                         actor,

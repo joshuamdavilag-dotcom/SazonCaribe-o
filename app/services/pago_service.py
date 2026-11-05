@@ -365,7 +365,7 @@ class PagoService:
                 ))
                 orden.estado = EstadoOrden.PAGADA
                 if orden.mesa_id:
-                    SalonService(self.db).liberar_grupo_fusion(orden.mesa_id)
+                    SalonService(self.db).liberar_mesa_si_sin_comandas(orden.mesa_id)
         elif event.status == "failed":
             pago.estado = EstadoPago.FALLIDO
         elif event.status == "cancelled":
