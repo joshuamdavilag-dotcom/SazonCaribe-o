@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0D233A">
+  <meta name="theme-color" content="#5b400C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Sazón Caribeño — POS</title>
@@ -47,7 +47,7 @@
   <!-- =================================================================
        SCREEN: LOGIN
        ================================================================= -->
-  <section id="screen-login" class="screen active relative w-full min-h-screen hidden justify-between items-center p-6 bg-gradient-to-b from-[#0D233A] via-[#0C3C60] to-[#091B2E] overflow-hidden" aria-label="Inicio de sesión">
+  <section id="screen-login" class="screen active login-screen relative w-full min-h-screen hidden justify-between items-center p-6 bg-gradient-to-b from-[#0D233A] via-[#0C3C60] to-[#091B2E] overflow-hidden" aria-label="Inicio de sesión">
     <!-- Elementos decorativos de fondo con tinte caribeño -->
     <div class="absolute -top-24 -right-20 w-64 h-64 rounded-full bg-[#1EB8B8]/15 blur-3xl pointer-events-none"></div>
     <div class="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-[#E64A2E]/15 blur-3xl pointer-events-none"></div>
@@ -188,7 +188,7 @@
     <aside class="sidebar" id="sidebar">
       <!-- Brand -->
       <div class="sidebar-brand w-full flex flex-row items-center gap-3 px-5 py-4 border-b border-white/10">
-        <span class="material-symbols-outlined text-[26px] text-[#1EB8B8]">restaurant</span>
+        <img src="./Imagenes/Logo.jpeg" alt="Sazón Caribeño" class="restaurant-logo">
         <div class="text-left">
           <h1 class="text-[17px] font-extrabold leading-tight tracking-tight">Sazón Caribeño</h1>
           <p class="text-[10px] uppercase tracking-[0.18em] text-white/50">POS Restaurante</p>
@@ -252,7 +252,7 @@
         <div class="flex items-center justify-between text-[11px] text-white/60">
           <span>Turno Actual</span>
         </div>
-        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #0F3B66 var(--mix-ink-pct), var(--mix-ink-base));">
+        <select id="turno-select" class="form-input w-full" style="height:32px;font-size:11px;padding:0 6px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #5b400C var(--mix-ink-pct), var(--mix-ink-base));">
           <option value="">Seleccionar turno…</option>
         </select>
         <button id="btn-enable-attendance-notifications" class="w-full py-1.5 text-[11px] rounded-lg font-semibold text-white/80 border border-white/20" type="button">
@@ -271,10 +271,14 @@
           <div class="user-name" id="user-name">Usuario</div>
           <div class="user-role" id="user-role">Rol</div>
         </div>
-        <button class="btn-tema" type="button" data-tema-toggle aria-label="Activar modo oscuro" title="Activar modo oscuro">
-          <span class="material-symbols-outlined" aria-hidden="true" data-tema-icono>dark_mode</span>
-        </button>
-        <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">⏻</button>
+        <div class="sidebar-user-actions" aria-label="Acciones de usuario">
+          <button class="btn-tema" type="button" data-tema-toggle aria-label="Activar modo oscuro" title="Activar modo oscuro">
+            <span class="material-symbols-outlined" aria-hidden="true" data-tema-icono>dark_mode</span>
+          </button>
+          <button class="btn-logout" id="btn-logout" aria-label="Cerrar sesión" title="Cerrar sesión">
+            <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -2012,10 +2016,10 @@
           <button class="btn btn-secondary" id="btn-pre-cuenta" style="flex:1;">🧾 Pre-Cuenta</button>
         </div>
         <div style="margin-top:8px;">
-          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;">💰 Cobrar comanda</button>
+          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#C54320;color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;">💰 Cobrar comanda</button>
         </div>
         <div style="margin-top:8px;">
-          <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:color-mix(in srgb, #000 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
+          <button class="btn" id="btn-forzar-librar" style="width:100%;background:#f1e246;color:color-mix(in srgb, #000 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
         </div>
       </div>
     </div>
@@ -2539,7 +2543,7 @@
           Esta acción recalculará o descartará las horas para la nómina.
         </p>
         <div class="form-group">
-          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="anular-asis-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="anular-asis-motivo" class="form-input" maxlength="500"
                  placeholder="Ej: Asistencia duplicada al iniciar turno dos veces" />
           <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El motivo queda registrado para auditoría. El registro se conserva en el historial marcado como anulado.</p>
@@ -2566,7 +2570,7 @@
         <p style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;font-weight:600;" id="anular-orden-texto"></p>
         <input type="hidden" id="anular-orden-id">
         <div class="form-group">
-          <label class="form-label" for="anular-orden-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="anular-orden-motivo">Motivo de la anulación <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="anular-orden-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Cliente devolvió el pedido completo" />
           <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El pedido se conserva en la bitácora con quién, cuándo, por qué y el monto.</p>
@@ -2600,7 +2604,7 @@
           <input type="number" id="devolver-cantidad" class="form-input" min="1" step="1" value="1">
         </div>
         <div class="form-group">
-          <label class="form-label" for="devolver-motivo">Motivo de la devolución <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="devolver-motivo">Motivo de la devolución <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="devolver-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Plato salió frío" />
           <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">La devolución queda registrada para auditoría.</p>
@@ -2648,7 +2652,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="edit-gasto-motivo">Motivo de la modificación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="edit-gasto-motivo">Motivo de la modificación <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="edit-gasto-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Monto mal tecleado al registrar" />
           <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El valor anterior y el nuevo quedan en la bitácora.</p>
@@ -2675,7 +2679,7 @@
         <p style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;font-weight:600;" id="del-gasto-texto"></p>
         <input type="hidden" id="del-gasto-id">
         <div class="form-group">
-          <label class="form-label" for="del-gasto-motivo">Motivo de la eliminación <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="del-gasto-motivo">Motivo de la eliminación <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="text" id="del-gasto-motivo" class="form-input" maxlength="255"
                  placeholder="Ej: Gasto duplicado por error" />
           <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El gasto se conserva en la bitácora con quién, cuándo y por qué.</p>
@@ -2704,7 +2708,7 @@
           <input type="number" id="edit-ot-valor" class="form-input" step="0.01" min="0" placeholder="2.50" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="edit-ot-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <textarea id="edit-ot-motivo" class="form-input" rows="3" placeholder="Ej: Turno extendido autorizado por gerente…" required style="resize:vertical;"></textarea>
           <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Campo obligatorio para auditoría</div>
         </div>
@@ -2728,18 +2732,18 @@
           Asistencia del <strong id="editar-horarios-fecha"></strong> — Empleado: <strong id="editar-horarios-empleado"></strong>
         </p>
         <div class="form-group">
-          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="editar-hora-entrada">Fecha y Hora de Entrada (Local) <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <input type="datetime-local" id="editar-hora-entrada" class="form-input" required>
-          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #2A9D8F var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
+          <div id="editar-hora-entrada-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #006b33 var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="editar-hora-salida">Fecha y Hora de Salida (Local)</label>
           <input type="datetime-local" id="editar-hora-salida" class="form-input">
-          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #2A9D8F var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
+          <div id="editar-hora-salida-preview" style="font-size:12px;font-weight:600;color:color-mix(in srgb, #006b33 var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">—</div>
           <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Déjalo vacío si el turno aún no ha finalizado. Para turnos nocturnos, elige la fecha del día siguiente (ej. salida a las 3:00 AM → día siguiente).</div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <label class="form-label" for="editar-horarios-motivo">Motivo del Cambio <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
           <textarea id="editar-horarios-motivo" class="form-input" rows="3" placeholder="Ej: Corrección de horario por error de registro…" required style="resize:vertical;"></textarea>
           <div style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:4px;">Campo obligatorio para auditoría</div>
         </div>

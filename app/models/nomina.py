@@ -18,7 +18,7 @@ class Nomina(Base):
             name="ck_nominas_salario_mensual_positivo"
         ),
         CheckConstraint(
-            "salario_semanal_teorico >= 0",
+            "salario_semanal_teorico > 0",
             name="ck_nominas_salario_semanal_positivo"
         ),
         CheckConstraint(
@@ -69,19 +69,13 @@ class Nomina(Base):
         Numeric(10, 2),
         nullable=False
     )
-    salario_quincenal_teorico: Mapped[Decimal] = mapped_column(
+    salario_semanal_teorico: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False
     )
-    salario_semanal_teorico: Mapped[Optional[Decimal]] = mapped_column(
+    salario_quincenal_teorico: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
-        nullable=True,
-        default=None
-    )
-    salario_periodo_teorico: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(10, 2),
-        nullable=True,
-        default=None
+        nullable=False
     )
     total_horas_extras: Mapped[Decimal] = mapped_column(
         Numeric(5, 2),
@@ -114,14 +108,15 @@ class Nomina(Base):
         default=Decimal("0.00")
     )
 
+
     # Relación muchos-a-uno con Empleado
-    empleado: Mapped["Empleado"] = relationship(
+    empleado: Mapped["Empleado"] = relationship(  
         "Empleado",
         back_populates="nominas",
         lazy="selectin"
     )
 
-    def __repr__(self) -> str:
+def __repr__(self) -> str:
         return (
             f"<Nomina(id={self.id}, empleado_id={self.empleado_id}, "
             f"periodo={self.fecha_inicio} al {self.fecha_fin}, "
