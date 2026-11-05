@@ -1000,16 +1000,16 @@ function pintarEstadoTema() {
 
 function actualizarMetaTema() {
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', temaActual() === 'dark' ? '#14100A' : '#5b400C');
+  if (meta) meta.setAttribute('content', temaActual() === 'dark' ? '#0b1220' : '#0D233A');
 }
 
 function actualizarGraficosTema() {
   if (typeof Chart === 'undefined') return;
   const oscuro = temaActual() === 'dark';
-  Chart.defaults.color = oscuro ? '#CDBFA6' : '#6E5B3A';
-  Chart.defaults.borderColor = colorTema('--border-light') || (oscuro ? '#423522' : '#E8DFC9');
+  Chart.defaults.color = oscuro ? '#a3b6ca' : '#475569';
+  Chart.defaults.borderColor = colorTema('--border-light') || (oscuro ? '#33465c' : '#e2e8f0');
   if (pieChartInstance && pieChartInstance.data?.datasets?.[0]) {
-    pieChartInstance.data.datasets[0].borderColor = colorTema('--bg-card') || (oscuro ? '#221B12' : '#FFFDF8');
+    pieChartInstance.data.datasets[0].borderColor = colorTema('--bg-card') || (oscuro ? '#232a36' : '#ffffff');
     pieChartInstance.update();
   }
   if (barChartInstance) barChartInstance.update();
@@ -2202,7 +2202,7 @@ function renderAttendanceStatus() {
     }
     if (select) { select.disabled = true; select.value = state.currentAsistencia.turno_id; }
   } else {
-    if (statusEl) { statusEl.innerHTML = '⚪ Sin turno activo'; statusEl.style.color = '#9A8A6B'; }
+    if (statusEl) { statusEl.innerHTML = '⚪ Sin turno activo'; statusEl.style.color = '#94a3b8'; }
     if (toggle) {
       toggle.classList.add('btn-turquoise');
       toggle.classList.remove('btn-stop');
@@ -2785,13 +2785,13 @@ function renderGastosTable() {
     return;
   }
   tbody.innerHTML = filtered.map(g => `
-    <tr style="border-bottom:1px solid color-mix(in srgb, #F2EBDC var(--mix-border-pct), var(--mix-border-base));" onmouseenter="this.style.background='var(--hover-bg)'" onmouseleave="this.style.background=''">
-      <td style="padding:12px 16px;font-weight:600;color:color-mix(in srgb, #5b400C var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">#${g.id}</td>
+    <tr style="border-bottom:1px solid color-mix(in srgb, #f1f5f9 var(--mix-border-pct), var(--mix-border-base));" onmouseenter="this.style.background='var(--hover-bg)'" onmouseleave="this.style.background=''">
+      <td style="padding:12px 16px;font-weight:600;color:color-mix(in srgb, #0F3B66 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">#${g.id}</td>
       <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
       <td style="padding:12px 16px;"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORIA_BADGE[g.categoria] || 'bg-slate-100 text-slate-600'}">${CATEGORIA_LABELS[g.categoria] || g.categoria}</span></td>
       <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.concepto)}</td>
-      <td style="padding:12px 16px;text-align:right;font-weight:700;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
-      <td style="padding:12px 16px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
+      <td style="padding:12px 16px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
       <td class="admin-only" style="padding:8px 12px;white-space:nowrap;text-align:right;">
         <button type="button" class="btn-action" title="Editar gasto" onclick="openEditarGasto(${g.id})">✏️</button>
         <button type="button" class="btn-action btn-action-danger" title="Eliminar gasto" onclick="openEliminarGasto(${g.id})">🗑️</button>
@@ -3392,11 +3392,11 @@ let descModalTipo = 'PORCENTAJE';
 async function loadDescuentos() {
   const cont = document.getElementById('descuentos-list');
   if (!cont) return;
-  cont.innerHTML = '<p style="color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Cargando descuentos…</p>';
+  cont.innerHTML = '<p style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Cargando descuentos…</p>';
   try {
     const lista = await api('/descuentos/');
     if (!Array.isArray(lista) || !lista.length) {
-      cont.innerHTML = '<p style="color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">No hay descuentos creados. Toca "Nuevo Descuento".</p>';
+      cont.innerHTML = '<p style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">No hay descuentos creados. Toca "Nuevo Descuento".</p>';
       return;
     }
     cont.innerHTML = lista.map(d => {
@@ -3421,7 +3421,7 @@ async function loadDescuentos() {
     }).join('');
     state.descuentosList = lista;
   } catch {
-    cont.innerHTML = '<p style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
+    cont.innerHTML = '<p style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
   }
 }
 
@@ -3841,7 +3841,7 @@ function renderZonasList(zonas) {
   const list = document.getElementById('zonas-list');
   if (!list) return;
   if (!zonas || zonas.length === 0) {
-    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay zonas creadas</p>';
+    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay zonas creadas</p>';
     return;
   }
   list.innerHTML = zonas.map(z => {
@@ -3849,8 +3849,8 @@ function renderZonasList(zonas) {
     return `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">📍 ${z.nombre}</span>
-        <span style="font-size:11px;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));">${count} mesa(s)</span>
-        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#C54320;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarZona(${z.id}, '${z.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene mesas — no se puede eliminar' : 'Eliminar zona'}">🗑</button>
+        <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} mesa(s)</span>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarZona(${z.id}, '${z.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene mesas — no se puede eliminar' : 'Eliminar zona'}">🗑</button>
       </div>`;
   }).join('');
 }
@@ -3871,12 +3871,12 @@ function renderGestionMesasList(mesas) {
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:10px;margin-bottom:6px;">
       <div style="flex:1;">
         <span style="font-weight:600;font-size:14px;">Mesa ${m.numero}</span>
-        <span style="font-size:12px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));margin-left:6px;">ID: ${m.id}</span>
+        <span style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-left:6px;">ID: ${m.id}</span>
       </div>
       <span style="font-size:12px;padding:2px 8px;border-radius:999px;${estadoColors[m.estado] || ''}">${m.estado}</span>
-      <span style="font-size:12px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));">👥 ${m.capacidad}</span>
+      <span style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">👥 ${m.capacidad}</span>
       <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="editarMesa(${m.id})">✏️</button>
-      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
+      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
     </div>`).join('');
 }
 
@@ -4010,7 +4010,7 @@ async function loadCocinaOrdenes() {
     renderCocinaCards();
     renderCocinaTabCounts();
   } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Error al cargar órdenes</p>';
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Error al cargar órdenes</p>';
   }
 }
 
@@ -4807,7 +4807,7 @@ function openOrderModal(mesaId, mesaNumero, ordenExistente) {
   }
 
   document.getElementById('order-modal-cart').innerHTML =
-    '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca + para agregar</p>';
   document.getElementById('order-modal-menu').innerHTML =
     '<p class="order-card-empty">Cargando menú…</p>';
 
@@ -5079,7 +5079,7 @@ function renderOrderModalCart() {
   const items = state.currentOrder.items;
 
   if (items.length === 0) {
-    cart.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca un platillo para agregarlo</p>';
+    cart.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;font-size:13px;">Vacío — toca un platillo para agregarlo</p>';
     return;
   }
 
@@ -5904,11 +5904,11 @@ function addRecipeRow(ingredienteId, cantidad, descuentoLote) {
     <select class="form-input recipe-cat-filter" style="flex:1;height:36px;font-size:12px;">${_buildCatInsumoOptions(catId)}</select>
     <select class="form-input recipe-ingrediente" style="flex:2;height:36px;font-size:13px;">${_buildInsumoOptions(catId, ingredienteId)}</select>
     <input type="number" class="form-input recipe-cantidad" style="flex:1;height:36px;font-size:13px;" step="0.001" min="0.001" placeholder="Cant." value="${cantidad || ''}">
-    <label title="Si está activo, este ingrediente NO se descuenta por plato sino solo por Producción de Cocina" style="display:flex;align-items:center;gap:3px;font-size:11px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;cursor:pointer;">
+    <label title="Si está activo, este ingrediente NO se descuenta por plato sino solo por Producción de Cocina" style="display:flex;align-items:center;gap:3px;font-size:11px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;cursor:pointer;">
       <input type="checkbox" class="recipe-lote" style="width:14px;height:14px;">
       <span>Lote</span>
     </label>
-    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
+    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
   `;
 
   const catSelect = row.querySelector('.recipe-cat-filter');
@@ -5973,7 +5973,7 @@ function renderCatList() {
   const list = document.getElementById('cat-list');
   if (!list) return;
   if (!state.categories || state.categories.length === 0) {
-    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay categorías creadas</p>';
+    list.innerHTML = '<p style="font-size:12px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-align:center;padding:8px;">No hay categorías creadas</p>';
     return;
   }
   list.innerHTML = state.categories.map(c => {
@@ -5981,8 +5981,8 @@ function renderCatList() {
     return `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">🍽️ ${c.nombre}</span>
-        <span style="font-size:11px;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));">${count} platillo(s)</span>
-        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#C54320;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
+        <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} platillo(s)</span>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
       </div>`;
   }).join('');
 }
@@ -6257,11 +6257,11 @@ function renderAlerts(alerts) {
 
 function insumoTint(catNombre = '') {
   const n = (catNombre || '').toLowerCase();
-  if (/carne|pollo|res|cerdo|pescado|marisco/.test(n)) return { bg: '#FBEBE6', color: '#C54320', icon: 'set_meal' };
+  if (/carne|pollo|res|cerdo|pescado|marisco/.test(n)) return { bg: '#FFE8E3', color: '#E64A2E', icon: 'set_meal' };
   if (/abarrote|grano|arroz|aceite|enlatado/.test(n)) return { bg: '#FFF4D6', color: '#B45309', icon: 'package_2' };
-  if (/l[áa]cteo|leche|queso|crema/.test(n)) return { bg: '#E6F2EB', color: '#006b33', icon: 'liquid' };
+  if (/l[áa]cteo|leche|queso|crema/.test(n)) return { bg: '#D6F5F8', color: '#0F766E', icon: 'liquid' };
   if (/veget|fruta|verdura|lechuga|cebolla|tomate/.test(n)) return { bg: '#DCFCE7', color: '#15803D', icon: 'eco' };
-  if (/condiment|especia|sal|salsa/.test(n)) return { bg: '#F2EBDC', color: '#6E5B3A', icon: 'spa' };
+  if (/condiment|especia|sal|salsa/.test(n)) return { bg: '#F1F5F9', color: '#475569', icon: 'spa' };
   if (/bebida|jugo|gaseosa/.test(n)) return { bg: '#E0F2FE', color: '#0369A1', icon: 'local_cafe' };
   return { bg: '#E0F2FE', color: '#0369A1', icon: 'inventory_2' };
 }
@@ -7077,7 +7077,7 @@ function renderEmpleadosBaja(empleados) {
 }
 
 const EMP_AVATAR_TINTS = [
-  ['#5b400C', '#EFE7D7'], ['#006b33', '#E6F2EB'], ['#C54320', '#FBEBE6'],
+  ['#0F3B66', '#E3EAF3'], ['#006B6B', '#E0F2EF'], ['#B4462A', '#FDEBE6'],
   ['#7A5AF8', '#ECE8FE'], ['#D97706', '#FEF3E2'], ['#0E7490', '#E0F2FE'],
 ];
 
@@ -7592,7 +7592,7 @@ async function toggleNominaDetalle() {
   if (!data) return;
 
   const content = document.getElementById('nomina-detalle-content');
-  content.innerHTML = '<span style="color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));">Cargando detalle…</span>';
+  content.innerHTML = '<span style="color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Cargando detalle…</span>';
   panel.style.display = 'block';
 
   try {
@@ -7601,7 +7601,7 @@ async function toggleNominaDetalle() {
     );
 
     if (!asistencias || asistencias.length === 0) {
-      content.innerHTML = '<span style="color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));">Sin registros en este período.</span>';
+      content.innerHTML = '<span style="color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Sin registros en este período.</span>';
       return;
     }
 
@@ -7633,7 +7633,7 @@ async function toggleNominaDetalle() {
       <div style="max-height:160px;overflow-y:auto;">${rows}</div>
     `;
   } catch {
-    content.innerHTML = '<span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">Error al cargar el detalle.</span>';
+    content.innerHTML = '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">Error al cargar el detalle.</span>';
   }
 }
 
@@ -7706,13 +7706,13 @@ async function guardarAdelanto(e) {
 
 async function loadNominaHistorial(empleadoId) {
   const container = document.getElementById('nomina-history-list');
-  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando historial…</p>';
+  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando historial…</p>';
 
   try {
     const nominas = await api(`/nomina/empleado/${empleadoId}`);
     renderNominaHistorial(nominas);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar historial</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar historial</p>';
   }
 }
 
@@ -8092,7 +8092,7 @@ function openAsistenciasModal(empleadoId, nombre) {
   asisEmpleadoId = empleadoId;
   document.getElementById('asis-employee-name').textContent = nombre;
   document.getElementById('asis-table-container').innerHTML =
-    '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Cargando asistencias…</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Cargando asistencias…</p>';
   document.getElementById('modal-asistencias').classList.add('show');
   loadAsistenciasEmpleado(empleadoId);
 }
@@ -8108,7 +8108,7 @@ async function loadAsistenciasEmpleado(empleadoId) {
     const asistencias = await api(`/asistencia/empleados/${empleadoId}/historial`);
     renderAsistenciasTable(asistencias, container);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Error al cargar asistencias</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:24px;">Error al cargar asistencias</p>';
   }
 }
 
@@ -8136,11 +8136,11 @@ function renderAsistenciasTable(asistencias, container) {
           const entrada = formatLocalTime(a.hora_entrada_real);
           const salida = a.hora_salida_real
             ? formatLocalTime(a.hora_salida_real)
-            : '<span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));font-weight:600;">Activo</span>';
+            : '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-weight:600;">Activo</span>';
           const ot = parseFloat(a.horas_extras);
           const otBadge = ot > 0
             ? `<span style="background:color-mix(in srgb, #fef9c3 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #854d0e var(--mix-ink-pct), var(--mix-ink-base));padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
-            : '<span style="color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));">0.00h</span>';
+            : '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">0.00h</span>';
           const autoCierre = (a.observaciones || '').includes('Cierre automático')
             ? `<span title="${escHtml(a.observaciones)}" style="cursor:help;background:color-mix(in srgb, #fef3c7 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #92400e var(--mix-ink-pct), var(--mix-ink-base));padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">⏱️ Auto</span>`
             : '';
@@ -8151,10 +8151,10 @@ function renderAsistenciasTable(asistencias, container) {
             ? `<span title="Anulado por Usuario #${a.modificado_por ?? '—'} · Motivo: ${a.motivo_modificacion || '—'}" style="cursor:help;background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));padding:2px 6px;border-radius:999px;font-size:11px;font-weight:600;">🚫 Anulado</span>`
             : (auditado || autoCierre
               ? `${auditado}${autoCierre}`
-              : '<span style="color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>');
+              : '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>');
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
           const acciones = a.anulada
-            ? '<span style="color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>'
+            ? '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>'
             : `
               <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
               <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
@@ -8167,7 +8167,7 @@ function renderAsistenciasTable(asistencias, container) {
               <td>${salida}</td>
               <td>${otBadge}</td>
               <td>${auditInfo}</td>
-              <td style="font-size:12px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));">Turno #${a.turno_id}</td>
+              <td style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">Turno #${a.turno_id}</td>
               <td>${acciones}</td>
             </tr>`;
         }).join('')}
@@ -8401,7 +8401,7 @@ function addPreparacionRow() {
       <label class="form-label" style="font-size:12px;">Cantidad</label>
       <input type="number" class="form-input prep-cantidad" data-row="${id}" step="0.01" min="0.01" placeholder="0" style="height:36px;font-size:13px;" oninput="updatePrepSummary()">
     </div>
-    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));" title="Eliminar">✕</button>
+    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" title="Eliminar">✕</button>
   `;
   container.appendChild(row);
 }
@@ -8525,12 +8525,12 @@ function renderPieChart(data) {
 
   const labels = ['Gastos Nómina', 'Costo Insumos', 'Gastos Operativos'];
   const values = [data.gastos_nomina, data.costo_insumos, data.gastos_operativos];
-  const colors = ['#C54320', '#006b33', '#f1e246'];
+  const colors = ['#E63946', '#FFB703', '#FD7E14'];
 
   if (data.utilidad_neta > 0) {
     labels.push('Utilidad Neta');
     values.push(data.utilidad_neta);
-    colors.push('#7FC79A');
+    colors.push('#2A9D8F');
   }
 
   pieChartInstance = new Chart(ctx, {
@@ -8581,14 +8581,14 @@ function renderBarChart(topPlatillos) {
         {
           label: 'Unidades Vendidas',
           data: quantities,
-          backgroundColor: '#5b400C',
+          backgroundColor: '#003366',
           borderRadius: 6,
           yAxisID: 'y',
         },
         {
           label: 'Ingresos (C$)',
           data: revenues,
-          backgroundColor: 'rgba(0, 107, 51, 0.72)',
+          backgroundColor: 'rgba(42, 157, 143, 0.7)',
           borderRadius: 6,
           yAxisID: 'y1',
         },
@@ -8662,7 +8662,7 @@ function openDetalleMesaOcupada(mesaId) {
   const apodoInput = document.getElementById('oc-apodo-input');
   if (apodoInput) apodoInput.value = mesa.apodo || '';
   document.getElementById('oc-items-list').innerHTML =
-    '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando comanda…</p>';
+    '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Cargando comanda…</p>';
   ['oc-subtotal', 'oc-total'].forEach(id => {
     document.getElementById(id).textContent = 'C$0.00';
   });
@@ -8718,7 +8718,7 @@ async function loadOcupadaOrdenes(mesaId) {
     seleccionarOrdenOcupada(elegida ? elegida.id : null);
   } catch {
     document.getElementById('oc-items-list').innerHTML =
-      '<p style="text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar las comandas.</p>';
+      '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar las comandas.</p>';
   }
 }
 
@@ -8779,7 +8779,7 @@ function seleccionarOrdenOcupada(ordenId) {
   if (!hay) {
     document.getElementById('oc-orden-id').textContent = '—';
     document.getElementById('oc-items-list').innerHTML =
-      '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Sin comandas activas. Usa «Nueva comanda» para abrir una.</p>';
+      '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Sin comandas activas. Usa «Nueva comanda» para abrir una.</p>';
     ['oc-subtotal', 'oc-total'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = 'C$0.00';
@@ -8827,7 +8827,7 @@ function renderOcItems(orden) {
   const detalles = orden.detalles || [];
 
   if (detalles.length === 0) {
-    list.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Sin ítems registrados.</p>';
+    list.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Sin ítems registrados.</p>';
   } else {
     list.innerHTML = detalles.map(d => {
       const producto = state.menuItems.find(mi => mi.id === d.producto_id);
@@ -8839,17 +8839,17 @@ function renderOcItems(orden) {
       const hasDesc = d.descuento_porcentaje || d.descuento_monto;
 
       const descLabel = hasDesc
-        ? `<span style="font-size:11px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
+        ? `<span style="font-size:11px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
         : '';
 
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid color-mix(in srgb, #f3f4f6 var(--mix-border-pct), var(--mix-border-base));">
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:13px;">${nombre} ${descLabel}</div>
-            <div style="font-size:12px;color:color-mix(in srgb, #7A6641 var(--mix-ink-pct), var(--mix-ink-base));">${d.cantidad} × C$${precioBase.toFixed(2)}</div>
+            <div style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">${d.cantidad} × C$${precioBase.toFixed(2)}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;">
-            ${hasDesc ? `<span style="font-size:11px;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));text-decoration:line-through;">C$${subtotalBase.toFixed(2)}</span>` : ''}
+            ${hasDesc ? `<span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));text-decoration:line-through;">C$${subtotalBase.toFixed(2)}</span>` : ''}
             <span style="font-weight:600;font-size:14px;color:${hasDesc ? 'var(--rojo-cangrejo)' : 'var(--azul-marino)'};">C$${subtotalFinal.toFixed(2)}</span>
           </div>
         </div>`;
@@ -8956,7 +8956,7 @@ async function cerrarCuenta() {
 /* =========================================================================
    Fusión de Mesas — grupo con color y una sola comanda
    ========================================================================= */
-const PALETA_FUSION_UI = ['#006b33', '#C54320', '#f1e246', '#5b400C', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
+const PALETA_FUSION_UI = ['#2A9D8F', '#E63946', '#FFB703', '#003366', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
 
 function mesaPrincipalDe(mesa) {
   if (!mesa || !mesa.grupo_fusion_id || mesa.mesa_principal_id === null || mesa.mesa_principal_id === undefined) {
@@ -9016,7 +9016,7 @@ function renderFusionInfoEnDetalle(mesa) {
   }
   const grupo = mesasDelGrupo(mesa);
   const principal = grupo.find(t => t.mesa_principal_id === null);
-  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#006b33';
+  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#2A9D8F';
   info.hidden = false;
   info.innerHTML = `
     <span class="oc-fusion-color" style="background:${color};"></span>
@@ -9329,13 +9329,13 @@ async function loadVentasDia() {
 async function loadHistorialOrdenesDia(target = 'gestor') {
   const container = document.getElementById(target === 'mesero' ? 'historial-ordenes-list-mesero' : 'historial-ordenes-list');
   if (!container) return;
-  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9A8A6B var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Cargando historial…</p>';
+  container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Cargando historial…</p>';
 
   try {
     const data = await api('/caja/historial-diario');
     renderHistorialOrdenesDia(data.ordenes || [], target);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Error al cargar historial.</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Error al cargar historial.</p>';
   }
 }
 
@@ -9370,7 +9370,7 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
           const fec = String(o.fecha_creacion || '').replace('T', ' ').slice(0, 16);
           const devueltos = (o.detalles || []).filter(d => (d.cantidad_devuelta || 0) > 0);
           const devueltosTxt = devueltos.length
-            ? `<span class="td-sub" style="color:color-mix(in srgb, #f1e246 var(--mix-ink-pct), var(--mix-ink-base));">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
+            ? `<span class="td-sub" style="color:color-mix(in srgb, #FFB703 var(--mix-ink-pct), var(--mix-ink-base));">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
             : '';
           return `
             <tr>
@@ -11222,7 +11222,7 @@ async function loadBackups() {
   const estado = document.getElementById('backups-estado');
   if (!tabla || !estado) return;
 
-  tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#7A6641;">Cargando copias…</p>';
+  tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#6b7280;">Cargando copias…</p>';
   try {
     const [lista, info] = await Promise.all([
       api('/backups/'),
@@ -11275,7 +11275,7 @@ async function loadBackups() {
         </tbody>
       </table>`;
   } catch {
-    tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#C54320;">No se pudieron cargar las copias</p>';
+    tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#E63946;">No se pudieron cargar las copias</p>';
   }
 }
 
