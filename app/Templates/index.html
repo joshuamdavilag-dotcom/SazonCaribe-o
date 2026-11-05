@@ -25,6 +25,19 @@
   <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+  <style>
+    /* Varias comandas por mesa/fusión: selector de comandas del detalle */
+    .oc-orders-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: thin; }
+    .oc-order-chip {
+      flex: 0 0 auto; min-width: 142px; text-align: left;
+      border: 2px solid var(--border-light); background: var(--bg-card);
+      color: var(--text-primary); border-radius: 12px; padding: 8px 10px;
+      cursor: pointer; transition: border-color .15s, background .15s, transform .15s;
+    }
+    .oc-order-chip:hover { border-color: color-mix(in srgb, var(--bandas-verdes) 45%, var(--border-light)); }
+    .oc-order-chip.active { border-color: var(--bandas-verdes); background: color-mix(in srgb, var(--bandas-verdes) 10%, var(--bg-card)); }
+    .oc-order-chip.active div { color: var(--text-primary); }
+  </style>
 </head>
 <body>
 
@@ -1936,7 +1949,7 @@
   <div id="modal-detalle-mesa-ocupada" class="modal-overlay" aria-label="Detalle de mesa ocupada">
     <div class="modal-sheet" style="max-width:520px;">
       <div class="modal-header">
-        <h3 class="modal-title">🔴 <span id="oc-mesa-numero"></span> — Orden #<span id="oc-orden-id"></span></h3>
+        <h3 class="modal-title">🔴 <span id="oc-mesa-numero"></span> — Comanda #<span id="oc-orden-id">…</span></h3>
         <button class="modal-close" id="close-detalle-mesa-ocupada" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:0 20px 20px;">
@@ -1946,7 +1959,16 @@
           <input type="text" id="oc-apodo-input" class="form-input" maxlength="100" placeholder="Ej: Cliente movido a esta mesa (Juan)" style="flex:1;height:34px;font-size:12px;">
           <button class="btn btn-turquoise" id="btn-save-apodo" style="height:34px;padding:0 14px;font-size:12px;white-space:nowrap;">Guardar</button>
         </div>
-        <div id="oc-items-list" style="margin-bottom:16px;max-height:260px;overflow-y:auto;"></div>
+        <!-- Comandas simultáneas de la mesa o fusión -->
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+            <span class="caption">🧾 Comandas activas <span id="oc-ordenes-count" style="font-weight:800;color:var(--bandas-verdes);">0</span></span>
+            <button class="btn btn-turquoise" id="btn-oc-nueva-comanda" style="height:32px;padding:0 12px;font-size:12px;white-space:nowrap;">➕ Nueva comanda</button>
+          </div>
+          <div id="oc-ordenes-list" class="oc-orders-strip" aria-label="Comandas activas de la mesa"></div>
+          <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">Puedes abrir varias comandas; la mesa o fusión se libera al cobrar la última.</p>
+        </div>
+        <div id="oc-items-list" style="margin-bottom:16px;max-height:220px;overflow-y:auto;"></div>
         <div style="border-top:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));padding-top:12px;margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span class="caption">Subtotal</span>
@@ -1986,11 +2008,11 @@
           <button class="btn btn-secondary" id="btn-separar-mesa" style="flex:1;display:none;">➖ Separar de Fusión</button>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="btn-agregar-pedido" style="flex:1;">➕ Agregar al Pedido</button>
+          <button class="btn btn-primary" id="btn-agregar-pedido" style="flex:1;">✏️ Editar comanda</button>
           <button class="btn btn-secondary" id="btn-pre-cuenta" style="flex:1;">🧾 Pre-Cuenta</button>
         </div>
         <div style="margin-top:8px;">
-          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;">💰 Cerrar Cuenta y Liberar Mesa</button>
+          <button class="btn" id="btn-cerrar-cuenta" style="width:100%;background:#E63946;color:color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;">💰 Cobrar comanda</button>
         </div>
         <div style="margin-top:8px;">
           <button class="btn" id="btn-forzar-librar" style="width:100%;background:#FFB703;color:color-mix(in srgb, #000 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;font-weight:700;border-radius:10px;display:none;">⚠️ Liberar Mesa (Forzar Libramiento)</button>
