@@ -241,6 +241,51 @@ def test_actualizar_insumo_existente_suma_stock_y_mantiene_unidad():
         db.close()
 
 
+def test_coincidencia_aproximada_no_actualiza_insumo_ni_reutiliza_categoria():
+    db = _session()
+    try:
+        actor = _actor(db)
+        unidad = db.execute(
+            select(UnidadMedida).where(UnidadMedida.nombre == "Unidad")
+        ).scalar_one()
+        categoria = CategoriaInsumo(nombre="Bebidas")
+        existente = Insumo(
+            nombre="Coca Cola",
+            cantidad_actual=Decimal("4.00"),
+            unidad_medida_id=unidad.id,
+            stock_minimo=Decimal("2.00"),
+            categoria=categoria,
+        )
+        db.add_all([categoria, existente])
+        db.commit()
+
+        servicio = _servicio(db)
+        lote = servicio.analizar(
+            "compra.txt",
+            "Producto | Cantidad | Unidad | Categoría | Precio\n"
+            "Coca Colas | 2 | unidad | Bebida | 30\n".encode("utf-8"),
+            actor,
+        )
+        detalle = lote.detalles[0]
+        assert detalle.accion == AccionImportacion.CREAR
+        assert detalle.insumo_id == existente.id
+        assert detalle.categoria_id is None
+        assert "Posible coincidencia" in detalle.notas
+
+        resultado = servicio.aplicar(lote.id, _payload(lote), actor)
+        assert resultado.creadas == 1
+        db.refresh(existente)
+        assert existente.cantidad_actual == Decimal("4.00")
+        assert db.execute(
+            select(CategoriaInsumo).where(CategoriaInsumo.nombre == "Bebida")
+        ).scalar_one()
+        assert db.execute(
+            select(Insumo).where(Insumo.nombre == "Coca Colas")
+        ).scalar_one()
+    finally:
+        db.close()
+
+
 def test_aplicar_omite_filas_marcadas_y_no_escribe_nada_si_falla():
     db = _session()
     try:

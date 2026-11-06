@@ -6335,7 +6335,7 @@ function renderImportacionFilas(lote) {
       return `<option value="${valor}"${seleccionado}>${etiqueta}</option>`;
     }).join('');
     const existente = detalle.insumo_nombre
-      ? `<span class="importar-existente" title="Se actualizará este insumo">${escHtml(detalle.insumo_nombre)}</span>`
+      ? `<span class="importar-existente" title="${detalle.accion === 'ACTUALIZAR' ? 'Se actualizará este insumo' : 'Posible coincidencia; elige Actualizar solo si es el mismo artículo'}">${detalle.accion === 'ACTUALIZAR' ? 'Actualizar: ' : 'Posible: '}${escHtml(detalle.insumo_nombre)}</span>`
       : '';
     const nota = detalle.notas
       ? `<span class="importar-nota" title="${escHtml(detalle.notas)}">⚠</span>`

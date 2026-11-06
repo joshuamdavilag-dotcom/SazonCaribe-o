@@ -229,7 +229,12 @@ class ImportacionInventarioService:
         unidad_base_hint = self._resolver_unidad(base_hint, unidades, mapa_unidades) if base_hint else None
         unidad_defecto = self._unidad_por_defecto(unidades, mapa_unidades)
 
-        insumo, confianza = self._match_insumo(nombre, insumos)
+        candidato_insumo, confianza = self._match_insumo(nombre, insumos)
+        insumo = candidato_insumo if confianza == 1.0 else None
+        if candidato_insumo and insumo is None:
+            notas.append(
+                f"Posible coincidencia con '{candidato_insumo.nombre}'; confirma antes de actualizar."
+            )
         categoria = self._match_categoria(fila.categoria_texto, categorias)
         empaque_actual = mapa_unidades.get(normalizar_texto(unidad_texto)) if unidad_texto else None
 
@@ -301,7 +306,7 @@ class ImportacionInventarioService:
             precio_unitario=fila.precio_unitario,
             precio_total=fila.precio_total,
             categoria_texto=fila.categoria_texto,
-            insumo_id=insumo.id if insumo else None,
+            insumo_id=candidato_insumo.id if candidato_insumo else None,
             accion=accion,
             categoria_id=categoria_id,
             unidad_medida_id=unidad_medida_id,
@@ -391,13 +396,7 @@ class ImportacionInventarioService:
         for categoria in categorias:
             if normalizar_texto(categoria.nombre) == n:
                 return categoria
-        mejor: Optional[CategoriaInsumo] = None
-        mejor_ratio = 0.0
-        for categoria in categorias:
-            ratio = SequenceMatcher(None, n, normalizar_texto(categoria.nombre)).ratio()
-            if ratio > mejor_ratio:
-                mejor, mejor_ratio = categoria, ratio
-        return mejor if mejor_ratio >= UMBRAL_COINCIDENCIA else None
+        return None
 
     def _resumen(self, detalles: list[DetalleImportacionInventario], modelo: Optional[str]) -> dict[str, Any]:
         categorias_nuevas = sorted({
