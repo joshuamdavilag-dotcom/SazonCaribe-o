@@ -2591,7 +2591,7 @@ async function loadGastos() {
     renderGastoFilters();
     renderGastosTable();
   } catch {
-    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-[#E63946]">Error al cargar gastos</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-[#C54320]">Error al cargar gastos</td></tr>';
   }
 }
 
@@ -2611,7 +2611,7 @@ async function loadAuditoria() {
     state.auditPage = await api(`/auditoria/?${params.toString()}`);
     renderAuditoria();
   } catch (error) {
-    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-[#E63946]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-[#C54320]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
   }
 }
 
@@ -2792,7 +2792,7 @@ function renderGastosTable() {
       <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">${new Date(g.fecha).toLocaleDateString('es-NI', { day:'2-digit', month:'short', year:'numeric' })}</td>
       <td style="padding:12px 16px;"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORIA_BADGE[g.categoria] || 'bg-slate-100 text-slate-600'}">${CATEGORIA_LABELS[g.categoria] || g.categoria}</span></td>
       <td style="padding:12px 16px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.concepto)}</td>
-      <td style="padding:12px 16px;text-align:right;font-weight:700;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));white-space:nowrap;">C$${parseFloat(g.monto).toFixed(2)}</td>
       <td style="padding:12px 16px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));font-size:13px;white-space:nowrap;">${g.registrado_por ? 'Usuario #' + g.registrado_por : '—'}</td>
       <td class="admin-only" style="padding:8px 12px;white-space:nowrap;text-align:right;">
         <button type="button" class="btn-action" title="Editar gasto" onclick="openEditarGasto(${g.id})">✏️</button>
@@ -3423,7 +3423,7 @@ async function loadDescuentos() {
     }).join('');
     state.descuentosList = lista;
   } catch {
-    cont.innerHTML = '<p style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
+    cont.innerHTML = '<p style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;grid-column:1/-1;">Error al cargar descuentos</p>';
   }
 }
 
@@ -3852,7 +3852,7 @@ function renderZonasList(zonas) {
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">📍 ${z.nombre}</span>
         <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} mesa(s)</span>
-        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarZona(${z.id}, '${z.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene mesas — no se puede eliminar' : 'Eliminar zona'}">🗑</button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#C54320;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarZona(${z.id}, '${z.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene mesas — no se puede eliminar' : 'Eliminar zona'}">🗑</button>
       </div>`;
   }).join('');
 }
@@ -3878,7 +3878,7 @@ function renderGestionMesasList(mesas) {
       <span style="font-size:12px;padding:2px 8px;border-radius:999px;${estadoColors[m.estado] || ''}">${m.estado}</span>
       <span style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));">👥 ${m.capacidad}</span>
       <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="editarMesa(${m.id})">✏️</button>
-      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
+      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));" onclick="eliminarMesa(${m.id}, ${m.numero})">🗑</button>
     </div>`).join('');
 }
 
@@ -4012,7 +4012,7 @@ async function loadCocinaOrdenes() {
     renderCocinaCards();
     renderCocinaTabCounts();
   } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Error al cargar órdenes</p>';
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:32px;">Error al cargar órdenes</p>';
   }
 }
 
@@ -5910,7 +5910,7 @@ function addRecipeRow(ingredienteId, cantidad, descuentoLote) {
       <input type="checkbox" class="recipe-lote" style="width:14px;height:14px;">
       <span>Lote</span>
     </label>
-    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
+    <button type="button" class="btn-remove-recipe" style="background:none;border:none;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));font-size:18px;cursor:pointer;padding:4px;" title="Quitar">🗑️</button>
   `;
 
   const catSelect = row.querySelector('.recipe-cat-filter');
@@ -5984,7 +5984,7 @@ function renderCatList() {
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
         <span style="flex:1;font-size:13px;font-weight:600;">🍽️ ${c.nombre}</span>
         <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} platillo(s)</span>
-        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#E63946;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#C54320;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
       </div>`;
   }).join('');
 }
@@ -6683,9 +6683,9 @@ function renderAlerts(alerts) {
 
 function insumoTint(catNombre = '') {
   const n = (catNombre || '').toLowerCase();
-  if (/carne|pollo|res|cerdo|pescado|marisco/.test(n)) return { bg: '#FFE8E3', color: '#E64A2E', icon: 'set_meal' };
+  if (/carne|pollo|res|cerdo|pescado|marisco/.test(n)) return { bg: '#FFE8E3', color: '#C54320', icon: 'set_meal' };
   if (/abarrote|grano|arroz|aceite|enlatado/.test(n)) return { bg: '#FFF4D6', color: '#B45309', icon: 'package_2' };
-  if (/l[áa]cteo|leche|queso|crema/.test(n)) return { bg: '#D6F5F8', color: '#0F766E', icon: 'liquid' };
+  if (/l[áa]cteo|leche|queso|crema/.test(n)) return { bg: '#D6F5F8', color: '#005226', icon: 'liquid' };
   if (/veget|fruta|verdura|lechuga|cebolla|tomate/.test(n)) return { bg: '#DCFCE7', color: '#15803D', icon: 'eco' };
   if (/condiment|especia|sal|salsa/.test(n)) return { bg: '#F1F5F9', color: '#475569', icon: 'spa' };
   if (/bebida|jugo|gaseosa/.test(n)) return { bg: '#E0F2FE', color: '#0369A1', icon: 'local_cafe' };
@@ -6707,10 +6707,10 @@ function renderInsumos(insumos) {
     const barClass = level === 'ok' ? 'bar-ok' : level === 'bajo' ? 'bar-warn' : 'bar-crit';
     const badgeText = level === 'ok' ? 'OK' : level === 'bajo' ? 'BAJO' : 'CRÍTICO';
     const badgeCls = level === 'ok'
-      ? 'bg-[#D6F5F8] text-[#0F766E]'
+      ? 'bg-[#D6F5F8] text-[#005226]'
       : level === 'bajo'
         ? 'bg-amber-100 text-amber-700 border border-amber-300'
-        : 'bg-[#FFE8E3] text-[#E64A2E] border border-[#E64A2E]/30';
+        : 'bg-[#FFE8E3] text-[#C54320] border border-[#C54320]/30';
     const tint = insumoTint(i.categoria_nombre);
     const catBadge = i.categoria_nombre
       ? `<span class="insumo-cat-badge" style="background:${tint.bg};color:${tint.color}">${getCategoryEmoji(i.categoria_nombre)} ${i.categoria_nombre}</span>`
@@ -7503,7 +7503,7 @@ function renderEmpleadosBaja(empleados) {
 }
 
 const EMP_AVATAR_TINTS = [
-  ['#0F3B66', '#E3EAF3'], ['#006B6B', '#E0F2EF'], ['#B4462A', '#FDEBE6'],
+  ['#0F3B66', '#E3EAF3'], ['#005226', '#E0F2EF'], ['#B4462A', '#FDEBE6'],
   ['#7A5AF8', '#ECE8FE'], ['#D97706', '#FEF3E2'], ['#0E7490', '#E0F2FE'],
 ];
 
@@ -7545,7 +7545,7 @@ function renderPersonalTable(empleados, usuarios) {
         <h3 class="font-display text-base font-extrabold text-brand-navy leading-none">Directorio de Empleados</h3>
         <p class="text-xs text-slate-500 mt-1">${empleados.length} empleados · ${totalActivos} activos</p>
       </div>
-      <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#006B6B]">
+      <span class="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-[#E8F1F1] text-[12px] font-bold text-[#005226]">
         <span class="material-symbols-outlined text-[15px]">payments</span> Planilla C$${planilla.toFixed(2)}
       </span>
     </div>
@@ -8059,7 +8059,7 @@ async function toggleNominaDetalle() {
       <div style="max-height:160px;overflow-y:auto;">${rows}</div>
     `;
   } catch {
-    content.innerHTML = '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">Error al cargar el detalle.</span>';
+    content.innerHTML = '<span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">Error al cargar el detalle.</span>';
   }
 }
 
@@ -8562,7 +8562,7 @@ function renderAsistenciasTable(asistencias, container) {
           const entrada = formatLocalTime(a.hora_entrada_real);
           const salida = a.hora_salida_real
             ? formatLocalTime(a.hora_salida_real)
-            : '<span style="color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));font-weight:600;">Activo</span>';
+            : '<span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));font-weight:600;">Activo</span>';
           const ot = parseFloat(a.horas_extras);
           const otBadge = ot > 0
             ? `<span style="background:color-mix(in srgb, #fef9c3 var(--mix-surface-pct), var(--mix-surface-base));color:color-mix(in srgb, #854d0e var(--mix-ink-pct), var(--mix-ink-base));padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;">${ot.toFixed(2)}h</span>`
@@ -8827,7 +8827,7 @@ function addPreparacionRow() {
       <label class="form-label" style="font-size:12px;">Cantidad</label>
       <input type="number" class="form-input prep-cantidad" data-row="${id}" step="0.01" min="0.01" placeholder="0" style="height:36px;font-size:13px;" oninput="updatePrepSummary()">
     </div>
-    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));" title="Eliminar">✕</button>
+    <button type="button" class="btn btn-secondary" onclick="this.closest('.prep-row').remove();updatePrepSummary();" style="height:36px;padding:0 8px;font-size:14px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));" title="Eliminar">✕</button>
   `;
   container.appendChild(row);
 }
@@ -8951,12 +8951,12 @@ function renderPieChart(data) {
 
   const labels = ['Gastos Nómina', 'Costo Insumos', 'Gastos Operativos'];
   const values = [data.gastos_nomina, data.costo_insumos, data.gastos_operativos];
-  const colors = ['#E63946', '#FFB703', '#FD7E14'];
+  const colors = ['#C54320', '#F1E246', '#FD7E14'];
 
   if (data.utilidad_neta > 0) {
     labels.push('Utilidad Neta');
     values.push(data.utilidad_neta);
-    colors.push('#2A9D8F');
+    colors.push('#006b33');
   }
 
   pieChartInstance = new Chart(ctx, {
@@ -9014,7 +9014,7 @@ function renderBarChart(topPlatillos) {
         {
           label: 'Ingresos (C$)',
           data: revenues,
-          backgroundColor: 'rgba(42, 157, 143, 0.7)',
+          backgroundColor: 'rgba(0, 107, 51, 0.7)',
           borderRadius: 6,
           yAxisID: 'y1',
         },
@@ -9144,7 +9144,7 @@ async function loadOcupadaOrdenes(mesaId) {
     seleccionarOrdenOcupada(elegida ? elegida.id : null);
   } catch {
     document.getElementById('oc-items-list').innerHTML =
-      '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar las comandas.</p>';
+      '<p style="text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:16px;">Error al cargar las comandas.</p>';
   }
 }
 
@@ -9265,7 +9265,7 @@ function renderOcItems(orden) {
       const hasDesc = d.descuento_porcentaje || d.descuento_monto;
 
       const descLabel = hasDesc
-        ? `<span style="font-size:11px;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
+        ? `<span style="font-size:11px;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">${d.descuento_porcentaje ? d.descuento_porcentaje + '%' : ''}${d.motivo_descuento ? ' · ' + d.motivo_descuento : ''}</span>`
         : '';
 
       return `
@@ -9382,7 +9382,7 @@ async function cerrarCuenta() {
 /* =========================================================================
    Fusión de Mesas — grupo con color y una sola comanda
    ========================================================================= */
-const PALETA_FUSION_UI = ['#2A9D8F', '#E63946', '#FFB703', '#003366', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
+const PALETA_FUSION_UI = ['#006b33', '#C54320', '#F1E246', '#003366', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
 
 function mesaPrincipalDe(mesa) {
   if (!mesa || !mesa.grupo_fusion_id || mesa.mesa_principal_id === null || mesa.mesa_principal_id === undefined) {
@@ -9442,7 +9442,7 @@ function renderFusionInfoEnDetalle(mesa) {
   }
   const grupo = mesasDelGrupo(mesa);
   const principal = grupo.find(t => t.mesa_principal_id === null);
-  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#2A9D8F';
+  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#006b33';
   info.hidden = false;
   info.innerHTML = `
     <span class="oc-fusion-color" style="background:${color};"></span>
@@ -9761,7 +9761,7 @@ async function loadHistorialOrdenesDia(target = 'gestor') {
     const data = await api('/caja/historial-diario');
     renderHistorialOrdenesDia(data.ordenes || [], target);
   } catch {
-    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #E63946 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Error al cargar historial.</p>';
+    container.innerHTML = '<p style="text-align:center;color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));padding:12px;">Error al cargar historial.</p>';
   }
 }
 
@@ -9796,7 +9796,7 @@ function renderHistorialOrdenesDia(ordenes, target = 'gestor') {
           const fec = String(o.fecha_creacion || '').replace('T', ' ').slice(0, 16);
           const devueltos = (o.detalles || []).filter(d => (d.cantidad_devuelta || 0) > 0);
           const devueltosTxt = devueltos.length
-            ? `<span class="td-sub" style="color:color-mix(in srgb, #FFB703 var(--mix-ink-pct), var(--mix-ink-base));">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
+            ? `<span class="td-sub" style="color:color-mix(in srgb, #F1E246 var(--mix-ink-pct), var(--mix-ink-base));">↩ ${devueltos.reduce((s, d) => s + d.cantidad_devuelta, 0)} devueltos</span>`
             : '';
           return `
             <tr>
@@ -11713,7 +11713,7 @@ async function loadBackups() {
         </tbody>
       </table>`;
   } catch {
-    tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#E63946;">No se pudieron cargar las copias</p>';
+    tabla.innerHTML = '<p style="padding:24px;text-align:center;color:#C54320;">No se pudieron cargar las copias</p>';
   }
 }
 

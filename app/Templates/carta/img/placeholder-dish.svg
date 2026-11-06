@@ -2,10 +2,10 @@
   <rect width="640" height="420" fill="#F8FAFC"/>
   <rect x="40" y="24" width="560" height="372" rx="24" fill="#003366" opacity="0.06"/>
   <circle cx="320" cy="200" r="104" fill="#E8F5F3"/>
-  <circle cx="320" cy="200" r="84" fill="#FFFFFF" stroke="#2A9D8F" stroke-width="6"/>
+  <circle cx="320" cy="200" r="84" fill="#FFFFFF" stroke="#006b33" stroke-width="6"/>
   <circle cx="320" cy="200" r="58" fill="#FDEEC9"/>
-  <path d="M320 148a52 52 0 0 0 0 104" fill="none" stroke="#FFB703" stroke-width="10" stroke-linecap="round"/>
-  <g fill="#2A9D8F">
+  <path d="M320 148a52 52 0 0 0 0 104" fill="none" stroke="#F1E246" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#006b33">
     <rect x="282" y="120" width="10" height="70" rx="5"/>
     <rect x="306" y="112" width="10" height="86" rx="5"/>
     <rect x="330" y="120" width="10" height="70" rx="5"/>
