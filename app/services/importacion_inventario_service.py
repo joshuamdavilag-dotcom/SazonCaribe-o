@@ -316,7 +316,7 @@ class ImportacionInventarioService:
         if not texto:
             return False
         n = normalizar_texto(texto)
-        if n not in {normalizar_texto(p) for p in _PALABRAS_EMPAQUE}:
+        if n not in _PALABRAS_EMPAQUE_NORMALIZADAS:
             return False
         if factor is not None and factor > 1:
             return True
@@ -833,23 +833,7 @@ _PALABRAS_EMPAQUE = {
     "cajilla", "caja", "cajon", "saco", "fardo", "bulto", "cubeta",
     "dispensador", "manojo", "quintal", "bandeja", "canasta", "pack", "galon",
 }
-
-NOMBRES_EMPAQUE = {
-    "cajilla": "Cajilla",
-    "caja": "Caja",
-    "cajon": "Cajón",
-    "saco": "Saco",
-    "fardo": "Fardo",
-    "bulto": "Bulto",
-    "cubeta": "Cubeta",
-    "dispensador": "Dispensador",
-    "manojo": "Manojo",
-    "quintal": "Quintal",
-    "bandeja": "Bandeja",
-    "canasta": "Canasta",
-    "pack": "Pack",
-    "galon": "Galón",
-}
+_PALABRAS_EMPAQUE_NORMALIZADAS = {normalizar_texto(p) for p in _PALABRAS_EMPAQUE}
 
 
 def _titulo(texto: Any) -> str:
