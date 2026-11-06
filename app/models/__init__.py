@@ -32,6 +32,12 @@ from app.models.estudio_mercado import (
     RolMensajeEstudio,
     TipoEstudio,
 )
+from app.models.importacion_inventario import (
+    AccionImportacion,
+    DetalleImportacionInventario,
+    EstadoImportacion,
+    ImportacionInventario,
+)
 
 __all__ = [
     "RegistroAuditoria",
@@ -89,4 +95,8 @@ __all__ = [
     "DocumentoEstudio",
     "MensajeEstudio",
     "RolMensajeEstudio",
+    "ImportacionInventario",
+    "DetalleImportacionInventario",
+    "EstadoImportacion",
+    "AccionImportacion",
 ]

@@ -27,6 +27,7 @@ from app.api.endpoints.personal import router as personal_router
 from app.api.endpoints.asistencia import router as asistencia_router
 from app.api.endpoints.nomina import router as nomina_router
 from app.api.endpoints.inventario import router as inventario_router
+from app.api.endpoints.importacion_inventario import router as importacion_inventario_router
 from app.api.endpoints.menu import router as menu_router
 from app.api.endpoints.menu_publico import router as menu_publico_router
 from app.api.endpoints.salon import router as salon_router
@@ -105,6 +106,12 @@ app.include_router(
 
 app.include_router(
     inventario_router,
+    prefix="/api/v1/inventario",
+    tags=["Inventario & Proveedores"]
+)
+
+app.include_router(
+    importacion_inventario_router,
     prefix="/api/v1/inventario",
     tags=["Inventario & Proveedores"]
 )

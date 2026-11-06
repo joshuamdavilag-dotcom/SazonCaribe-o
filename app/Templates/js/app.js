@@ -36,6 +36,8 @@ const state = {
   stockAlertsOpen: false,
   categoriasInsumo: [],
   unidadesMedida: [],
+  importacionActual: null,
+  importacionesHistorial: [],
   activeInsumoCatFilter: null,
   allGastos: [],
   activeGastoFilter: null,
@@ -6175,6 +6177,430 @@ async function loadUnidadesMedida() {
   } catch { state.unidadesMedida = []; }
 }
 
+/* =========================================================================
+   Importación inteligente de inventario
+   ========================================================================= */
+const EMPAQUES_IMPORTACION = [
+  'cajilla', 'caja', 'cajon', 'saco', 'fardo', 'bulto', 'cubeta',
+  'dispensador', 'manojo', 'quintal', 'bandeja', 'canasta', 'pack', 'galon',
+];
+
+function normImportacion(valor) {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function openImportarInventario() {
+  state.importacionActual = null;
+  const archivo = document.getElementById('importar-archivo');
+  if (archivo) archivo.value = '';
+  actualizarNombreArchivoImportacion();
+  const carga = document.getElementById('importar-carga-panel');
+  if (carga) carga.style.display = '';
+  const revision = document.getElementById('importar-revision-panel');
+  if (revision) revision.style.display = 'none';
+  document.getElementById('modal-importar-inventario')?.classList.add('show');
+  cargarImportacionesHistorial();
+}
+
+function closeImportarInventario() {
+  document.getElementById('modal-importar-inventario')?.classList.remove('show');
+}
+
+function actualizarNombreArchivoImportacion() {
+  const archivo = document.getElementById('importar-archivo')?.files?.[0];
+  const nombre = document.getElementById('importar-archivo-nombre');
+  if (nombre) nombre.textContent = archivo ? archivo.name : 'Elegir archivo…';
+}
+
+async function analizarImportacion() {
+  const archivo = document.getElementById('importar-archivo')?.files?.[0];
+  if (!archivo) {
+    showToast('Elige primero un archivo para analizar.', 'error');
+    return;
+  }
+  const boton = document.getElementById('btn-analizar-importacion');
+  const textoOriginal = boton?.textContent;
+  if (boton) {
+    boton.disabled = true;
+    boton.textContent = 'Analizando…';
+  }
+  try {
+    const datos = new FormData();
+    datos.append('archivo', archivo);
+    const lote = await api('/inventario/importaciones/analizar', { method: 'POST', body: datos });
+    renderImportacionRevision(lote);
+    const total = (lote.detalles || []).length;
+    showToast(`Se detectaron ${total} artículo${total === 1 ? '' : 's'}. Revisa antes de aplicar.`);
+  } catch {
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+      boton.textContent = textoOriginal || 'Analizar archivo';
+    }
+  }
+}
+
+function renderImportacionRevision(lote) {
+  state.importacionActual = lote;
+  const carga = document.getElementById('importar-carga-panel');
+  if (carga) carga.style.display = 'none';
+  const revision = document.getElementById('importar-revision-panel');
+  if (revision) revision.style.display = '';
+  renderImportacionResumen(lote);
+  renderImportacionFilas(lote);
+  const aplicada = lote.estado === 'APLICADA';
+  const aplicar = document.getElementById('btn-aplicar-importacion');
+  if (aplicar) aplicar.style.display = aplicada ? 'none' : '';
+  const descartar = document.getElementById('btn-descartar-importacion');
+  if (descartar) descartar.textContent = aplicada ? 'Cerrar' : 'Descartar';
+}
+
+function renderImportacionResumen(lote) {
+  const contenedor = document.getElementById('importar-resumen');
+  if (!contenedor) return;
+  const resumen = lote.resumen || {};
+  const detalles = lote.detalles || [];
+  const contar = (accion) => detalles.filter(d => d.accion === accion).length;
+  const crear = resumen.crear ?? contar('CREAR');
+  const actualizar = resumen.actualizar ?? contar('ACTUALIZAR');
+  const omitir = resumen.omitir ?? contar('OMITIR');
+  const conPrecio = resumen.con_precio ?? detalles.filter(
+    d => d.precio_unitario !== null || d.precio_total !== null
+  ).length;
+
+  const chips = [
+    `<span class="importar-chip importar-chip-total">${detalles.length} fila${detalles.length === 1 ? '' : 's'}</span>`,
+    `<span class="importar-chip importar-chip-crear">${crear} nuevo${crear === 1 ? '' : 's'}</span>`,
+    `<span class="importar-chip importar-chip-actualizar">${actualizar} por actualizar</span>`,
+    `<span class="importar-chip importar-chip-omitir">${omitir} omitida${omitir === 1 ? '' : 's'}</span>`,
+    `<span class="importar-chip importar-chip-precio">${conPrecio} con precio</span>`,
+  ];
+  if ((resumen.categorias_nuevas || []).length) {
+    chips.push(
+      `<span class="importar-chip importar-chip-nuevo" title="Se crearán al aplicar">` +
+      `Categorías nuevas: ${resumen.categorias_nuevas.map(escHtml).join(', ')}</span>`
+    );
+  }
+  if ((resumen.empaques_nuevos || []).length) {
+    chips.push(
+      `<span class="importar-chip importar-chip-nuevo" title="Se crearán al aplicar">` +
+      `Empaques nuevos: ${resumen.empaques_nuevos.map(escHtml).join(', ')}</span>`
+    );
+  }
+  if (lote.modelo_ia) {
+    chips.push(`<span class="importar-chip importar-chip-ia">IA: ${escHtml(lote.modelo_ia)}</span>`);
+  }
+  if (lote.estado === 'APLICADA') {
+    chips.push('<span class="importar-chip importar-chip-ok">Aplicada al inventario</span>');
+  }
+
+  contenedor.innerHTML =
+    `<p class="importar-archivo-meta">${escHtml(lote.nombre_archivo)} · ` +
+    `${formatearFechaImportacion(lote.creada_en)}</p>` +
+    chips.join('');
+}
+
+function renderImportacionFilas(lote) {
+  const tbody = document.getElementById('importar-tabla-body');
+  if (!tbody) return;
+  const detalles = lote.detalles || [];
+  const soloLectura = lote.estado === 'APLICADA';
+  const bloqueado = soloLectura ? ' disabled' : '';
+  const unidades = state.unidadesMedida || [];
+
+  if (!detalles.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="importar-vacio">No se detectaron filas.</td></tr>';
+    return;
+  }
+
+  const numero = (valor) => (valor === null || valor === undefined ? '' : valor);
+
+  tbody.innerHTML = detalles.map((detalle) => {
+    const opcionesUnidad = ['<option value="">—</option>'].concat(
+      unidades.map(u => {
+        const seleccionado = u.id === detalle.unidad_medida_id ? ' selected' : '';
+        return `<option value="${u.id}"${seleccionado}>${escHtml(u.nombre)}</option>`;
+      })
+    ).join('');
+    const acciones = [
+      ['CREAR', 'Crear'],
+      ['ACTUALIZAR', 'Actualizar'],
+      ['OMITIR', 'Omitir'],
+    ].map(([valor, etiqueta]) => {
+      const seleccionado = (detalle.accion || 'OMITIR') === valor ? ' selected' : '';
+      return `<option value="${valor}"${seleccionado}>${etiqueta}</option>`;
+    }).join('');
+    const existente = detalle.insumo_nombre
+      ? `<span class="importar-existente" title="Se actualizará este insumo">${escHtml(detalle.insumo_nombre)}</span>`
+      : '';
+    const nota = detalle.notas
+      ? `<span class="importar-nota" title="${escHtml(detalle.notas)}">⚠</span>`
+      : '';
+    const categoria = detalle.categoria_nombre || detalle.categoria_texto || '';
+    const omitida = (detalle.accion || '') === 'OMITIR' ? ' importar-fila-omitida' : '';
+
+    return `
+      <tr data-detalle-id="${detalle.id}" data-stock-minimo="${numero(detalle.stock_minimo)}" class="importar-fila${omitida}">
+        <td class="importar-fila-num">${detalle.fila}</td>
+        <td>
+          <input type="text" class="importar-input importar-nombre" maxlength="100"
+                 value="${escHtml(detalle.nombre_detectado)}"${bloqueado}>
+          ${existente}${nota}
+        </td>
+        <td><input type="number" class="importar-input importar-cantidad" min="0" step="0.01"
+                   value="${numero(detalle.cantidad)}"${bloqueado}></td>
+        <td><select class="importar-input importar-unidad"${bloqueado}>${opcionesUnidad}</select></td>
+        <td><input type="text" class="importar-input importar-empaque" list="importar-empaques-datalist"
+                   maxlength="50" value="${escHtml(empaqueTextoImportacion(detalle))}"${bloqueado}></td>
+        <td><input type="number" class="importar-input importar-factor" min="0" step="0.01"
+                   value="${numero(detalle.factor_empaque)}"${bloqueado}></td>
+        <td><input type="number" class="importar-input importar-precio-unit" min="0" step="0.01"
+                   value="${numero(detalle.precio_unitario)}"${bloqueado}></td>
+        <td><input type="number" class="importar-input importar-precio-total" min="0" step="0.01"
+                   value="${numero(detalle.precio_total)}"${bloqueado}></td>
+        <td><input type="text" class="importar-input importar-categoria" list="importar-categorias-datalist"
+                   maxlength="50" value="${escHtml(categoria)}"${bloqueado}></td>
+        <td><select class="importar-input importar-accion-select"${bloqueado}>${acciones}</select></td>
+      </tr>`;
+  }).join('');
+
+  renderImportacionDatalists();
+}
+
+function empaqueTextoImportacion(detalle) {
+  const unidades = state.unidadesMedida || [];
+  if (detalle.unidad_empaque_id) {
+    const unidad = unidades.find(u => u.id === detalle.unidad_empaque_id);
+    if (unidad) return unidad.nombre;
+  }
+  if (detalle.factor_empaque && detalle.factor_empaque > 1) {
+    return detalle.unidad_empaque_nombre || detalle.unidad_texto || '';
+  }
+  const texto = normImportacion(detalle.unidad_texto);
+  if (texto && EMPAQUES_IMPORTACION.includes(texto)) return detalle.unidad_texto;
+  return '';
+}
+
+function renderImportacionDatalists() {
+  const categorias = document.getElementById('importar-categorias-datalist');
+  if (categorias) {
+    categorias.innerHTML = (state.categoriasInsumo || [])
+      .map(c => `<option value="${escHtml(c.nombre)}"></option>`)
+      .join('');
+  }
+  const empaques = document.getElementById('importar-empaques-datalist');
+  if (empaques) {
+    const nombres = new Set((state.unidadesMedida || []).map(u => u.nombre));
+    EMPAQUES_IMPORTACION.forEach(nombre => {
+      nombres.add(nombre.charAt(0).toUpperCase() + nombre.slice(1));
+    });
+    empaques.innerHTML = Array.from(nombres).sort()
+      .map(nombre => `<option value="${escHtml(nombre)}"></option>`)
+      .join('');
+  }
+}
+
+function marcarFilaImportacion(select) {
+  const fila = select.closest('tr');
+  if (!fila) return;
+  fila.classList.toggle('importar-fila-omitida', select.value === 'OMITIR');
+}
+
+function colectarDetallesImportacion() {
+  const filas = Array.from(document.querySelectorAll('#importar-tabla-body tr[data-detalle-id]'));
+  const unidades = state.unidadesMedida || [];
+  const categorias = state.categoriasInsumo || [];
+
+  const numero = (valor) => {
+    if (valor === null || valor === undefined || String(valor).trim() === '') return null;
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  return filas.map((fila) => {
+    const nombre = (fila.querySelector('.importar-nombre')?.value || '').trim();
+    const empaqueTexto = (fila.querySelector('.importar-empaque')?.value || '').trim();
+    const categoriaTexto = (fila.querySelector('.importar-categoria')?.value || '').trim();
+
+    const empaque = empaqueTexto
+      ? unidades.find(
+          u => normImportacion(u.nombre) === normImportacion(empaqueTexto)
+            || normImportacion(u.abreviatura) === normImportacion(empaqueTexto)
+        )
+      : null;
+    const categoria = categoriaTexto
+      ? categorias.find(c => normImportacion(c.nombre) === normImportacion(categoriaTexto))
+      : null;
+
+    return {
+      id: Number(fila.dataset.detalleId),
+      accion: fila.querySelector('.importar-accion-select')?.value || 'OMITIR',
+      nombre,
+      cantidad: numero(fila.querySelector('.importar-cantidad')?.value) ?? 0,
+      unidad_medida_id: numero(fila.querySelector('.importar-unidad')?.value),
+      unidad_empaque_id: empaque ? empaque.id : null,
+      unidad_empaque_nombre: empaque ? null : (empaqueTexto || null),
+      factor_empaque: numero(fila.querySelector('.importar-factor')?.value),
+      precio_unitario: numero(fila.querySelector('.importar-precio-unit')?.value),
+      precio_total: numero(fila.querySelector('.importar-precio-total')?.value),
+      categoria_id: categoria ? categoria.id : null,
+      categoria_nombre: categoria ? null : (categoriaTexto || null),
+      stock_minimo: numero(fila.dataset.stockMinimo),
+    };
+  });
+}
+
+async function aplicarImportacion() {
+  const lote = state.importacionActual;
+  if (!lote) return;
+  const detalles = colectarDetallesImportacion();
+  if (!detalles.length) {
+    showToast('No hay filas para aplicar.', 'error');
+    return;
+  }
+  const sinNombre = detalles.find(d => d.accion !== 'OMITIR' && !d.nombre);
+  if (sinNombre) {
+    showToast('Todas las filas activas necesitan el nombre del artículo.', 'error');
+    return;
+  }
+  const activas = detalles.filter(d => d.accion !== 'OMITIR').length;
+  if (!activas) {
+    showToast('Todas las filas están marcadas como Omitir.', 'error');
+    return;
+  }
+  const confirmado = confirm(
+    `Se aplicarán ${activas} fila${activas === 1 ? '' : 's'} al inventario y se registrarán ` +
+    'movimientos de entrada. Esta acción no se puede deshacer. ¿Continuar?'
+  );
+  if (!confirmado) return;
+
+  const boton = document.getElementById('btn-aplicar-importacion');
+  const textoOriginal = boton?.textContent;
+  if (boton) {
+    boton.disabled = true;
+    boton.textContent = 'Aplicando…';
+  }
+  try {
+    const resultado = await api(`/inventario/importaciones/${lote.id}/aplicar`, {
+      method: 'POST',
+      body: JSON.stringify({ detalles }),
+    });
+    showToast(
+      `Importación aplicada: ${resultado.creadas} creados, ` +
+      `${resultado.actualizadas} actualizados, ${resultado.omitidas} omitidos.`,
+      'success',
+      6000
+    );
+    state.importacionActual = null;
+    closeImportarInventario();
+    await Promise.all([loadInventory(), cargarImportacionesHistorial()]);
+  } catch {
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+      boton.textContent = textoOriginal || 'Aplicar al inventario';
+    }
+  }
+}
+
+async function descartarImportacion() {
+  const lote = state.importacionActual;
+  if (!lote || lote.estado === 'APLICADA') {
+    state.importacionActual = null;
+    closeImportarInventario();
+    return;
+  }
+  if (!confirm('¿Descartar esta importación? El inventario no se modificará.')) return;
+  try {
+    await api(`/inventario/importaciones/${lote.id}`, { method: 'DELETE' });
+    showToast('Importación descartada.');
+    state.importacionActual = null;
+    closeImportarInventario();
+    cargarImportacionesHistorial();
+  } catch {
+  }
+}
+
+async function cargarImportacionesHistorial() {
+  try {
+    state.importacionesHistorial = await api('/inventario/importaciones/');
+  } catch {
+    state.importacionesHistorial = [];
+  }
+  renderImportacionesHistorial();
+}
+
+function formatearFechaImportacion(valor) {
+  if (!valor) return '';
+  const fecha = new Date(String(valor).replace(' ', 'T'));
+  if (Number.isNaN(fecha.getTime())) return String(valor);
+  return fecha.toLocaleDateString('es-NI', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function renderImportacionesHistorial() {
+  const contenedor = document.getElementById('importar-historial');
+  if (!contenedor) return;
+  const lotes = state.importacionesHistorial || [];
+  if (!lotes.length) {
+    contenedor.innerHTML = '<p class="importar-vacio">Todavía no hay importaciones registradas.</p>';
+    return;
+  }
+  const estados = {
+    APLICADA: { clase: 'ok', texto: 'Aplicada' },
+    REVISION: { clase: 'revision', texto: 'En revisión' },
+    ANALIZANDO: { clase: 'proceso', texto: 'Analizando' },
+    ERROR: { clase: 'error', texto: 'Error' },
+  };
+
+  contenedor.innerHTML = lotes.map((lote) => {
+    const resumen = lote.resumen || {};
+    const estado = estados[lote.estado] || { clase: 'proceso', texto: lote.estado };
+    const detalle = lote.estado === 'APLICADA'
+      ? `${resumen.creadas ?? 0} creados · ${resumen.actualizadas ?? 0} actualizados`
+      : `${resumen.filas ?? 0} fila${resumen.filas === 1 ? '' : 's'}`;
+    const eliminar = lote.estado !== 'APLICADA'
+      ? `<button type="button" class="importar-historial-del" title="Descartar"
+                 onclick="descartarImportacionHistorial(${lote.id}, event)">✕</button>`
+      : '';
+    return `
+      <div class="importar-historial-item">
+        <button type="button" class="importar-historial-main" onclick="abrirImportacionHistorial(${lote.id})">
+          <span class="importar-historial-nombre">${escHtml(lote.nombre_archivo)}</span>
+          <span class="importar-historial-meta">${formatearFechaImportacion(lote.creada_en)} · ${detalle}</span>
+        </button>
+        <span class="importar-estado importar-estado-${estado.clase}">${estado.texto}</span>
+        ${eliminar}
+      </div>`;
+  }).join('');
+}
+
+async function abrirImportacionHistorial(id) {
+  try {
+    const lote = await api(`/inventario/importaciones/${id}`);
+    renderImportacionRevision(lote);
+  } catch {
+  }
+}
+
+async function descartarImportacionHistorial(id, event) {
+  event?.stopPropagation();
+  if (!confirm('¿Descartar esta importación? El inventario no se modificará.')) return;
+  try {
+    await api(`/inventario/importaciones/${id}`, { method: 'DELETE' });
+    showToast('Importación descartada.');
+    if (state.importacionActual?.id === id) {
+      state.importacionActual = null;
+      closeImportarInventario();
+    }
+    cargarImportacionesHistorial();
+  } catch {
+  }
+}
+
 function renderInsumoCatFilters() {
   const container = document.getElementById('insumo-cat-filters');
   if (!container) return;
@@ -10729,6 +11155,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('unidad-form-base')?.addEventListener('change', updateConversionPreview);
   ['unidad-form-nombre', 'unidad-form-abrev', 'unidad-form-factor'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', updateConversionPreview);
+  });
+
+  // Importación de inventario
+  document.getElementById('btn-importar-inventario')?.addEventListener('click', openImportarInventario);
+  document.getElementById('close-importar-modal')?.addEventListener('click', closeImportarInventario);
+  document.getElementById('importar-archivo')?.addEventListener('change', actualizarNombreArchivoImportacion);
+  document.getElementById('btn-analizar-importacion')?.addEventListener('click', analizarImportacion);
+  document.getElementById('btn-aplicar-importacion')?.addEventListener('click', aplicarImportacion);
+  document.getElementById('btn-descartar-importacion')?.addEventListener('click', descartarImportacion);
+  document.getElementById('importar-tabla-body')?.addEventListener('change', (e) => {
+    const select = e.target.closest('.importar-accion-select');
+    if (select) marcarFilaImportacion(select);
   });
 
   // Stock modal

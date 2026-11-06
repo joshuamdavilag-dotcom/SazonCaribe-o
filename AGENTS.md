@@ -69,6 +69,7 @@ app/
 │       ├── asistencia.py    # Turnos, check-in/out, iniciar turno, heartbeat, anular asistencia
 │       ├── nomina.py        # Nómina y pagos
 │       ├── inventario.py    # Proveedores, insumos, movimientos, catálogos de insumo
+│       ├── importacion_inventario.py # Analizar/aplicar/descartar importaciones de inventario (Excel/CSV/TXT/PDF/DOCX)
 │       ├── menu.py          # Categorías, items, recetas
 │       ├── menu_publico.py  # API pública Carta Digital (solo lectura, sin auth)
 │       ├── salon.py         # Zonas, mesas, mapa
@@ -86,6 +87,7 @@ app/
 │   ├── asistencia.py        # TurnoCreate, TurnoUpdate, TurnoResponse, Asistencia, horas extras schemas
 │   ├── nomina.py            # Nomina schemas
 │   ├── inventario.py        # Proveedor, Ingrediente, Insumo (with packaging), UnidadMedida schemas
+│   ├── importacion_inventario.py # Lote/fila de importación, DetalleImportacionAplicar, request/response
 │   ├── menu.py              # MenuItem (imagen_url, tiempo_preparacion), Receta, Categoria schemas
 │   ├── menu_publico.py      # Schemas públicos Carta Digital (sin costos/recetas/inventario)
 │   ├── salon.py             # Mesa, Zona schemas
@@ -102,7 +104,8 @@ app/
 │   ├── personal.py          # Puesto, Empleado, Usuario
 │   ├── asistencia.py        # Turno (Matutino/Nocturno), Asistencia (audit columns + ultimo_heartbeat)
 │   ├── nomina.py            # Nomina
-│   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario
+│   ├── inventario.py        # Proveedor, Ingrediente, Insumo, MovimientoInventario, PreparacionCocina
+│   ├── importacion_inventario.py # ImportacionInventario (lote) + DetalleImportacionInventario (fila)
 │   ├── menu.py              # CategoriaMenu, MenuItem (imagen_url, tiempo_preparacion), Receta
 │   ├── salon.py             # Zona, Mesa, EstadoMesa
 │   ├── orden.py             # Orden, DetalleOrden, EstadoOrden (mesa_id nullable; metodo_pago; subtotal, descuento_total, nombre_cliente; descuento_porcentaje/monto/motivo on DetalleOrden; anulada/motivo_anulacion/anulada_por/anulada_en on Orden; cantidad_devuelta/motivo_devolucion/devuelta_en on DetalleOrden)
@@ -137,6 +140,8 @@ app/
 │   ├── inventario_service.py     # SALIDA movements auto-generate Gasto records; _convertir_cantidad_si_necesaria() per-insumo packaging
 │   ├── menu_service.py          # + consultas públicas reutilizables: obtener_menu_publico(), obtener_categorias_publicas(), obtener_item_publico_por_id(); subir_imagen() (upload multipart)
 │   ├── preparacion_service.py   # Producción por lote: registrar_preparacion() valida stock, descuenta insumos (SALIDA + Gasto SUMINISTROS), crea DetallePreparacionCocina
+│   ├── importacion_inventario_parser.py # Normalización, lectores Excel/CSV/TXT/PDF/DOCX, extraer_unidad_y_factor(), parsear_texto_libre(), mapear_items_ia()
+│   ├── importacion_inventario_service.py # Analizar archivo (reglas + Gemini), matching de insumos/categorías, aplicar() atómico (insumos + ENTRADA + auditoría)
 │   ├── salon_service.py
 │   ├── orden_service.py          # validar_stock_suficiente() + descontar_stock() + revertir_stock() + TRANSICIONES_VALIDAS; _convertir_si_necesario() per-insumo packaging; aplicar_descuento_item(), aplicar_descuento_global(), quitar_descuento_item(); _recalcular_totales()
 │   ├── caja_service.py           # Cierre manual + cierre automático (medianoche Managua) y toggle persistente
@@ -232,6 +237,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Personal module: New employee modal has `telefono` field + `C$` salary label; `saveNuevoEmpleado()` sends `salario_base` + `telefono` in employee body; ⚙️ button next to Puesto select opens `#puesto-panel` (inline subpanel) to create new Puesto inline — `guardarPuesto()` posts `POST /personal/puestos`, reloads select, auto-selects new puesto
 - Unidades de Medida: `#modal-unidades` management modal with table view + create/edit form; `#unidad-derived` toggle shows/hides base unit select + conversion factor; magnitud-filtered base unit select via `populateUnidadBaseSelect()` (falls back to all units for PERSONALIZADO magnitud); live conversion preview text
 - Stock modal: Two-tab layout — Movimiento tab (adjust stock via `PATCH /insumos/{id}/stock` with unit selector + conversion preview) and Detalles tab (edit category/unit/stock_minimo via `PATCH /insumos/{id}` with packaging fields section); gear subpanels for inline category/unit creation
+- Importar Inventario: botón `#btn-importar-inventario` (`.admin-only` / `data-permiso="inventario_gestionar"`) en el header de Inventario → `#modal-importar-inventario`; `analizarImportacion()` sube el archivo, `renderImportacionFilas()` pinta la tabla editable con datalists de categorías/empaques, `aplicarImportacion()` confirma y hace `POST /inventario/importaciones/{id}/aplicar`; el historial (`#importar-historial`) permite reabrir lotes (solo lectura si ya están aplicados) o descartarlos. Detalle completo en la sección "Importación inteligente de inventario".
 - Insumo modal: Packaging section with `Unidad de Empaque` select (`#insumo-unidad-empaque`) + `Factor` input; dynamic preview text ("1 Bolsa de Arroz equivale a 5 lb")
 - Gestión de Turnos: `#modal-turnos` CRUD modal for shift templates (nombre, hora_entrada, horas_teoricas); auto-calculated `hora_salida` field (readonly, displays "(calculada)") derived from `entrada + horas_teoricas` via `calcularHoraSalida()` with midnight crossover; table with editar/eliminar actions; button in Personal header (Admin/Gerente only via `.admin-only` CSS class)
 - Avisos de turno: `#btn-enable-attendance-notifications` requests browser notification permission; while the POS is open it reminds once when the selected shift is underway without a check-in and once when an active attendance reaches its scheduled end. The selected shift is remembered per user; times use `America/Managua`. Notifications can appear while the browser is minimized, but not after it is closed.
@@ -420,6 +426,11 @@ Sistema de permisos granular encima del rol. No cambia el acceso de nadie al des
 | GET    | /api/v1/inventario/unidades-medida/convertir | Yes      | Any                |
 | POST   | /api/v1/inventario/preparaciones             | Yes      | Admin, Gerente     |
 | GET    | /api/v1/inventario/preparaciones             | Yes      | Any                |
+| POST   | /api/v1/inventario/importaciones/analizar    | Yes      | `inventario_gestionar` |
+| GET    | /api/v1/inventario/importaciones/            | Yes      | `inventario_gestionar` |
+| GET    | /api/v1/inventario/importaciones/{id}        | Yes      | `inventario_gestionar` |
+| POST   | /api/v1/inventario/importaciones/{id}/aplicar | Yes     | `inventario_gestionar` |
+| DELETE | /api/v1/inventario/importaciones/{id}        | Yes      | `inventario_gestionar` |
 | GET    | /api/v1/salon/mapa                          | Yes      | Any                |
 | GET    | /api/v1/salon/mesas                         | Yes      | Any                |
 | POST   | /api/v1/salon/mesas                         | Yes      | Admin, Gerente     |
@@ -833,6 +844,23 @@ utilidad_neta = ingresos - nómina - insumos - gastos_operativos
 - `InventarioService._convertir_cantidad_si_necesaria()` and `OrdenService._convertir_si_necesario()` both check packaging first
 - Startup migration `_migrate_insumos_empaque()` adds `unidad_empaque_id` and `factor_empaque` columns if missing
 - **Frontend**: Insumo modal has packaging section (Unidad de Empaque select + Factor input + preview text); Stock modal Detalles tab shows packaging fields
+
+### Importación inteligente de inventario (Excel / CSV / TXT / PDF / DOCX)
+- **Objetivo**: subir la factura o la lista de compras y dejar el inventario cargado sin digitar artículo por artículo. El sistema detecta producto, cantidad, precio y empaque, y **nada se escribe hasta que el usuario confirma**.
+- **Modelos** (`app/models/importacion_inventario.py`, se crean solas con `Base.metadata.create_all`):
+  - `ImportacionInventario` (`importaciones_inventario`): lote con `nombre_archivo`, `tipo_archivo`, `hash_archivo`, `estado` (`ANALIZANDO`/`REVISION`/`APLICADA`/`ERROR`), `modelo_ia`, `resumen` JSON, `error`, `creada_por`, `creada_en`, `aplicada_en`; relación `detalles` con `cascade="all, delete-orphan"` y `order_by=fila`.
+  - `DetalleImportacionInventario` (`detalles_importacion_inventario`): fila detectada con `fila`, `texto_origen`, `nombre_detectado`, `cantidad`, `unidad_texto`, `precio_unitario`, `precio_total`, `categoria_texto`, `insumo_id`, `accion` (`CREAR`/`ACTUALIZAR`/`OMITIR`), `categoria_id`, `unidad_medida_id`, `unidad_empaque_id`, `factor_empaque`, `stock_minimo`, `confianza`, `notas`, `aplicado`.
+- **Parser** (`app/services/importacion_inventario_parser.py`): normaliza texto (minúsculas + sin acentos), lee Excel (`openpyxl`, primera hoja con datos), CSV (sniff de delimitador), TXT/MD delimitado y texto libre; para PDF/DOCX/etc. reutiliza `extraer_texto()`. `parsear_estructurado()` reconoce encabezados por sinónimos (producto/artículo/descripción, cantidad/cant., precio/costo/valor, unidad/empaque/presentación, categoría/línea) y salta totales/subtotales/IVA. `parsear_texto_libre()` aplica patrones tipo "2 cajillas de Coca Cola a C$480". `extraer_unidad_y_factor()` separa empaque de unidad base y **evalúa el empaque antes que la unidad base** ("cajilla x24" → `Cajilla`/24, "saco de 100 libras" → `Saco`/100 + base `Libra`).
+- **Servicio** (`app/services/importacion_inventario_service.py`):
+  - `analizar()` detecta filas con reglas; si el archivo es difícil (texto sin estructura, PDF, columnas irreconocibles) recurre a Gemini (`mapear_items_ia()`, guarda `modelo_ia`). Guarda el lote en `REVISION`, enriquece cada fila contra el catálogo y calcula `resumen` (crear/actualizar/omitir, con precio, categorías y empaques nuevos que se crearían).
+  - Matching de insumos por nombre exacto normalizado → `SequenceMatcher` con umbral `0.86` (+ contención para nombres ≥4 letras). Categoría y unidad se resuelven con el mismo criterio; unidad por defecto `Unidad`.
+  - Una fila queda en `OMITIR` con `notas` cuando la cantidad es 0, cuando el empaque no declara factor, o cuando hay ambigüedad que el usuario debe resolver.
+  - `aplicar()` recibe el estado FINAL editado (`items` con `id`, `accion`, nombre, cantidad, unidad/empaque, precios, categoría, `stock_minimo`), valida **todo el lote primero** y escribe en **una sola transacción**: crea `CategoriaInsumo`/`UnidadMedida` faltantes, crea o actualiza `Insumo`, suma stock, registra `MovimientoInventario` tipo `ENTRADA` por fila, marca el lote `APLICADA` y registra `IMPORTACION_INVENTARIO_APLICADA` en auditoría. Cualquier error → rollback total + HTTP 400 indicando la fila. Al aplicar **no se genera `Gasto`**: solo movimiento de entrada.
+  - **Conversión de cantidad y costo**: `cantidad_base = cantidad × factor_empaque` (si trae empaque) y `costo_base = total / (cantidad × factor)`; se actualiza `Insumo.costo_unitario` con el costo base más reciente y se guarda en el insumo el `unidad_empaque_id`/`factor_empaque` usado. Para insumos existentes se conserva su unidad base y se convierte la cantidad. Un empaque se crea como `UnidadMedida` `UNIDAD` sin base y abreviatura única si no existe.
+  - Si el nombre editado coincide con un insumo existente se **actualiza** ese insumo en vez de duplicarlo. `eliminar()` borra lotes en revisión (400 si el lote ya está `APLICADA`); no existe borrado de una importación aplicada.
+- **Endpoints** (`app/api/endpoints/importacion_inventario.py`, router con `Depends(requerir_permiso("inventario_gestionar"))` montado en `/api/v1/inventario`): `POST /importaciones/analizar` (multipart `archivo`, máximo 25 MB, 201), `GET /importaciones/` (últimas 30), `GET /importaciones/{id}`, `POST /importaciones/{id}/aplicar`, `DELETE /importaciones/{id}` (204; 400 si ya se aplicó). Un archivo sin artículos detectables → 400 con mensaje guía.
+- **Frontend** (`app/Templates/index.html` + `js/app.js` + `css/style.css`): botón **Importar** (`#btn-importar-inventario`, `data-permiso="inventario_gestionar"`) en el header de Inventario abre `#modal-importar-inventario` (sheet `importar-sheet`). Flujo: dropzone (`#importar-archivo`) → `analizarImportacion()` → tabla editable `#importar-tabla-body` con nombre, cantidad, unidad base, empaque (input + `datalist`), factor, precio unitario, precio total, categoría (`datalist`) y acción Crear/Actualizar/Omitir → `aplicarImportacion()` (confirmación obligatoria, refresca inventario e historial). Chips de resumen `#importar-resumen` (nuevos, por actualizar, omitidas, categorías/empaques nuevos, modelo IA). Historial `#importar-historial` con estado y descarte. Un lote `APLICADA` se abre en **solo lectura** (inputs deshabilitados, sin botón Aplicar, botón "Cerrar"). `empaqueTextoImportacion()` precarga el empaque ya registrado en el insumo para no perder el factor al reaplicar. `colectarDetallesImportacion()` envía `categoria_id`/`unidad_empaque_id` cuando el texto coincide con el catálogo, o el nombre para crearlo. Estilos `importar-*` usan `color-mix()` + variables `--mix-*`, por lo que el modo oscuro queda cubierto sin reglas nuevas.
+- **Tests**: `tests/test_importacion_inventario.py` (parser de archivos estructurados y texto libre, empaques, matching y aplicación).
 
 ## Rendimiento (red + BD)
 

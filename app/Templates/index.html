@@ -616,6 +616,10 @@
             <p class="text-sm text-slate-500 mt-1">Control de stock, insumos y unidades de medida</p>
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-importar-inventario" type="button" data-permiso="inventario_gestionar"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
+              <span class="material-symbols-outlined text-[18px] text-slate-500">upload_file</span> Importar
+            </button>
             <button id="btn-unidades" type="button"
                     class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold active:scale-95 transition">
               <span class="material-symbols-outlined text-[18px] text-slate-500">balance</span> Unidades
@@ -1691,6 +1695,66 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-unidad-form" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-primary" id="save-unidad-form" style="flex:1;">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Importar Inventario -->
+  <div id="modal-importar-inventario" class="modal-overlay" aria-label="Importar inventario desde archivo">
+    <div class="modal-sheet importar-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title">Importar Inventario</h3>
+        <button class="modal-close" id="close-importar-modal" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div id="importar-carga-panel">
+        <p class="importar-hint">
+          Sube un Excel, CSV, TXT, PDF o DOCX con los artículos recibidos. El sistema
+          detecta producto, cantidad, precio y empaque; <strong>nada se guarda hasta que confirmes</strong>.
+        </p>
+        <label class="importar-drop" for="importar-archivo">
+          <span class="material-symbols-outlined">upload_file</span>
+          <span id="importar-archivo-nombre">Elegir archivo…</span>
+          <small>Formatos: xlsx, xlsm, csv, txt, pdf, docx (máx. 25 MB)</small>
+        </label>
+        <input type="file" id="importar-archivo" class="importar-file-input"
+               accept=".xlsx,.xlsm,.csv,.txt,.md,.pdf,.docx">
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btn-analizar-importacion">Analizar archivo</button>
+        </div>
+        <div id="importar-historial-wrap">
+          <h4 class="importar-subtitle">Importaciones recientes</h4>
+          <div id="importar-historial" class="importar-historial"></div>
+        </div>
+      </div>
+
+      <div id="importar-revision-panel" style="display:none;">
+        <div id="importar-resumen" class="importar-resumen"></div>
+        <div class="importar-tabla-wrap">
+          <table class="importar-tabla">
+            <thead>
+              <tr>
+                <th>Fila</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Unidad base</th>
+                <th>Empaque</th>
+                <th>Contiene</th>
+                <th>Precio unit.</th>
+                <th>Total</th>
+                <th>Categoría</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="importar-tabla-body"></tbody>
+          </table>
+        </div>
+        <datalist id="importar-categorias-datalist"></datalist>
+        <datalist id="importar-empaques-datalist"></datalist>
+        <div class="form-actions importar-acciones">
+          <button type="button" class="btn btn-secondary" id="btn-descartar-importacion">Descartar</button>
+          <button type="button" class="btn btn-primary" id="btn-aplicar-importacion">Aplicar al inventario</button>
         </div>
       </div>
     </div>
