@@ -7503,8 +7503,8 @@ function renderEmpleadosBaja(empleados) {
 }
 
 const EMP_AVATAR_TINTS = [
-  ['#0F3B66', '#E3EAF3'], ['#005226', '#E0F2EF'], ['#B4462A', '#FDEBE6'],
-  ['#7A5AF8', '#ECE8FE'], ['#D97706', '#FEF3E2'], ['#0E7490', '#E0F2FE'],
+  ['#F1E246', '#5b400C'], ['#F1E246', '#006b33'], ['#F1E246', '#C54320'],
+  ['#5b400C', '#F1E246'], ['#006b33', '#F1E246'], ['#C54320', '#F1E246'],
 ];
 
 function empIniciales(nombre, apellido) {
@@ -8966,7 +8966,7 @@ function renderPieChart(data) {
       datasets: [{
         data: values.map(v => Math.max(v, 0)),
         backgroundColor: colors,
-        borderColor: colorTema('--bg-card') || '#ffffff',
+        borderColor: colorTema('--bg-card') || '#5b400C',
         borderWidth: 2,
       }],
     },
@@ -9007,7 +9007,7 @@ function renderBarChart(topPlatillos) {
         {
           label: 'Unidades Vendidas',
           data: quantities,
-          backgroundColor: '#003366',
+          backgroundColor: '#5b400C',
           borderRadius: 6,
           yAxisID: 'y',
         },
@@ -9382,7 +9382,7 @@ async function cerrarCuenta() {
 /* =========================================================================
    Fusión de Mesas — grupo con color y una sola comanda
    ========================================================================= */
-const PALETA_FUSION_UI = ['#006b33', '#C54320', '#F1E246', '#003366', '#7C3AED', '#0EA5E9', '#EA580C', '#059669'];
+const PALETA_FUSION_UI = ['#006b33', '#C54320', '#F1E246', '#5b400C', '#006b33', '#C54320', '#F1E246', '#5b400C'];
 
 function mesaPrincipalDe(mesa) {
   if (!mesa || !mesa.grupo_fusion_id || mesa.mesa_principal_id === null || mesa.mesa_principal_id === undefined) {
