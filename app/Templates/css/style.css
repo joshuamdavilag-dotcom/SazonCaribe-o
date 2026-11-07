@@ -7168,8 +7168,7 @@ body,
    Tema de marca — profundidad, jerarquía y relieve
    Paleta: camarón #C54320 · verde #006b33 · amarillo #f1e246 · café #5b400C
    ========================================================================= */
-:root,
-[data-theme="dark"] {
+:root {
   --brand-gold:        #f1e246;
   --brand-ink:         #fff9dd;
   --brand-ink-soft:    #f2e9b6;
@@ -7384,3 +7383,160 @@ body {
 #screen-login input[class]::placeholder {
   color: rgba(255, 249, 221, .6) !important;
 }
+
+/* =========================================================================
+   Modo oscuro — misma paleta, superficies casi negras y más contraste
+   ========================================================================= */
+[data-theme="dark"] {
+  --brand-gold:        #f6ea5a;
+  --brand-ink:         #fdf8e3;
+  --brand-ink-soft:    #dbcfa2;
+  --brand-cafe:        #3a2907;
+  --brand-cafe-deep:   #100b02;
+  --brand-green:       #00512a;
+  --brand-green-mid:   #006b33;
+  --brand-green-deep:  #00230f;
+  --brand-coral:       #C54320;
+
+  --azul-marino:       #120c02;
+  --bg-primary:        #100b02;
+  --bg-card:           #00512a;
+  --bg-overlay:        rgba(6, 4, 0, .92);
+  --bg-glass:          rgba(18, 12, 2, .94);
+  --bg-subtle:         rgba(0, 0, 0, .45);
+  --hover-bg:          rgba(246, 234, 90, .08);
+  --text-primary:      #f6ea5a;
+  --text-secondary:    #fdf8e3;
+  --text-muted:        #dbcfa2;
+  --text-on-dark:      #f6ea5a;
+  --border-light:      rgba(246, 234, 90, .3);
+  --border-focus:      #f6ea5a;
+  --overlay-ink:       #f6ea5a;
+  --shadow-base:       #000000;
+
+  --mix-ink-pct:       0%;
+  --mix-ink-base:      #fdf8e3;
+  --mix-surface-pct:   0%;
+  --mix-surface-base:  #00230f;
+  --mix-border-pct:    0%;
+  --mix-border-base:   rgba(246, 234, 90, .32);
+
+  --ink-brand:         #f6ea5a;
+  --ink-danger:        #ffb09a;
+  --ink-turquoise:     #a7f3c3;
+  --ink-cafe:          #f6ea5a;
+  --ink-yellow:        #f6ea5a;
+  --status-ocupada:    #C54320;
+  --status-reservada:  #f6ea5a;
+  --status-preparando: #fdf8e3;
+}
+
+[data-theme="dark"] body,
+[data-theme="dark"] #app-shell,
+[data-theme="dark"] #screen-login {
+  background-color: #100b02 !important;
+  background-image:
+    radial-gradient(1000px 560px at 6% -14%, rgba(0, 81, 42, .5), transparent 62%),
+    radial-gradient(820px 460px at 104% 2%, rgba(197, 67, 32, .16), transparent 58%),
+    linear-gradient(165deg, #1a1203 0%, #100b02 46%, #050300 100%) !important;
+  color: var(--brand-ink) !important;
+}
+
+[data-theme="dark"] #app-shell .sidebar {
+  background-image:
+    radial-gradient(440px 280px at 10% -8%, rgba(0, 81, 42, .55), transparent 74%),
+    linear-gradient(180deg, #150e03 0%, #0f0a02 55%, #050300 100%) !important;
+  border-right: 1px solid rgba(246, 234, 90, .16) !important;
+  box-shadow: 12px 0 40px rgba(0, 0, 0, .7) !important;
+}
+
+[data-theme="dark"] #app-shell .desktop-app-topbar {
+  background: linear-gradient(180deg, rgba(18, 12, 2, .96), rgba(8, 5, 0, .94)) !important;
+  border-bottom: 1px solid rgba(246, 234, 90, .16) !important;
+}
+
+[data-theme="dark"] #app-shell .screen-header {
+  background-image: linear-gradient(120deg, rgba(0, 81, 42, .9), rgba(0, 38, 18, .92)) !important;
+  border-bottom: 1px solid rgba(246, 234, 90, .22) !important;
+}
+
+[data-theme="dark"] #app-shell :is(.card, .menu-card, .menu-mgmt-card, .insumo-card, .kc-card,
+  .camera-card, .nomina-result-card, .occupancy-card, .user-card, .em-tile,
+  .cierre-chart-box, .data-card, .cierre-auto-card) {
+  background-image: linear-gradient(150deg, rgba(255, 255, 255, .07), rgba(0, 0, 0, .42)) !important;
+  border-color: rgba(246, 234, 90, .16) !important;
+  box-shadow: 0 18px 34px -16px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+}
+
+[data-theme="dark"] #app-shell :is(.cierre-card, .stat-card) {
+  border-color: rgba(246, 234, 90, .14) !important;
+  box-shadow: 0 16px 30px -16px rgba(0, 0, 0, .85) !important;
+}
+
+[data-theme="dark"] #app-shell .modal-sheet,
+[data-theme="dark"] #app-shell .dish-sheet,
+[data-theme="dark"] #app-shell .importar-sheet,
+[data-theme="dark"] #app-shell .order-cart-sheet {
+  background-image: linear-gradient(158deg, #00411f 0%, #002c14 55%, #00180a 100%) !important;
+  border-color: rgba(246, 234, 90, .28) !important;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .95), inset 0 1px 0 rgba(255, 255, 255, .07) !important;
+}
+
+[data-theme="dark"] #app-shell table thead th {
+  background-image: linear-gradient(180deg, rgba(0, 81, 42, .8), rgba(0, 38, 18, .8)) !important;
+}
+[data-theme="dark"] #app-shell table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .28); }
+[data-theme="dark"] #app-shell table tbody tr:hover { background: rgba(246, 234, 90, .07); }
+
+[data-theme="dark"] #app-shell .chip {
+  background: rgba(0, 0, 0, .45) !important;
+  border-color: rgba(246, 234, 90, .22) !important;
+}
+[data-theme="dark"] #app-shell .chip.active {
+  background-image: linear-gradient(135deg, #008040, #00512a) !important;
+  color: var(--brand-gold) !important;
+}
+
+[data-theme="dark"] #app-shell .form-input,
+[data-theme="dark"] #app-shell textarea.form-input,
+[data-theme="dark"] #app-shell select.form-input,
+[data-theme="dark"] #screen-login input[class] {
+  background: rgba(0, 0, 0, .55) !important;
+  border-color: rgba(246, 234, 90, .24) !important;
+}
+
+[data-theme="dark"] #app-shell [class*="bg-white"],
+[data-theme="dark"] #screen-login [class*="bg-white"] {
+  background-color: #00512a !important;
+  background-image: linear-gradient(155deg, rgba(255, 255, 255, .06), rgba(0, 0, 0, .34)) !important;
+}
+[data-theme="dark"] #app-shell [class*="bg-slate-100"],
+[data-theme="dark"] #app-shell [class*="bg-gray-100"] { background-color: rgba(0, 0, 0, .5) !important; }
+[data-theme="dark"] #app-shell [class*="bg-slate-50"],
+[data-theme="dark"] #app-shell [class*="bg-gray-50"] { background-color: rgba(0, 0, 0, .35) !important; }
+[data-theme="dark"] #app-shell [class*="bg-slate-200"],
+[data-theme="dark"] #app-shell [class*="bg-gray-200"] { background-color: rgba(246, 234, 90, .18) !important; }
+
+[data-theme="dark"] #screen-login#screen-login#screen-login .login-card {
+  background-color: #003a1d !important;
+  background-image: linear-gradient(160deg, #00512a, #002a14) !important;
+  border-color: rgba(246, 234, 90, .42) !important;
+}
+
+[data-theme="dark"] #app-shell .btn-primary {
+  background-image: linear-gradient(135deg, #d95a34, #a93417) !important;
+}
+[data-theme="dark"] #app-shell .btn-turquoise {
+  background-image: linear-gradient(135deg, #007a3d, #004d27) !important;
+}
+[data-theme="dark"] #app-shell .btn { color: var(--brand-ink); }
+
+[data-theme="dark"] #app-shell#app-shell .text-brand-coral { color: #ff8f6e !important; }
+[data-theme="dark"] #app-shell#app-shell .text-brand-turquoise { color: #a7f3c3 !important; }
+[data-theme="dark"] #app-shell ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #006b33, var(--brand-gold)) !important;
+}
+[data-theme="dark"] #app-shell ::-webkit-scrollbar-track { background: #0a0702; }
+[data-theme="dark"] ::selection { background: rgba(246, 234, 90, .3); }
+
+/* --- Fin modo oscuro --- */
