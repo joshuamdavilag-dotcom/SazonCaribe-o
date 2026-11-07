@@ -39,8 +39,8 @@ def test_listar_devuelve_la_mas_reciente_primero():
         servicio = NovedadService(db)
         servicio.sembrar()
         novedades = servicio.listar()
-        assert novedades[0].version == "1.2.0"
-        assert servicio.ultima().version == "1.2.0"
+        assert novedades[0].version == NOVEDADES[0]["version"]
+        assert servicio.ultima().version == NOVEDADES[0]["version"]
     finally:
         db.close()
 
@@ -61,7 +61,7 @@ def test_notificar_pendientes_marca_todas_y_envia_solo_la_ultima(monkeypatch):
 
         enviados = servicio.notificar_pendientes()
         assert enviados == 1
-        assert enviadas == ["1.2.0"]
+        assert enviadas == [NOVEDADES[0]["version"]]
         assert servicio.pendientes_de_aviso() == []
 
         for novedad in servicio.listar():

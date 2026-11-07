@@ -13,6 +13,24 @@ Reglas:
 
 NOVEDADES = [
     {
+        "version": "1.3.0",
+        "publicada_en": "2026-11-06T18:00",
+        "titulo": "Importación de inventario desde archivos",
+        "resumen": (
+            "Ya puedes subir la factura o la lista de compras en Excel, CSV, "
+            "TXT, PDF o Word: el sistema detecta los artículos, cantidades, "
+            "precios y empaques, y tú revisas todo antes de guardar."
+        ),
+        "detalle": [
+            "En Inventario hay un botón nuevo «Importar» para subir el archivo de la compra.",
+            "El sistema reconoce el nombre del producto, la cantidad, el precio y el empaque (cajilla, saco, caja, etc.).",
+            "Puedes corregir cualquier fila en la pantalla de revisión antes de aplicar; nada se guarda hasta que confirmes.",
+            "Los productos y categorías que no existen se proponen y se crean al aplicar la importación.",
+            "Cada producto recuerda su equivalencia de empaque (por ejemplo, 1 cajilla = 24 unidades).",
+            "Al aplicar se registra una entrada de inventario por cada fila y la operación queda en la bitácora de auditoría.",
+        ],
+    },
+    {
         "version": "1.2.0",
         "publicada_en": "2026-10-28T18:00",
         "titulo": "Notificaciones más limpias y avisos de novedades",
