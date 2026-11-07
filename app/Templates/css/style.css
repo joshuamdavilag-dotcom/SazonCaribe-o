@@ -7171,13 +7171,13 @@ body,
 :root,
 [data-theme="dark"] {
   --brand-gold:        #f1e246;
-  --brand-ink:         #f6efc0;
-  --brand-ink-soft:    #d3c47e;
+  --brand-ink:         #fff9dd;
+  --brand-ink-soft:    #f2e9b6;
   --brand-cafe:        #5b400C;
   --brand-cafe-deep:   #362405;
   --brand-green:       #006b33;
   --brand-green-mid:   #0a7d3f;
-  --brand-green-deep:  #005026;
+  --brand-green-deep:  #00401d;
   --brand-coral:       #C54320;
 
   --azul-marino:       var(--brand-cafe);
@@ -7205,7 +7205,7 @@ body,
 
   --ink-brand:         var(--brand-gold);
   --ink-danger:        #ffb09a;
-  --ink-turquoise:     #8ee7b0;
+  --ink-turquoise:     #a7f3c3;
   --ink-cafe:          var(--brand-gold);
   --ink-yellow:        var(--brand-gold);
   --status-ocupada:    var(--brand-coral);
@@ -7366,3 +7366,21 @@ body,
 
 #app-shell .sidebar-user .user-name { color: var(--brand-gold) !important; }
 #app-shell .sidebar-user .user-role { color: var(--brand-ink-soft) !important; }
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#app-shell#app-shell .kc-btn-editar,
+#app-shell#app-shell .payment-invoice-button,
+#app-shell#app-shell .payment-change-portion,
+#app-shell#app-shell .importar-drop .material-symbols-outlined {
+  color: var(--brand-gold) !important;
+}
+
+#app-shell .form-input::placeholder,
+#screen-login input[class]::placeholder {
+  color: rgba(255, 249, 221, .6) !important;
+}
