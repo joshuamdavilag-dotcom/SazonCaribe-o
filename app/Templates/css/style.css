@@ -6025,7 +6025,7 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
-  color: var(--amarillo-solar);
+  color: var(--fusion-ink, var(--amarillo-solar));
   background: var(--fusion-color, var(--turquesa-ola));
 }
 
@@ -6088,6 +6088,15 @@ body.permiso-caja-cerrar:not(.role-administrador):not(.role-gerente) #cierre-ges
 .fusion-color.on {
   border-color: color-mix(in srgb, #0f172a var(--mix-ink-pct), var(--mix-ink-base));
   box-shadow: 0 0 0 2px color-mix(in srgb, #ffffff var(--mix-surface-pct), var(--mix-surface-base));
+}
+
+.fusion-color[data-fusion-color="#FFFFFF"] {
+  outline: 1px solid rgba(0, 0, 0, .35);
+  outline-offset: -1px;
+}
+.fusion-color[data-fusion-color="#111827"] {
+  outline: 1px solid rgba(255, 255, 255, .5);
+  outline-offset: -1px;
 }
 
 .oc-fusion-info {

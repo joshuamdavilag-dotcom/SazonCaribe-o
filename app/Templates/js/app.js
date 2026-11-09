@@ -3649,7 +3649,7 @@ function tableCardHTML(m) {
   return `
       <article class="relative flex flex-col justify-between gap-2 bg-white rounded-2xl p-2.5 sm:p-3.5 ${s.border} border-2 cursor-pointer shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition active:scale-[0.98]${esFusion ? ' mesa-fusionada' : ''}${seleccionadaParaFusion ? ' fusion-mesa-seleccionada' : ''}"
                data-mesa-id="${m.id}" data-estado="${estado}" data-zona-id="${m.zona_id}" role="button" tabindex="0"
-               ${esFusion ? `style="--fusion-color:${fusionColor};"` : ''}
+               ${esFusion ? `style="--fusion-color:${fusionColor};--fusion-ink:${textoContrasteFusion(fusionColor)};"` : ''}
                aria-label="Mesa ${m.numero}${m.apodo ? ', ' + m.apodo : ''}, ${estado.toLowerCase()}${esFusion ? ', fusionada' : ''}">
         <div class="tm-head flex items-start gap-2.5 flex-wrap">
           <div class="tm-icon grid place-items-center w-8 h-8 rounded-lg shrink-0 ${s.iconBox}">
@@ -9382,7 +9382,20 @@ async function cerrarCuenta() {
 /* =========================================================================
    Fusión de Mesas — grupo con color y una sola comanda
    ========================================================================= */
-const PALETA_FUSION_UI = ['#006b33', '#C54320', '#F1E246', '#5b400C', '#006b33', '#C54320', '#F1E246', '#5b400C'];
+const PALETA_FUSION_UI = [
+  '#1D4ED8', '#DC2626', '#111827', '#FFFFFF', '#F97316',
+  '#7C3AED', '#38BDF8', '#6B7280', '#22C55E',
+];
+
+function textoContrasteFusion(hex) {
+  const limpio = String(hex || '').replace('#', '');
+  if (limpio.length !== 6) return 'var(--amarillo-solar)';
+  const r = parseInt(limpio.slice(0, 2), 16);
+  const g = parseInt(limpio.slice(2, 4), 16);
+  const b = parseInt(limpio.slice(4, 6), 16);
+  const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminancia > 0.62 ? '#5b400C' : '#f1e246';
+}
 
 function mesaPrincipalDe(mesa) {
   if (!mesa || !mesa.grupo_fusion_id || mesa.mesa_principal_id === null || mesa.mesa_principal_id === undefined) {

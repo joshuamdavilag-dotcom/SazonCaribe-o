@@ -23,14 +23,15 @@ from app.services.auditoria_service import AuditoriaService
 
 
 PALETA_FUSION = (
-    "#2A9D8F",
-    "#E63946",
-    "#FFB703",
-    "#003366",
+    "#1D4ED8",
+    "#DC2626",
+    "#111827",
+    "#FFFFFF",
+    "#F97316",
     "#7C3AED",
-    "#0EA5E9",
-    "#EA580C",
-    "#059669",
+    "#38BDF8",
+    "#6B7280",
+    "#22C55E",
 )
 _RE_COLOR_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 

@@ -114,7 +114,7 @@ class FusionMesasTests(unittest.TestCase):
         servicio = SalonService(self.db)
         fusion = servicio.fusionar_mesas(
             [mesa.id for mesa in self.mesas],
-            color="#2A9D8F",
+            color="#1D4ED8",
         )
 
         updated = servicio.fusionar_mesas(
@@ -123,7 +123,7 @@ class FusionMesasTests(unittest.TestCase):
         )
 
         self.assertEqual(updated.grupo_fusion_id, fusion.grupo_fusion_id)
-        self.assertEqual(updated.color_fusion, "#2A9D8F")
+        self.assertEqual(updated.color_fusion, "#1D4ED8")
 
     def test_automatic_color_selection_fails_when_palette_is_full(self) -> None:
         from app.services.salon_service import PALETA_FUSION
