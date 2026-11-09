@@ -3621,7 +3621,9 @@ function tableCardHTML(m) {
   const estado = m.estado || 'LIBRE';
   const s = ESTADO_MESA[estado] || ESTADO_MESA.LIBRE;
   const zona = m.zona_nombre || 'Zona ' + m.zona_id;
-  const fusionColor = /^#[0-9a-fA-F]{6}$/.test(m.color_fusion || '') ? m.color_fusion : '';
+  const fusionColor = /^#[0-9a-fA-F]{6}$/.test(m.color_fusion || '')
+    ? normalizarColorFusion(m.color_fusion, m.grupo_fusion_id)
+    : '';
   const esFusion = Boolean(m.grupo_fusion_id && fusionColor);
   const seleccionadaParaFusion = state.fusionSeleccionIds.includes(m.id);
   const fusionTitle = esFusion
@@ -9386,6 +9388,28 @@ const PALETA_FUSION_UI = [
   '#1D4ED8', '#DC2626', '#111827', '#FFFFFF', '#F97316',
   '#7C3AED', '#38BDF8', '#6B7280', '#22C55E',
 ];
+const NOMBRE_COLOR_FUSION = {
+  '#1D4ED8': 'Azul',
+  '#DC2626': 'Rojo',
+  '#111827': 'Negro',
+  '#FFFFFF': 'Blanco',
+  '#F97316': 'Naranja',
+  '#7C3AED': 'Morado',
+  '#38BDF8': 'Celeste',
+  '#6B7280': 'Gris',
+  '#22C55E': 'Verde claro',
+};
+
+function normalizarColorFusion(color, semilla) {
+  const valor = String(color || '').toUpperCase();
+  if (PALETA_FUSION_UI.includes(valor)) return valor;
+  const base = String(semilla || color || 'fusion');
+  let hash = 0;
+  for (let i = 0; i < base.length; i += 1) {
+    hash = (hash * 31 + base.charCodeAt(i)) >>> 0;
+  }
+  return PALETA_FUSION_UI[hash % PALETA_FUSION_UI.length];
+}
 
 function textoContrasteFusion(hex) {
   const limpio = String(hex || '').replace('#', '');
@@ -9455,7 +9479,9 @@ function renderFusionInfoEnDetalle(mesa) {
   }
   const grupo = mesasDelGrupo(mesa);
   const principal = grupo.find(t => t.mesa_principal_id === null);
-  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '') ? mesa.color_fusion : '#006b33';
+  const color = /^#[0-9a-fA-F]{6}$/.test(mesa.color_fusion || '')
+    ? normalizarColorFusion(mesa.color_fusion, mesa.grupo_fusion_id)
+    : PALETA_FUSION_UI[0];
   info.hidden = false;
   info.innerHTML = `
     <span class="oc-fusion-color" style="background:${color};"></span>
@@ -9560,10 +9586,13 @@ function abrirSelectorColorFusion() {
     .filter(Boolean);
   const grupos = [...new Set(mesas.map(m => m.grupo_fusion_id).filter(Boolean))];
   const grupo = grupos[0] || null;
+  const colorGuardado = mesas
+    .map(m => (m.color_fusion ? normalizarColorFusion(m.color_fusion, m.grupo_fusion_id) : null))
+    .find(color => color && !colorFusionEnUso(color, grupo));
   state.fusion = {
     grupo,
     seleccion: mesas.map(m => m.id),
-    color: mesas.find(m => m.color_fusion)?.color_fusion || colorFusionLibre(grupo),
+    color: colorGuardado || colorFusionLibre(grupo),
     guardando: false,
   };
   document.getElementById('fusion-seleccion-resumen').textContent =
@@ -9591,7 +9620,8 @@ function renderFusionColores() {
   cont.innerHTML = PALETA_FUSION_UI.map(color => {
     const on = String(fusion.color || '').toLowerCase() === color.toLowerCase();
     const bloqueado = colorFusionEnUso(color, fusion.grupo);
-    return `<button type="button" class="fusion-color${on ? ' on' : ''}${bloqueado ? ' ocupado' : ''}" style="background:${color};" data-fusion-color="${color}" aria-label="Color ${color}${bloqueado ? ', en uso' : ''}" aria-pressed="${on}" title="${bloqueado ? 'En uso por otra fusión' : `Usar ${color}`}" ${bloqueado ? 'disabled' : ''}>${bloqueado ? '<span aria-hidden="true">×</span>' : ''}</button>`;
+    const nombre = NOMBRE_COLOR_FUSION[color] || color;
+    return `<button type="button" class="fusion-color${on ? ' on' : ''}${bloqueado ? ' ocupado' : ''}" style="background:${color};" data-fusion-color="${color}" aria-label="${nombre}${bloqueado ? ', en uso' : ''}" aria-pressed="${on}" title="${bloqueado ? `${nombre}: en uso por otra fusión` : `Usar ${nombre.toLowerCase()}`}" ${bloqueado ? 'disabled' : ''}>${bloqueado ? '<span aria-hidden="true">×</span>' : ''}</button>`;
   }).join('');
   const libres = PALETA_FUSION_UI.some(color => !colorFusionEnUso(color, fusion.grupo));
   if (!fusion.color && libres) {
@@ -11599,8 +11629,29 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 30000);
 
+  // Aviso cuando el servidor publica una versión nueva del frontend
+  let etagAppActual = null;
+  async function verificarVersionApp() {
+    try {
+      const res = await fetch('js/app.js', { method: 'HEAD', cache: 'no-store' });
+      const etag = res.headers.get('etag') || res.headers.get('last-modified');
+      if (!etag) return;
+      if (!etagAppActual) {
+        etagAppActual = etag;
+        return;
+      }
+      if (etag !== etagAppActual) {
+        etagAppActual = etag;
+        showToast('Hay una actualización disponible. Recarga la página (Ctrl+F5) para ver los cambios.', 'info');
+      }
+    } catch (error) {
+      // Sin conexión: se reintenta al volver a la pestaña.
+    }
+  }
+
   // Sincronización al volver a la pestaña/foco (recupera pausas de móvil/desktop)
   const alVolverPestana = () => {
+    verificarVersionApp();
     if (!state.token || !state.user) return;
     verificarSesionTurno();
     enviarHeartbeat();
@@ -11612,6 +11663,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   window.addEventListener('focus', alVolverPestana);
   window.addEventListener('online', alVolverPestana);
+  verificarVersionApp();
 
   // Restore session
   if (state.token && state.user) {
