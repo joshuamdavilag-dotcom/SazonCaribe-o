@@ -60,14 +60,6 @@ def ejecutar_generacion_estudio(estudio_id: int) -> None:
                 push.notificar_estudio_mercado(estudio)
                 estudio.notificado = True
                 db.commit()
-            from app.services.correo_service import encolar_evento_seguro
-
-            encolar_evento_seguro(
-                "estudio_mercado",
-                referencia_id=estudio.id,
-                desde=estudio.desde,
-                hasta=estudio.hasta,
-            )
         elif estudio.estado == EstadoEstudio.ERROR and (estudio.intentos or 0) >= 1:
             if not estudio.notificado:
                 push.notificar_estudio_mercado_error(estudio)

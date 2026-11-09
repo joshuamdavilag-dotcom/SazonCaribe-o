@@ -17,12 +17,6 @@ from app.models.configuracion import ConfiguracionSistema
 from app.models.descuento import DescuentoFrecuente, TipoDescuento
 from app.models.push import PushSuscripcion
 from app.models.novedad import NovedadSistema
-from app.models.correo import (
-    ConfiguracionCorreo,
-    DestinatarioCorreo,
-    EnvioCorreo,
-    EstadoEnvio,
-)
 from app.models.estudio_mercado import (
     DocumentoEstudio,
     EstadoEstudio,
@@ -84,10 +78,6 @@ __all__ = [
     "TipoDescuento",
     "PushSuscripcion",
     "NovedadSistema",
-    "ConfiguracionCorreo",
-    "DestinatarioCorreo",
-    "EnvioCorreo",
-    "EstadoEnvio",
     "EstudioMercado",
     "PeriodoEstudio",
     "TipoEstudio",
