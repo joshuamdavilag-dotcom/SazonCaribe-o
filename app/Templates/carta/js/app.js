@@ -13,8 +13,8 @@ const API_BASE = (location.hostname === 'localhost' || location.hostname === '12
 const PLACEHOLDER_IMG = 'img/placeholder-dish.svg';
 const IMG_HERO_DESKTOP = 'img/hero-desktop.jpg';
 const IMG_HERO_MOBILE = 'img/hero-mobile.jpg';
-const IMG_LOGO = 'img/logo.png';
-const IMG_LOGO_SMALL = 'img/logo-small.png';
+const IMG_LOGO = 'img/logo-nuevo.jpg';
+const IMG_LOGO_SMALL = 'img/logo-nuevo.jpg';
 
 /* =========================================================================
    Curaduría pública de categorías (solo afecta la Carta Digital;

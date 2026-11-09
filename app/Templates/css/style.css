@@ -2316,8 +2316,8 @@ input, select, textarea { font: inherit; }
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));
-  box-shadow: var(--shadow-sm);
+  background: var(--amarillo-solar);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
   transition: transform .2s, background .2s;
   flex-shrink: 0;
 }
@@ -2327,7 +2327,8 @@ input, select, textarea { font: inherit; }
   color: color-mix(in srgb, #fff var(--mix-ink-pct), var(--mix-ink-base));
 }
 .cierre-auto-switch[aria-checked="true"] .cierre-auto-knob {
-  background: color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));
+  background: var(--amarillo-solar);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
 }
 .cierre-auto-switch:disabled { opacity: .6; cursor: progress; }
 
@@ -7382,6 +7383,101 @@ body {
 #app-shell .form-input::placeholder,
 #screen-login input[class]::placeholder {
   color: rgba(255, 249, 221, .6) !important;
+}
+
+/* =========================================================================
+   Ajustes de legibilidad y acciones primarias
+   ========================================================================= */
+
+/* Texto oscuro sobre superficies amarillas */
+#app-shell :is([class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-brand-sun"]),
+#app-shell :is([class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-brand-sun"]) :is(
+  span, p, strong, b, em, small, label, li, td, th, div,
+  h1, h2, h3, h4, h5, h6) {
+  color: var(--cafe-cuerda) !important;
+}
+#app-shell .product-star-card,
+#app-shell .product-star-card :is(span, p, strong, div) {
+  color: var(--cafe-cuerda) !important;
+}
+
+/* Mesa LIBRE: borde y estado en amarillo para no confundirse con el verde */
+#table-grid [data-estado="LIBRE"] {
+  border-color: var(--amarillo-solar) !important;
+}
+#table-grid [data-estado="LIBRE"] .tm-badge {
+  background: var(--amarillo-solar) !important;
+  border-color: var(--amarillo-solar) !important;
+  color: var(--cafe-cuerda) !important;
+}
+#table-grid [data-estado="LIBRE"] .tm-badge span:first-child {
+  background: var(--cafe-cuerda) !important;
+  color: var(--cafe-cuerda) !important;
+}
+#table-grid [data-estado="LIBRE"] .tm-icon {
+  background: var(--amarillo-solar) !important;
+  color: var(--cafe-cuerda) !important;
+}
+#table-grid [data-estado="LIBRE"] .oc-status {
+  color: var(--amarillo-solar) !important;
+}
+
+/* Fusión de mesas con colores primarios (como el login) */
+.tm-fusion-action {
+  border: 1px solid var(--brand-green-deep) !important;
+  background-image: linear-gradient(135deg, var(--brand-green-mid), var(--brand-green)) !important;
+  color: var(--brand-ink) !important;
+  box-shadow: 0 8px 18px -10px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .16);
+}
+.tm-fusion-action:hover {
+  background-image: linear-gradient(135deg, #0b8a45, var(--brand-green-mid)) !important;
+  color: var(--brand-ink) !important;
+  filter: brightness(1.05);
+}
+.tm-fusion-action.selected {
+  border-color: var(--brand-coral) !important;
+  background-image: linear-gradient(135deg, #d95a34, var(--brand-coral)) !important;
+  color: var(--brand-ink) !important;
+}
+.fusion-map-hint {
+  border-color: var(--brand-green-deep) !important;
+  background-image: linear-gradient(120deg, var(--brand-green-mid), var(--brand-green)) !important;
+  color: var(--brand-ink) !important;
+}
+.fusion-seleccion-resumen {
+  background-image: linear-gradient(120deg, var(--brand-green-mid), var(--brand-green)) !important;
+  color: var(--brand-ink) !important;
+}
+
+/* Botón Cobrar comanda con figura e icono */
+#btn-cerrar-cuenta {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background-image: linear-gradient(135deg, #d95a34, var(--brand-coral));
+  color: #fff9dd;
+  font-weight: 800;
+  box-shadow: 0 10px 20px -10px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+#btn-cerrar-cuenta:hover { filter: brightness(1.06); }
+#btn-cerrar-cuenta .material-symbols-outlined { font-size: 20px; }
+
+/* Icono de luna del cierre automático centrado */
+.cierre-auto-icon {
+  justify-content: center;
+  align-items: center;
+  line-height: 1;
+  padding: 0;
+}
+.cierre-auto-icon.material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
 }
 
 /* =========================================================================
