@@ -114,7 +114,7 @@ class AsistenciaService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No se encontró el turno con ID {turno_id}"
             )
-        if turno.asistencias:
+        if self.turno_repo.tiene_asistencias(turno_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"No se puede eliminar '{turno.nombre}': tiene asistencias registradas."

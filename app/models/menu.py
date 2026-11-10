@@ -27,11 +27,12 @@ class CategoriaMenu(Base):
         nullable=True
     )
 
-    # Relación uno-a-muchos con MenuItem
+    # Relación uno-a-muchos con MenuItem (carga diferida: nadie la consume y
+    # con selectin cada listado de categorías traía todos los platos).
     platos: Mapped[List["MenuItem"]] = relationship(
         "MenuItem",
         back_populates="categoria",
-        lazy="selectin"
+        lazy="select"
     )
 
     def __repr__(self) -> str:
@@ -84,18 +85,21 @@ class MenuItem(Base):
         nullable=False
     )
 
-    # Relación muchos-a-uno con CategoriaMenu
+    # Relación muchos-a-mucho con CategoriaMenu (carga diferida: MenuRepository
+    # ya hace joinedload explícito cuando necesita la categoría).
     categoria: Mapped["CategoriaMenu"] = relationship(
         "CategoriaMenu",
         back_populates="platos",
-        lazy="selectin"
+        lazy="select"
     )
 
-    # Relación uno-a-muchos con Receta
+    # Receta del plato. Se carga con joinedload en MenuRepository; con selectin
+    # cualquier lectura de un MenuItem (por ejemplo desde el detalle de una
+    # orden) arrastraba recetas, insumos y unidades sin usarse.
     ingredientes_receta: Mapped[List["Receta"]] = relationship(
         "Receta",
         back_populates="menu_item",
-        lazy="selectin",
+        lazy="select",
         cascade="all, delete-orphan"
     )
 
@@ -148,11 +152,12 @@ class Receta(Base):
         comment="Si True, este ingrediente NO se descuenta por plato sino solo via Producción de Cocina"
     )
 
-    # Relación muchos-a-uno con MenuItem
+    # Relación muchos-a-uno con MenuItem (carga diferida: solo se navega desde
+    # MenuItem y con selectin creaba un ciclo de carga al leer una receta).
     menu_item: Mapped["MenuItem"] = relationship(
         "MenuItem",
         back_populates="ingredientes_receta",
-        lazy="selectin"
+        lazy="select"
     )
 
     # Relación muchos-a-uno con Insumo (stock real del restaurante)

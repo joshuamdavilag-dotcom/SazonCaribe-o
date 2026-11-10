@@ -48,7 +48,7 @@ def get_current_user(
         )
 
     usuario_repo = UsuarioRepository(db)
-    usuario = usuario_repo.get_by_id(int(usuario_id))
+    usuario = usuario_repo.get_by_id_con_perfil(int(usuario_id))
 
     if not usuario:
         raise HTTPException(

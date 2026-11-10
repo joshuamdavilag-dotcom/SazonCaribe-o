@@ -1,9 +1,9 @@
 from typing import Optional
 
 from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.personal import Usuario
+from app.models.personal import Empleado, Usuario
 from app.repositories.base_repository import BaseRepository
 from app.schemas.personal import RolEnum
 
@@ -18,6 +18,27 @@ class UsuarioRepository(BaseRepository[Usuario]):
 
     def __init__(self, db: Session) -> None:
         super().__init__(Usuario, db)
+
+    def get_by_id_con_perfil(self, usuario_id: int) -> Optional[Usuario]:
+        """Obtiene el usuario con su empleado y puesto en una sola consulta.
+
+        Se usa en la validación de cada petición autenticada
+        (``get_current_user``) para evitar la cascada de consultas que
+        generaban las relaciones en modo ``selectin``.
+
+        Args:
+            usuario_id: ID del usuario.
+
+        Returns:
+            El usuario con ``empleado`` y ``empleado.puesto`` cargados, o
+            None si no existe.
+        """
+        statement = (
+            select(Usuario)
+            .options(joinedload(Usuario.empleado).joinedload(Empleado.puesto))
+            .where(Usuario.id == usuario_id)
+        )
+        return self.db.execute(statement).unique().scalar_one_or_none()
 
     def get_by_username(self, username: str) -> Optional[Usuario]:
         """

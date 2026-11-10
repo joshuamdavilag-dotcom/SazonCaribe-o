@@ -26,10 +26,10 @@ class CierreCaja(Base):
     ordenes: Mapped[list["Orden"]] = relationship(
         "Orden",
         back_populates="cierre_caja",
-        lazy="selectin",
+        lazy="select",
     )
     gastos: Mapped[list["Gasto"]] = relationship(
         "Gasto",
         back_populates="cierre_caja",
-        lazy="selectin",
+        lazy="select",
     )

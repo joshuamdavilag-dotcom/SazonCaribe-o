@@ -520,7 +520,7 @@ Sistema de permisos granular encima del rol. No cambia el acceso de nadie al des
 
 | Endpoint | Params | Descripción |
 |----------|--------|-------------|
-| `GET /ordenes/` | `?estado=&mesa_id=` | Filtrar por estado de orden y/o mesa específica |
+| `GET /ordenes/` | `?estado=&mesa_id=&solo_activas=&limite=` | Filtrar por estado/mesa, excluir historial (`solo_activas=true`) y acotar filas (`limite`, 1–500, por defecto 200) |
 | `GET /gastos/` | `?fecha_inicio=&fecha_fin=` | Filtrar gastos por rango de fechas |
 | `GET /nomina/empleados/{id}/adelantos` | `?fecha_inicio=&fecha_fin=` | Filtrar adelantos por rango de fechas |
 | `GET /menu/items` | `?incluir_inactivos=true` | Incluir platillos deshabilitados (solo Admin/Gerente) |
@@ -881,6 +881,9 @@ Optimizaciones aplicadas para acelerar la primera carga, la navegación entre pa
   - `CajaService.estado_cierre_automatico()` lee las claves `caja_cierre_automatico_*` con `ConfiguracionService.listar_por_prefijo()` (1 consulta en vez de 3).
   - `loadMenuBrowse()` / `loadMenuManagement()` piden categorías e items con `Promise.all` (+ `silent: true` y `.catch` por llamada) y solo después renderizan.
 - **Medición**: la primera carga deja de bajar ~400 KB de JS del CDN y de compilar Tailwind en el navegador; con GZip el `app.js` de ~405 KB viaja ~4x más chico.
+- **Relaciones `lazy="select"` en lugar de `selectin` (causa raíz del sobrecosto por request)**: `Empleado.asistencias/nominas/adelantos`, `Puesto.empleados`, `Empleado.usuario`, `Turno.asistencias`, `CategoriaMenu.platos`, `MenuItem.categoria/ingredientes_receta`, `Receta.menu_item`, `Orden.cierre_caja` y `CierreCaja.ordenes/gastos` ya NO se cargan en cada lectura. Antes, `get_current_user` cargaba `Usuario → Empleado → Puesto`, y cada uno arrastraba el historial completo de asistencias, nóminas, adelantos y empleados del puesto: **6–7 SELECT por petición incluso en endpoints triviales**. Ahora `UsuarioRepository.get_by_id_con_perfil()` resuelve usuario + empleado + puesto en **una sola consulta** con `joinedload`. Los repositorios que sí necesitan las relaciones (menú) las piden explícitamente con `joinedload`, así que los payloads no cambian.
+- **KDS sin historial**: `loadCocinaOrdenes()` pide `/ordenes/?solo_activas=true` y solo trae PAGADA/CANCELADA cuando el usuario abre la pestaña Historial; antes cada refresco de 15 s bajaba **todas** las órdenes de la base. `GET /ordenes/` además tiene tope por defecto (`limite=200`) para que el listado no crezca sin control con la venta histórica. `TurnoRepository.tiene_asistencias()` usa `COUNT` en lugar de cargar la colección al intentar borrar un turno.
+- **Medición real del perfilado (SQLite local, 40 órdenes sembradas)** — antes → después: `/auth/me` 6 → 1 SELECT; `/salon/mapa` 7 → 2; `/menu/items` 7 → 2; `/inventario/insumos` 10 → 5; `/ordenes/` 15 → 5; `/caja/ventas-dia` 16 → 6; `/reportes/cierre` 10 → 5. Script reutilizable: `perfil_endpoints.py` (cuenta SELECT y ms por endpoint).
 
 ## Known Issues / TODO
 

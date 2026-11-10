@@ -1445,9 +1445,21 @@ class OrdenService:
         self,
         estado: Optional[EstadoOrden] = None,
         mesa_id: Optional[int] = None,
+        solo_activas: bool = False,
+        limite: Optional[int] = None,
     ) -> List[Orden]:
-        """Lista órdenes, opcionalmente filtradas por estado y/o mesa."""
-        return self.orden_repo.obtener_ordenes_filtradas(estado, mesa_id)
+        """Lista órdenes, opcionalmente filtradas por estado y/o mesa.
+
+        Args:
+            estado: Estado exacto a filtrar.
+            mesa_id: Mesa cuyas órdenes se quieren.
+            solo_activas: Si True, solo PENDIENTE/PREPARANDO/ENTREGADA
+                (lo usa el panel de cocina para no traer el historial).
+            limite: Máximo de órdenes a devolver (las más recientes primero).
+        """
+        return self.orden_repo.obtener_ordenes_filtradas(
+            estado, mesa_id, solo_activas=solo_activas, limite=limite
+        )
 
     def obtener_orden(self, orden_id: int) -> Orden:
         """Devuelve una orden por id.

@@ -40,11 +40,12 @@ class Turno(Base):
         default=8
     )
 
-    # Relación uno-a-muchos con Asistencia
+    # Relación uno-a-muchos con Asistencia (carga diferida: el historial de un
+    # turno crece sin límite y solo se valida al intentar eliminarlo).
     asistencias: Mapped[List["Asistencia"]] = relationship(
         "Asistencia",
         back_populates="turno",
-        lazy="selectin"
+        lazy="select"
     )
 
     def __repr__(self) -> str:

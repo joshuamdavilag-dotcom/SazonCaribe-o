@@ -71,7 +71,9 @@ class OrdenRepository:
     def obtener_ordenes_filtradas(
         self,
         estado: Optional[EstadoOrden] = None,
-        mesa_id: Optional[int] = None
+        mesa_id: Optional[int] = None,
+        solo_activas: bool = False,
+        limite: Optional[int] = None,
     ) -> List[Orden]:
         """
         Obtiene órdenes aplicando filtros dinámicos.
@@ -79,6 +81,9 @@ class OrdenRepository:
         Permite filtrar por:
         - Estado de la orden (ej: PREPARANDO para pantalla de cocina)
         - Mesa específica (ej: órdenes activas de una mesa)
+        - Solo activas (PENDIENTE/PREPARANDO/ENTREGADA): el KDS no necesita
+          arrastrar el historial de ventas en cada refresco
+        - Límite de filas (las más recientes primero)
 
         Usa joinedload para traer los detalles y ordena por
         fecha de creación descendente (más recientes primero).
@@ -86,6 +91,8 @@ class OrdenRepository:
         Args:
             estado: Estado para filtrar (opcional).
             mesa_id: ID de mesa para filtrar (opcional).
+            solo_activas: Si True, excluye PAGADA y CANCELADA.
+            limite: Máximo de órdenes a devolver (opcional).
 
         Returns:
             Lista de órdenes que coinciden con los filtros.
@@ -103,10 +110,19 @@ class OrdenRepository:
         if estado is not None:
             statement = statement.where(Orden.estado == estado)
 
+        if solo_activas:
+            statement = statement.where(
+                Orden.estado.in_(
+                    [EstadoOrden.PENDIENTE, EstadoOrden.PREPARANDO, EstadoOrden.ENTREGADA]
+                )
+            )
+
         if mesa_id is not None:
             statement = statement.where(Orden.mesa_id == mesa_id)
 
         statement = statement.order_by(Orden.fecha_creacion.desc())
+        if limite is not None:
+            statement = statement.limit(limite)
         result = self.db.execute(statement)
         return list(result.unique().scalars().all())
 

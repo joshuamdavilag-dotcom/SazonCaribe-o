@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -102,16 +102,30 @@ def crear_orden(
     "/",
     response_model=List[OrdenResponse],
     summary="Listar órdenes",
-    description="Lista todas las órdenes con filtros opcionales por estado y mesa.",
+    description=(
+        "Lista órdenes con filtros opcionales por estado y mesa. "
+        "Acepta `solo_activas=true` para excluir las cerradas y `limite` "
+        "para acotar la cantidad de filas."
+    ),
     dependencies=[Depends(get_current_user)],
 )
 def listar_ordenes(
     estado: Optional[EstadoOrden] = None,
-    mesa_id: Optional[int] = None,
+    mesa_id: Optional[int] = Query(default=None, gt=0),
+    solo_activas: bool = Query(
+        default=False,
+        description="Solo PENDIENTE/PREPARANDO/ENTREGADA (excluye historial)",
+    ),
+    limite: int = Query(
+        default=200,
+        ge=1,
+        le=500,
+        description="Máximo de órdenes a devolver (las más recientes primero)",
+    ),
     service: OrdenService = Depends(get_orden_service),
 ) -> List[OrdenResponse]:
-    """Lista las órdenes con filtros opcionales por estado y mesa."""
-    return service.obtener_ordenes(estado, mesa_id)
+    """Lista las órdenes con filtros opcionales por estado, mesa y cantidad."""
+    return service.obtener_ordenes(estado, mesa_id, solo_activas=solo_activas, limite=limite)
 
 
 # =====================================================================

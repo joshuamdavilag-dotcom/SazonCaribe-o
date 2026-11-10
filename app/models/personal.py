@@ -34,11 +34,12 @@ class Puesto(Base):
         nullable=False
     )
 
-    # Relación uno-a-muchos con Empleado
+    # Relación uno-a-muchos con Empleado (carga diferida: con selectin cada
+    # lectura de un Puesto traía todos los empleados del puesto).
     empleados: Mapped[List["Empleado"]] = relationship(
         "Empleado",
         back_populates="puesto",
-        lazy="selectin"
+        lazy="select"
     )
 
     def __repr__(self) -> str:
@@ -112,32 +113,35 @@ class Empleado(Base):
         lazy="selectin"
     )
 
-    # Relación uno-a-uno con Usuario
+    # Relación uno-a-uno con Usuario (carga diferida: se navega desde Usuario,
+    # no desde Empleado, y con selectin generaba una consulta extra por carga).
     usuario: Mapped[Optional["Usuario"]] = relationship(
         "Usuario",
         back_populates="empleado",
         uselist=False,
-        lazy="selectin",
+        lazy="select",
         cascade="all, delete-orphan"
     )
 
-    # Relación uno-a-muchos con Asistencia
+    # Colecciones de historial: carga diferida a propósito. Con lazy="selectin"
+    # cada lectura de un Empleado (y de un Usuario, por la cadena Usuario →
+    # Empleado) disparaba consultas extra del historial completo de
+    # asistencias, nóminas y adelantos en TODAS las peticiones.
     asistencias: Mapped[List["Asistencia"]] = relationship(
         "Asistencia",
         back_populates="empleado",
-        lazy="selectin"
+        lazy="select"
     )
 
-    # Relación uno-a-muchos con Nomina
     nominas: Mapped[List["Nomina"]] = relationship(
         "Nomina",
         back_populates="empleado",
-        lazy="selectin"
+        lazy="select"
     )
     adelantos: Mapped[List["AdelantoSalario"]] = relationship(
         "AdelantoSalario",
         back_populates="empleado",
-        lazy="selectin"
+        lazy="select"
     )
 
     def __repr__(self) -> str:

@@ -3678,6 +3678,7 @@ async function guardarMesa() {
    ========================================================================= */
 let cocinaTab = 'cocina';
 let cocinaOrdenes = [];
+let cocinaHistorial = [];
 
 const ESTADO_PILL_KDS = {
   PENDIENTE:   { label: 'Nueva',          cls: 'bg-brand-coral/10 text-brand-coral' },
@@ -3703,8 +3704,18 @@ async function loadCocinaOrdenes() {
       state.tables = await api('/salon/mesas');
       state.tablesLoaded = true;
     }
-    const ordenes = await api('/ordenes/');
-    cocinaOrdenes = ordenes;
+    // Solo las comandas vivas: el historial (PAGADA/CANCELADA) se pide
+    // únicamente cuando el usuario abre esa pestaña, para que el refresco
+    // automático no traiga toda la venta histórica cada 15 segundos.
+    const activas = await api('/ordenes/?solo_activas=true');
+    if (cocinaTab === 'historial') {
+      const [pagadas, canceladas] = await Promise.all([
+        api('/ordenes/?estado=PAGADA').catch(() => []),
+        api('/ordenes/?estado=CANCELADA').catch(() => []),
+      ]);
+      cocinaHistorial = [...pagadas, ...canceladas];
+    }
+    cocinaOrdenes = [...activas, ...cocinaHistorial];
     renderCocinaCards();
     renderCocinaTabCounts();
   } catch {
@@ -10694,7 +10705,11 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.add('active');
       btn.setAttribute('aria-selected', 'true');
       cocinaTab = btn.dataset.cocinaTab;
-      renderCocinaCards();
+      if (cocinaTab === 'historial') {
+        loadCocinaOrdenes();
+      } else {
+        renderCocinaCards();
+      }
     });
   });
 

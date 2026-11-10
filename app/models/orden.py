@@ -147,11 +147,12 @@ class Orden(Base):
         cascade="all, delete-orphan"
     )
 
-    # Relación muchos-a-uno con CierreCaja
+    # Relación muchos-a-uno con CierreCaja (carga diferida: en cascada traía
+    # todas las órdenes y gastos del cierre en cada listado de órdenes).
     cierre_caja: Mapped["CierreCaja | None"] = relationship(
         "CierreCaja",
         back_populates="ordenes",
-        lazy="selectin",
+        lazy="select",
     )
 
     def __repr__(self) -> str:
