@@ -169,17 +169,36 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período.
 
-        Fórmula: Pago = (salario_base / 2) + (horas_extras × tarifa) − adelantos.
-        El salario base es fijo (no se recalculan horas ordinarias) y las
-        horas extras se pagan a tarifa normal 1.0x (salario_base / 240).
+        Fórmula: pago_base = (salario_mensual / 30) × días_del_rango.
+        El salario se prorratea por día, así que cualquier cantidad de días
+        (1, 3, 7, 15, 30…) paga la parte proporcional. Las horas extras se
+        pagan a tarifa normal 1.0x (salario_base / 240).
         """
-        salario_base_Mensual = Decimal(str(empleado.salario_base))
-        salario_semanal_teorico = salario_base_Mensual  / Decimal("4")
+        from fastapi import HTTPException, status
+
+        if fecha_inicio > fecha_fin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "La fecha de inicio no puede ser posterior a la fecha de fin "
+                    f"({fecha_inicio} > {fecha_fin})"
+                ),
+            )
 
         salario_base_mensual = Decimal(str(empleado.salario_base))
+        salario_diario = salario_base_mensual / Decimal("30")
+
+        dias_del_rango = (fecha_fin - fecha_inicio).days + 1
+        salario_periodo_teorico = (
+            salario_diario * dias_del_rango
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        salario_semanal_teorico = (
+            salario_diario * Decimal("7")
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         salario_quincenal_teorico = (
-            salario_base_mensual / Decimal("2")
+            salario_diario * Decimal("15")
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         tarifa_hora = (
@@ -206,7 +225,7 @@ class NominaService:
         )
 
         pago_neto = (
-            salario_quincenal_teorico + pago_horas_extras - total_adelantos
+            salario_periodo_teorico + pago_horas_extras - total_adelantos
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if pago_neto < 0:
             pago_neto = Decimal("0.00")
@@ -216,7 +235,9 @@ class NominaService:
             "fecha_inicio": fecha_inicio,
             "fecha_fin": fecha_fin,
             "salario_base_mensual": salario_base_mensual,
+            "salario_semanal_teorico": salario_semanal_teorico,
             "salario_quincenal_teorico": salario_quincenal_teorico,
+            "salario_periodo_teorico": salario_periodo_teorico,
             "total_horas_extras": total_horas_extras,
             "pago_horas_extras": pago_horas_extras,
             "total_adelantos": total_adelantos,
@@ -322,9 +343,9 @@ class NominaService:
         """
         Recalcula los montos de una nómina existente con la fórmula actual.
 
-        Recalcula salario base fijo (salario_base / 2), horas extras a
-        tarifa normal 1.0x (salario_base / 240) y adelantos del período.
-        Solo es válido para nóminas en estado PENDIENTE.
+        Recalcula el salario prorrateado por día (salario/30 × días del
+        rango), horas extras a tarifa normal 1.0x (salario_base / 240) y
+        adelantos del período. Solo es válido para nóminas PENDIENTE.
 
         Args:
             nomina_id: ID del registro de nómina.
@@ -378,9 +399,9 @@ class NominaService:
         """
         Calcula la nómina de un empleado para un período específico.
 
-        Usa salario base fijo (salario_base / 2) más compensación por
-        horas extras a tarifa normal (salario_base / 240). No depende
-        de las horas ordinarias registradas.
+        Usa el salario prorrateado por día (salario/30 × días del rango)
+        más compensación por horas extras a tarifa normal
+        (salario_base / 240). No depende de las horas ordinarias registradas.
 
         Si `recalcular=True` y ya existe una nómina en estado PENDIENTE
         para el período, recalcula los montos y actualiza el registro

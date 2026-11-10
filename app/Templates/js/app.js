@@ -4293,7 +4293,7 @@ async function iniciarPagoOnline() {
 
   state.paymentBusy = true;
   document.getElementById('btn-pago-online').disabled = true;
-  document.getElementById('btn-pago-local').disabled = true;
+  setBotonesPagoLocal(true);
   document.getElementById('payment-online-status').textContent =
     'Preparando el checkout seguro…';
   try {
@@ -4324,7 +4324,7 @@ async function iniciarPagoOnline() {
     checkoutWindow.close();
     state.paymentBusy = false;
     document.getElementById('btn-pago-online').disabled = false;
-    document.getElementById('btn-pago-local').disabled = false;
+    setBotonesPagoLocal(false);
   }
 }
 window.cobrarOrden = cobrarOrden;

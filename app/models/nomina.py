@@ -77,6 +77,11 @@ class Nomina(Base):
         Numeric(10, 2),
         nullable=False
     )
+    salario_periodo_teorico: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        default=None
+    )
     total_horas_extras: Mapped[Decimal] = mapped_column(
         Numeric(5, 2),
         nullable=False,
