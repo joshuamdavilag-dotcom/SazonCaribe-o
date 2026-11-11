@@ -31,6 +31,10 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: "gemini-3.5-flash"
+      # Ruta pública de la Carta Digital. Slug opaco para que la URL del menú
+      # no muestre el nombre del negocio. Cambiarlo invalida los QR impresos.
+      - key: CARTA_RUTA_PUBLICA
+        value: "/m/ed4e9af40b"
 
 databases:
   - name: sazon-caribeno-db
