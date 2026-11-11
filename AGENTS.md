@@ -555,7 +555,7 @@ La Carta Digital es un frontend **completamente separado del POS** (sin autentic
 - `app/Templates/carta/img/` — assets locales únicos de la carta: `hero-desktop.jpg`, `hero-mobile.jpg`, `logo.png`, `logo-small.png`, `placeholder-dish.svg`. **No hay imágenes remotas ni dependencias de Stitch.**
 - `app/Templates/carta/img/platos/` — directorio gestionado por el ERP vía subida de imágenes (creado con `os.makedirs(exist_ok=True)` al subir)
 
-Montado en `app/main.py` con `app.mount("/carta", StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` (index.html por defecto). El mount `/carta` es el que sirve también las imágenes de platos (`/carta/img/platos/<file>`).
+Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` por defecto (index.html por defecto). **Configurable por la variable `CARTA_RUTA_PUBLICA`** (ver `settings.CARTA_RUTA_PUBLICA`): normalizada por `_ruta_carta_publica()` (acepta `carta`, `/carta/`, `/m/7f3a9c` → ruta absoluta sin barra final; valor vacío o inválido → `/carta` con warning `[CARTA]`). Sirve para publicar la carta en una ruta discreta sin el nombre del negocio (ej. `/m/7f3a9c`); **cambiarla invalida los QR ya impresos**. El mismo mount sirve las imágenes de platos (`<ruta>/img/platos/<file>`). El nombre que aparece en el dominio (ej. `sazoncaribe-o.onrender.com`) **no** depende de esta variable: se cambia renombrando el servicio en Render o usando un dominio propio.
 
 **Flujo completo (de punta a punta):**
 

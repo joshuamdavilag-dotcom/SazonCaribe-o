@@ -111,6 +111,15 @@ class Settings(BaseSettings):
         description="Orígenes permitidos para CORS (separados por coma)"
     )
 
+    # Ruta pública de la Carta Digital (menú de clientes)
+    CARTA_RUTA_PUBLICA: str = Field(
+        default="/carta",
+        description=(
+            "Ruta donde se publica la Carta Digital. Cambiarla oculta el nombre "
+            "en la URL (ej. /m/7f3a9c), pero invalida los QR ya impresos."
+        ),
+    )
+
     # ImgBB — API key para almacenamiento permanente de imágenes del menú
     IMGBB_API_KEY: str = Field(
         default="",

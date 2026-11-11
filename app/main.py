@@ -225,10 +225,33 @@ app.include_router(
 
 app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates")
 
-# Carta Digital pública (menú para clientes). Se sirve en /carta/ y consume
-# la API pública /api/public (sin autenticación).
+
+def _ruta_carta_publica() -> str:
+    """Normaliza la ruta pública de la Carta Digital configurada en el .env.
+
+    Acepta valores como ``carta``, ``/carta/`` o ``/m/7f3a9c`` y devuelve
+    siempre una ruta absoluta sin barra final. Si el valor es inválido se usa
+    ``/carta`` para no romper el arranque.
+    """
+    cruda = (getattr(settings, "CARTA_RUTA_PUBLICA", "") or "").strip()
+    limpia = cruda.strip("/").strip()
+    if not limpia:
+        return "/carta"
+    if len(limpia) > 80 or not all(c.isalnum() or c in "-_/" for c in limpia):
+        logger.warning(
+            "[CARTA] CARTA_RUTA_PUBLICA inválida (%r); se usa /carta", cruda
+        )
+        return "/carta"
+    return "/" + limpia
+
+
+CARTA_RUTA_PUBLICA = _ruta_carta_publica()
+
+# Carta Digital pública (menú para clientes). Se sirve en /carta/ (o en la
+# ruta configurada con CARTA_RUTA_PUBLICA) y consume la API pública
+# /api/public (sin autenticación).
 app.mount(
-    "/carta",
+    CARTA_RUTA_PUBLICA,
     StaticFiles(directory="app/Templates/carta", html=True),
     name="carta",
 )
@@ -250,7 +273,7 @@ async def _revalidar_estaticos(request: Request, call_next):
     """
     response = await call_next(request)
     ruta = request.url.path
-    if ruta.startswith("/Templates") or ruta.startswith("/carta"):
+    if ruta.startswith("/Templates") or ruta == CARTA_RUTA_PUBLICA or ruta.startswith(CARTA_RUTA_PUBLICA + "/"):
         if ruta.lower().endswith(EXTENSIONES_CACHE_LARGA):
             response.headers["Cache-Control"] = "public, max-age=604800"
         else:
