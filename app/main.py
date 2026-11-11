@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from typing import Dict
@@ -229,7 +229,7 @@ app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates"
 def _ruta_carta_publica() -> str:
     """Normaliza la ruta pública de la Carta Digital configurada en el .env.
 
-    Acepta valores como ``carta``, ``/carta/`` o ``/m/7f3a9c`` y devuelve
+    Acepta valores como ``carta``, ``/carta/`` o ``/q7f2k9d4ma`` y devuelve
     siempre una ruta absoluta sin barra final. Si el valor es inválido se usa
     ``/carta`` para no romper el arranque.
     """
@@ -255,6 +255,22 @@ app.mount(
     StaticFiles(directory="app/Templates/carta", html=True),
     name="carta",
 )
+
+
+if CARTA_RUTA_PUBLICA != "/carta":
+    @app.get("/carta", include_in_schema=False)
+    @app.get("/carta/{resto:path}", include_in_schema=False)
+    async def _redirigir_carta_legacy(request: Request, resto: str = ""):
+        """Redirige la ruta histórica /carta a la ruta pública actual.
+
+        Mantiene válidos los QR ya impresos mientras la URL visible deja de
+        mostrar el nombre del módulo. Los assets se reescriben conservando su
+        subruta para que la carta siga cargando CSS, JS e imágenes.
+        """
+        destino = CARTA_RUTA_PUBLICA + ("/" + resto if resto else "/")
+        if request.url.query:
+            destino += "?" + request.url.query
+        return RedirectResponse(destino, status_code=302)
 
 
 EXTENSIONES_CACHE_LARGA = (
