@@ -31,12 +31,13 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: "gemini-3.5-flash"
-      # Ruta pública de la Carta Digital. Slug aleatorio (letras y números) para
-      # que la URL del menú no muestre el nombre del negocio. Generar uno nuevo:
+      # Ruta pública de la Carta Digital. Slug aleatorio con formato de ID de
+      # Render (web-<20 letras y números>) para que la URL del menú no muestre
+      # el nombre del negocio. Generar uno nuevo:
       #   python -m app.core.slug
       # Los QR viejos (/carta) siguen funcionando: se redirigen a esta ruta.
       - key: CARTA_RUTA_PUBLICA
-        value: "/d9md2v4zrl"
+        value: "/web-3qm6g6x14ofgqac3t97t"
 
 databases:
   - name: sazon-caribeno-db

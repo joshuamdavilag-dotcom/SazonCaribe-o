@@ -226,18 +226,21 @@ app.include_router(
 app.mount("/Templates", StaticFiles(directory="app/Templates"), name="Templates")
 
 
+CARACTERES_RUTA_PUBLICA = "abcdefghijklmnopqrstuvwxyz0123456789-_/"
+
+
 def _ruta_carta_publica() -> str:
     """Normaliza la ruta pública de la Carta Digital configurada en el .env.
 
-    Acepta valores como ``carta``, ``/carta/`` o ``/q7f2k9d4ma`` y devuelve
-    siempre una ruta absoluta sin barra final. Si el valor es inválido se usa
-    ``/carta`` para no romper el arranque.
+    Acepta valores como ``carta``, ``/carta/`` o ``/web-c4ao4yd00a7g1sfl3awb``
+    y devuelve siempre una ruta absoluta sin barra final. Si el valor es
+    inválido se usa ``/carta`` para no romper el arranque.
     """
     cruda = (getattr(settings, "CARTA_RUTA_PUBLICA", "") or "").strip()
-    limpia = cruda.strip("/").strip()
+    limpia = cruda.strip("/").strip().lower()
     if not limpia:
         return "/carta"
-    if len(limpia) > 80 or not all(c.isalnum() or c in "-_/" for c in limpia):
+    if len(limpia) > 80 or not all(c in CARACTERES_RUTA_PUBLICA for c in limpia):
         logger.warning(
             "[CARTA] CARTA_RUTA_PUBLICA inválida (%r); se usa /carta", cruda
         )
