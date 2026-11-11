@@ -38,7 +38,18 @@ def test_ruta_antigua_del_erp_sigue_respondiendo():
 def test_carta_sigue_en_su_ruta_propia():
     respuesta = _cliente().get(CARTA_RUTA_PUBLICA + "/")
     assert respuesta.status_code == 200
-    assert "Carta Digital" in respuesta.text
+    assert 'id="libro"' in respuesta.text
+
+
+def test_carta_sirve_las_paginas_del_libro():
+    respuesta = _cliente().get(CARTA_RUTA_PUBLICA + "/paginas/01.webp")
+    assert respuesta.status_code == 200
+    assert respuesta.headers["cache-control"] == "public, max-age=604800"
+
+
+def test_carta_sirve_el_motor_del_libro():
+    respuesta = _cliente().get(CARTA_RUTA_PUBLICA + "/vendor/page-flip.browser.js")
+    assert respuesta.status_code == 200
 
 
 def test_carta_no_redirige_al_sistema():

@@ -544,41 +544,43 @@ Endpoints de solo lectura **consumidos por la Carta Digital** (menú público pa
 - `MenuService.obtener_menu_publico()` / `obtener_categorias_publicas()` / `obtener_item_publico_por_id()` — reutilizan los repos públicos
 - Router `app/api/endpoints/menu_publico.py` registrado en `main.py` bajo prefijo `/api/public`
 
-### Carta Digital — Frontend público y separación ERP/Pública
+### Carta Digital — libro de imágenes (vigente)
 
-La Carta Digital es un frontend **completamente separado del POS** (sin autenticación, sin acceso al ERP) servido por FastAPI como archivos estáticos:
+La carta pública **es un libro de páginas que se voltean, hecho solo de imágenes** (prototipo aprobado, ahora servido por el sistema). No consume la API pública en tiempo de ejecución: se actualiza reemplazando las imágenes.
 
-- `app/Templates/carta/index.html` — página pública (mobile-first, UI en español, C$)
-- `app/Templates/carta/css/style.css` — estilos propios de la carta (design tokens idénticos al POS)
-- `app/Templates/carta/js/app.js` — consumidor de la API pública; `API_BASE` detecta local (`http://127.0.0.1:8000/api/public`) vs remoto (`${location.origin}/api/public`); `PLACEHOLDER_IMG = 'img/placeholder-dish.svg'`
-- **Curaduría pública de categorías** (solo carta, ERP intacto): `curarCategorias()` en `app.js` filtra y ordena lo que ve el cliente — oculta `CATEGORIAS_OCULTAS` ("Especialidades de la Casa", "Algo para Picar"), excluye categorías sin platillos disponibles y aplica `ORDEN_CATEGORIAS` estricto (Platos Ejecutivos, Platos Fuertes, Mariscos, Zona Caribeña, Para Compartir, Bebidas, Extras); categorías no listadas se agregan al final. Matching por nombre normalizado (lowercase + sin acentos). No hay chip "Todo": la vista principal es un grid de tarjetas de categoría (`renderCategoryCards()`); al seleccionar una categoría se muestran sus platillos y el chip "Categorías" vuelve al overview
-- `app/Templates/carta/img/` — assets locales únicos de la carta: `hero-desktop.jpg`, `hero-mobile.jpg`, `logo.png`, `logo-small.png`, `placeholder-dish.svg`. **No hay imágenes remotas ni dependencias de Stitch.**
-- `app/Templates/carta/img/platos/` — directorio gestionado por el ERP vía subida de imágenes (creado con `os.makedirs(exist_ok=True)` al subir)
+- `app/Templates/carta/index.html` — estructura del libro: cabecera (`SAZÓN CARIBEÑO` + lema), `#libro` (`data-paginas="11"`), overlay de carga `#cargando`, controles `#btn-prev` / `#btn-next`, progreso `#pagina-actual` / `#barra-progreso` / `#pagina-total` y la pista de uso.
+- `app/Templates/carta/css/estilo.css` — diseño del libro con la paleta de la marca (Camarón `#C54320`, Verde `#006b33`, Amarillo `#F1E246`, Café `#5b400c`, crema `#f7f1e4`), sombra del lomo (`.libro-marco::after`), controles circulares y `@media (max-width: 820px)` para móvil.
+- `app/Templates/carta/js/menu-libro.js` — motor: `descubrirPaginas()` usa `data-paginas` si está presente; si no, prueba `01.webp … 40.webp` con `.webp/.jpg/.jpeg/.png` hasta el primer hueco. Monta `new St.PageFlip(...)` en modo doble página en escritorio y una sola página (`usePortrait`) por debajo de `BREAKPOINT_MOVIL = 820`. Teclado: ← →, Inicio/Fin, Espacio.
+- `app/Templates/carta/vendor/page-flip.browser.js` — StPageFlip (MIT), vendorizado, sin CDN.
+- `app/Templates/carta/paginas/01.webp … 11.webp` — las hojas (~1 MB en total; 2:3 vertical). La primera es portada y va sola.
+- Archivos de la carta anterior (SPA con `css/style.css`, `js/app.js`, `img/hero-*.jpg`) quedan en el directorio pero **ya no los carga nadie**; se conservan solo como respaldo histórico.
 
-Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` por defecto (index.html por defecto). **Configurable por la variable `CARTA_RUTA_PUBLICA`** (ver `settings.CARTA_RUTA_PUBLICA`): normalizada por `_ruta_carta_publica()` (acepta `carta`, `/carta/`, `/web-3qm6g6x14ofgqac3t97t` → ruta absoluta en minúsculas sin barra final; valor vacío o inválido → `/carta` con warning `[CARTA]`; solo caracteres ASCII `a-z 0-9 - _ /`). Para generar el slug aleatorio, `app/core/slug.py`: `python -m app.core.slug [largo] [prefijo]` produce `web-<20 aleatorios>` con formato de ID de Render (`srv-d9cvckm7r5hc739e0kj0`) usando `secrets` de la librería estándar, sin dependencias nuevas. Sirve para publicar la carta en una ruta discreta sin el nombre del negocio (ej. `/web-3qm6g6x14ofgqac3t97t`); **los enlaces y QR viejos a `/carta` siguen funcionando**: si la ruta configurada no es `/carta`, se registran `GET /carta` y `GET /carta/{resto:path}` que responden `302` a la ruta actual conservando la subruta y el query string (así CSS, JS e imágenes siguen cargando). El mismo mount sirve las imágenes de platos (`<ruta>/img/platos/<file>`). El nombre que aparece en el dominio (ej. `sazoncaribe-o.onrender.com`) **no** depende de esta variable: se cambia renombrando el servicio en Render o usando un dominio propio.
+**Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página.
+
+**Regenerar desde la base de datos**: el prototipo incluye `generar_paginas.py` (vive en el prototipo original, no en el repo), que consulta `/api/public/menu` y redibuja las hojas con las fotos reales.
+
+Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` por defecto (index.html por defecto). **Configurable por la variable `CARTA_RUTA_PUBLICA`** (ver `settings.CARTA_RUTA_PUBLICA`): normalizada por `_ruta_carta_publica()` (acepta `carta`, `/carta/`, `/web-3qm6g6x14ofgqac3t97t` → ruta absoluta en minúsculas sin barra final; valor vacío o inválido → `/carta` con warning `[CARTA]`; solo caracteres ASCII `a-z 0-9 - _ /`). Para generar el slug aleatorio, `app/core/slug.py`: `python -m app.core.slug [largo] [prefijo]` produce `web-<20 aleatorios>` con formato de ID de Render (`srv-d9cvckm7r5hc739e0kj0`) usando `secrets` de la librería estándar, sin dependencias nuevas. Sirve para publicar la carta en una ruta discreta sin el nombre del negocio (ej. `/web-3qm6g6x14ofgqac3t97t`); **los enlaces y QR viejos a `/carta` siguen funcionando**: si la ruta configurada no es `/carta`, se registran `GET /carta` y `GET /carta/{resto:path}` que responden `302` a la ruta actual conservando la subruta y el query string (así CSS, JS, imágenes y páginas siguen cargando). El nombre que aparece en el dominio (ej. `sazoncaribe-o.onrender.com`) **no** depende de esta variable: se cambia renombrando el servicio en Render o usando un dominio propio.
 
 **Un solo enlace y un solo QR para todo** (clientes y personal):
 - `GET /` (raíz del dominio) sirve el **sistema interno** (`FileResponse(RUTA_ERP)` → `app/Templates/index.html`), para que la barra de direcciones no muestre `/Templates/index.html`. `/Templates/index.html` sigue respondiendo para enlaces y marcadores antiguos. `index.html` usa **rutas absolutas** de assets (`/Templates/css/...`, `/Templates/js/app.js`, `/Templates/Imagenes/...`) para funcionar igual desde `/` y desde `/Templates/` — nunca volver a rutas relativas.
 - La **carta** vive en su ruta propia (`CARTA_RUTA_PUBLICA`, ej. `/web-3qm6g6x14ofgqac3t97t`). Ambas entradas son independientes: la carta no redirige al sistema.
 - El service worker mantiene su scope `/Templates/`; `push_service.RUTA_APP` y `sw.js` apuntan a `/` para que las notificaciones abran la URL limpia.
-- Tests: `tests/test_entrada_sistema.py` (raíz sirve el ERP, no-cache, assets absolutos, ruta antigua, carta independiente).
+- Tests: `tests/test_entrada_sistema.py` (raíz sirve el ERP, no-cache, assets absolutos, ruta antigua, carta independiente, páginas y motor del libro servidos).
 
-**Flujo completo (de punta a punta):**
+**Flujo actual (de punta a punta):**
 
 ```
-ERP (POS)                     API Pública                    Carta Digital              Cliente
-─────────                     ───────────                    ─────────────              ───────
-Gestión de Menú        →      GET /api/public/menu     →      js/app.js fetch()   →     escanea QR
-│  · Admin/Gerente            GET /api/public/categories      renderChips()/renderBento()   abre /carta/
-│  · CRUD platillos           GET /api/public/menu/{cat}      renderSections()          explora
-│  · disponible toggle        GET /api/public/item/{id}       openModal() detalle        · foto · precio
-│  · tiempo_preparacion                                       · descripción · disponib.  · descripción
-│  · imagen (multipart)                                       · "Preparación: ~N min"    · disponibilidad
-└──→ POST /menu/items/{id}/imagen                                (placeholder si imagen null)
-        escribe app/Templates/carta/img/platos/ ──servido por /carta──►
+ERP (POS)                  /api/public (solo generador)      Carta Digital            Cliente
+─────────                  ───────────────────────────       ─────────────            ───────
+Gestión de Menú     →      GET /api/public/menu       →      generar_paginas.py  →    escanea QR
+│  · CRUD platillos         GET /api/public/categories                       abre <ruta>/ 
+│  · disponible toggle      GET /api/public/item/{id}                        hojea el libro
+│  · imagen (ImgBB)                                                          · fotos · precios
+└──→ POST /menu/items/{id}/imagen                                             · diseño fijo
+     (nada de la carta se lee en vivo: la carta son imágenes)                 · una página en móvil
 ```
 
-La Carta Digital **solo lee** a través de `/api/public`; nunca toca el ERP ni sus endpoints `/api/v1`. La única vía de escritura es la del Administrador/Gerente en Gestión de Menú (datos + imágenes), que alimenta la misma base de datos. `disponible=False` (incluido el borrado lógico) oculta el plato de la carta inmediatamente.
+La carta **no consulta la base de datos en tiempo de ejecución**: cambiar un platillo en el ERP no cambia el libro hasta que se regeneren/reemplacen las imágenes. Los endpoints `/api/public` siguen existiendo y son de solo lectura.
 
 ## Key Backend Patterns
 
