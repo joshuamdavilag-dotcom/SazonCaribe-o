@@ -2550,6 +2550,55 @@
     </div>
   </div>
 
+  <!-- Modal: Reactivar Asistencia -->
+  <div id="modal-reactivar-asistencia" class="modal-overlay" aria-label="Reactivar turno">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">↩️ Reactivar Turno</h3>
+        <button class="modal-close" id="close-reactivar-asistencia" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #006b33 var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #dcfce7 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:16px;">
+          Se reabrirá el registro de asistencia
+          (<strong>#<span id="reactivar-asis-id"></span></strong> — <span id="reactivar-asis-fecha"></span>).
+          La hora de salida se borra y las horas extras vuelven a cero, para que el empleado pueda
+          volver a marcar su salida.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="reactivar-asis-motivo">Motivo de la reactivación <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <input type="text" id="reactivar-asis-motivo" class="form-input" maxlength="500"
+                 placeholder="Ej: El turno se cerró por doble toque al iniciar" />
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">El motivo y el cambio quedan registrados en la bitácora de auditoría.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-reactivar-asistencia" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirm-reactivar-asistencia" style="flex:1;">Reactivar Turno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar Finalizar Turno -->
+  <div id="modal-confirmar-finalizar-turno" class="modal-overlay" aria-label="Confirmar finalización de turno">
+    <div class="modal-sheet" style="max-width:460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🛑 Finalizar Turno</h3>
+        <button class="modal-close" id="close-confirmar-finalizar-turno" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #92400e var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #fef3c7 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:14px;">
+          ¿Seguro que deseas <strong>finalizar tu turno</strong>? Se guardará tu hora de salida
+          y no podrás volver a marcarla: gerencia tendría que reactivar el turno.
+        </p>
+        <p id="finalizar-turno-entrada" style="font-size:13px;font-weight:600;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-confirmar-finalizar-turno" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-finalizar-turno" style="flex:1;">Sí, finalizar turno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Anular Orden Pagada -->
   <div id="modal-anular-orden" class="modal-overlay" aria-label="Anular pedido">
     <div class="modal-sheet" style="max-width:500px;">

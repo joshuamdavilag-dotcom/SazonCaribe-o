@@ -19,7 +19,8 @@ from app.schemas.asistencia import (
     AsistenciaResponse,
     AsistenciaHorasExtrasUpdate,
     AsistenciaEditarHorarios,
-    AsistenciaAnularRequest
+    AsistenciaAnularRequest,
+    AsistenciaReactivarRequest
 )
 from app.services.asistencia_service import AsistenciaService
 from app.services import turno_service
@@ -382,3 +383,27 @@ def anular_asistencia(
 ) -> AsistenciaResponse:
     """Anula (borrado lógico) un registro de asistencia con motivo de auditoría."""
     return service.anular_asistencia(asistencia_id, data, current_user.id)
+
+
+@router.post(
+    "/{asistencia_id}/reactivar",
+    response_model=AsistenciaResponse,
+    summary="Reactivar (reabrir) un turno finalizado",
+    description=(
+        "Reabre un registro de asistencia ya finalizado: deja el turno sin "
+        "hora de salida y con las horas extras en cero, para que el empleado "
+        "pueda volver a marcar su salida. Requiere un motivo obligatorio y "
+        "queda registrado en la bitácora de auditoría. Solo Administradores "
+        "y Gerentes (o usuarios con el permiso de asistencia) pueden hacerlo."
+    ),
+    tags=["Asistencia"],
+    dependencies=[Depends(requerir_permiso("asistencia_admin"))]
+)
+def reactivar_asistencia(
+    asistencia_id: int = Path(..., gt=0, description="ID de la asistencia a reactivar"),
+    data: AsistenciaReactivarRequest = ...,
+    current_user: Usuario = Depends(get_current_user),
+    service: AsistenciaService = Depends(get_asistencia_service)
+) -> AsistenciaResponse:
+    """Reabre un turno finalizado con motivo de auditoría obligatorio."""
+    return service.reactivar_asistencia(asistencia_id, data, current_user)

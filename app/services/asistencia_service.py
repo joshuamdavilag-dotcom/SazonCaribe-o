@@ -21,7 +21,8 @@ from app.schemas.asistencia import (
     AsistenciaResponse,
     AsistenciaHorasExtrasUpdate,
     AsistenciaEditarHorarios,
-    AsistenciaAnularRequest
+    AsistenciaAnularRequest,
+    AsistenciaReactivarRequest
 )
 
 
@@ -452,6 +453,109 @@ class AsistenciaService:
             },
         )
         return AsistenciaResponse.model_validate(asistencia_actualizada)
+
+    def reactivar_asistencia(
+        self,
+        asistencia_id: int,
+        data: AsistenciaReactivarRequest,
+        actor: Usuario,
+    ) -> AsistenciaResponse:
+        """Reabre un registro de asistencia ya finalizado (Admin/Gerente).
+
+        Devuelve el turno a estado abierto (``hora_salida_real=None`` y horas
+        extras en cero) para que el empleado pueda volver a marcar su salida.
+        Requiere un motivo obligatorio y deja constancia en la bitácora de
+        auditoría con el estado anterior y posterior.
+
+        Args:
+            asistencia_id: ID de la asistencia a reactivar.
+            data: Motivo de la reactivación (obligatorio).
+            actor: Usuario (admin/gerente) que autoriza la reactivación.
+
+        Returns:
+            AsistenciaResponse con la asistencia reabierta.
+
+        Raises:
+            HTTPException 404: Si la asistencia no existe.
+            HTTPException 400: Si el motivo está vacío, el registro está
+                anulado, el turno sigue activo o el empleado ya tiene otro
+                turno abierto.
+        """
+        asistencia = self.asistencia_repo.get_by_id(asistencia_id)
+        if not asistencia:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontró la asistencia con ID {asistencia_id}",
+            )
+
+        if not data.motivo or not data.motivo.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo de la reactivación es obligatorio para auditoría",
+            )
+
+        if asistencia.anulada:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede reactivar un registro de asistencia anulado",
+            )
+
+        if asistencia.hora_salida_real is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El registro de asistencia {asistencia_id} ya está activo",
+            )
+
+        abierta = self.asistencia_repo.get_abierta_por_empleado(asistencia.empleado_id)
+        if abierta and abierta.id != asistencia_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "El empleado ya tiene un turno abierto "
+                    f"(asistencia #{abierta.id}): finalízalo antes de reactivar otro"
+                ),
+            )
+
+        motivo = data.motivo.strip()
+        antes = {
+            "entrada": asistencia.hora_entrada_real.isoformat() if asistencia.hora_entrada_real else None,
+            "salida": asistencia.hora_salida_real.isoformat() if asistencia.hora_salida_real else None,
+            "horas_extras": str(asistencia.horas_extras or Decimal("0.00")),
+            "estado": "cerrado",
+        }
+        despues = {
+            "entrada": antes["entrada"],
+            "salida": None,
+            "horas_extras": "0.00",
+            "estado": "abierto",
+        }
+
+        datos: dict = {
+            "hora_salida_real": None,
+            "horas_extras": Decimal("0.00"),
+            "observaciones": None,
+            "motivo_modificacion": motivo,
+            "modificado_por": actor.id,
+        }
+        if asistencia.horas_extras_originales is None:
+            datos["horas_extras_originales"] = asistencia.horas_extras
+
+        from app.services.auditoria_service import AuditoriaService
+
+        AuditoriaService.registrar(
+            self.db,
+            actor,
+            "ASISTENCIA_REACTIVADA",
+            "Asistencia",
+            asistencia_id,
+            f"Turno reactivado: {motivo}",
+            antes,
+            despues,
+        )
+
+        asistencia_actualizada = self.asistencia_repo.update(asistencia_id, datos)
+        return AsistenciaResponse.model_validate(asistencia_actualizada)
+
 
     def asistencias_del_dia(self, fecha: date = None) -> List[AsistenciaResponse]:
         """

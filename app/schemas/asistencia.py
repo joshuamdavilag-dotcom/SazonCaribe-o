@@ -199,6 +199,22 @@ class AsistenciaAnularRequest(BaseModel):
     )
 
 
+class AsistenciaReactivarRequest(BaseModel):
+    """Esquema para reactivar (reabrir) un registro de asistencia cerrado.
+
+    La reactivación devuelve el turno a estado abierto (sin hora de salida y
+    con las horas extras en cero) para que el empleado pueda volver a marcar
+    su salida. Requiere un motivo obligatorio para auditoría.
+    """
+    motivo: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Motivo de la reactivación (obligatorio para auditoría)",
+        examples=["El turno se cerró por doble toque al iniciar"]
+    )
+
+
 class AsistenciaHorasExtrasUpdate(BaseModel):
     """Esquema para actualizar horas extras con auditoría obligatoria."""
     horas_extras: Decimal = Field(

@@ -1867,6 +1867,40 @@ async function finalizarTurno() {
   }
 }
 
+/* --- Doble confirmación al finalizar el turno --- */
+function openConfirmarFinalizarTurno() {
+  const detalle = document.getElementById('finalizar-turno-entrada');
+  if (detalle) {
+    const hora = state.currentAsistencia
+      ? formatLocalTime(state.currentAsistencia.hora_entrada_real)
+      : '—';
+    detalle.textContent = `Entrada registrada: ${hora}`;
+  }
+  document.getElementById('modal-confirmar-finalizar-turno')?.classList.add('show');
+}
+
+function closeConfirmarFinalizarTurno() {
+  document.getElementById('modal-confirmar-finalizar-turno')?.classList.remove('show');
+}
+
+async function confirmarFinalizarTurno() {
+  if (state.turnoAccionEnCurso) return;
+  state.turnoAccionEnCurso = true;
+  closeConfirmarFinalizarTurno();
+  const toggle = document.getElementById('btn-attendance-toggle');
+  if (toggle) {
+    toggle.disabled = true;
+    toggle.innerHTML = '<span class="material-symbols-outlined text-sm">stop</span> ⏳ Finalizando…';
+  }
+  try {
+    await finalizarTurno();
+  } catch { /* handled by finalizarTurno */ }
+  finally {
+    state.turnoAccionEnCurso = false;
+    if (toggle) { toggle.disabled = false; renderAttendanceStatus(); }
+  }
+}
+
 /* --- Attendance Panel UI --- */
 function showAttendancePanel() {
   const panel = document.getElementById('attendance-panel');
@@ -8286,9 +8320,13 @@ function renderAsistenciasTable(asistencias, container) {
               ? `${auditado}${autoCierre}`
               : '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>');
           const empleadoNombre = document.getElementById('asis-employee-name')?.textContent || '';
+          const reactivar = a.hora_salida_real
+            ? `<button class="btn-action-action admin-only" onclick="openReactivarAsistenciaModal(${a.id}, '${a.fecha}')" title="Reactivar turno finalizado">↩️</button>`
+            : '';
           const acciones = a.anulada
             ? '<span style="color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));font-size:11px;">—</span>'
             : `
+              ${reactivar}
               <button class="btn-action-action" onclick="openEditarHorariosModal(${a.id}, '${a.fecha}', '${empleadoNombre.replace(/'/g, "\\'")}', '${a.hora_entrada_real}', '${a.hora_salida_real || ''}')" title="Editar Entrada/Salida">✏️</button>
               <button class="btn-action-action" onclick="openEditOTModal(${a.id}, '${a.fecha}', ${a.horas_extras})" title="Editar Horas Extras">⏱️</button>
               <button class="btn-action-action btn-action-danger admin-only" onclick="openAnularAsistenciaModal(${a.id}, '${a.fecha}')" title="Eliminar/Anular registro">🗑️</button>`;
@@ -8341,6 +8379,43 @@ async function confirmAnularAsistencia() {
     showToast(`Registro de asistencia #${anulada.id} anulado correctamente`, 'success');
     closeAnularAsistenciaModal();
     if (asisEmpleadoId) loadAsistenciasEmpleado(asisEmpleadoId);
+  } catch { /* handled by api() */ }
+}
+
+/* =========================================================================
+   Reactivar Turno (reabrir asistencia finalizada)
+   ========================================================================= */
+let reactivarAsistenciaId = null;
+
+function openReactivarAsistenciaModal(asistenciaId, fecha) {
+  reactivarAsistenciaId = asistenciaId;
+  document.getElementById('reactivar-asis-id').textContent = asistenciaId;
+  document.getElementById('reactivar-asis-fecha').textContent = fecha || '—';
+  document.getElementById('reactivar-asis-motivo').value = '';
+  document.getElementById('modal-reactivar-asistencia').classList.add('show');
+}
+
+function closeReactivarAsistenciaModal() {
+  document.getElementById('modal-reactivar-asistencia').classList.remove('show');
+  reactivarAsistenciaId = null;
+}
+
+async function confirmReactivarAsistencia() {
+  const motivo = document.getElementById('reactivar-asis-motivo').value;
+  if (!motivo || !motivo.trim()) {
+    return showToast('El motivo de la reactivación es obligatorio', 'warning');
+  }
+  if (!reactivarAsistenciaId) return showToast('Error: no se identificó el registro', 'error');
+
+  try {
+    const data = await api(`/asistencia/${reactivarAsistenciaId}/reactivar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo.trim() }),
+    });
+    showToast(`Turno #${data.id} reactivado: el empleado puede volver a marcar salida`, 'success');
+    closeReactivarAsistenciaModal();
+    if (asisEmpleadoId) loadAsistenciasEmpleado(asisEmpleadoId);
+    await syncAsistenciaActiva();
   } catch { /* handled by api() */ }
 }
 
@@ -10779,26 +10854,25 @@ document.addEventListener('DOMContentLoaded', () => {
     verificarAvisosTurno();
   });
   document.getElementById('btn-attendance-toggle')?.addEventListener('click', async () => {
+    if (state.turnoAccionEnCurso) return;
     const toggle = document.getElementById('btn-attendance-toggle');
     if (state.currentAsistencia) {
-      if (toggle) { toggle.disabled = true; toggle.innerHTML = '<span class="material-symbols-outlined text-sm">stop</span> ⏳ Finalizando…'; }
-      try {
-        await finalizarTurno();
-      } catch { /* handled by finalizarTurno */ }
-      finally {
-        if (toggle) { toggle.disabled = false; renderAttendanceStatus(); }
-      }
-    } else {
-      const select = document.getElementById('turno-select');
-      const turnoId = parseInt(select?.value);
-      if (!turnoId) return showToast('Selecciona un turno primero', 'warning');
-      if (toggle) { toggle.disabled = true; toggle.innerHTML = '<span class="material-symbols-outlined text-sm">schedule</span> ⏳ Iniciando…'; }
-      try {
-        await iniciarTurno(turnoId);
-      } catch { /* handled by iniciarTurno */ }
-      finally {
-        if (toggle) { toggle.disabled = false; renderAttendanceStatus(); }
-      }
+      if (Date.now() < (state.bloqueoTurnoHasta || 0)) return;
+      openConfirmarFinalizarTurno();
+      return;
+    }
+    const select = document.getElementById('turno-select');
+    const turnoId = parseInt(select?.value);
+    if (!turnoId) return showToast('Selecciona un turno primero', 'warning');
+    state.turnoAccionEnCurso = true;
+    if (toggle) { toggle.disabled = true; toggle.innerHTML = '<span class="material-symbols-outlined text-sm">schedule</span> ⏳ Iniciando…'; }
+    try {
+      await iniciarTurno(turnoId);
+      state.bloqueoTurnoHasta = Date.now() + 2500;
+    } catch { /* handled by iniciarTurno */ }
+    finally {
+      state.turnoAccionEnCurso = false;
+      if (toggle) { toggle.disabled = false; renderAttendanceStatus(); }
     }
   });
 
@@ -11109,6 +11183,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-anular-asistencia')?.addEventListener('click', closeAnularAsistenciaModal);
   document.getElementById('cancel-anular-asistencia')?.addEventListener('click', closeAnularAsistenciaModal);
   document.getElementById('confirm-anular-asistencia')?.addEventListener('click', confirmAnularAsistencia);
+
+  // Reactivar turno
+  document.getElementById('close-reactivar-asistencia')?.addEventListener('click', closeReactivarAsistenciaModal);
+  document.getElementById('cancel-reactivar-asistencia')?.addEventListener('click', closeReactivarAsistenciaModal);
+  document.getElementById('confirm-reactivar-asistencia')?.addEventListener('click', confirmReactivarAsistencia);
+
+  // Confirmar finalizar turno
+  document.getElementById('close-confirmar-finalizar-turno')?.addEventListener('click', closeConfirmarFinalizarTurno);
+  document.getElementById('cancel-confirmar-finalizar-turno')?.addEventListener('click', closeConfirmarFinalizarTurno);
+  document.getElementById('confirm-finalizar-turno')?.addEventListener('click', confirmarFinalizarTurno);
 
   // Editar Horas Extras modal
   document.getElementById('close-edit-ot')?.addEventListener('click', closeEditOTModal);
