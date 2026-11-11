@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* Punto de entrada único: este mismo enlace (y el mismo QR) sirve para
+   clientes y personal. Si el dispositivo ya tiene sesión del sistema interno,
+   se entra directo al ERP; si no, se queda en la carta digital.
+   Para ver la carta desde un equipo del personal: agregar ?menu=1 */
+(function () {
+  try {
+    var tieneSesion = !!localStorage.getItem('pos_token');
+    var pideMenu = /[?&]menu=1(?:&|$)/.test(location.search);
+    if (tieneSesion && !pideMenu) {
+      location.replace('/Templates/index.html');
+    }
+  } catch (e) { /* almacenamiento bloqueado: se muestra la carta */ }
+})();
+</script>
 <title>Sazón Caribeño - Carta Digital</title>
 <meta name="description" content="Carta digital de Sazón Caribeño: mariscos frescos y recetas tradicionales en el corazón de Diriamba.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -111,6 +126,7 @@
       <li><a href="https://www.facebook.com/profile.php?id=61585062974161" target="_blank" rel="noopener noreferrer" id="link-facebook">Facebook</a></li>
       <li><a href="https://www.tiktok.com/@sazon_caribe_diriamba" target="_blank" rel="noopener noreferrer" id="link-tiktok">TikTok</a></li>
       <li><a href="https://www.instagram.com/sazoncaribeno__?igsi=dHZiMm9ianM1ZDZz" id="link-instagram">Instagram</a></li>
+      <li><a href="/Templates/index.html" id="link-personal" class="footer-staff">Personal</a></li>
     </ul>
   </div>
 </footer>

@@ -276,6 +276,20 @@ if CARTA_RUTA_PUBLICA != "/carta":
         return RedirectResponse(destino, status_code=302)
 
 
+@app.get("/", include_in_schema=False)
+async def _punto_de_entrada(request: Request):
+    """Punto de entrada único del dominio: manda a la ruta pública de la carta.
+
+    El mismo enlace sirve para clientes y personal: el HTML de la carta decide
+    si el dispositivo ya tiene sesión del sistema interno y, en ese caso, entra
+    directo al ERP. Así un solo enlace (y un solo QR) cubre ambos usos.
+    """
+    destino = CARTA_RUTA_PUBLICA + "/"
+    if request.url.query:
+        destino += "?" + request.url.query
+    return RedirectResponse(destino, status_code=302)
+
+
 EXTENSIONES_CACHE_LARGA = (
     ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2",
 )

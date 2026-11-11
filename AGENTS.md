@@ -557,6 +557,12 @@ La Carta Digital es un frontend **completamente separado del POS** (sin autentic
 
 Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` por defecto (index.html por defecto). **Configurable por la variable `CARTA_RUTA_PUBLICA`** (ver `settings.CARTA_RUTA_PUBLICA`): normalizada por `_ruta_carta_publica()` (acepta `carta`, `/carta/`, `/web-3qm6g6x14ofgqac3t97t` → ruta absoluta en minúsculas sin barra final; valor vacío o inválido → `/carta` con warning `[CARTA]`; solo caracteres ASCII `a-z 0-9 - _ /`). Para generar el slug aleatorio, `app/core/slug.py`: `python -m app.core.slug [largo] [prefijo]` produce `web-<20 aleatorios>` con formato de ID de Render (`srv-d9cvckm7r5hc739e0kj0`) usando `secrets` de la librería estándar, sin dependencias nuevas. Sirve para publicar la carta en una ruta discreta sin el nombre del negocio (ej. `/web-3qm6g6x14ofgqac3t97t`); **los enlaces y QR viejos a `/carta` siguen funcionando**: si la ruta configurada no es `/carta`, se registran `GET /carta` y `GET /carta/{resto:path}` que responden `302` a la ruta actual conservando la subruta y el query string (así CSS, JS e imágenes siguen cargando). El mismo mount sirve las imágenes de platos (`<ruta>/img/platos/<file>`). El nombre que aparece en el dominio (ej. `sazoncaribe-o.onrender.com`) **no** depende de esta variable: se cambia renombrando el servicio en Render o usando un dominio propio.
 
+**Un solo enlace y un solo QR para todo** (clientes y personal):
+- `GET /` (raíz del dominio) responde `302` a `CARTA_RUTA_PUBLICA + "/"` conservando el query string (`_punto_de_entrada()` en `app/main.py`).
+- `app/Templates/carta/index.html` lleva un script inline al inicio del `<head>` (antes del CSS, sin parpadeo) que, si `localStorage.pos_token` existe, hace `location.replace('/Templates/index.html')`: el mismo enlace abre el **sistema interno** en equipos con sesión y la **carta** en teléfonos de clientes. Escape: `?menu=1` fuerza la carta aunque haya sesión.
+- El pie de la carta tiene un enlace discreto `id="link-personal"` (`.footer-staff`, opacidad 0.55) hacia `/Templates/index.html` para el personal sin sesión.
+- Tests: `tests/test_carta_entrada.py` (raíz → ruta pública, query string, carta 200, reenvío por sesión, enlace de personal).
+
 **Flujo completo (de punta a punta):**
 
 ```
