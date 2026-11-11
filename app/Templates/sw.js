@@ -2,7 +2,7 @@
 
 const BASE = new URL(self.registration.scope).pathname;
 const ICONO = `${BASE}Imagenes/notificacion.png`;
-const RUTA_APP = `${BASE}index.html`;
+const RUTA_APP = '/';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

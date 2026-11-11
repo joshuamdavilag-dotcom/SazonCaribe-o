@@ -611,8 +611,6 @@ main { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 
 .footer-links { display: flex; gap: var(--sp-md); color: var(--on-surface-variant); }
 .footer-links a { transition: color 0.2s ease; }
 .footer-links a:hover { color: var(--primary); opacity: 0.85; }
-.footer-staff { opacity: 0.55; }
-.footer-staff:hover { opacity: 1; }
 
 /* =========================================================================
    Bottom nav (móvil)

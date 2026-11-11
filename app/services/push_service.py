@@ -51,7 +51,7 @@ except Exception:  # pragma: no cover - dependencia opcional en tiempo de import
 
 KEYWORDS_PUESTO_COCINA = ("cocin", "cosin", "chef")
 
-RUTA_APP = "/Templates/index.html"
+RUTA_APP = "/"
 
 CAMPOS_PREFERENCIAS_AVISOS = (
     "avisos_fuera_de_turno",

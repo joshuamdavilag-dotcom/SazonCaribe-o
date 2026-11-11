@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from typing import Dict
@@ -250,6 +251,8 @@ def _ruta_carta_publica() -> str:
 
 CARTA_RUTA_PUBLICA = _ruta_carta_publica()
 
+RUTA_ERP = os.path.join("app", "Templates", "index.html")
+
 # Carta Digital pública (menú para clientes). Se sirve en /carta/ (o en la
 # ruta configurada con CARTA_RUTA_PUBLICA) y consume la API pública
 # /api/public (sin autenticación).
@@ -277,17 +280,15 @@ if CARTA_RUTA_PUBLICA != "/carta":
 
 
 @app.get("/", include_in_schema=False)
-async def _punto_de_entrada(request: Request):
-    """Punto de entrada único del dominio: manda a la ruta pública de la carta.
+async def _sistema_interno():
+    """Sirve el ERP desde la raíz del dominio.
 
-    El mismo enlace sirve para clientes y personal: el HTML de la carta decide
-    si el dispositivo ya tiene sesión del sistema interno y, en ese caso, entra
-    directo al ERP. Así un solo enlace (y un solo QR) cubre ambos usos.
+    Evita que la barra de direcciones muestre ``/Templates/index.html`` (la
+    URL canónica del sistema pasa a ser ``/``). Los assets del ERP se cargan
+    con rutas absolutas ``/Templates/...``, y ``/Templates/index.html`` sigue
+    respondiendo para enlaces y marcadores antiguos.
     """
-    destino = CARTA_RUTA_PUBLICA + "/"
-    if request.url.query:
-        destino += "?" + request.url.query
-    return RedirectResponse(destino, status_code=302)
+    return FileResponse(RUTA_ERP)
 
 
 EXTENSIONES_CACHE_LARGA = (
@@ -306,7 +307,12 @@ async def _revalidar_estaticos(request: Request, call_next):
     """
     response = await call_next(request)
     ruta = request.url.path
-    if ruta.startswith("/Templates") or ruta == CARTA_RUTA_PUBLICA or ruta.startswith(CARTA_RUTA_PUBLICA + "/"):
+    if (
+        ruta == "/"
+        or ruta.startswith("/Templates")
+        or ruta == CARTA_RUTA_PUBLICA
+        or ruta.startswith(CARTA_RUTA_PUBLICA + "/")
+    ):
         if ruta.lower().endswith(EXTENSIONES_CACHE_LARGA):
             response.headers["Cache-Control"] = "public, max-age=604800"
         else:
