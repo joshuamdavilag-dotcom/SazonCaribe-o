@@ -52,6 +52,22 @@ def test_carta_sirve_el_motor_del_libro():
     assert respuesta.status_code == 200
 
 
+def test_carta_ofrece_zoom_para_leer_de_cerca():
+    html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
+    assert 'id="btn-zoom"' in html
+    assert 'id="visor"' in html
+    assert "hidden" in html.split('id="visor"')[1][:60]
+    assert "Ampliar" in html
+
+
+def test_el_motor_del_libro_maneja_pellizco_y_rueda():
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert "pointerdown" in js
+    assert "pointermove" in js
+    assert "wheel" in js
+    assert "fijarEscala" in js
+
+
 def test_carta_no_redirige_al_sistema():
     """La carta y el sistema son entradas independientes."""
     html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text

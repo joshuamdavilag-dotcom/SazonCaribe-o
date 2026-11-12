@@ -565,6 +565,17 @@ La carta pública **es un libro de páginas que se voltean, hecho solo de imáge
 - `app/Templates/carta/paginas/01.webp … 11.webp` — las hojas (~1 MB en total; 2:3 vertical). La primera es portada y va sola.
 - Archivos de la carta anterior (SPA con `css/style.css`, `js/app.js`, `img/hero-*.jpg`) quedan en el directorio pero **ya no los carga nadie**; se conservan solo como respaldo histórico.
 
+**Zoom para leer de cerca (requisito del negocio)**: el libro es solo imágenes, así que la letra pequeña no se puede seleccionar; se agregó un visor a pantalla completa sobre StPageFlip sin tocar sus gestos.
+
+- **Entrada**: botón flotante `#btn-zoom` ("Ampliar", arriba a la derecha, deshabilitado hasta que el libro termina de montarse).
+- **Visor** `#visor` (overlay `role="dialog"`): `#visor-titulo` ("Página N de M"), `#visor-cerrar` (✕), `#visor-lienzo` con `#visor-img`, y `#visor-pie` con ‹ (página anterior), − / `#visor-reset` (muestra el % y vuelve a 100%) / +, y › (página siguiente).
+- **Gestos**: 1 dedo con zoom > 100% = arrastrar (`panX`/`panY`, acotado por `limitarPan()`); 2 dedos = pellizco (distancia entre punteros); doble toque = 2,5× ↔ 100% (detección manual por `pointerup` a <300 ms — **no volver a agregar `dblclick`**, el navegador lo dispara después del doble toque y deshacía el zoom); 1 toque simple no hace nada.
+- **Escritorio**: rueda del ratón (1,15× por paso) y teclado `+` `-` `0` (100%) `←` `→` (página) `Esc` (cerrar). El `keydown` global del libro ignora eventos mientras el visor esté abierto (`if (!visor.hidden) return;`), pero el del visor corre antes.
+- **Límites**: `ESCALA_MIN = 1`, `ESCALA_MAX = 4`; el visor abre siempre en 100% en la página donde estaba el libro; al bajar a 100% el paneo vuelve a 0.
+- **Cuerpo**: `body.con-visor { overflow: hidden }` evita que el libro de fondo se desplace; al cerrar se restaura y el foco vuelve a `#btn-zoom`.
+- **Remontaje seguro**: `montarLibro()` reconstruye las hojas (`crearPaginas(rutasPaginas)` limpia `libroEl`) y re-engancha `#libro` a `.libro-marco` si `pageFlip.destroy()` lo sacó del DOM (StPageFlip hace `block.remove()`). Sin esto, un cambio de orientación creaba una instancia con **cero páginas** y lanzaba `pageerror: Cannot read properties of undefined (reading 'setDensity')`. El listener de `resize` además ignora eventos antes del primer montaje (`if (modoRetrato === null) return;`) y solo remonta al cruzar los 820 px.
+- **Pruebas**: `tests/test_entrada_sistema.py` verifica que el HTML sirva `#btn-zoom` + `#visor` oculto y que el motor exponga `pointerdown`/`pointermove`/`wheel`/`fijarEscala`. La verificación de comportamiento (escritorio, celular con doble toque, y remontaje al cambiar de tamaño) se hizo con Playwright + Edge headless y quedó en verde.
+
 **Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página.
 
 **Regenerar desde la base de datos**: el prototipo incluye `generar_paginas.py` (vive en el prototipo original, no en el repo), que consulta `/api/public/menu` y redibuja las hojas con las fotos reales.
