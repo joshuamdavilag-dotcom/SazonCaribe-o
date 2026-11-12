@@ -85,7 +85,8 @@ def crear_puesto(
     response_model=List[PuestoResponse],
     summary="Listar puestos",
     description="Obtiene la lista de todos los puestos registrados.",
-    tags=["Puestos"]
+    tags=["Puestos"],
+    dependencies=[Depends(get_current_user)]
 )
 def listar_puestos(
     service: PersonalService = Depends(get_personal_service)
@@ -129,7 +130,8 @@ def registrar_empleado(
     response_model=List[EmpleadoResponse],
     summary="Listar empleados activos",
     description="Obtiene la lista de empleados activos del restaurante.",
-    tags=["Empleados"]
+    tags=["Empleados"],
+    dependencies=[Depends(get_current_user)]
 )
 def listar_empleados(
     service: PersonalService = Depends(get_personal_service)
@@ -228,7 +230,8 @@ def crear_usuario(
     response_model=List[UsuarioResponse],
     summary="Listar usuarios",
     description="Obtiene la lista de todos los usuarios registrados.",
-    tags=["Usuarios"]
+    tags=["Usuarios"],
+    dependencies=[Depends(get_current_user)]
 )
 def listar_usuarios(
     service: PersonalService = Depends(get_personal_service)

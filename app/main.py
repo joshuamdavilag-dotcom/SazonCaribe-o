@@ -307,6 +307,13 @@ async def _revalidar_estaticos(request: Request, call_next):
     """
     response = await call_next(request)
     ruta = request.url.path
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if request.url.scheme == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
     if (
         ruta == "/"
         or ruta.startswith("/Templates")

@@ -482,6 +482,7 @@ def actualizar_unidad_medida(
     "/unidades-medida/convertir",
     summary="Convertir cantidad entre unidades",
     tags=["Inventario"],
+    dependencies=[Depends(get_current_user)],
 )
 def convertir_unidades(
     cantidad: float,

@@ -48,7 +48,15 @@ def get_current_user(
         )
 
     usuario_repo = UsuarioRepository(db)
-    usuario = usuario_repo.get_by_id_con_perfil(int(usuario_id))
+    try:
+        usuario_id_int = int(usuario_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    usuario = usuario_repo.get_by_id_con_perfil(usuario_id_int)
 
     if not usuario:
         raise HTTPException(

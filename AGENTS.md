@@ -319,6 +319,16 @@ Sistema de permisos granular encima del rol. No cambia el acceso de nadie al des
 - **UI**: botón 🔐 en la fila de Personal (visible con `permisos_gestionar`) → `#modal-permisos-usuario`: casillas agrupadas, badges `Rol`/`Concedido`/`Crítico`, "Todo / Nada" por grupo, "Restablecer según rol" (revisar y guardar) y guardado en bloque. Respeta modo claro/oscuro vía `color-mix()`.
 - **Tests**: `tests/test_permisos.py` (defaults de rol, overrides, Admin intocable, autoedición bloqueada, críticos solo Admin, overrides mínimos, claves inválidas).
 
+## Seguridad
+
+- **Superficie autenticada**: toda ruta `/api/v1/*` exige `get_current_user` salvo `POST /auth/login`. Los listados de Personal (`GET /personal/puestos`, `/empleados`, `/usuarios`) y `GET /inventario/unidades-medida/convertir` ahora usan `dependencies=[Depends(get_current_user)]` — antes respondían sin token y exponían nombres, teléfonos, salarios, usernames y roles.
+- **Rutas públicas por diseño** (no requieren token): `GET /` (ERP), `/healthcheck`, `POST /auth/login`, `/api/public/*` (Carta Digital, solo campos públicos), `POST /api/v1/cameras/authorize` (valida un JWT con `purpose=camera_stream`) y `POST /api/v1/pagos/webhooks/{provider}` (proveedor deshabilitado por defecto y firma obligatoria).
+- **JWT**: `alg=none`, firma falsa, token expirado y `sub` no numérico responden `401` (el `int(sub)` está protegido). El rol y los permisos se leen de la BD en cada petición, nunca del token.
+- **Cabeceras**: middleware `_revalidar_estaticos` agrega `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin` y `Strict-Transport-Security` (solo bajo HTTPS).
+- **Verificado**: sin inyección SQL en login (ORM parametrizado), sin traversal de rutas en los mounts, CORS rechaza orígenes no listados, la API pública no expone costos/recetas, contraseñas nunca salen en respuestas.
+- **Riesgos abiertos conocidos**: (1) `POST /auth/login` no tiene límite de intentos; (2) los mensajes distinguen "No existe el usuario" de "Contraseña incorrecta" (decisión de UX documentada) y el log imprime el prefijo del hash; (3) `/docs`, `/redoc` y `/openapi.json` son públicos.
+- **Pruebas**: `tests/test_seguridad.py` (27 pruebas, SQLite en memoria y `dependency_overrides`, nunca la base real).
+
 ## Business Rules
 
 - **Calendario de planificación**: `EventoCalendario` persiste disponibilidad planificada de platillos y llegadas de insumos; consulta autenticada para cualquier rol, escritura Admin/Gerente. Asistencias reales consultadas desde `Asistencia` por fecha calendario y `anulada=False`; incluye empleado, turno, hora de entrada/salida, no se editan desde esta pantalla. Rango API inclusivo máximo 63 días; no programa turnos ni altera disponibilidad de platillos/stock. Los eventos pueden cubrir varias fechas; las horas son opcionales (ambas o ninguna); estados `PLANIFICADO`/`REALIZADO`/`CANCELADO`. La cantidad esperada de entrega se registra en unidad base del insumo y no genera movimiento de inventario. Ver `docs/CALENDARIO.md`.
