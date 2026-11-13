@@ -29,6 +29,7 @@
       alejarAria: "Alejar",
       acercarAria: "Acercar",
       normalAria: "Tamaño normal",
+      pistaVisor: "Pellizca o toca dos veces para acercar · arrastra para mover",
       pagina: "Página",
       de: "de",
       altPagina: function (n) { return "Página " + n + " del menú"; },
@@ -53,6 +54,7 @@
       alejarAria: "Zoom out",
       acercarAria: "Zoom in",
       normalAria: "Normal size",
+      pistaVisor: "Pinch or double-tap to zoom · drag to move",
       pagina: "Page",
       de: "of",
       altPagina: function (n) { return "Menu page " + n; },
@@ -88,6 +90,7 @@
   var visorMas = document.getElementById("visor-mas");
   var visorMenos = document.getElementById("visor-menos");
   var visorReset = document.getElementById("visor-reset");
+  var visorPista = document.getElementById("visor-pista");
 
   var pageFlip = null;
   var modoRetrato = null;
@@ -101,6 +104,7 @@
   var panY = 0;
   var indiceVisor = 0;
   var punteros = new Map();
+  var toques = new Map();
   var distanciaInicial = 0;
   var escalaInicial = 1;
   var ultimoToque = 0;
@@ -171,6 +175,7 @@
     visorMenos.setAttribute("aria-label", t.alejarAria);
     visorMas.setAttribute("aria-label", t.acercarAria);
     visorReset.setAttribute("aria-label", t.normalAria);
+    if (visorPista) visorPista.textContent = t.pistaVisor;
   }
 
   function idiomaInicial() {
@@ -393,36 +398,41 @@
     visor.setAttribute("aria-hidden", "true");
     document.body.classList.remove("con-visor");
     punteros.clear();
+    toques.clear();
     btnZoom.focus();
   }
 
-  function distanciaPunteros() {
-    var valores = Array.from(punteros.values());
+  /* ---------- gestos (ratón/lápiz y dedos) ---------- */
+
+  function distanciaMapa(mapa) {
+    var valores = Array.from(mapa.values());
     if (valores.length < 2) return 0;
     var dx = valores[0].x - valores[1].x;
     var dy = valores[0].y - valores[1].y;
     return Math.hypot(dx, dy);
   }
 
-  visorLienzo.addEventListener("pointerdown", function (evento) {
-    visorLienzo.setPointerCapture(evento.pointerId);
-    punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
-    huboArrastre = false;
-    if (punteros.size === 1) huboPellizco = false;
-    if (punteros.size === 2) {
+  function iniciarContacto(mapa, id, x, y) {
+    mapa.set(id, { x: x, y: y });
+    if (mapa.size === 1) {
+      huboArrastre = false;
+      huboPellizco = false;
+      distanciaInicial = 0;
+      escalaInicial = escala;
+    } else if (mapa.size === 2) {
       huboPellizco = true;
-      distanciaInicial = distanciaPunteros();
+      distanciaInicial = distanciaMapa(mapa);
       escalaInicial = escala;
     }
-  });
+  }
 
-  visorLienzo.addEventListener("pointermove", function (evento) {
-    var previo = punteros.get(evento.pointerId);
+  function moverContacto(mapa, id, x, y) {
+    var previo = mapa.get(id);
     if (!previo) return;
-    punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
+    mapa.set(id, { x: x, y: y });
 
-    if (punteros.size >= 2) {
-      var distancia = distanciaPunteros();
+    if (mapa.size >= 2) {
+      var distancia = distanciaMapa(mapa);
       if (distanciaInicial > 0 && distancia > 0) {
         fijarEscala(escalaInicial * (distancia / distanciaInicial));
       }
@@ -430,35 +440,98 @@
     }
 
     if (escala > 1) {
-      panX += evento.clientX - previo.x;
-      panY += evento.clientY - previo.y;
-      if (Math.abs(evento.clientX - previo.x) + Math.abs(evento.clientY - previo.y) > 2) {
-        huboArrastre = true;
-      }
+      panX += x - previo.x;
+      panY += y - previo.y;
+      if (Math.abs(x - previo.x) + Math.abs(y - previo.y) > 2) huboArrastre = true;
       limitarPan();
       fijarVista();
       visorLienzo.classList.add("arrastrando");
     }
-  });
+  }
 
-  function soltarPuntero(evento) {
-    punteros.delete(evento.pointerId);
-    if (punteros.size < 2) distanciaInicial = 0;
+  function terminarContacto(mapa, id, esToque) {
+    mapa.delete(id);
+    if (mapa.size < 2) distanciaInicial = 0;
     visorLienzo.classList.remove("arrastrando");
 
-    if (evento.pointerType === "touch" && !huboArrastre && !huboPellizco && punteros.size === 0) {
-      var ahora = Date.now();
-      if (ahora - ultimoToque < 300) {
-        fijarEscala(escala > 1.2 ? 1 : 2.5);
-        ultimoToque = 0;
-      } else {
-        ultimoToque = ahora;
-      }
+    if (huboArrastre || huboPellizco) {
+      ultimoToque = 0;
+      return;
+    }
+    if (!esToque || mapa.size !== 0) return;
+
+    var ahora = Date.now();
+    if (ahora - ultimoToque < 300) {
+      fijarEscala(escala > 1.2 ? 1 : 2.5);
+      ultimoToque = 0;
+    } else {
+      ultimoToque = ahora;
     }
   }
 
-  visorLienzo.addEventListener("pointerup", soltarPuntero);
-  visorLienzo.addEventListener("pointercancel", soltarPuntero);
+  /* Dedos: se usan Touch Events porque Safari en iOS no entrega pointermove
+     de forma fiable y emite pointercancel en mitad del gesto. */
+  visorLienzo.addEventListener("touchstart", function (evento) {
+    evento.preventDefault();
+    if (evento.touches.length > 2) {
+      toques.clear();
+      return;
+    }
+    for (var i = 0; i < evento.changedTouches.length; i++) {
+      var toque = evento.changedTouches[i];
+      iniciarContacto(toques, toque.identifier, toque.clientX, toque.clientY);
+    }
+  }, { passive: false });
+
+  visorLienzo.addEventListener("touchmove", function (evento) {
+    evento.preventDefault();
+    if (!toques.size) return;
+    for (var i = 0; i < evento.changedTouches.length; i++) {
+      var toque = evento.changedTouches[i];
+      moverContacto(toques, toque.identifier, toque.clientX, toque.clientY);
+    }
+  }, { passive: false });
+
+  visorLienzo.addEventListener("touchend", function (evento) {
+    evento.preventDefault();
+    for (var i = 0; i < evento.changedTouches.length; i++) {
+      terminarContacto(toques, evento.changedTouches[i].identifier, true);
+    }
+  }, { passive: false });
+
+  visorLienzo.addEventListener("touchcancel", function (evento) {
+    for (var i = 0; i < evento.changedTouches.length; i++) {
+      toques.delete(evento.changedTouches[i].identifier);
+    }
+    distanciaInicial = 0;
+    visorLienzo.classList.remove("arrastrando");
+  });
+
+  /* Ratón y lápiz: Pointer Events. El dedo ya lo atienden los Touch Events. */
+  visorLienzo.addEventListener("pointerdown", function (evento) {
+    if (evento.pointerType === "touch") return;
+    try {
+      visorLienzo.setPointerCapture(evento.pointerId);
+    } catch (error) {
+      /* iOS/Safari puede rechazar la captura; el gesto sigue funcionando. */
+    }
+    iniciarContacto(punteros, evento.pointerId, evento.clientX, evento.clientY);
+  });
+
+  visorLienzo.addEventListener("pointermove", function (evento) {
+    if (evento.pointerType === "touch") return;
+    moverContacto(punteros, evento.pointerId, evento.clientX, evento.clientY);
+  });
+
+  visorLienzo.addEventListener("pointerup", function (evento) {
+    if (evento.pointerType === "touch") return;
+    terminarContacto(punteros, evento.pointerId, false);
+  });
+
+  visorLienzo.addEventListener("pointercancel", function (evento) {
+    if (evento.pointerType === "touch") return;
+    terminarContacto(punteros, evento.pointerId, false);
+  });
 
   visorLienzo.addEventListener("wheel", function (evento) {
     evento.preventDefault();

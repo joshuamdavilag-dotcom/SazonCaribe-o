@@ -68,6 +68,47 @@ def test_el_motor_del_libro_maneja_pellizco_y_rueda():
     assert "fijarEscala" in js
 
 
+def test_el_visor_usa_touch_events_para_ios():
+    """Safari en iOS no entrega pointermove de forma fiable: el visor escucha
+    Touch Events con passive:false y evita el zoom/doble toque de la página."""
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert '"touchstart"' in js
+    assert '"touchmove"' in js
+    assert '"touchend"' in js
+    assert "passive: false" in js
+    assert 'evento.pointerType === "touch"' in js
+    assert "setPointerCapture" in js
+    assert "try {" in js
+
+
+def test_el_visor_no_deja_que_ios_haga_scroll_ni_zoom_de_pagina():
+    css = _cliente().get(CARTA_RUTA_PUBLICA + "/css/estilo.css").text
+    visor = css.split(".visor {")[1].split("}")[0]
+    lienzo = css.split(".visor-lienzo {")[1].split("}")[0]
+    assert "touch-action: none" in visor
+    assert "-webkit-touch-callout: none" in visor
+    assert "overscroll-behavior: contain" in visor
+    assert "touch-action: none" in lienzo
+    assert "pointer-events: none" in css.split(".visor-img {")[1].split("}")[0]
+
+
+def test_el_visor_explica_los_gestos():
+    html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
+    assert 'id="visor-pista"' in html
+    assert "Pellizca" in html
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert "pistaVisor" in js
+
+
+def test_en_celular_el_boton_ampliar_va_en_el_flujo():
+    """En iOS el boton flotante puede quedar fuera de pantalla; en movil va
+    dentro de la escena, junto al libro, como los controles del pie."""
+    css = _cliente().get(CARTA_RUTA_PUBLICA + "/css/estilo.css").text
+    bloques = css.split("@media (max-width: 820px)")
+    assert "position: static" in bloques[-1].split(".btn-zoom {")[1].split("}")[0]
+    assert ".escena" in bloques[1]
+
+
 def test_carta_tiene_selector_de_idioma():
     html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
     assert 'id="btn-idioma-es"' in html
