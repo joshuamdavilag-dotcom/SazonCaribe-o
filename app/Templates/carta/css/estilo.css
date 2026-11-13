@@ -282,6 +282,10 @@ body::after {
     width: min(94vw, calc((var(--alto-util) - 175px) * 2 / 3));
     aspect-ratio: 2 / 3;
     max-height: calc(var(--alto-util) - 175px);
+    /* En movil se usa box-shadow en vez de filter: drop-shadow: mismo dibujo,
+       pero el navegador deja de rasterizar el libro completo en cada frame. */
+    filter: none;
+    box-shadow: 0 26px 40px rgba(60, 40, 8, 0.32), 0 6px 12px rgba(60, 40, 8, 0.18);
   }
 
   .libro-marco::after { display: none; }
@@ -434,6 +438,9 @@ body.con-visor { overflow: hidden; }
     top: 50px;
     right: 12px;
     padding: 7px 12px 7px 9px;
+    background: var(--crema);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .visor-barra { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }

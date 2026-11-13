@@ -576,6 +576,14 @@ La carta pública **es un libro de páginas que se voltean, hecho solo de imáge
 - **Remontaje seguro**: `montarLibro()` reconstruye las hojas (`crearPaginas(rutasPaginas)` limpia `libroEl`) y re-engancha `#libro` a `.libro-marco` si `pageFlip.destroy()` lo sacó del DOM (StPageFlip hace `block.remove()`). Sin esto, un cambio de orientación creaba una instancia con **cero páginas** y lanzaba `pageerror: Cannot read properties of undefined (reading 'setDensity')`. El listener de `resize` además ignora eventos antes del primer montaje (`if (modoRetrato === null) return;`) y solo remonta al cruzar los 820 px.
 - **Pruebas**: `tests/test_entrada_sistema.py` verifica que el HTML sirva `#btn-zoom` + `#visor` oculto y que el motor exponga `pointerdown`/`pointermove`/`wheel`/`fijarEscala`. La verificación de comportamiento (escritorio, celular con doble toque, y remontaje al cambiar de tamaño) se hizo con Playwright + Edge headless y quedó en verde.
 
+**Rendimiento del libro en celulares (sin cambiar el dibujo)**: el volteo de StPageFlip es `clip-path` por frame, así que cualquier trabajo extra de pintado se nota en equipos modestos. Se aplicaron tres ajustes invisibles, **solo en móvil** (`@media (max-width: 820px)`):
+
+- `.libro-marco`: `filter: drop-shadow(…)` → `box-shadow` con los mismos valores (26px/40px + 6px/12px). El `filter` obligaba a rasterizar todo el libro en cada frame y anulaba el compositor rápido; el libro es un rectángulo, así que la silueta es la misma. Escritorio conserva el `filter` (ahí sí se aprecia el halo que sigue a la hoja mientras gira).
+- `.btn-zoom`: sin `backdrop-filter: blur(6px)` en móvil, con fondo `--crema` sólido (visualmente igual).
+- `menu-libro.js`: `predecodificarPaginas()` llama `img.decode()` sobre las hojas 60 ms después de montar, para que el primer volteo no pague la decodificación (era el tirón más notorio del primer uso).
+
+No se tocó nada de la animación: `flippingTime: 900`, `drawShadow`, `maxShadowOpacity`, `showPageCorners`, el pliegue curvo ni la resolución de las imágenes (1200×1800). Medido en headless con CPU frenada 6×, el coste de CPU/estilo sale **igual antes y después** porque el navegador sin pantalla no ejecuta el pintado que se optimizó; la verificación real es en el teléfono. Si un equipo de gama muy baja sigue trabando, las palancas que quedan (ninguna es invisible) son: `showPageCorners: false`, `flippingTime` más corto, imágenes `srcset` de 800w, o cambiar el motor a hojas `data-density="hard"`.
+
 **Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página.
 
 **Regenerar desde la base de datos**: el prototipo incluye `generar_paginas.py` (vive en el prototipo original, no en el repo), que consulta `/api/public/menu` y redibuja las hojas con las fotos reales.

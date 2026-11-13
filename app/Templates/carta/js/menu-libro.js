@@ -96,6 +96,18 @@
     libroEl.appendChild(fragmento);
   }
 
+  function predecodificarPaginas() {
+    var imagenes = libroEl.querySelectorAll("img");
+    for (var i = 0; i < imagenes.length; i++) {
+      var img = imagenes[i];
+      if (typeof img.decode !== "function") continue;
+      var pendiente = img.decode();
+      if (pendiente && typeof pendiente.catch === "function") {
+        pendiente.catch(function () {});
+      }
+    }
+  }
+
   function montarLibro() {
     if (!rutasPaginas.length) return;
 
@@ -146,6 +158,10 @@
     libroEl.classList.add("listo");
     btnZoom.disabled = false;
     if (overlay) overlay.classList.add("oculto");
+
+    /* Decodifica las hojas en segundo plano para que el primer volteo no
+       pague la decodificacion de la imagen. */
+    window.setTimeout(predecodificarPaginas, 60);
   }
 
   function pintarProgreso(indice) {
