@@ -54,3 +54,11 @@ class AuditoriaRepository:
             .limit(limit)
         ).scalars().all()
         return list(rows), total
+
+    def obtener_por_id(self, registro_id: int) -> RegistroAuditoria | None:
+        """Devuelve un registro de auditoría por su id (o ``None`` si no existe)."""
+        return self.db.get(RegistroAuditoria, registro_id)
+
+    def eliminar(self, registro: RegistroAuditoria) -> None:
+        """Marca el registro para borrado físico en la transacción en curso."""
+        self.db.delete(registro)

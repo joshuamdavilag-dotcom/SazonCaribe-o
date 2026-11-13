@@ -957,6 +957,7 @@
                   <th class="px-4 py-2">Acción</th>
                   <th class="px-4 py-2">Descripción</th>
                   <th class="px-4 py-2">Datos</th>
+                  <th class="px-4 py-2 admin-only">Acciones</th>
                 </tr>
               </thead>
               <tbody id="auditoria-tbody"></tbody>
@@ -2730,6 +2731,33 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancel-eliminar-gasto" style="flex:1;">Cancelar</button>
           <button type="button" class="btn btn-danger" id="confirm-del-gasto-btn" style="flex:1;">Eliminar Gasto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Eliminar registro de auditoría -->
+  <div id="modal-eliminar-auditoria" class="modal-overlay" aria-label="Eliminar registro de auditoría">
+    <div class="modal-sheet" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Borrar registro de auditoría</h3>
+        <button class="modal-close" id="close-eliminar-auditoria" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:0 20px 20px;">
+        <p style="font-size:14px;color:color-mix(in srgb, #991b1b var(--mix-ink-pct), var(--mix-ink-base));background:color-mix(in srgb, #fee2e2 var(--mix-surface-pct), var(--mix-surface-base));padding:12px 14px;border-radius:8px;margin-bottom:10px;">
+          Este registro se borra <strong>definitivamente</strong> del sistema. No se puede recuperar.
+        </p>
+        <p style="font-size:13px;color:color-mix(in srgb, #374151 var(--mix-ink-pct), var(--mix-ink-base));margin-bottom:16px;" id="del-auditoria-texto"></p>
+        <input type="hidden" id="del-auditoria-id">
+        <div class="form-group">
+          <label class="form-label" for="del-auditoria-motivo">Motivo del borrado <span style="color:color-mix(in srgb, #C54320 var(--mix-ink-pct), var(--mix-ink-base));">*</span></label>
+          <input type="text" id="del-auditoria-motivo" class="form-input" maxlength="255"
+                 placeholder="Ej: Registro con datos corruptos (solicitado por gerencia)" />
+          <p style="font-size:12px;color:color-mix(in srgb, #6b7280 var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">La bitácora guardará quién lo borró, cuándo y por qué (sin el contenido del registro).</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-eliminar-auditoria" style="flex:1;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirm-del-auditoria-btn" style="flex:1;">Borrar registro</button>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RegistroAuditoriaResponse(BaseModel):
@@ -27,3 +27,22 @@ class AuditoriaPageResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class EliminarAuditoriaRequest(BaseModel):
+    """Cuerpo para eliminar un registro de la bitácora."""
+
+    motivo: str = Field(
+        default="",
+        max_length=255,
+        description="Motivo obligatorio de la eliminación (queda en la bitácora)",
+    )
+
+
+class EliminarAuditoriaResponse(BaseModel):
+    """Resultado de la eliminación de un registro de auditoría."""
+
+    id: int
+    eliminado: bool
+    motivo: str
+    accion_eliminada: str

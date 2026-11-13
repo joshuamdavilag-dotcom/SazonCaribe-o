@@ -2326,7 +2326,7 @@ async function loadGastos() {
 async function loadAuditoria() {
   const tbody = document.getElementById('auditoria-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">Cargando bitácora…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">Cargando bitácora…</td></tr>';
   const params = new URLSearchParams({
     limit: String(state.auditLimit),
     offset: String(state.auditOffset),
@@ -2339,7 +2339,7 @@ async function loadAuditoria() {
     state.auditPage = await api(`/auditoria/?${params.toString()}`);
     renderAuditoria();
   } catch (error) {
-    tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-[#C54320]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-10 text-center text-[#C54320]">${escHtml(error.message || 'No se pudo cargar la bitácora')}</td></tr>`;
   }
 }
 
@@ -2358,7 +2358,7 @@ function renderAuditoria() {
   if (previous) previous.disabled = offset <= 0;
   if (next) next.disabled = offset + limit >= total;
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">No hay cambios registrados en este período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">No hay cambios registrados en este período.</td></tr>';
     return;
   }
   const labels = {
@@ -2372,6 +2372,7 @@ function renderAuditoria() {
     GASTO_EDITADO: 'Gasto modificado',
     GASTO_ELIMINADO: 'Gasto eliminado',
     TURNO_CERRADO_AUTOMATICAMENTE: 'Turno cerrado automáticamente',
+    AUDITORIA_ELIMINADA: 'Registro de auditoría borrado',
   };
   tbody.innerHTML = items.map(event => {
     const stamp = String(event.ocurrido_en || '').replace('T', ' ').slice(0, 16);
@@ -2381,8 +2382,50 @@ function renderAuditoria() {
       <td class="px-4 py-3 whitespace-nowrap"><span class="rounded-full bg-sky-50 text-sky-800 px-2 py-1 text-xs font-semibold">${escHtml(labels[event.accion] || event.accion)}</span></td>
       <td class="px-4 py-3 text-slate-700">${escHtml(event.descripcion)}</td>
       <td class="px-4 py-3">${renderAuditData(event.antes, event.despues)}</td>
+      <td class="px-4 py-3 admin-only whitespace-nowrap">
+        <button type="button" class="btn-action btn-action-danger" title="Borrar este registro de la bitácora"
+                data-borrar-auditoria="${event.id}">🗑️</button>
+      </td>
     </tr>`;
   }).join('');
+}
+
+function openEliminarAuditoria(id) {
+  const registro = (state.auditPage?.items || []).find(x => String(x.id) === String(id));
+  if (!registro) return showToast('No se encontró el registro de auditoría', 'warning');
+  const stamp = String(registro.ocurrido_en || '').replace('T', ' ').slice(0, 16);
+  document.getElementById('del-auditoria-id').value = registro.id;
+  document.getElementById('del-auditoria-texto').textContent =
+    `#${registro.id} · ${stamp} · ${registro.actor_username} · ${registro.accion}`;
+  document.getElementById('del-auditoria-motivo').value = '';
+  document.getElementById('modal-eliminar-auditoria')?.classList.add('show');
+}
+
+function closeEliminarAuditoriaModal() {
+  document.getElementById('modal-eliminar-auditoria')?.classList.remove('show');
+}
+
+async function confirmarEliminarAuditoria() {
+  const id = document.getElementById('del-auditoria-id').value;
+  const motivo = document.getElementById('del-auditoria-motivo').value.trim();
+  if (!motivo) return showToast('El motivo del borrado es obligatorio', 'warning');
+
+  const btn = document.getElementById('confirm-del-auditoria-btn');
+  btn.disabled = true;
+  btn.textContent = 'Borrando…';
+  try {
+    await api(`/auditoria/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ motivo }),
+    });
+    closeEliminarAuditoriaModal();
+    showToast('Registro de auditoría borrado', 'success');
+    loadAuditoria();
+  } catch { /* handled by api() */ }
+  finally {
+    btn.disabled = false;
+    btn.textContent = 'Borrar registro';
+  }
 }
 
 const AUDIT_FIELD_LABELS = {
@@ -11217,6 +11260,14 @@ document.addEventListener('DOMContentLoaded', () => {
     state.auditOffset += state.auditLimit;
     loadAuditoria();
   });
+  document.getElementById('auditoria-tbody')?.addEventListener('click', (event) => {
+    const boton = event.target.closest('[data-borrar-auditoria]');
+    if (!boton) return;
+    openEliminarAuditoria(boton.dataset.borrarAuditoria);
+  });
+  document.getElementById('close-eliminar-auditoria')?.addEventListener('click', closeEliminarAuditoriaModal);
+  document.getElementById('cancel-eliminar-auditoria')?.addEventListener('click', closeEliminarAuditoriaModal);
+  document.getElementById('confirm-del-auditoria-btn')?.addEventListener('click', confirmarEliminarAuditoria);
   document.getElementById('btn-nuevo-gasto')?.addEventListener('click', openGastosModal);
   document.getElementById('close-gasto-modal')?.addEventListener('click', closeGastosModal);
   document.getElementById('cancel-gasto-modal')?.addEventListener('click', closeGastosModal);
