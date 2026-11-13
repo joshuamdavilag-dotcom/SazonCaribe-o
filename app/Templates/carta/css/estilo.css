@@ -80,6 +80,46 @@ body::after {
   opacity: 0.75;
 }
 
+.idiomas {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  padding: 2px;
+  border: 1px solid rgba(91, 64, 12, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.idioma-btn {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: var(--cafe);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.idioma-btn:hover { opacity: 0.85; }
+
+.idioma-btn[aria-pressed="true"] {
+  background: var(--cafe);
+  color: var(--crema);
+  opacity: 1;
+}
+
+.idioma-btn:focus-visible {
+  outline: 2px solid var(--camaron);
+  outline-offset: 2px;
+}
+
 /* ---------- escena y libro ---------- */
 
 .escena {
@@ -293,6 +333,8 @@ body::after {
   .pista { display: none; }
 
   .cabecera .lema, .cabecera .separador { display: none; }
+
+  .cabecera .idiomas { margin-left: 0; }
 
   .barra { width: 64px; }
 }

@@ -584,7 +584,15 @@ La carta pública **es un libro de páginas que se voltean, hecho solo de imáge
 
 No se tocó nada de la animación: `flippingTime: 900`, `drawShadow`, `maxShadowOpacity`, `showPageCorners`, el pliegue curvo ni la resolución de las imágenes (1200×1800). Medido en headless con CPU frenada 6×, el coste de CPU/estilo sale **igual antes y después** porque el navegador sin pantalla no ejecuta el pintado que se optimizó; la verificación real es en el teléfono. Si un equipo de gama muy baja sigue trabando, las palancas que quedan (ninguna es invisible) son: `showPageCorners: false`, `flippingTime` más corto, imágenes `srcset` de 800w, o cambiar el motor a hojas `data-density="hard"`.
 
-**Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página.
+**Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página. Lo mismo aplica a `paginas/en/NN.webp` (versión en inglés, misma cantidad de hojas).
+
+**Carta en inglés (segunda colección de páginas)**: el libro no tiene texto en vivo, así que el idioma se resuelve con **una colección paralela de imágenes** en `app/Templates/carta/paginas/en/01.webp … 11.webp`, generadas con el mismo diseño y las mismas fotos.
+
+- **Selector**: `#btn-idioma-es` / `#btn-idioma-en` (`.idiomas` en la cabecera, `aria-pressed` marca el activo). Cambia `RUTA_PAGINAS` a `paginas/en/`, reconstruye las hojas, remonta el libro **conservando la página actual** (`getCurrentPageIndex()` → `turnToPage()`) y actualiza los textos de interfaz (`TEXTOS` en `menu-libro.js`): lema, botón Ampliar, pista, títulos/aria del visor, `alt` de cada hoja, `document.title` y `document.documentElement.lang`.
+- **Persistencia y enlace directo**: la elección se guarda en `localStorage` (`carta_idioma`); `?idioma=en` abre la carta directamente en inglés (se aplica sin pisar la preferencia guardada hasta que el usuario pulsa el selector).
+- **Respaldo**: si `paginas/en/01.webp` no existe, el motor arranca en español y el botón EN no cambia nada (nunca queda un libro vacío).
+- **Generación**: `python -X utf8 generar_paginas.py --idioma en` (en el prototipo del escritorio) consulta `/api/public/menu`, aplica `traducciones.json` (clave = nombre en español sin emojis) y escribe en `paginas/en/`. Sin el archivo de traducciones el script se detiene con un mensaje explícito; un plato sin traducción conserva su nombre original y se lista en el log.
+- **Alcance**: se traducen nombres, descripciones, títulos de sección, portada, contraportada y el pie; la marca `SAZÓN CARIBEÑO` y la moneda `C$` se mantienen. Los precios salen de la misma API, así que ambas versiones siempre coinciden.
 
 **Regenerar desde la base de datos**: el prototipo incluye `generar_paginas.py` (vive en el prototipo original, no en el repo), que consulta `/api/public/menu` y redibuja las hojas con las fotos reales.
 

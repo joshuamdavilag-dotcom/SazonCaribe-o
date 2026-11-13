@@ -15,7 +15,11 @@
   <header class="cabecera">
     <span class="marca">SAZÓN CARIBEÑO</span>
     <span class="separador"></span>
-    <span class="lema">Cocina del Caribe</span>
+    <span id="lema" class="lema">Cocina del Caribe</span>
+    <div class="idiomas" role="group" aria-label="Idioma de la carta">
+      <button id="btn-idioma-es" class="idioma-btn" type="button" lang="es" aria-pressed="true" title="Ver la carta en español">ES</button>
+      <button id="btn-idioma-en" class="idioma-btn" type="button" lang="en" aria-pressed="false" title="View the menu in English">EN</button>
+    </div>
   </header>
 
   <main class="escena">
@@ -25,7 +29,7 @@
         <path d="M16 16 L21 21" />
         <path d="M11 8.5 V13.5 M8.5 11 H13.5" />
       </svg>
-      <span>Ampliar</span>
+      <span id="btn-zoom-texto">Ampliar</span>
     </button>
 
     <div class="libro-marco">
@@ -54,7 +58,7 @@
     </button>
   </footer>
 
-  <p class="pista">Arrastra la esquina de la hoja · usa ← → · toca <b>Ampliar</b> para leer de cerca</p>
+  <p id="pista" class="pista">Arrastra la esquina de la hoja · usa ← → · toca <b>Ampliar</b> para leer de cerca</p>
 
   <div id="visor" class="visor" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Página ampliada del menú">
     <div class="visor-barra">

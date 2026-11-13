@@ -1,14 +1,76 @@
 (function () {
   "use strict";
 
-  var RUTA_PAGINAS = "paginas/";
+  var RUTA_PAGINAS_ES = "paginas/";
+  var RUTA_PAGINAS_EN = "paginas/en/";
+  var RUTA_PAGINAS = RUTA_PAGINAS_ES;
   var EXTENSIONES = ["webp", "jpg", "jpeg", "png"];
   var MAX_PAGINAS = 40;
   var BREAKPOINT_MOVIL = 820;
+  var CLAVE_IDIOMA = "carta_idioma";
+
+  var TEXTOS = {
+    es: {
+      titulo: "Sazón Caribeño — Menú",
+      lema: "Cocina del Caribe",
+      ampliar: "Ampliar",
+      ampliarAria: "Ampliar la página para leer mejor",
+      ampliarTitle: "Ampliar la página",
+      preparando: "Preparando el menú…",
+      libroAria: "Menú digital, libro de páginas",
+      pista: "Arrastra la esquina de la hoja · usa ← → · toca <b>Ampliar</b> para leer de cerca",
+      visorAria: "Página ampliada del menú",
+      cerrarAria: "Cerrar y volver al libro",
+      cerrarTitle: "Cerrar (Esc)",
+      anteriorAria: "Página anterior",
+      anteriorTitle: "Página anterior (←)",
+      siguienteAria: "Página siguiente",
+      siguienteTitle: "Página siguiente (→)",
+      alejarAria: "Alejar",
+      acercarAria: "Acercar",
+      normalAria: "Tamaño normal",
+      pagina: "Página",
+      de: "de",
+      altPagina: function (n) { return "Página " + n + " del menú"; },
+      altPaginaAmpliada: function (n) { return "Página " + n + " del menú, ampliada"; }
+    },
+    en: {
+      titulo: "Sazón Caribeño — Menu",
+      lema: "Caribbean Cuisine",
+      ampliar: "Zoom in",
+      ampliarAria: "Enlarge the page to read it more easily",
+      ampliarTitle: "Enlarge the page",
+      preparando: "Preparing the menu…",
+      libroAria: "Digital menu, book of pages",
+      pista: "Drag the corner of the page · use ← → · tap <b>Zoom in</b> to read closely",
+      visorAria: "Enlarged page of the menu",
+      cerrarAria: "Close and return to the book",
+      cerrarTitle: "Close (Esc)",
+      anteriorAria: "Previous page",
+      anteriorTitle: "Previous page (←)",
+      siguienteAria: "Next page",
+      siguienteTitle: "Next page (→)",
+      alejarAria: "Zoom out",
+      acercarAria: "Zoom in",
+      normalAria: "Normal size",
+      pagina: "Page",
+      de: "of",
+      altPagina: function (n) { return "Menu page " + n; },
+      altPaginaAmpliada: function (n) { return "Menu page " + n + ", enlarged"; }
+    }
+  };
+
+  var idioma = "es";
 
   var libroEl = document.getElementById("libro");
   var libroMarcoEl = libroEl.parentNode;
   var overlay = document.getElementById("cargando");
+  var overlayTexto = overlay ? overlay.querySelector("p") : null;
+  var lemaEl = document.getElementById("lema");
+  var pistaEl = document.getElementById("pista");
+  var btnZoomTexto = document.getElementById("btn-zoom-texto");
+  var btnIdiomaEs = document.getElementById("btn-idioma-es");
+  var btnIdiomaEn = document.getElementById("btn-idioma-en");
   var paginaActualEl = document.getElementById("pagina-actual");
   var paginaTotalEl = document.getElementById("pagina-total");
   var barraEl = document.getElementById("barra-progreso");
@@ -79,6 +141,98 @@
     return lista;
   }
 
+  function marcarIdioma() {
+    if (btnIdiomaEs) btnIdiomaEs.setAttribute("aria-pressed", idioma === "es" ? "true" : "false");
+    if (btnIdiomaEn) btnIdiomaEn.setAttribute("aria-pressed", idioma === "en" ? "true" : "false");
+  }
+
+  function aplicarTextos() {
+    var t = TEXTOS[idioma];
+    document.documentElement.lang = idioma;
+    document.title = t.titulo;
+
+    if (lemaEl) lemaEl.textContent = t.lema;
+    if (pistaEl) pistaEl.innerHTML = t.pista;
+    if (overlayTexto) overlayTexto.textContent = t.preparando;
+
+    btnZoom.setAttribute("aria-label", t.ampliarAria);
+    btnZoom.title = t.ampliarTitle;
+    if (btnZoomTexto) btnZoomTexto.textContent = t.ampliar;
+
+    libroEl.setAttribute("aria-label", t.libroAria);
+    visor.setAttribute("aria-label", t.visorAria);
+
+    visorCerrar.setAttribute("aria-label", t.cerrarAria);
+    visorCerrar.title = t.cerrarTitle;
+    visorAnterior.setAttribute("aria-label", t.anteriorAria);
+    visorAnterior.title = t.anteriorTitle;
+    visorSiguiente.setAttribute("aria-label", t.siguienteAria);
+    visorSiguiente.title = t.siguienteTitle;
+    visorMenos.setAttribute("aria-label", t.alejarAria);
+    visorMas.setAttribute("aria-label", t.acercarAria);
+    visorReset.setAttribute("aria-label", t.normalAria);
+  }
+
+  function idiomaInicial() {
+    var parametro = null;
+    try {
+      parametro = new URLSearchParams(window.location.search).get("idioma");
+    } catch (error) {
+      parametro = null;
+    }
+    if (parametro === "es" || parametro === "en") return parametro;
+    try {
+      var guardado = window.localStorage.getItem(CLAVE_IDIOMA);
+      if (guardado === "es" || guardado === "en") return guardado;
+    } catch (error) {
+      /* almacenamiento no disponible */
+    }
+    return "es";
+  }
+
+  async function cambiarIdioma(nuevo, guardar) {
+    if (nuevo !== "es" && nuevo !== "en") return;
+    if (nuevo === idioma && rutasPaginas.length) return;
+
+    if (nuevo === "en" && !(await existeImagen(RUTA_PAGINAS_EN + "01.webp"))) {
+      marcarIdioma();
+      return;
+    }
+
+    var indice = 0;
+    try {
+      if (pageFlip && typeof pageFlip.getCurrentPageIndex === "function") {
+        indice = pageFlip.getCurrentPageIndex() || 0;
+      }
+    } catch (error) {
+      indice = 0;
+    }
+
+    idioma = nuevo;
+    RUTA_PAGINAS = idioma === "en" ? RUTA_PAGINAS_EN : RUTA_PAGINAS_ES;
+    if (guardar !== false) {
+      try {
+        window.localStorage.setItem(CLAVE_IDIOMA, idioma);
+      } catch (error) {
+        /* almacenamiento no disponible */
+      }
+    }
+    marcarIdioma();
+    aplicarTextos();
+
+    var rutas = await descubrirPaginas();
+    if (!rutas.length) return;
+    totalPaginas = rutas.length;
+    rutasPaginas = rutas;
+    montarLibro();
+
+    var destino = Math.min(indice, totalPaginas - 1);
+    if (destino > 0 && pageFlip) {
+      pageFlip.turnToPage(destino);
+      pintarProgreso(destino);
+    }
+  }
+
   function crearPaginas(rutas) {
     libroEl.innerHTML = "";
     var fragmento = document.createDocumentFragment();
@@ -87,7 +241,7 @@
       hoja.className = "page" + (indice === 0 ? " page--tapa" : "");
       var img = document.createElement("img");
       img.src = ruta;
-      img.alt = "Página " + (indice + 1) + " del menú";
+      img.alt = TEXTOS[idioma].altPagina(indice + 1);
       img.decoding = "async";
       img.draggable = false;
       hoja.appendChild(img);
@@ -205,10 +359,11 @@
 
   function cargarPagina(indice) {
     if (!rutasPaginas.length) return;
+    var t = TEXTOS[idioma];
     indiceVisor = Math.min(rutasPaginas.length - 1, Math.max(0, indice));
     visorImg.src = rutasPaginas[indiceVisor];
-    visorImg.alt = "Página " + (indiceVisor + 1) + " del menú, ampliada";
-    visorTitulo.textContent = "Página " + (indiceVisor + 1) + " de " + totalPaginas;
+    visorImg.alt = t.altPaginaAmpliada(indiceVisor + 1);
+    visorTitulo.textContent = t.pagina + " " + (indiceVisor + 1) + " " + t.de + " " + totalPaginas;
     escala = 1;
     panX = 0;
     panY = 0;
@@ -353,6 +508,13 @@
   btnNext.addEventListener("click", siguiente);
   btnPrev.addEventListener("click", anterior);
 
+  if (btnIdiomaEs) {
+    btnIdiomaEs.addEventListener("click", function () { cambiarIdioma("es", true); });
+  }
+  if (btnIdiomaEn) {
+    btnIdiomaEn.addEventListener("click", function () { cambiarIdioma("en", true); });
+  }
+
   document.addEventListener("keydown", function (e) {
     if (!visor.hidden) return;
     if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
@@ -380,13 +542,26 @@
   });
 
   async function iniciar() {
+    idioma = idiomaInicial();
+    RUTA_PAGINAS = idioma === "en" ? RUTA_PAGINAS_EN : RUTA_PAGINAS_ES;
+
+    if (idioma === "en" && !(await existeImagen(RUTA_PAGINAS_EN + "01.webp"))) {
+      idioma = "es";
+      RUTA_PAGINAS = RUTA_PAGINAS_ES;
+    }
+
+    marcarIdioma();
+    aplicarTextos();
+
     var rutas = await descubrirPaginas();
 
     if (!rutas.length) {
       if (overlay) {
-        overlay.innerHTML =
-          '<p style="max-width:340px;text-align:center">No encontré imágenes.<br>' +
-          "Coloca <b>01.webp</b>, <b>02.webp</b>, <b>03.webp</b>… dentro de la carpeta <b>paginas/</b>.</p>";
+        overlay.innerHTML = idioma === "en"
+          ? '<p style="max-width:340px;text-align:center">No page images found.<br>' +
+            "Place <b>01.webp</b>, <b>02.webp</b>, <b>03.webp</b>… inside the <b>paginas/</b> folder.</p>"
+          : '<p style="max-width:340px;text-align:center">No encontré imágenes.<br>' +
+            "Coloca <b>01.webp</b>, <b>02.webp</b>, <b>03.webp</b>… dentro de la carpeta <b>paginas/</b>.</p>";
       }
       return;
     }

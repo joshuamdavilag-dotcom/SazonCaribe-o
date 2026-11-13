@@ -68,6 +68,29 @@ def test_el_motor_del_libro_maneja_pellizco_y_rueda():
     assert "fijarEscala" in js
 
 
+def test_carta_tiene_selector_de_idioma():
+    html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
+    assert 'id="btn-idioma-es"' in html
+    assert 'id="btn-idioma-en"' in html
+    assert 'aria-pressed="true"' in html.split('id="btn-idioma-es"')[1][:120]
+
+
+def test_carta_sirve_las_paginas_en_ingles():
+    cliente = _cliente()
+    for numero in ("01", "11"):
+        respuesta = cliente.get(CARTA_RUTA_PUBLICA + f"/paginas/en/{numero}.webp")
+        assert respuesta.status_code == 200
+        assert respuesta.headers["cache-control"] == "public, max-age=604800"
+
+
+def test_el_motor_del_libro_cambia_de_idioma():
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert "paginas/en/" in js
+    assert "cambiarIdioma" in js
+    assert "carta_idioma" in js
+    assert "idioma" in js
+
+
 def test_carta_no_redirige_al_sistema():
     """La carta y el sistema son entradas independientes."""
     html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
