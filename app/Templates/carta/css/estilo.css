@@ -419,16 +419,16 @@ body::after {
   display: flex;
   align-items: baseline;
   gap: 0;
-  height: 64px;
+  min-height: 64px;
+  padding: 6px 0;
   min-width: 0;
 }
 
 .h-item-nombre {
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.15;
   font-size: 26px;
   color: var(--cafe);
 }

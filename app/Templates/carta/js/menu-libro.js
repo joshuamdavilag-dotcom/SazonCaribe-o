@@ -135,6 +135,7 @@
 
   var colaFotos = [];
   var fotosEnCurso = 0;
+  var generacionFotos = 0;
 
   var ESCALA_MIN = 1;
   var ESCALA_MAX = 4;
@@ -347,33 +348,62 @@
 
   /* ---------- fotos (carga progresiva) ---------- */
 
+  /* La cola se llena mientras las hojas se construyen (todavia dentro del
+     medidor). Al pasar las hojas a las paginas quedan desconectadas un
+     instante; una celda desconectada NO se descarta: se devuelve al final y
+     se reintenta cuando el libro ya esta montado. Descartarlas dejaba 44 de
+     57 fotos sin cargar. */
   function procesarColaFotos() {
+    var saltadas = 0;
     while (fotosEnCurso < MAX_FOTOS_SIMULTANEAS && colaFotos.length > 0) {
-      iniciarFoto(colaFotos.shift());
+      var celda = colaFotos.shift();
+      var url = celda.getAttribute("data-foto");
+      var img = celda.querySelector("img");
+      if (!url || !img || celda.classList.contains("con-foto")) {
+        saltadas = 0;
+        continue;
+      }
+      if (!celda.isConnected) {
+        colaFotos.push(celda);
+        saltadas += 1;
+        if (saltadas >= colaFotos.length) break;
+        continue;
+      }
+      saltadas = 0;
+      iniciarFoto(celda, img, url);
     }
   }
 
-  function iniciarFoto(celda) {
-    if (!celda || !celda.isConnected || celda.classList.contains("con-foto")) {
-      procesarColaFotos();
-      return;
-    }
-    var url = celda.getAttribute("data-foto");
-    var img = celda.querySelector("img");
-    if (!url || !img) {
-      procesarColaFotos();
-      return;
-    }
+  function iniciarFoto(celda, img, url) {
     celda.removeAttribute("data-foto");
     fotosEnCurso += 1;
-    img.onload = function () {
-      fotosEnCurso -= 1;
-      celda.classList.add("con-foto");
+
+    var generacion = generacionFotos;
+    var terminar = function (cargada) {
+      if (generacion !== generacionFotos) return;
+      fotosEnCurso = Math.max(0, fotosEnCurso - 1);
+      if (cargada) celda.classList.add("con-foto");
       procesarColaFotos();
     };
+
+    img.onload = function () { terminar(true); };
     img.onerror = function () {
-      fotosEnCurso -= 1;
-      procesarColaFotos();
+      /* Un reintento con cache aparte: los CDN de imagenes fallan de forma
+         transitoria y antes la foto quedaba en blanco para siempre. */
+      if (!celda.hasAttribute("data-reintento")) {
+        celda.setAttribute("data-reintento", "1");
+        celda.setAttribute(
+          "data-foto",
+          url + (url.indexOf("?") === -1 ? "?" : "&") + "reintento=1"
+        );
+        if (generacion === generacionFotos) {
+          fotosEnCurso = Math.max(0, fotosEnCurso - 1);
+          img.removeAttribute("src");
+          procesarColaFotos();
+        }
+        return;
+      }
+      terminar(false);
     };
     img.src = url;
   }
@@ -384,6 +414,7 @@
   }
 
   function limpiarColaFotos() {
+    generacionFotos += 1;
     colaFotos = [];
     fotosEnCurso = 0;
   }
@@ -566,7 +597,13 @@
     return cuerpo.scrollHeight > cuerpo.clientHeight + 1;
   }
 
-  function usaListaCompacta(items) {
+  var CATEGORIAS_SIN_FOTO = ["bebida", "extra", "acompan"];
+
+  function usaListaCompacta(items, nombre) {
+    var clave = normalizar(nombre);
+    for (var i = 0; i < CATEGORIAS_SIN_FOTO.length; i++) {
+      if (clave.indexOf(CATEGORIAS_SIN_FOTO[i]) !== -1) return true;
+    }
     var conFoto = 0;
     items.forEach(function (item) { if (item.imagen_url) conFoto += 1; });
     return conFoto * 2 < items.length;
@@ -611,52 +648,80 @@
   }
 
   function construirHojasContenido(grupos) {
-    var bloques = grupos.map(function (grupo) {
-      return {
-        titulo: nombreCategoria(grupo),
-        items: grupo.items,
-        compacta: usaListaCompacta(grupo.items)
-      };
+    /* Las categorias sin foto (bebidas, extras) van como una sola lista
+       continua: comparten hojas y solo se separan con un subtitulo. */
+    var bloques = [];
+    grupos.forEach(function (grupo) {
+      var titulo = nombreCategoria(grupo);
+      var compacta = usaListaCompacta(grupo.items, grupo.nombre);
+      var anterior = bloques[bloques.length - 1];
+      if (compacta && anterior && anterior.compacta) {
+        anterior.partes.push({ titulo: titulo, items: grupo.items });
+        return;
+      }
+      bloques.push({
+        titulo: titulo,
+        compacta: compacta,
+        partes: [{ titulo: titulo, items: grupo.items }]
+      });
     });
 
     var medidor = obtenerMedidor();
     var hojas = [];
     var capacidades = { fila: medirCapacidad(false), lista: medirCapacidad(true) };
-    var indice = 0;
 
-    while (indice < bloques.length) {
-      var compacta = bloques[indice].compacta;
-      var capacidad = compacta ? capacidades.lista : capacidades.fila;
-      var totalItems = bloques[indice].items.length;
+    var indiceBloque = 0;
+    while (indiceBloque < bloques.length) {
+      var bloque = bloques[indiceBloque];
+      var capacidad = bloque.compacta ? capacidades.lista : capacidades.fila;
+
+      var filas = [];
+      bloque.partes.forEach(function (parte, indiceParte) {
+        var primeraDeParte = true;
+        parte.items.forEach(function (item) {
+          filas.push({ item: item, parte: indiceParte, primera: primeraDeParte });
+          primeraDeParte = false;
+        });
+      });
+
+      var total = filas.length;
 
       /* Reparto parejo: un platillo suelto en una hoja propia se ve como un
          error, asi que 9 platos van 5 + 4 y no 7 + 2. */
-      var paginas = Math.ceil(totalItems / capacidad);
-      var porHoja = Math.ceil(totalItems / paginas);
+      var paginas = Math.ceil(total / capacidad);
+      var porHoja = Math.ceil(total / paginas);
 
       var desde = 0;
-      var primera = true;
 
-      while (desde < totalItems) {
-        var bloque = bloques[indice];
+      while (desde < total) {
+        var corte = Math.min(total, desde + porHoja);
+        var parteInicial = filas[desde].parte;
+        var subtituloInicial = bloque.compacta && bloque.partes.length === 1 &&
+          normalizar(bloque.titulo).indexOf("extra") !== -1
+          ? TEXTOS[idioma].extrasSub
+          : null;
+
         var hoja = nuevaHojaContenido(
-          bloque.titulo,
-          primera && compacta ? TEXTOS[idioma].extrasSub : null
+          bloque.partes[parteInicial].titulo,
+          parteInicial === 0 ? subtituloInicial : null
         );
         medidor.appendChild(hoja);
 
         var cuerpo = hoja.querySelector(".h-cuerpo");
         var contenedor = cuerpo;
-        if (compacta) {
+        if (bloque.compacta) {
           contenedor = document.createElement("div");
-          contenedor.className = "h-lista" + (bloque.items.length <= 3 ? " una" : "");
+          contenedor.className = "h-lista" + (total <= 3 ? " una" : "");
           cuerpo.appendChild(contenedor);
         }
 
-        var corte = Math.min(totalItems, desde + porHoja);
         for (var k = desde; k < corte; k++) {
+          var filaInfo = filas[k];
+          if (filaInfo.primera && filaInfo.parte !== parteInicial) {
+            contenedor.appendChild(crearSubtitulo(bloque.partes[filaInfo.parte].titulo));
+          }
           contenedor.appendChild(
-            compacta ? filaCompacta(bloque.items[k]) : filaFoto(bloque.items[k])
+            bloque.compacta ? filaCompacta(filaInfo.item) : filaFoto(filaInfo.item)
           );
         }
 
@@ -665,16 +730,24 @@
         while (sobrepasa(cuerpo) && corte - desde > 1) {
           contenedor.removeChild(contenedor.lastChild);
           corte -= 1;
+          if (contenedor.lastElementChild &&
+              contenedor.lastElementChild.classList.contains("h-subtitulo")) {
+            contenedor.removeChild(contenedor.lastElementChild);
+          }
         }
 
         hojas.push(hoja);
         desde = corte;
-        primera = false;
-        if (desde >= totalItems) break;
+        if (desde >= total) break;
       }
 
-      /* Una seccion se encadena bajo el subtitulo de la anterior solo si
-         entra COMPLETA: nunca se parte despues de haberla anunciado. */
+      /* Una seccion con foto se encadena bajo el subtitulo de la anterior
+         solo si entra COMPLETA: nunca se parte despues de haberla anunciado. */
+      if (bloque.compacta) {
+        indiceBloque += 1;
+        continue;
+      }
+
       var ultima = hojas[hojas.length - 1];
       var cuerpoUltima = ultima.querySelector(".h-cuerpo");
       var contenedorUltima = cuerpoUltima.lastElementChild &&
@@ -682,29 +755,31 @@
         ? cuerpoUltima.lastElementChild
         : cuerpoUltima;
 
-      while (indice + 1 < bloques.length) {
-        var siguiente = bloques[indice + 1];
-        if (siguiente.compacta !== compacta) break;
-        if (siguiente.items.length > capacidad) break;
+      var siguienteIndice = indiceBloque + 1;
+      while (siguienteIndice < bloques.length) {
+        var siguiente = bloques[siguienteIndice];
+        if (siguiente.compacta) break;
+        if (siguiente.partes.length !== 1) break;
+        if (siguiente.partes[0].items.length > capacidad) break;
 
         var subtitulo = crearSubtitulo(siguiente.titulo);
-        var filas = siguiente.items.map(function (item) {
-          return compacta ? filaCompacta(item) : filaFoto(item);
+        var filasSiguiente = siguiente.partes[0].items.map(function (item) {
+          return filaFoto(item);
         });
 
         contenedorUltima.appendChild(subtitulo);
-        filas.forEach(function (fila) { contenedorUltima.appendChild(fila); });
+        filasSiguiente.forEach(function (fila) { contenedorUltima.appendChild(fila); });
 
         if (sobrepasa(cuerpoUltima)) {
           contenedorUltima.removeChild(subtitulo);
-          filas.forEach(function (fila) { contenedorUltima.removeChild(fila); });
+          filasSiguiente.forEach(function (fila) { contenedorUltima.removeChild(fila); });
           break;
         }
 
-        indice += 1;
+        siguienteIndice += 1;
       }
 
-      indice += 1;
+      indiceBloque = siguienteIndice;
     }
 
     return hojas;
@@ -935,6 +1010,7 @@
     });
 
     pageFlip.loadFromHTML(libroEl.querySelectorAll(".page"));
+    procesarColaFotos();
     pageFlip.on("flip", function (evento) {
       pintarProgreso(evento.data);
       ajustarEscalaHojas();
