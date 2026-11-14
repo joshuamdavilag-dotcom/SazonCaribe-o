@@ -26,6 +26,12 @@ class CategoriaMenu(Base):
         String(200),
         nullable=True
     )
+    # Nombre en inglés para la Carta Digital (fallback: nombre en español).
+    nombre_en: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Nombre de la categoría en inglés (Carta Digital)"
+    )
 
     # Relación uno-a-muchos con MenuItem (carga diferida: nadie la consume y
     # con selectin cada listado de categorías traía todos los platos).
@@ -57,6 +63,18 @@ class MenuItem(Base):
     descripcion: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True
+    )
+    # Traducción al inglés para la Carta Digital. Si están vacíos, la carta
+    # muestra el texto en español (nunca queda un plato sin nombre).
+    nombre_en: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Nombre del plato en inglés (Carta Digital)"
+    )
+    descripcion_en: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Descripción del plato en inglés (Carta Digital)"
     )
     precio: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),

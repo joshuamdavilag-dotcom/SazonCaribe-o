@@ -157,13 +157,15 @@ app/
 │   ├── extraccion_texto.py       # Extrae texto de PDF/DOC/DOCX/XLS/XLSX/CSV para el análisis
 │   └── analitica_service.py
 ├── db/
-│   └── init_db.py
+│   ├── init_db.py
+│   ├── traducciones.py           # Siembra inicial de traducciones EN de la Carta (solo campos vacíos)
+│   └── traducciones_carta.json   # Catálogo de partida (68 platos + categorías) — no es fuente de verdad
 ├── Templates/
 │   ├── index.html
 │   ├── css/style.css
 │   ├── js/app.js                 # POS SPA, calendario mensual y detalle diario; órdenes con POST /ordenes/{id}/items; push (suscripción + deep links)
 │   ├── sw.js                     # Service Worker de Web Push (scope /Templates/) — push + notificationclick
-│   └── carta/                    # Carta Digital pública (sin auth): index.html, css/style.css, js/app.js, img/ (hero, logos, placeholder) + img/platos/ (imágenes subidas por el ERP)
+│   └── carta/                    # Carta Digital pública (sin auth): index.html, css/estilo.css, js/menu-libro.js (libro dinámico), vendor/page-flip.browser.js, img/ (logos, placeholder, platos legacy)
 ├── docs/
 │   └── CALENDARIO.md             # Guía funcional y técnica completa del calendario
 └── tests/
@@ -550,57 +552,70 @@ Endpoints de solo lectura **consumidos por la Carta Digital** (menú público pa
 - `GET /api/public/menu/{categoria_id}` → platos disponibles filtrados por categoría (id, `gt=0`)
 - `GET /api/public/item/{item_id}` → plato disponible por id (404 si no existe o no está disponible)
 
-**Seguridad**: los endpoints públicos NUNCA exponen costos, recetas/insumos, inventario interno, usuarios ni roles. `MenuItemPublicoResponse` y `CategoriaMenuPublicaResponse` (en `app/schemas/menu_publico.py`) solo serializan `id`, `nombre`, `descripcion`, `precio`, `disponible`, `imagen_url`, `tiempo_preparacion`, `categoria`. La lógica reutilizable vive en `MenuService`/`MenuRepository`:
+**Seguridad**: los endpoints públicos NUNCA exponen costos, recetas/insumos, inventario interno, usuarios ni roles. `MenuItemPublicoResponse` y `CategoriaMenuPublicaResponse` (en `app/schemas/menu_publico.py`) solo serializan `id`, `nombre`, `nombre_en`, `descripcion`, `descripcion_en`, `precio`, `disponible`, `imagen_url`, `tiempo_preparacion`, `categoria`. La lógica reutilizable vive en `MenuService`/`MenuRepository`:
 
 - `MenuRepository._query_items_base(incluir_insumos)` — consulta base compartida; `incluir_insumos=False` NO carga recetas/insumos (uso público)
 - `MenuRepository.obtener_items_publicos(categoria_id=None)` / `obtener_item_publico_por_id(item_id)` — solo platos `disponible=True`
 - `MenuService.obtener_menu_publico()` / `obtener_categorias_publicas()` / `obtener_item_publico_por_id()` — reutilizan los repos públicos
 - Router `app/api/endpoints/menu_publico.py` registrado en `main.py` bajo prefijo `/api/public`
 
-### Carta Digital — libro de imágenes (vigente)
+### Carta Digital — libro dinámico conectado al menú (vigente)
 
-La carta pública **es un libro de páginas que se voltean, hecho solo de imágenes** (prototipo aprobado, ahora servido por el sistema). No consume la API pública en tiempo de ejecución: se actualiza reemplazando las imágenes.
+La carta pública **es un libro de páginas que se voltean, dibujado en el navegador** con los datos reales del menú. Ya **no son imágenes fijas**: el motor pide `GET /api/public/menu` y `GET /api/public/categories` al cargar, así que crear, editar, ocultar o borrar un platillo en **Gestión de Menú** se refleja en la carta sin regenerar nada ni subir fotos.
 
-- `app/Templates/carta/index.html` — estructura del libro: cabecera (`SAZÓN CARIBEÑO` + lema), `#libro` (`data-paginas="11"`), overlay de carga `#cargando`, controles `#btn-prev` / `#btn-next`, progreso `#pagina-actual` / `#barra-progreso` / `#pagina-total` y la pista de uso.
-- `app/Templates/carta/css/estilo.css` — diseño del libro con la paleta de la marca (Camarón `#C54320`, Verde `#006b33`, Amarillo `#F1E246`, Café `#5b400c`, crema `#f7f1e4`), sombra del lomo (`.libro-marco::after`), controles circulares y `@media (max-width: 820px)` para móvil.
-- `app/Templates/carta/js/menu-libro.js` — motor: `descubrirPaginas()` usa `data-paginas` si está presente; si no, prueba `01.webp … 40.webp` con `.webp/.jpg/.jpeg/.png` hasta el primer hueco. Monta `new St.PageFlip(...)` en modo doble página en escritorio y una sola página (`usePortrait`) por debajo de `BREAKPOINT_MOVIL = 820`. Teclado: ← →, Inicio/Fin, Espacio.
+- `app/Templates/carta/index.html` — estructura: cabecera (`SAZÓN CARIBEÑO` + lema), selector de idioma `#btn-idioma-es` / `#btn-idioma-en`, `#libro` (sin `data-paginas` ni preload), overlay de carga `#cargando`, controles `#btn-prev` / `#btn-next`, progreso `#pagina-actual` / `#barra-progreso` / `#pagina-total`, pista de uso y el visor de zoom.
+- `app/Templates/carta/css/estilo.css` — paleta de la marca (Camarón `#C54320`, Verde `#006b33`, Amarillo `#F1E246`, Café `#5b400c`, crema `#f7f1e4`), sombra del lomo (`.libro-marco::after`), estilos de hoja (`.hoja`, `.h-titulo`, `.h-fila`, `.h-lista`, `.h-item`, portada/contra), visor y `@media (max-width: 820px)`.
+- `app/Templates/carta/js/menu-libro.js` — motor completo (ver abajo).
 - `app/Templates/carta/vendor/page-flip.browser.js` — StPageFlip (MIT), vendorizado, sin CDN.
-- `app/Templates/carta/paginas/01.webp … 11.webp` — las hojas (~1 MB en total; 2:3 vertical). La primera es portada y va sola.
-- Archivos de la carta anterior (SPA con `css/style.css`, `js/app.js`, `img/hero-*.jpg`) quedan en el directorio pero **ya no los carga nadie**; se conservan solo como respaldo histórico.
+- `app/Templates/carta/img/` — fotos locales de respaldo (`placeholder`, logos). Las fotos de los platos vienen de `imagen_url` (ImgBB) del menú; **no borrar** `img/`: `tests/test_carta.py` verifica que las rutas legacy `/carta/img/platos/` sigan resolviendo.
+- Se eliminó `app/Templates/carta/paginas/` (la colección de WebP ya no se carga) y los archivos de la SPA anterior (`css/style.css`, `js/app.js`, `img/hero-*.jpg`) quedan solo como respaldo histórico.
 
-**Zoom para leer de cerca (requisito del negocio)**: el libro es solo imágenes, así que la letra pequeña no se puede seleccionar; se agregó un visor a pantalla completa sobre StPageFlip sin tocar sus gestos.
+**Cómo se arma el libro** (`construirLibro()`):
+
+1. `agrupar(menu, categorias)` une platillos con categoría, descarta categorías vacías, limpia emojis y ordena con `ORDEN_CATEGORIAS` (Entradas → Sopas → Platos Ejecutivos → Antojitos → Platos Fuertes → Para Compartir → Zona Caribeña → Bebidas → Postres → … → Extras al final).
+2. `medirCapacidad(compacta)` mide en una hoja oculta (`.medidor`) cuántos renglones caben de verdad con el peor caso (nombre en dos líneas + descripción en dos), sin números mágicos.
+3. Reparto **parejo**: `paginas = ceil(items / capacidad)` y `porHoja = ceil(items / paginas)` — 9 platos van 5 + 4, no 7 + 2 (un platillo solo en una hoja se ve como un error).
+4. Una sección se **encadena bajo subtítulo** en la hoja anterior solo si entra **completa**; nunca se anuncia y se parte después.
+5. Red de seguridad: si aun así algo no cupiera, se mueve la última fila a la hoja siguiente.
+6. Hojas: portada (foto de plato + marca), contenido y contraportada (foto de plato con velo `rgba(58,40,5,0.93)`). Las filas quedan agrupadas arriba, como una carta impresa (se descartó `justify-content: space-between`: dejaba huecos artificiales).
+7. Fotos: cola con `MAX_FOTOS_SIMULTANEAS = 4` descargas en paralelo, priorizando las hojas cercanas a la que se está viendo; un plato sin foto muestra su inicial.
+
+**Lienzo y escalado**: cada hoja se dibuja en un lienzo de `ANCHO_HOJA = 1200` × `ALTO_HOJA = 1800` y se escala con `transform: scale(var(--s))` donde `--s = ancho real de página / 1200` (`ajustarEscalaHojas()` + `ResizeObserver` sobre `#libro`). El contenido nunca hace reflow: se maqueta una vez y solo cambia la escala.
+
+**StPageFlip sin cambios de animación**: se conservan `width: 600`, `height: 900`, `size: "stretch"`, `showCover: true`, `flippingTime: 900`, `drawShadow`, `maxShadowOpacity: 0.45`, `showPageCorners: true` y el pliegue curvo. Modo doble página en escritorio y una sola página (`usePortrait`) por debajo de `BREAKPOINT_MOVIL = 820`. Teclado: ← →, Inicio/Fin, Espacio.
+
+**Remontaje seguro**: `montarLibro()` reconstruye las hojas (limpia `#libro`) y **re-engancha `#libro` a `.libro-marco`** si `pageFlip.destroy()` lo sacó del DOM (StPageFlip hace `block.remove()`). Sin esto, un cambio de orientación creaba una instancia con **cero páginas** y lanzaba `pageerror: Cannot read properties of undefined (reading 'setDensity')`. El listener de `resize` ignora eventos antes del primer montaje (`if (modoRetrato === null) return;`) y solo remonta al cruzar los 820 px.
+
+**Zoom para leer de cerca (requisito del negocio)**: el visor a pantalla completa **clona la hoja HTML** (`#visor-hoja`), así que el texto se puede ampliar nítido; no toca los gestos de StPageFlip.
 
 - **Entrada**: botón `#btn-zoom` ("Ampliar", deshabilitado hasta que el libro termina de montarse). En escritorio es una píldora flotante arriba a la derecha (`position: fixed`); **en móvil va en el flujo normal** dentro de `.escena` (`position: static; order: -1; align-self: flex-end`), encima del libro: en iOS el posicionamiento fijo se volvió poco fiable y el botón podía quedar fuera de la pantalla. El alto reservado del libro subió de `175px` a `218px` para dejarle sitio.
-- **Visor** `#visor` (overlay `role="dialog"`): `#visor-titulo` ("Página N de M"), `#visor-cerrar` (✕), `#visor-lienzo` con `#visor-img`, la pista `#visor-pista` ("Pellizca o toca dos veces para acercar · arrastra para mover", se traduce con `TEXTOS[...].pistaVisor`), y `#visor-pie` con ‹ (página anterior), − / `#visor-reset` (muestra el % y vuelve a 100%) / +, y › (página siguiente).
+- **Visor** `#visor` (overlay `role="dialog"`): `#visor-titulo` ("Página N de M"), `#visor-cerrar` (✕), `#visor-lienzo` con `#visor-hoja`, la pista `#visor-pista` ("Pellizca o toca dos veces para acercar · arrastra para mover", se traduce con `TEXTOS[...].pistaVisor`), y `#visor-pie` con ‹ (página anterior), − / `#visor-reset` (muestra el % y vuelve a 100%) / +, y › (página siguiente).
 - **Gestos**: 1 dedo con zoom > 100% = arrastrar (`panX`/`panY`, acotado por `limitarPan()`); 2 dedos = pellizco; doble toque = 2,5× ↔ 100% (detección manual a <300 ms en `touchend`, **no volver a agregar `dblclick`**: el navegador lo dispara después del doble toque y deshacía el zoom); 1 toque simple no hace nada.
 - **iOS (Safari/WebKit)**: los gestos táctiles se atienden con **Touch Events** (`touchstart`/`touchmove`/`touchend`/`touchcancel` con `{ passive: false }` y `preventDefault()`), no con Pointer Events: Safari no entrega `pointermove` de forma fiable, ignora `touch-action: none` en varios gestos y emite `pointercancel` en mitad del gesto. Ratón y lápiz sí usan Pointer Events, y esos manejadores **ignoran `pointerType === "touch"`** para no duplicar el gesto. `setPointerCapture` va en `try/catch` (iOS puede rechazarlo). El `preventDefault()` de los touch events también frena el zoom/doble toque de la propia página.
-- **CSS del visor**: `.visor` y `.visor-lienzo` llevan `touch-action: none`, `overscroll-behavior: contain`, `-webkit-touch-callout: none` y `-webkit-tap-highlight-color: transparent`; `#visor-img` es `position: absolute; inset: 0; margin: auto` (el centrado no depende del `max-height: 100%` de un flex en Safari) y tiene `pointer-events: none` para que el gesto siempre caiga en el lienzo.
+- **CSS del visor**: `.visor` y `.visor-lienzo` llevan `touch-action: none`, `overscroll-behavior: contain`, `-webkit-touch-callout: none` y `-webkit-tap-highlight-color: transparent`; `#visor-hoja` se centra de forma explícita (no depende del `max-height: 100%` de un flex en Safari) y no captura el gesto.
 - **Escritorio**: rueda del ratón (1,15× por paso) y teclado `+` `-` `0` (100%) `←` `→` (página) `Esc` (cerrar). El `keydown` global del libro ignora eventos mientras el visor esté abierto (`if (!visor.hidden) return;`), pero el del visor corre antes.
 - **Límites**: `ESCALA_MIN = 1`, `ESCALA_MAX = 4`; el visor abre siempre en 100% en la página donde estaba el libro; al bajar a 100% el paneo vuelve a 0.
 - **Cuerpo**: `body.con-visor { overflow: hidden }` evita que el libro de fondo se desplace; al cerrar se restaura y el foco vuelve a `#btn-zoom`.
-- **Remontaje seguro**: `montarLibro()` reconstruye las hojas (`crearPaginas(rutasPaginas)` limpia `libroEl`) y re-engancha `#libro` a `.libro-marco` si `pageFlip.destroy()` lo sacó del DOM (StPageFlip hace `block.remove()`). Sin esto, un cambio de orientación creaba una instancia con **cero páginas** y lanzaba `pageerror: Cannot read properties of undefined (reading 'setDensity')`. El listener de `resize` además ignora eventos antes del primer montaje (`if (modoRetrato === null) return;`) y solo remonta al cruzar los 820 px.
-- **Pruebas**: `tests/test_entrada_sistema.py` verifica que el HTML sirva `#btn-zoom` + `#visor` oculto + `#visor-pista`, que el motor use Touch Events con `passive:false` además de Pointer Events para ratón/lápiz, el CSS anti-scroll de iOS, y que en móvil el botón Ampliar vaya en el flujo (`position: static`). La verificación de comportamiento (escritorio, celular con doble toque/pellizco/arrastre vía CDP, y remontaje al cambiar de tamaño) se hizo con Playwright + Edge headless y quedó en verde.
 
-**Rendimiento del libro en celulares (sin cambiar el dibujo)**: el volteo de StPageFlip es `clip-path` por frame, así que cualquier trabajo extra de pintado se nota en equipos modestos. Se aplicaron tres ajustes invisibles, **solo en móvil** (`@media (max-width: 820px)`):
+**Rendimiento del libro en celulares (sin cambiar el dibujo)**: el volteo de StPageFlip es `clip-path` por frame, así que cualquier trabajo extra de pintado se nota en equipos modestos. Ajustes invisibles **solo en móvil** (`@media (max-width: 820px)`):
 
-- `.libro-marco`: `filter: drop-shadow(…)` → `box-shadow` con los mismos valores (26px/40px + 6px/12px). El `filter` obligaba a rasterizar todo el libro en cada frame y anulaba el compositor rápido; el libro es un rectángulo, así que la silueta es la misma. Escritorio conserva el `filter` (ahí sí se aprecia el halo que sigue a la hoja mientras gira).
+- `.libro-marco`: `filter: drop-shadow(…)` → `box-shadow` con los mismos valores (26px/40px + 6px/12px). El `filter` obligaba a rasterizar todo el libro en cada frame y anulaba el compositor rápido; el libro es un rectángulo, así que la silueta es la misma. Escritorio conserva el `filter`.
 - `.btn-zoom`: sin `backdrop-filter: blur(6px)` en móvil, con fondo `--crema` sólido (visualmente igual).
-- `menu-libro.js`: `predecodificarPaginas()` llama `img.decode()` sobre las hojas 60 ms después de montar, para que el primer volteo no pague la decodificación (era el tirón más notorio del primer uso).
 
-No se tocó nada de la animación: `flippingTime: 900`, `drawShadow`, `maxShadowOpacity`, `showPageCorners`, el pliegue curvo ni la resolución de las imágenes (1200×1800). Medido en headless con CPU frenada 6×, el coste de CPU/estilo sale **igual antes y después** porque el navegador sin pantalla no ejecuta el pintado que se optimizó; la verificación real es en el teléfono. Si un equipo de gama muy baja sigue trabando, las palancas que quedan (ninguna es invisible) son: `showPageCorners: false`, `flippingTime` más corto, imágenes `srcset` de 800w, o cambiar el motor a hojas `data-density="hard"`.
+Si un equipo de gama muy baja sigue trabando, las palancas que quedan (ninguna es invisible) son: `showPageCorners: false`, `flippingTime` más corto o cambiar el motor a hojas `data-density="hard"`.
 
-**Actualizar el menú**: reemplazar `paginas/NN.webp` **sin huecos** desde `01.webp` y ajustar `data-paginas` en `index.html` si cambia la cantidad. Recomendado 1200×1800 px, WebP ~200 KB por página. Lo mismo aplica a `paginas/en/NN.webp` (versión en inglés, misma cantidad de hojas).
+**Carta en inglés (traducciones en la base de datos)**: el libro dibuja el texto en vivo, así que el idioma se resuelve con columnas EN editables desde el sistema — **no hay una segunda colección de imágenes**.
 
-**Carta en inglés (segunda colección de páginas)**: el libro no tiene texto en vivo, así que el idioma se resuelve con **una colección paralela de imágenes** en `app/Templates/carta/paginas/en/01.webp … 11.webp`, generadas con el mismo diseño y las mismas fotos.
-
-- **Selector**: `#btn-idioma-es` / `#btn-idioma-en` (`.idiomas` en la cabecera, `aria-pressed` marca el activo). Cambia `RUTA_PAGINAS` a `paginas/en/`, reconstruye las hojas, remonta el libro **conservando la página actual** (`getCurrentPageIndex()` → `turnToPage()`) y actualiza los textos de interfaz (`TEXTOS` en `menu-libro.js`): lema, botón Ampliar, pista, títulos/aria del visor, `alt` de cada hoja, `document.title` y `document.documentElement.lang`.
-- **Persistencia y enlace directo**: la elección se guarda en `localStorage` (`carta_idioma`); `?idioma=en` abre la carta directamente en inglés (se aplica sin pisar la preferencia guardada hasta que el usuario pulsa el selector).
-- **Respaldo**: si `paginas/en/01.webp` no existe, el motor arranca en español y el botón EN no cambia nada (nunca queda un libro vacío).
-- **Generación**: `python -X utf8 generar_paginas.py --idioma en` (en el prototipo del escritorio) consulta `/api/public/menu`, aplica `traducciones.json` (clave = nombre en español sin emojis) y escribe en `paginas/en/`. Sin el archivo de traducciones el script se detiene con un mensaje explícito; un plato sin traducción conserva su nombre original y se lista en el log.
-- **Precios**: siempre en córdobas (`C$`) en ambos idiomas. La versión en inglés traduce nombres, descripciones y títulos, pero no convierte la moneda. Los precios salen de la misma API, así que ambas versiones siempre coinciden.
+- **Columnas**: `menu_items.nombre_en` / `menu_items.descripcion_en` y `categorias_menu.nombre_en` (todas nullable). Migración de arranque `_migrate_menu_ingles()` las agrega (idempotente vía `information_schema`). Los schemas admin (`MenuItemCreate/Update`) y públicos (`MenuItemPublicoResponse`, `CategoriaMenuPublicaResponse`) las exponen.
+- **Edición en el ERP**: el modal `#modal-dish` tiene `#dish-name-en` y `#dish-desc-en`; `saveDish()` / `openEditDish()` los leen y guardan. En `#cat-panel` está `#cat-nueva-nombre-en`; `guardarCategoriaMenu()` lo envía y `renderCatList()` muestra el nombre EN. Crear/editar/borrar un platillo en Gestión de Menú ya se ve en la carta.
+- **Fallback**: si `nombre_en` está vacío se muestra el español (`nombreItem()` / `nombreCategoria()`), de modo que un plato nuevo aparece de inmediato aunque todavía no tenga traducción.
+- **Siembra inicial**: `app/db/traducciones.py` (`sembrar_traducciones_carta()`, `normalizar()`, `cargar_traducciones()`, `CATEGORIAS_EN`) + `app/db/traducciones_carta.json` (68 platos + mapa de categorías). `_sembrar_traducciones_carta()` corre en el arranque tras `_sembrar_novedades()` y **solo rellena campos vacíos**: es idempotente y nunca pisa lo que el negocio editó después. A partir de ahí la BD es la única fuente de verdad (el JSON es solo el punto de partida).
+- **Selector**: `#btn-idioma-es` / `#btn-idioma-en` (`.idiomas` en la cabecera, `aria-pressed` marca el activo). Reconstruye el libro, remonta **conservando la página actual** (`indiceActual()` → `turnToPage()`) y actualiza `TEXTOS` (lema, botón Ampliar, pista, títulos/aria del visor, `document.title` y `document.documentElement.lang`).
+- **Persistencia y enlace directo**: la elección se guarda en `localStorage` (`carta_idioma`); `?idioma=en` abre la carta directamente en inglés sin pisar la preferencia guardada hasta que el usuario usa el selector.
+- **Precios**: siempre en córdobas (`C$`) en ambos idiomas (`moneda()`). El modo inglés traduce nombres, descripciones, títulos, portada, contraportada y pie; **nunca convierte la moneda**. Los precios salen de la misma API, así que ambas versiones coinciden siempre.
 - **Alcance**: se traducen nombres, descripciones, títulos de sección, portada, contraportada y el pie; la marca `SAZÓN CARIBEÑO` se mantiene.
 
-**Regenerar desde la base de datos**: el prototipo incluye `generar_paginas.py` (vive en el prototipo original, no en el repo), que consulta `/api/public/menu` y redibuja las hojas con las fotos reales.
+**Pruebas**: `tests/test_entrada_sistema.py` verifica que el HTML sirva `#btn-zoom` + `#visor` oculto + `#visor-pista`, que el motor use Touch Events con `passive:false` además de Pointer Events para ratón/lápiz, el CSS anti-scroll de iOS, que en móvil el botón Ampliar vaya en el flujo (`position: static`) y que la carta ya no dependa de `data-paginas` ni `paginas/01.webp`. `tests/test_menu_ingles.py` cubre las columnas EN, el fallback al español, la siembra idempotente y que no se pise lo editado. La verificación visual (escritorio, celular, idioma, visor, cambio de tamaño) se hizo con Playwright + Edge headless: 14 hojas, 0 desbordes y **68/68 platillos dibujados** con los datos reales de producción.
 
 Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(directory="app/Templates/carta", html=True), name="carta")` — la URL pública es `/carta/` por defecto (index.html por defecto). **Configurable por la variable `CARTA_RUTA_PUBLICA`** (ver `settings.CARTA_RUTA_PUBLICA`): normalizada por `_ruta_carta_publica()` (acepta `carta`, `/carta/`, `/web-3qm6g6x14ofgqac3t97t` → ruta absoluta en minúsculas sin barra final; valor vacío o inválido → `/carta` con warning `[CARTA]`; solo caracteres ASCII `a-z 0-9 - _ /`). Para generar el slug aleatorio, `app/core/slug.py`: `python -m app.core.slug [largo] [prefijo]` produce `web-<20 aleatorios>` con formato de ID de Render (`srv-d9cvckm7r5hc739e0kj0`) usando `secrets` de la librería estándar, sin dependencias nuevas. Sirve para publicar la carta en una ruta discreta sin el nombre del negocio (ej. `/web-3qm6g6x14ofgqac3t97t`); **los enlaces y QR viejos a `/carta` siguen funcionando**: si la ruta configurada no es `/carta`, se registran `GET /carta` y `GET /carta/{resto:path}` que responden `302` a la ruta actual conservando la subruta y el query string (así CSS, JS, imágenes y páginas siguen cargando). El nombre que aparece en el dominio (ej. `sazoncaribe-o.onrender.com`) **no** depende de esta variable: se cambia renombrando el servicio en Render o usando un dominio propio.
 
@@ -608,22 +623,23 @@ Montado en `app/main.py` con `app.mount(CARTA_RUTA_PUBLICA, StaticFiles(director
 - `GET /` (raíz del dominio) sirve el **sistema interno** (`FileResponse(RUTA_ERP)` → `app/Templates/index.html`), para que la barra de direcciones no muestre `/Templates/index.html`. `/Templates/index.html` sigue respondiendo para enlaces y marcadores antiguos. `index.html` usa **rutas absolutas** de assets (`/Templates/css/...`, `/Templates/js/app.js`, `/Templates/Imagenes/...`) para funcionar igual desde `/` y desde `/Templates/` — nunca volver a rutas relativas.
 - La **carta** vive en su ruta propia (`CARTA_RUTA_PUBLICA`, ej. `/web-3qm6g6x14ofgqac3t97t`). Ambas entradas son independientes: la carta no redirige al sistema.
 - El service worker mantiene su scope `/Templates/`; `push_service.RUTA_APP` y `sw.js` apuntan a `/` para que las notificaciones abran la URL limpia.
-- Tests: `tests/test_entrada_sistema.py` (raíz sirve el ERP, no-cache, assets absolutos, ruta antigua, carta independiente, páginas y motor del libro servidos).
+- Tests: `tests/test_entrada_sistema.py` (raíz sirve el ERP, no-cache, assets absolutos, ruta antigua, carta independiente, motor del libro servido).
 
 **Flujo actual (de punta a punta):**
 
 ```
-ERP (POS)                  /api/public (solo generador)      Carta Digital            Cliente
-─────────                  ───────────────────────────       ─────────────            ───────
-Gestión de Menú     →      GET /api/public/menu       →      generar_paginas.py  →    escanea QR
-│  · CRUD platillos         GET /api/public/categories                       abre <ruta>/ 
-│  · disponible toggle      GET /api/public/item/{id}                        hojea el libro
-│  · imagen (ImgBB)                                                          · fotos · precios
-└──→ POST /menu/items/{id}/imagen                                             · diseño fijo
-     (nada de la carta se lee en vivo: la carta son imágenes)                 · una página en móvil
+ERP (POS)                  /api/public (solo lectura)        Carta Digital            Cliente
+─────────                  ─────────────────────────         ─────────────            ───────
+Gestión de Menú     →      GET /api/public/menu       →      menu-libro.js       →    escanea QR
+│  · CRUD platillos         GET /api/public/categories       agrupa · mide · pagina   abre <ruta>/
+│  · disponible toggle      GET /api/public/item/{id}        dibuja hojas HTML        hojea el libro
+│  · imagen (ImgBB)                                          · fotos (ImgBB)          · ES / EN
+│  · traducción EN                                           · precios C$             · una página en móvil
+└──→ POST /menu/items/{id}/imagen                            · visor de zoom          · lectura nítida
+     (la carta se actualiza sola en la siguiente carga)
 ```
 
-La carta **no consulta la base de datos en tiempo de ejecución**: cambiar un platillo en el ERP no cambia el libro hasta que se regeneren/reemplacen las imágenes. Los endpoints `/api/public` siguen existiendo y son de solo lectura.
+La carta **lee la base de datos en tiempo de ejecución** (solo la API pública de lectura): crear, editar, ocultar o borrar un platillo en Gestión de Menú se refleja al recargar la carta. No hay imágenes que regenerar ni archivos que reemplazar. Los endpoints `/api/public` nunca exponen costos, recetas, inventario, usuarios ni roles.
 
 ## Key Backend Patterns
 
@@ -703,7 +719,7 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `MenuItemResponse` and `MenuItemPublicoResponse` expose `imagen_url` + `tiempo_preparacion`; `MenuItemCreate`/`MenuItemUpdate` accept `tiempo_preparacion` only
 - Startup migration `_migrate_menu_item_imagen_tiempo()` (idempotent via `information_schema`) adds both columns
 - **Frontend POS**: `#modal-dish` has file input `#dish-image` (accept png/jpeg/webp/gif) + `#dish-prep-time` (minutes) + live preview (`previewDishImage()`); `saveDish()` sends `tiempo_preparacion` en el JSON y, si se eligió archivo, lo comprime con `compressImageFile()` y lo sube tras guardar vía `uploadDishImage()` (`FormData` + `Content-Type: undefined` so fetch sets the multipart boundary); feedback explícito: éxito → "Platillo guardado — imagen actualizada", fallo → "Platillo guardado, pero la imagen falló: <motivo>" y el modal permanece abierto con el archivo intacto (nunca skip silencioso); `openEditDish()`/`resetDishImage()` limpian el input para evitar archivos fantasma; `renderMenuMgmt()` shows thumbnail + "⏱️ ~N min"
-- **Carta Digital**: `imgFor(item)` returns `item.imagen_url` or the local placeholder `img/placeholder-dish.svg`; `openModal()` shows "Preparación: ~N min" in the timer pill (falls back to category); hero/logos are local assets in `app/Templates/carta/img/` — no remote images, no Stitch dependencies
+- **Carta Digital**: el motor toma `imagen_url` de cada plato (ImgBB o legacy `/carta/img/platos/`) y, si falta, dibuja la inicial del platillo sobre un fondo de la marca; el tiempo de preparación aparece como píldora cuando existe. Las fotos de portada/contraportada salen de platos reales; `img/` conserva logos y placeholder local.
 
 ### Hora local fija Nicaragua (America/Managua) en asistencia
 - Todo timestamp de asistencia se almacena como **hora local fija de Managua sin offset y SIN conversión** (naive `DATETIME`): lo que envía el formulario es exactamente lo que queda en la BD

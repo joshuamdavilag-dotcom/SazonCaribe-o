@@ -24,14 +24,19 @@ class CategoriaMenuPublicaResponse(BaseModel):
         default=None,
         description="Descripción de la categoría"
     )
+    nombre_en: Optional[str] = Field(
+        default=None,
+        description="Nombre de la categoría en inglés (puede ser null)"
+    )
 
 
 class MenuItemPublicoResponse(BaseModel):
     """Esquema de respuesta público para un plato del menú.
 
-    Exclusivamente datos de exhibición para la futura carta digital.
+    Exclusivamente datos de exhibición para la carta digital.
     NO incluye recetas, insumos, costos ni inventario interno.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(
@@ -45,6 +50,14 @@ class MenuItemPublicoResponse(BaseModel):
     descripcion: Optional[str] = Field(
         default=None,
         description="Descripción del plato"
+    )
+    nombre_en: Optional[str] = Field(
+        default=None,
+        description="Nombre del plato en inglés (puede ser null)"
+    )
+    descripcion_en: Optional[str] = Field(
+        default=None,
+        description="Descripción del plato en inglés (puede ser null)"
     )
     precio: Decimal = Field(
         ...,

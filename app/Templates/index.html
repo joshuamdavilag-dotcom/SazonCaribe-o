@@ -1377,15 +1377,26 @@
         <!-- Panel de Gestión de Categorías (colapsable) -->
         <div id="cat-panel" style="display:none;background:color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #99f6e4 var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:14px;margin-bottom:12px;">
           <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--turquesa-ola);">⚙️ Administrar Categorías</div>
-          <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
             <input type="text" id="cat-nueva-nombre" class="form-input" placeholder="Nombre de la nueva categoría…" style="flex:1;height:36px;font-size:13px;">
             <button class="btn btn-turquoise" id="btn-guardar-cat" style="height:36px;padding:0 14px;font-size:13px;white-space:nowrap;">+ Guardar</button>
+          </div>
+          <div style="margin-bottom:10px;">
+            <input type="text" id="cat-nueva-nombre-en" class="form-input" placeholder="Nombre en inglés (Carta Digital) — opcional" style="width:100%;height:34px;font-size:12px;" lang="en">
           </div>
           <div id="cat-list" style="max-height:160px;overflow-y:auto;"></div>
         </div>
         <div class="form-group">
           <label class="form-label" for="dish-desc">Descripción</label>
           <input type="text" id="dish-desc" class="form-input" placeholder="Descripción del plato">
+        </div>
+        <div class="form-group" style="background:color-mix(in srgb, #f0fdfa var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #99f6e4 var(--mix-border-pct), var(--mix-border-base));border-radius:12px;padding:12px;">
+          <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:var(--turquesa-ola);">🌎 Carta en inglés (opcional)</div>
+          <label class="form-label" for="dish-name-en">Nombre en inglés</label>
+          <input type="text" id="dish-name-en" class="form-input" lang="en" placeholder="Ej: Shrimp Rice" style="margin-bottom:8px;">
+          <label class="form-label" for="dish-desc-en">Descripción en inglés</label>
+          <input type="text" id="dish-desc-en" class="form-input" lang="en" placeholder="English description (optional)">
+          <div style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));margin-top:6px;">Si lo dejas vacío, la carta en inglés muestra el texto en español.</div>
         </div>
         <div class="form-group">
           <label class="form-label" for="dish-prep-time">Tiempo de preparación (min)</label>

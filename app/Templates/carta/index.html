@@ -7,7 +7,6 @@
   <meta name="description" content="Carta digital de Sazón Caribeño: mariscos frescos y recetas tradicionales en Diriamba.">
   <title>Sazón Caribeño — Menú</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b400c'/%3E%3Cpath d='M6 20c3-3 5 3 8 0s5 3 8 0 4 2 4 2' fill='none' stroke='%23F1E246' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="preload" as="image" href="paginas/01.webp">
   <link rel="stylesheet" href="css/estilo.css">
 </head>
 <body>
@@ -33,7 +32,7 @@
     </button>
 
     <div class="libro-marco">
-      <div id="libro" class="libro" data-paginas="11" aria-label="Menú digital, libro de páginas"></div>
+      <div id="libro" class="libro" aria-label="Menú digital, libro de páginas"></div>
     </div>
 
     <div id="cargando" class="cargando">
@@ -67,7 +66,7 @@
     </div>
 
     <div id="visor-lienzo" class="visor-lienzo">
-      <img id="visor-img" class="visor-img" alt="" draggable="false">
+      <div id="visor-hoja" class="visor-hoja" aria-hidden="true"></div>
     </div>
 
     <p id="visor-pista" class="visor-pista">Pellizca o toca dos veces para acercar · arrastra para mover</p>

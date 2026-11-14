@@ -5619,6 +5619,8 @@ async function openEditDish(itemId) {
   document.getElementById('dish-price').value = item.precio;
   document.getElementById('dish-category').value = item.categoria_id || '';
   document.getElementById('dish-desc').value = item.descripcion || '';
+  document.getElementById('dish-name-en').value = item.nombre_en || '';
+  document.getElementById('dish-desc-en').value = item.descripcion_en || '';
   document.getElementById('dish-prep-time').value = item.tiempo_preparacion || '';
   setDishToggle(item.disponible !== false);
 
@@ -5766,7 +5768,7 @@ function renderCatList() {
     const count = state.menuItems.filter(i => i.categoria_id === c.id).length;
     return `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:color-mix(in srgb, #fff var(--mix-surface-pct), var(--mix-surface-base));border:1px solid color-mix(in srgb, #e5e7eb var(--mix-border-pct), var(--mix-border-base));border-radius:8px;margin-bottom:4px;">
-        <span style="flex:1;font-size:13px;font-weight:600;">🍽️ ${c.nombre}</span>
+        <span style="flex:1;font-size:13px;font-weight:600;">🍽️ ${c.nombre}${c.nombre_en ? ` <span style="font-weight:400;font-size:11px;opacity:0.6;" lang="en">· ${c.nombre_en}</span>` : ''}</span>
         <span style="font-size:11px;color:color-mix(in srgb, #9ca3af var(--mix-ink-pct), var(--mix-ink-base));">${count} platillo(s)</span>
         <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:#C54320;${count > 0 ? 'opacity:0.4;pointer-events:none;' : ''}" onclick="eliminarCategoriaMenu(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="${count > 0 ? 'Tiene platillos — no se puede eliminar' : 'Eliminar categoría'}">🗑</button>
       </div>`;
@@ -5775,14 +5777,16 @@ function renderCatList() {
 
 async function guardarCategoriaMenu() {
   const input = document.getElementById('cat-nueva-nombre');
+  const inputEn = document.getElementById('cat-nueva-nombre-en');
   const nombre = input?.value.trim();
   if (!nombre) return showToast('Ingresa un nombre para la categoría', 'warning');
   try {
     await api('/menu/categorias', {
       method: 'POST',
-      body: JSON.stringify({ nombre }),
+      body: JSON.stringify({ nombre, nombre_en: inputEn?.value.trim() || null }),
     });
     input.value = '';
+    if (inputEn) inputEn.value = '';
     showToast(`Categoría '${nombre}' creada`, 'success');
     await loadCategories();
     populateCategorySelect();
@@ -5812,6 +5816,8 @@ async function saveDish(e) {
     precio: parseFloat(document.getElementById('dish-price').value),
     categoria_id: parseInt(document.getElementById('dish-category').value),
     descripcion: document.getElementById('dish-desc').value.trim() || null,
+    nombre_en: document.getElementById('dish-name-en').value.trim() || null,
+    descripcion_en: document.getElementById('dish-desc-en').value.trim() || null,
     disponible,
   };
 

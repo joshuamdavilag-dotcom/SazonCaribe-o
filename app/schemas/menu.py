@@ -25,6 +25,12 @@ class CategoriaMenuBase(BaseModel):
         description="Descripción de la categoría",
         examples=["Platos principales del menú"]
     )
+    nombre_en: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Nombre de la categoría en inglés (Carta Digital)",
+        examples=["Main Courses"]
+    )
 
 
 class CategoriaMenuCreate(CategoriaMenuBase):
@@ -111,6 +117,17 @@ class MenuItemBase(BaseModel):
         description="Descripción del plato",
         examples=["Arroz marinero con camarones frescos del Caribe"]
     )
+    nombre_en: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Nombre del plato en inglés (Carta Digital)",
+        examples=["Shrimp Rice"]
+    )
+    descripcion_en: Optional[str] = Field(
+        default=None,
+        description="Descripción del plato en inglés (Carta Digital)",
+        examples=["Seafood rice with fresh Caribbean shrimp"]
+    )
     precio: Decimal = Field(
         ...,
         gt=0,
@@ -185,6 +202,17 @@ class MenuItemUpdate(BaseModel):
         default=None,
         description="Descripción del plato",
         examples=["Arroz marinero con camarones frescos y coco"]
+    )
+    nombre_en: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Nombre del plato en inglés (Carta Digital)",
+        examples=["Shrimp Rice Special"]
+    )
+    descripcion_en: Optional[str] = Field(
+        default=None,
+        description="Descripción del plato en inglés (Carta Digital)",
+        examples=["Seafood rice with fresh shrimp and coconut"]
     )
     precio: Optional[Decimal] = Field(
         default=None,

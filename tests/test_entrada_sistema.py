@@ -41,10 +41,16 @@ def test_carta_sigue_en_su_ruta_propia():
     assert 'id="libro"' in respuesta.text
 
 
-def test_carta_sirve_las_paginas_del_libro():
-    respuesta = _cliente().get(CARTA_RUTA_PUBLICA + "/paginas/01.webp")
-    assert respuesta.status_code == 200
-    assert respuesta.headers["cache-control"] == "public, max-age=604800"
+def test_carta_dibuja_el_menu_desde_la_api_publica():
+    """El libro se arma en el navegador con los datos reales del sistema:
+    crear, borrar o modificar un plato se refleja al recargar la carta."""
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert '"/api/public"' in js
+    assert "/menu" in js
+    assert "/categories" in js
+    html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
+    assert "paginas/01.webp" not in html
+    assert "data-paginas" not in html
 
 
 def test_carta_sirve_el_motor_del_libro():
@@ -89,7 +95,7 @@ def test_el_visor_no_deja_que_ios_haga_scroll_ni_zoom_de_pagina():
     assert "-webkit-touch-callout: none" in visor
     assert "overscroll-behavior: contain" in visor
     assert "touch-action: none" in lienzo
-    assert "pointer-events: none" in css.split(".visor-img {")[1].split("}")[0]
+    assert "pointer-events: none" in css.split(".visor-hoja {")[1].split("}")[0]
 
 
 def test_el_visor_explica_los_gestos():
@@ -116,20 +122,21 @@ def test_carta_tiene_selector_de_idioma():
     assert 'aria-pressed="true"' in html.split('id="btn-idioma-es"')[1][:120]
 
 
-def test_carta_sirve_las_paginas_en_ingles():
-    cliente = _cliente()
-    for numero in ("01", "11"):
-        respuesta = cliente.get(CARTA_RUTA_PUBLICA + f"/paginas/en/{numero}.webp")
-        assert respuesta.status_code == 200
-        assert respuesta.headers["cache-control"] == "public, max-age=604800"
-
-
-def test_el_motor_del_libro_cambia_de_idioma():
+def test_carta_en_ingles_usa_las_traducciones_del_sistema():
+    """La carta en inglés lee nombre_en / descripcion_en de la base de datos
+    y cae al español cuando un plato todavía no está traducido."""
     js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
-    assert "paginas/en/" in js
+    assert "nombre_en" in js
+    assert "descripcion_en" in js
     assert "cambiarIdioma" in js
     assert "carta_idioma" in js
     assert "idioma" in js
+
+
+def test_carta_muestra_los_precios_en_cordobas():
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert '"C$"' in js
+    assert "US$" not in js
 
 
 def test_carta_no_redirige_al_sistema():

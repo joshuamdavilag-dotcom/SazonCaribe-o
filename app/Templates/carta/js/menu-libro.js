@@ -1,13 +1,19 @@
 (function () {
   "use strict";
 
-  var RUTA_PAGINAS_ES = "paginas/";
-  var RUTA_PAGINAS_EN = "paginas/en/";
-  var RUTA_PAGINAS = RUTA_PAGINAS_ES;
-  var EXTENSIONES = ["webp", "jpg", "jpeg", "png"];
-  var MAX_PAGINAS = 40;
+  /* La carta se dibuja en el navegador con los datos reales de la API
+     pública (/api/public). No hay imágenes de páginas fijas: cualquier
+     alta, baja o cambio hecho en Gestión de Menú aparece al recargar. */
+
+  var API_PUBLICA = "/api/public";
   var BREAKPOINT_MOVIL = 820;
   var CLAVE_IDIOMA = "carta_idioma";
+
+  /* Lienzo de diseño de cada hoja (se escala al tamaño real de la página). */
+  var ANCHO_HOJA = 1200;
+  var ALTO_HOJA = 1800;
+
+  var MAX_FOTOS_SIMULTANEAS = 4;
 
   var TEXTOS = {
     es: {
@@ -32,8 +38,18 @@
       pistaVisor: "Pellizca o toca dos veces para acercar · arrastra para mover",
       pagina: "Página",
       de: "de",
+      alternarAria: "Idioma de la carta",
       altPagina: function (n) { return "Página " + n + " del menú"; },
-      altPaginaAmpliada: function (n) { return "Página " + n + " del menú, ampliada"; }
+      altPaginaAmpliada: function (n) { return "Página " + n + " del menú, ampliada"; },
+      portadaTitulo: "MENÚ",
+      portadaPie: "NICARAGUA  ·  C$  ·  COCINA CARIBEÑA",
+      gracias1: "Gracias por",
+      gracias2: "su visita",
+      contraPie: "PREGUNTE A SU MESERO POR LAS ESPECIALIDADES DEL DÍA",
+      extrasSub: "Todos los acompañamientos, en C$",
+      errorCarga: "No se pudo cargar el menú. Revisa la conexión e inténtalo de nuevo.",
+      menuVacio: "El menú está vacío. Agrega platillos en Gestión de Menú.",
+      reintentar: "Reintentar"
     },
     en: {
       titulo: "Sazón Caribeño — Menu",
@@ -57,8 +73,18 @@
       pistaVisor: "Pinch or double-tap to zoom · drag to move",
       pagina: "Page",
       de: "of",
+      alternarAria: "Menu language",
       altPagina: function (n) { return "Menu page " + n; },
-      altPaginaAmpliada: function (n) { return "Menu page " + n + ", enlarged"; }
+      altPaginaAmpliada: function (n) { return "Menu page " + n + ", enlarged"; },
+      portadaTitulo: "MENU",
+      portadaPie: "NICARAGUA  ·  C$  ·  CARIBBEAN CUISINE",
+      gracias1: "Thank you for",
+      gracias2: "your visit",
+      contraPie: "ASK YOUR SERVER ABOUT TODAY'S SPECIALS",
+      extrasSub: "All sides, in C$",
+      errorCarga: "The menu could not be loaded. Check your connection and try again.",
+      menuVacio: "The menu is empty. Add dishes in Menu Management.",
+      reintentar: "Try again"
     }
   };
 
@@ -82,7 +108,7 @@
 
   var visor = document.getElementById("visor");
   var visorLienzo = document.getElementById("visor-lienzo");
-  var visorImg = document.getElementById("visor-img");
+  var visorHoja = document.getElementById("visor-hoja");
   var visorTitulo = document.getElementById("visor-titulo");
   var visorCerrar = document.getElementById("visor-cerrar");
   var visorAnterior = document.getElementById("visor-anterior");
@@ -94,8 +120,21 @@
 
   var pageFlip = null;
   var modoRetrato = null;
-  var totalPaginas = 0;
-  var rutasPaginas = [];
+  var medidorEl = null;
+  var observador = null;
+
+  var estado = {
+    menu: [],
+    categorias: [],
+    grupos: [],
+    hojas: [],
+    paginas: [],
+    total: 0
+  };
+  var paginasDom = [];
+
+  var colaFotos = [];
+  var fotosEnCurso = 0;
 
   var ESCALA_MIN = 1;
   var ESCALA_MAX = 4;
@@ -111,39 +150,7 @@
   var huboArrastre = false;
   var huboPellizco = false;
 
-  function existeImagen(ruta) {
-    return new Promise(function (resolver) {
-      var img = new Image();
-      img.onload = function () { resolver(true); };
-      img.onerror = function () { resolver(false); };
-      img.src = ruta;
-    });
-  }
-
-  async function descubrirPaginas() {
-    var declaradas = parseInt(libroEl.dataset.paginas, 10);
-    if (declaradas > 0 && declaradas <= MAX_PAGINAS) {
-      return Array.from({ length: declaradas }, function (_, i) {
-        return RUTA_PAGINAS + String(i + 1).padStart(2, "0") + ".webp";
-      });
-    }
-
-    var lista = [];
-    for (var i = 1; i <= MAX_PAGINAS; i++) {
-      var numero = String(i).padStart(2, "0");
-      var encontrada = null;
-      for (var j = 0; j < EXTENSIONES.length; j++) {
-        var ruta = RUTA_PAGINAS + numero + "." + EXTENSIONES[j];
-        if (await existeImagen(ruta)) {
-          encontrada = ruta;
-          break;
-        }
-      }
-      if (!encontrada) break;
-      lista.push(encontrada);
-    }
-    return lista;
-  }
+  /* ---------- textos e idioma ---------- */
 
   function marcarIdioma() {
     if (btnIdiomaEs) btnIdiomaEs.setAttribute("aria-pressed", idioma === "es" ? "true" : "false");
@@ -157,7 +164,7 @@
 
     if (lemaEl) lemaEl.textContent = t.lema;
     if (pistaEl) pistaEl.innerHTML = t.pista;
-    if (overlayTexto) overlayTexto.textContent = t.preparando;
+    if (overlayTexto && overlayTexto.isConnected) overlayTexto.textContent = t.preparando;
 
     btnZoom.setAttribute("aria-label", t.ampliarAria);
     btnZoom.title = t.ampliarTitle;
@@ -165,6 +172,8 @@
 
     libroEl.setAttribute("aria-label", t.libroAria);
     visor.setAttribute("aria-label", t.visorAria);
+    var idiomas = document.querySelector(".idiomas");
+    if (idiomas) idiomas.setAttribute("aria-label", t.alternarAria);
 
     visorCerrar.setAttribute("aria-label", t.cerrarAria);
     visorCerrar.title = t.cerrarTitle;
@@ -195,80 +204,693 @@
     return "es";
   }
 
-  async function cambiarIdioma(nuevo, guardar) {
-    if (nuevo !== "es" && nuevo !== "en") return;
-    if (nuevo === idioma && rutasPaginas.length) return;
+  /* ---------- datos ---------- */
 
-    if (nuevo === "en" && !(await existeImagen(RUTA_PAGINAS_EN + "01.webp"))) {
-      marcarIdioma();
+  async function cargarMenu() {
+    var respuestas = await Promise.all([
+      fetch(API_PUBLICA + "/menu", { cache: "no-store" }),
+      fetch(API_PUBLICA + "/categories", { cache: "no-store" })
+    ]);
+    if (!respuestas[0].ok || !respuestas[1].ok) {
+      throw new Error("respuesta " + respuestas[0].status + "/" + respuestas[1].status);
+    }
+    var menu = await respuestas[0].json();
+    var categorias = await respuestas[1].json();
+    return {
+      menu: Array.isArray(menu) ? menu : [],
+      categorias: Array.isArray(categorias) ? categorias : []
+    };
+  }
+
+  function agrupar(menu, categorias) {
+    var grupos = [];
+    var porId = {};
+
+    categorias.forEach(function (cat) {
+      var grupo = {
+        id: cat.id,
+        nombre: cat.nombre || "",
+        nombre_en: cat.nombre_en || null,
+        items: []
+      };
+      porId[cat.id] = grupo;
+      grupos.push(grupo);
+    });
+
+    menu.forEach(function (item) {
+      var cat = item.categoria || {};
+      var id = cat.id != null ? cat.id : null;
+      var grupo = id != null ? porId[id] : null;
+      if (!grupo) {
+        var clave = id != null ? id : "suelto";
+        grupo = porId[clave];
+        if (!grupo) {
+          grupo = {
+            id: id,
+            nombre: cat.nombre || "Menú",
+            nombre_en: cat.nombre_en || null,
+            items: []
+          };
+          porId[clave] = grupo;
+          grupos.push(grupo);
+        }
+      }
+      grupo.items.push(item);
+    });
+
+    grupos = grupos.filter(function (g) { return g.items.length > 0; });
+
+    /* Orden de la carta impresa: entradas primero, acompañamientos al final.
+       Las categorías nuevas (sin posición conocida) van antes de Extras. */
+    grupos.sort(function (a, b) {
+      return pesoCategoria(a.nombre) - pesoCategoria(b.nombre);
+    });
+
+    grupos.forEach(function (g) {
+      g.items.sort(function (a, b) {
+        return String(a.nombre || "").localeCompare(String(b.nombre || ""), "es", { sensitivity: "base" });
+      });
+    });
+
+    return grupos;
+  }
+
+  var ORDEN_CATEGORIAS = [
+    "entradas",
+    "sopas",
+    "platos ejecutivos",
+    "antojitos",
+    "platos fuertes",
+    "para compartir",
+    "zona caribena",
+    "bebidas",
+    "postres",
+    "cafe",
+    "extras"
+  ];
+
+  function limpiar(texto) {
+    return String(texto == null ? "" : texto)
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}\u{2B00}-\u{2BFF}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizar(texto) {
+    return limpiar(texto)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function pesoCategoria(nombre) {
+    var clave = normalizar(nombre);
+    var posicion = ORDEN_CATEGORIAS.indexOf(clave);
+    if (posicion !== -1) return posicion;
+    if (clave.indexOf("extra") !== -1 || clave.indexOf("acompan") !== -1) return 90;
+    return 50;
+  }
+
+  function nombreItem(item) {
+    var es = limpiar(item.nombre);
+    if (idioma === "en") {
+      var en = limpiar(item.nombre_en);
+      if (en) return en;
+    }
+    return es;
+  }
+
+  function descripcionItem(item) {
+    var es = limpiar(item.descripcion);
+    if (idioma === "en") {
+      var en = limpiar(item.descripcion_en);
+      if (en) return en;
+      /* Plato traducido pero sin descripción en inglés: no se mezcla el
+         texto en español debajo de un nombre en inglés. */
+      if (limpiar(item.nombre_en)) return "";
+    }
+    return es;
+  }
+
+  function nombreCategoria(grupo) {
+    if (idioma === "en" && limpiar(grupo.nombre_en)) return limpiar(grupo.nombre_en);
+    return limpiar(grupo.nombre);
+  }
+
+  function moneda(precio) {
+    var numero = Number(precio);
+    if (!isFinite(numero)) return "C$" + precio;
+    var partes = numero.toFixed(2).split(".");
+    partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return "C$" + partes.join(".");
+  }
+
+  /* ---------- fotos (carga progresiva) ---------- */
+
+  function procesarColaFotos() {
+    while (fotosEnCurso < MAX_FOTOS_SIMULTANEAS && colaFotos.length > 0) {
+      iniciarFoto(colaFotos.shift());
+    }
+  }
+
+  function iniciarFoto(celda) {
+    if (!celda || !celda.isConnected || celda.classList.contains("con-foto")) {
+      procesarColaFotos();
       return;
     }
-
-    var indice = 0;
-    try {
-      if (pageFlip && typeof pageFlip.getCurrentPageIndex === "function") {
-        indice = pageFlip.getCurrentPageIndex() || 0;
-      }
-    } catch (error) {
-      indice = 0;
+    var url = celda.getAttribute("data-foto");
+    var img = celda.querySelector("img");
+    if (!url || !img) {
+      procesarColaFotos();
+      return;
     }
-
-    idioma = nuevo;
-    RUTA_PAGINAS = idioma === "en" ? RUTA_PAGINAS_EN : RUTA_PAGINAS_ES;
-    if (guardar !== false) {
-      try {
-        window.localStorage.setItem(CLAVE_IDIOMA, idioma);
-      } catch (error) {
-        /* almacenamiento no disponible */
-      }
-    }
-    marcarIdioma();
-    aplicarTextos();
-
-    var rutas = await descubrirPaginas();
-    if (!rutas.length) return;
-    totalPaginas = rutas.length;
-    rutasPaginas = rutas;
-    montarLibro();
-
-    var destino = Math.min(indice, totalPaginas - 1);
-    if (destino > 0 && pageFlip) {
-      pageFlip.turnToPage(destino);
-      pintarProgreso(destino);
-    }
+    celda.removeAttribute("data-foto");
+    fotosEnCurso += 1;
+    img.onload = function () {
+      fotosEnCurso -= 1;
+      celda.classList.add("con-foto");
+      procesarColaFotos();
+    };
+    img.onerror = function () {
+      fotosEnCurso -= 1;
+      procesarColaFotos();
+    };
+    img.src = url;
   }
 
-  function crearPaginas(rutas) {
-    libroEl.innerHTML = "";
-    var fragmento = document.createDocumentFragment();
-    rutas.forEach(function (ruta, indice) {
-      var hoja = document.createElement("div");
-      hoja.className = "page" + (indice === 0 ? " page--tapa" : "");
+  function encolarFoto(celda) {
+    colaFotos.push(celda);
+    procesarColaFotos();
+  }
+
+  function limpiarColaFotos() {
+    colaFotos = [];
+    fotosEnCurso = 0;
+  }
+
+  function priorizarFotos(indice) {
+    if (!paginasDom.length) return;
+    [indice, indice + 1, indice + 2, indice - 1].forEach(function (i) {
+      var pagina = paginasDom[i];
+      if (!pagina) return;
+      var pendientes = pagina.querySelectorAll("[data-foto]");
+      for (var j = pendientes.length - 1; j >= 0; j--) {
+        colaFotos.unshift(pendientes[j]);
+      }
+    });
+    procesarColaFotos();
+  }
+
+  function forzarFoto(celda) {
+    var url = celda.getAttribute("data-foto");
+    var img = celda.querySelector("img");
+    celda.removeAttribute("data-foto");
+    if (!url || !img) return;
+    img.onload = function () { celda.classList.add("con-foto"); };
+    img.onerror = function () { celda.classList.remove("con-foto"); };
+    img.src = url;
+  }
+
+  function forzarFotosDe(raiz) {
+    var pendientes = raiz.querySelectorAll("[data-foto]");
+    for (var i = 0; i < pendientes.length; i++) forzarFoto(pendientes[i]);
+  }
+
+  /* ---------- construcción de hojas ---------- */
+
+  function obtenerMedidor() {
+    if (!medidorEl) {
+      medidorEl = document.createElement("div");
+      medidorEl.className = "medidor";
+      medidorEl.setAttribute("aria-hidden", "true");
+      document.body.appendChild(medidorEl);
+    }
+    return medidorEl;
+  }
+
+  function crearCeldaFoto(item, clase) {
+    var celda = document.createElement("div");
+    celda.className = clase;
+
+    var inicial = document.createElement("span");
+    inicial.className = "h-inicial";
+    var nombre = nombreItem(item);
+    inicial.textContent = (nombre || "?").charAt(0).toUpperCase();
+    celda.appendChild(inicial);
+
+    if (item.imagen_url) {
       var img = document.createElement("img");
-      img.src = ruta;
-      img.alt = TEXTOS[idioma].altPagina(indice + 1);
+      img.alt = "";
       img.decoding = "async";
       img.draggable = false;
-      hoja.appendChild(img);
-      fragmento.appendChild(hoja);
-    });
-    libroEl.appendChild(fragmento);
+      celda.appendChild(img);
+      celda.setAttribute("data-foto", item.imagen_url);
+      if (clase === "h-foto") encolarFoto(celda);
+    }
+    return celda;
   }
 
-  function predecodificarPaginas() {
-    var imagenes = libroEl.querySelectorAll("img");
-    for (var i = 0; i < imagenes.length; i++) {
-      var img = imagenes[i];
-      if (typeof img.decode !== "function") continue;
-      var pendiente = img.decode();
-      if (pendiente && typeof pendiente.catch === "function") {
-        pendiente.catch(function () {});
-      }
+  function filaFoto(item) {
+    var fila = document.createElement("div");
+    fila.className = "h-fila";
+
+    fila.appendChild(crearCeldaFoto(item, "h-foto"));
+
+    var texto = document.createElement("div");
+    texto.className = "h-texto";
+
+    var nombre = document.createElement("div");
+    nombre.className = "h-nombre";
+    nombre.textContent = nombreItem(item);
+    texto.appendChild(nombre);
+
+    var descripcion = descripcionItem(item);
+    if (descripcion) {
+      var desc = document.createElement("div");
+      desc.className = "h-desc";
+      desc.textContent = descripcion;
+      texto.appendChild(desc);
     }
+
+    fila.appendChild(texto);
+
+    var precio = document.createElement("div");
+    precio.className = "h-precio";
+    precio.textContent = moneda(item.precio);
+    fila.appendChild(precio);
+
+    return fila;
+  }
+
+  function filaCompacta(item) {
+    var fila = document.createElement("div");
+    fila.className = "h-item";
+
+    var nombre = document.createElement("span");
+    nombre.className = "h-item-nombre";
+    nombre.textContent = nombreItem(item);
+
+    var puntos = document.createElement("span");
+    puntos.className = "h-item-puntos";
+
+    var precio = document.createElement("span");
+    precio.className = "h-item-precio";
+    precio.textContent = moneda(item.precio);
+
+    fila.appendChild(nombre);
+    fila.appendChild(puntos);
+    fila.appendChild(precio);
+    return fila;
+  }
+
+  function crearSubtitulo(titulo) {
+    var sub = document.createElement("div");
+    sub.className = "h-subtitulo";
+    sub.textContent = titulo;
+    return sub;
+  }
+
+  function nuevaHojaContenido(titulo, subtitulo) {
+    var hoja = document.createElement("div");
+    hoja.className = "hoja";
+
+    var cab = document.createElement("div");
+    cab.className = "h-cab";
+
+    var marca = document.createElement("div");
+    marca.className = "h-marca";
+    marca.textContent = "SAZÓN CARIBEÑO";
+    cab.appendChild(marca);
+
+    var h2 = document.createElement("h2");
+    h2.className = "h-titulo";
+    h2.textContent = titulo;
+    cab.appendChild(h2);
+
+    var regla = document.createElement("div");
+    regla.className = "h-regla";
+    regla.appendChild(document.createElement("i"));
+    regla.appendChild(document.createElement("i"));
+    cab.appendChild(regla);
+
+    if (subtitulo) {
+      var sub = document.createElement("div");
+      sub.className = "h-sub";
+      sub.textContent = subtitulo;
+      cab.appendChild(sub);
+    }
+
+    var cuerpo = document.createElement("div");
+    cuerpo.className = "h-cuerpo";
+
+    var pie = document.createElement("div");
+    pie.className = "h-pie";
+    var filaPie = document.createElement("div");
+    filaPie.className = "h-pie-fila";
+    var marcaPie = document.createElement("span");
+    marcaPie.className = "h-pie-marca";
+    marcaPie.textContent = "SAZÓN CARIBEÑO";
+    var numero = document.createElement("span");
+    numero.className = "h-pie-num";
+    filaPie.appendChild(marcaPie);
+    filaPie.appendChild(numero);
+    pie.appendChild(filaPie);
+
+    hoja.appendChild(cab);
+    hoja.appendChild(cuerpo);
+    hoja.appendChild(pie);
+    return hoja;
+  }
+
+  function sobrepasa(cuerpo) {
+    return cuerpo.scrollHeight > cuerpo.clientHeight + 1;
+  }
+
+  function usaListaCompacta(items) {
+    var conFoto = 0;
+    items.forEach(function (item) { if (item.imagen_url) conFoto += 1; });
+    return conFoto * 2 < items.length;
+  }
+
+  /* Cuantos renglones caben de verdad en una hoja. Se mide con el mismo
+     constructor de filas que usa la carta, asi que respeta tipografia,
+     alto de foto y el espacio del pie. */
+  function medirCapacidad(compacta) {
+    var hoja = nuevaHojaContenido("Medida", null);
+    obtenerMedidor().appendChild(hoja);
+
+    var cuerpo = hoja.querySelector(".h-cuerpo");
+    var contenedor = cuerpo;
+    if (compacta) {
+      contenedor = document.createElement("div");
+      contenedor.className = "h-lista";
+      cuerpo.appendChild(contenedor);
+    }
+
+    /* Muestra de peor caso: nombre en dos lineas y descripcion en dos. */
+    var muestra = {
+      nombre: "Nombre de platillo bastante largo para partirse",
+      descripcion: "Descripcion de ejemplo con el largo tipico de la carta para medir dos lineas.",
+      precio: 100,
+      imagen_url: null
+    };
+
+    var filas = 0;
+    while (filas < 40) {
+      var nodo = compacta ? filaCompacta(muestra) : filaFoto(muestra);
+      contenedor.appendChild(nodo);
+      if (sobrepasa(cuerpo)) {
+        contenedor.removeChild(nodo);
+        break;
+      }
+      filas += 1;
+    }
+
+    hoja.remove();
+    return Math.max(1, filas);
+  }
+
+  function construirHojasContenido(grupos) {
+    var bloques = grupos.map(function (grupo) {
+      return {
+        titulo: nombreCategoria(grupo),
+        items: grupo.items,
+        compacta: usaListaCompacta(grupo.items)
+      };
+    });
+
+    var medidor = obtenerMedidor();
+    var hojas = [];
+    var capacidades = { fila: medirCapacidad(false), lista: medirCapacidad(true) };
+    var indice = 0;
+
+    while (indice < bloques.length) {
+      var compacta = bloques[indice].compacta;
+      var capacidad = compacta ? capacidades.lista : capacidades.fila;
+      var totalItems = bloques[indice].items.length;
+
+      /* Reparto parejo: un platillo suelto en una hoja propia se ve como un
+         error, asi que 9 platos van 5 + 4 y no 7 + 2. */
+      var paginas = Math.ceil(totalItems / capacidad);
+      var porHoja = Math.ceil(totalItems / paginas);
+
+      var desde = 0;
+      var primera = true;
+
+      while (desde < totalItems) {
+        var bloque = bloques[indice];
+        var hoja = nuevaHojaContenido(
+          bloque.titulo,
+          primera && compacta ? TEXTOS[idioma].extrasSub : null
+        );
+        medidor.appendChild(hoja);
+
+        var cuerpo = hoja.querySelector(".h-cuerpo");
+        var contenedor = cuerpo;
+        if (compacta) {
+          contenedor = document.createElement("div");
+          contenedor.className = "h-lista" + (bloque.items.length <= 3 ? " una" : "");
+          cuerpo.appendChild(contenedor);
+        }
+
+        var corte = Math.min(totalItems, desde + porHoja);
+        for (var k = desde; k < corte; k++) {
+          contenedor.appendChild(
+            compacta ? filaCompacta(bloque.items[k]) : filaFoto(bloque.items[k])
+          );
+        }
+
+        /* Red de seguridad: la medicion es del peor caso, pero si aun asi
+           no cupiera se pasa el ultimo renglon a la hoja siguiente. */
+        while (sobrepasa(cuerpo) && corte - desde > 1) {
+          contenedor.removeChild(contenedor.lastChild);
+          corte -= 1;
+        }
+
+        hojas.push(hoja);
+        desde = corte;
+        primera = false;
+        if (desde >= totalItems) break;
+      }
+
+      /* Una seccion se encadena bajo el subtitulo de la anterior solo si
+         entra COMPLETA: nunca se parte despues de haberla anunciado. */
+      var ultima = hojas[hojas.length - 1];
+      var cuerpoUltima = ultima.querySelector(".h-cuerpo");
+      var contenedorUltima = cuerpoUltima.lastElementChild &&
+        (cuerpoUltima.lastElementChild.classList.contains("h-lista"))
+        ? cuerpoUltima.lastElementChild
+        : cuerpoUltima;
+
+      while (indice + 1 < bloques.length) {
+        var siguiente = bloques[indice + 1];
+        if (siguiente.compacta !== compacta) break;
+        if (siguiente.items.length > capacidad) break;
+
+        var subtitulo = crearSubtitulo(siguiente.titulo);
+        var filas = siguiente.items.map(function (item) {
+          return compacta ? filaCompacta(item) : filaFoto(item);
+        });
+
+        contenedorUltima.appendChild(subtitulo);
+        filas.forEach(function (fila) { contenedorUltima.appendChild(fila); });
+
+        if (sobrepasa(cuerpoUltima)) {
+          contenedorUltima.removeChild(subtitulo);
+          filas.forEach(function (fila) { contenedorUltima.removeChild(fila); });
+          break;
+        }
+
+        indice += 1;
+      }
+
+      indice += 1;
+    }
+
+    return hojas;
+  }
+
+  function fotosCandidatas(grupos) {
+    var preferidas = ["zona caribe", "platos fuertes", "para compartir", "antojitos", "entradas"];
+    var urls = [];
+    var vistos = {};
+
+    function agregar(item) {
+      var url = item && item.imagen_url;
+      if (!url || vistos[url]) return;
+      vistos[url] = true;
+      urls.push(url);
+    }
+
+    preferidas.forEach(function (clave) {
+      grupos.forEach(function (grupo) {
+        if (normalizar(grupo.nombre).indexOf(clave) === -1) return;
+        grupo.items.forEach(agregar);
+      });
+    });
+    grupos.forEach(function (grupo) { grupo.items.forEach(agregar); });
+
+    return urls;
+  }
+
+  function elegirFotoPortada(grupos) {
+    var urls = fotosCandidatas(grupos);
+    return urls.length ? urls[0] : null;
+  }
+
+  function elegirFotoContra(grupos) {
+    var urls = fotosCandidatas(grupos);
+    if (urls.length > 1) return urls[1];
+    return urls.length ? urls[0] : null;
+  }
+
+  function hojaPortada(grupos) {
+    var t = TEXTOS[idioma];
+    var hoja = document.createElement("div");
+    hoja.className = "hoja hoja--portada";
+
+    var marco = document.createElement("div");
+    marco.className = "p-marco";
+    marco.appendChild(crearCeldaFoto({ imagen_url: elegirFotoPortada(grupos), nombre: "S" }, "p-foto"));
+    hoja.appendChild(marco);
+
+    var marca = document.createElement("div");
+    marca.className = "p-marca";
+    marca.textContent = "SAZÓN CARIBEÑO";
+    hoja.appendChild(marca);
+
+    var titulo = document.createElement("div");
+    titulo.className = "p-men";
+    titulo.textContent = t.portadaTitulo;
+    hoja.appendChild(titulo);
+
+    var regla = document.createElement("div");
+    regla.className = "p-regla";
+    regla.appendChild(document.createElement("i"));
+    regla.appendChild(document.createElement("i"));
+    hoja.appendChild(regla);
+
+    var lema = document.createElement("div");
+    lema.className = "p-lema";
+    lema.textContent = t.lema;
+    hoja.appendChild(lema);
+
+    var adorno = document.createElement("div");
+    adorno.className = "p-adorno";
+    adorno.appendChild(document.createElement("i"));
+    adorno.appendChild(document.createElement("b"));
+    adorno.appendChild(document.createElement("i"));
+    hoja.appendChild(adorno);
+
+    var pie = document.createElement("div");
+    pie.className = "p-pie";
+    pie.textContent = t.portadaPie;
+    hoja.appendChild(pie);
+
+    return hoja;
+  }
+
+  function hojaContra(grupos) {
+    var t = TEXTOS[idioma];
+    var foto = elegirFotoContra(grupos);
+
+    var hoja = document.createElement("div");
+    hoja.className = "hoja hoja--contra";
+    if (foto) {
+      hoja.style.backgroundImage =
+        "linear-gradient(rgba(58,40,5,0.93), rgba(58,40,5,0.93)), url(\"" + foto + "\")";
+      hoja.classList.add("con-foto-fondo");
+    }
+
+    var marco = document.createElement("div");
+    marco.className = "c-marco";
+    hoja.appendChild(marco);
+
+    var marca = document.createElement("div");
+    marca.className = "c-marca";
+    marca.textContent = "SAZÓN CARIBEÑO";
+    hoja.appendChild(marca);
+
+    var gracias = document.createElement("div");
+    gracias.className = "c-gracias";
+    gracias.appendChild(document.createTextNode(t.gracias1));
+    gracias.appendChild(document.createElement("br"));
+    gracias.appendChild(document.createTextNode(t.gracias2));
+    hoja.appendChild(gracias);
+
+    var regla = document.createElement("div");
+    regla.className = "c-regla";
+    regla.appendChild(document.createElement("i"));
+    regla.appendChild(document.createElement("i"));
+    hoja.appendChild(regla);
+
+    var lema = document.createElement("div");
+    lema.className = "c-lema";
+    lema.textContent = t.lema;
+    hoja.appendChild(lema);
+
+    var pie = document.createElement("div");
+    pie.className = "c-pie";
+    pie.textContent = t.contraPie;
+    hoja.appendChild(pie);
+
+    return hoja;
+  }
+
+  function construirLibro() {
+    limpiarColaFotos();
+
+    estado.grupos = agrupar(estado.menu, estado.categorias);
+
+    var hojas = [hojaPortada(estado.grupos)];
+    hojas = hojas.concat(construirHojasContenido(estado.grupos));
+    hojas.push(hojaContra(estado.grupos));
+
+    estado.hojas = hojas;
+    estado.total = hojas.length;
+    crearPaginasDom();
+  }
+
+  function crearPaginasDom() {
+    paginasDom = [];
+    estado.hojas.forEach(function (hoja, indice) {
+      var numero = hoja.querySelector(".h-pie-num");
+      if (numero) numero.textContent = String(indice + 1);
+
+      var pagina = document.createElement("div");
+      pagina.className = "page" + (indice === 0 ? " page--tapa" : "");
+      pagina.appendChild(hoja);
+      paginasDom.push(pagina);
+    });
+    estado.paginas = paginasDom;
+    if (medidorEl) medidorEl.innerHTML = "";
+  }
+
+  /* ---------- montaje del libro ---------- */
+
+  function ajustarEscalaHojas() {
+    var primera = libroEl.querySelector(".page");
+    if (!primera) return;
+    var ancho = primera.offsetWidth;
+    if (!ancho) return;
+    var escalaHoja = ancho / ANCHO_HOJA;
+    var hojas = libroEl.querySelectorAll(".hoja");
+    for (var i = 0; i < hojas.length; i++) {
+      hojas[i].style.setProperty("--s", escalaHoja);
+    }
+  }
+
+  function iniciarObservador() {
+    if (observador || typeof ResizeObserver !== "function") return;
+    observador = new ResizeObserver(function () {
+      ajustarEscalaHojas();
+      if (!visor.hidden) ajustarVisor();
+    });
+    observador.observe(libroEl);
   }
 
   function montarLibro() {
-    if (!rutasPaginas.length) return;
+    if (!paginasDom.length) return;
 
     if (pageFlip) {
       pageFlip.destroy();
@@ -281,7 +903,11 @@
 
     libroEl.className = "libro";
     libroEl.style.cssText = "";
-    crearPaginas(rutasPaginas);
+    libroEl.innerHTML = "";
+
+    var fragmento = document.createDocumentFragment();
+    paginasDom.forEach(function (pagina) { fragmento.appendChild(pagina); });
+    libroEl.appendChild(fragmento);
 
     modoRetrato = window.innerWidth < BREAKPOINT_MOVIL;
 
@@ -311,43 +937,62 @@
     pageFlip.loadFromHTML(libroEl.querySelectorAll(".page"));
     pageFlip.on("flip", function (evento) {
       pintarProgreso(evento.data);
+      ajustarEscalaHojas();
+      priorizarFotos(evento.data);
     });
 
     pintarProgreso(0);
+    ajustarEscalaHojas();
     libroEl.classList.add("listo");
     btnZoom.disabled = false;
     if (overlay) overlay.classList.add("oculto");
 
-    /* Decodifica las hojas en segundo plano para que el primer volteo no
-       pague la decodificacion de la imagen. */
-    window.setTimeout(predecodificarPaginas, 60);
+    window.setTimeout(function () {
+      ajustarEscalaHojas();
+      priorizarFotos(0);
+    }, 60);
+    iniciarObservador();
   }
 
   function pintarProgreso(indice) {
-    var actual = Math.min(totalPaginas, Math.max(1, indice + 1));
+    var total = estado.total || 1;
+    var actual = Math.min(total, Math.max(1, indice + 1));
     paginaActualEl.textContent = String(actual);
-    paginaTotalEl.textContent = String(totalPaginas);
-    barraEl.style.width = (actual / totalPaginas) * 100 + "%";
+    paginaTotalEl.textContent = String(total);
+    barraEl.style.width = (actual / total) * 100 + "%";
     btnPrev.disabled = actual <= 1;
-    btnNext.disabled = actual >= totalPaginas;
+    btnNext.disabled = actual >= total;
+  }
+
+  function indiceActual() {
+    try {
+      if (pageFlip && typeof pageFlip.getCurrentPageIndex === "function") {
+        return pageFlip.getCurrentPageIndex() || 0;
+      }
+    } catch (error) {
+      /* sin libro montado */
+    }
+    return 0;
   }
 
   /* ---------- ampliar la página ---------- */
 
   function fijarVista() {
-    visorImg.style.transform =
+    visorHoja.style.transform =
       "translate3d(" + panX + "px," + panY + "px,0) scale(" + escala + ")";
     visorReset.textContent = Math.round(escala * 100) + "%";
     visorMenos.disabled = escala <= ESCALA_MIN + 0.001;
     visorMas.disabled = escala >= ESCALA_MAX - 0.001;
     visorAnterior.disabled = indiceVisor <= 0;
-    visorSiguiente.disabled = indiceVisor >= totalPaginas - 1;
+    visorSiguiente.disabled = indiceVisor >= estado.total - 1;
   }
 
   function limitarPan() {
     var caja = visorLienzo.getBoundingClientRect();
-    var maxX = Math.max(0, (visorImg.offsetWidth * escala - caja.width) / 2);
-    var maxY = Math.max(0, (visorImg.offsetHeight * escala - caja.height) / 2);
+    var ancho = visorHoja.offsetWidth || 1;
+    var alto = visorHoja.offsetHeight || 1;
+    var maxX = Math.max(0, (ancho * escala - caja.width) / 2);
+    var maxY = Math.max(0, (alto * escala - caja.height) / 2);
     panX = Math.min(maxX, Math.max(-maxX, panX));
     panY = Math.min(maxY, Math.max(-maxY, panY));
   }
@@ -362,33 +1007,56 @@
     fijarVista();
   }
 
-  function cargarPagina(indice) {
-    if (!rutasPaginas.length) return;
-    var t = TEXTOS[idioma];
-    indiceVisor = Math.min(rutasPaginas.length - 1, Math.max(0, indice));
-    visorImg.src = rutasPaginas[indiceVisor];
-    visorImg.alt = t.altPaginaAmpliada(indiceVisor + 1);
-    visorTitulo.textContent = t.pagina + " " + (indiceVisor + 1) + " " + t.de + " " + totalPaginas;
-    escala = 1;
-    panX = 0;
-    panY = 0;
+  function ajustarVisor() {
+    if (visor.hidden) return;
+    var caja = visorLienzo.getBoundingClientRect();
+    var margen = 12;
+    var ancho = Math.max(120, caja.width - margen * 2);
+    var alto = Math.max(180, caja.height - margen * 2);
+    var escalaHoja = Math.min(ancho / ANCHO_HOJA, alto / ALTO_HOJA);
+    if (!isFinite(escalaHoja) || escalaHoja <= 0) escalaHoja = 0.2;
+
+    visorHoja.style.width = Math.round(ANCHO_HOJA * escalaHoja) + "px";
+    visorHoja.style.height = Math.round(ALTO_HOJA * escalaHoja) + "px";
+
+    var hoja = visorHoja.querySelector(".hoja");
+    if (hoja) hoja.style.setProperty("--s", escalaHoja);
+
+    limitarPan();
     fijarVista();
   }
 
-  function abrirVisor() {
-    if (!totalPaginas) return;
-    var indice = 0;
-    try {
-      if (pageFlip && typeof pageFlip.getCurrentPageIndex === "function") {
-        indice = pageFlip.getCurrentPageIndex() || 0;
-      }
-    } catch (error) {
-      indice = 0;
+  function cargarPagina(indice) {
+    if (!paginasDom.length) return;
+    var t = TEXTOS[idioma];
+    indiceVisor = Math.min(paginasDom.length - 1, Math.max(0, indice));
+
+    visorHoja.innerHTML = "";
+    var origen = paginasDom[indiceVisor];
+    var hoja = origen ? origen.querySelector(".hoja") : null;
+    if (hoja) {
+      var clon = hoja.cloneNode(true);
+      clon.style.setProperty("--s", 1);
+      forzarFotosDe(clon);
+      visorHoja.appendChild(clon);
     }
-    cargarPagina(indice);
+
+    visorHoja.setAttribute("aria-label", t.altPaginaAmpliada(indiceVisor + 1));
+    visorTitulo.textContent =
+      t.pagina + " " + (indiceVisor + 1) + " " + t.de + " " + paginasDom.length;
+
+    escala = 1;
+    panX = 0;
+    panY = 0;
+    ajustarVisor();
+  }
+
+  function abrirVisor() {
+    if (!estado.total) return;
     visor.hidden = false;
     visor.setAttribute("aria-hidden", "false");
     document.body.classList.add("con-visor");
+    cargarPagina(indiceActual());
     visorCerrar.focus();
   }
 
@@ -397,6 +1065,7 @@
     visor.hidden = true;
     visor.setAttribute("aria-hidden", "true");
     document.body.classList.remove("con-visor");
+    visorHoja.innerHTML = "";
     punteros.clear();
     toques.clear();
     btnZoom.focus();
@@ -545,7 +1214,6 @@
   visorReset.addEventListener("click", function () { fijarEscala(1); });
   visorAnterior.addEventListener("click", function () { cargarPagina(indiceVisor - 1); });
   visorSiguiente.addEventListener("click", function () { cargarPagina(indiceVisor + 1); });
-  visorImg.addEventListener("load", function () { limitarPan(); fijarVista(); });
 
   document.addEventListener("keydown", function (evento) {
     if (visor.hidden) return;
@@ -599,7 +1267,7 @@
     } else if (e.key === "Home") {
       pageFlip && pageFlip.turnToPage(0);
     } else if (e.key === "End") {
-      pageFlip && pageFlip.turnToPage(totalPaginas - 1);
+      pageFlip && pageFlip.turnToPage(estado.total - 1);
     }
   });
 
@@ -614,46 +1282,95 @@
     }, 250);
   });
 
-  async function iniciar() {
-    idioma = idiomaInicial();
-    RUTA_PAGINAS = idioma === "en" ? RUTA_PAGINAS_EN : RUTA_PAGINAS_ES;
+  /* ---------- cambio de idioma ---------- */
 
-    if (idioma === "en" && !(await existeImagen(RUTA_PAGINAS_EN + "01.webp"))) {
-      idioma = "es";
-      RUTA_PAGINAS = RUTA_PAGINAS_ES;
+  async function cambiarIdioma(nuevo, guardar) {
+    if (nuevo !== "es" && nuevo !== "en") return;
+    if (nuevo === idioma && estado.total) return;
+
+    var indice = indiceActual();
+    var visorAbierto = !visor.hidden;
+    var indiceEnVisor = indiceVisor;
+
+    idioma = nuevo;
+    if (guardar !== false) {
+      try {
+        window.localStorage.setItem(CLAVE_IDIOMA, idioma);
+      } catch (error) {
+        /* almacenamiento no disponible */
+      }
     }
-
     marcarIdioma();
     aplicarTextos();
 
-    var rutas = await descubrirPaginas();
+    if (!estado.menu.length) return;
 
-    if (!rutas.length) {
-      if (overlay) {
-        overlay.innerHTML = idioma === "en"
-          ? '<p style="max-width:340px;text-align:center">No page images found.<br>' +
-            "Place <b>01.webp</b>, <b>02.webp</b>, <b>03.webp</b>… inside the <b>paginas/</b> folder.</p>"
-          : '<p style="max-width:340px;text-align:center">No encontré imágenes.<br>' +
-            "Coloca <b>01.webp</b>, <b>02.webp</b>, <b>03.webp</b>… dentro de la carpeta <b>paginas/</b>.</p>";
-      }
+    construirLibro();
+    montarLibro();
+
+    var destino = Math.min(indice, estado.total - 1);
+    if (destino > 0 && pageFlip) {
+      pageFlip.turnToPage(destino);
+      pintarProgreso(destino);
+    }
+
+    if (visorAbierto) {
+      cargarPagina(indiceEnVisor);
+      visorTitulo.textContent =
+        TEXTOS[idioma].pagina + " " + (indiceVisor + 1) + " " + TEXTOS[idioma].de + " " + estado.total;
+    }
+  }
+
+  /* ---------- carga inicial ---------- */
+
+  function mostrarError(motivo) {
+    btnZoom.disabled = true;
+    if (!overlay) return;
+    var t = TEXTOS[idioma];
+    overlay.classList.remove("oculto");
+    overlay.innerHTML = "";
+
+    var caja = document.createElement("div");
+    caja.className = "cargando-error";
+
+    var texto = document.createElement("p");
+    texto.textContent = motivo === "vacio" ? t.menuVacio : t.errorCarga;
+    caja.appendChild(texto);
+
+    var boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "cargando-reintentar";
+    boton.textContent = t.reintentar;
+    boton.addEventListener("click", function () {
+      boton.disabled = true;
+      iniciar();
+    });
+    caja.appendChild(boton);
+
+    overlay.appendChild(caja);
+    overlayTexto = null;
+  }
+
+  async function iniciar() {
+    idioma = idiomaInicial();
+    marcarIdioma();
+    aplicarTextos();
+
+    try {
+      var datos = await cargarMenu();
+      estado.menu = datos.menu;
+      estado.categorias = datos.categorias;
+    } catch (error) {
+      mostrarError("red");
       return;
     }
 
-    totalPaginas = rutas.length;
-    rutasPaginas = rutas;
-    crearPaginas(rutas);
+    if (!estado.menu.length) {
+      mostrarError("vacio");
+      return;
+    }
 
-    var primeras = libroEl.querySelectorAll("img");
-    await Promise.all(
-      Array.prototype.slice.call(primeras, 0, 3).map(function (img) {
-        if (img.complete) return Promise.resolve();
-        return new Promise(function (r) {
-          img.onload = r;
-          img.onerror = r;
-        });
-      })
-    );
-
+    construirLibro();
     montarLibro();
   }
 

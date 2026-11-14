@@ -1,0 +1,238 @@
+{
+  "_nota": "Traducciones de la Carta Digital. La clave es el nombre en espanol tal como sale del API publico (sin emojis, espacios normalizados). Si un plato no aparece aqui, se muestra su nombre original.",
+  "1/2 Ultra lite - 12 oz / 355 ml.": {
+    "nombre": "1/2 Ultra Lite - 12 oz / 355 ml.",
+    "descripcion": "Served with ice, lime and Ensa."
+  },
+  "Boreal - 12 oz / 355 ml.": {
+    "nombre": "Boreal - 12 oz / 355 ml.",
+    "descripcion": "Domestic beer."
+  },
+  "Café de la casa.": {
+    "nombre": "House Coffee",
+    "descripcion": "House coffee - 8 oz."
+  },
+  "Coctel De Jamaica": {
+    "nombre": "Hibiscus Cocktail",
+    "descripcion": ""
+  },
+  "Corona - 12 oz / 355 ml.": {
+    "nombre": "Corona - 12 oz / 355 ml.",
+    "descripcion": "Imported beer."
+  },
+  "Ensa Manzana - 12 oz / 355 ml.": {
+    "nombre": "Ensa Apple Soda - 12 oz / 355 ml.",
+    "descripcion": "Non-alcoholic drink."
+  },
+  "Ensa simple - 12 oz / 355 ml.": {
+    "nombre": "Ensa Soda - 12 oz / 355 ml.",
+    "descripcion": "Non-alcoholic drink."
+  },
+  "Gaseosa Rojita - 12 oz / 355 ml.": {
+    "nombre": "Rojita Soda - 12 oz / 355 ml.",
+    "descripcion": "Non-alcoholic drink."
+  },
+  "Heineken - 12 oz / 355 ml.": {
+    "nombre": "Heineken - 12 oz / 355 ml.",
+    "descripcion": "Imported beer."
+  },
+  "Mirinda - 12 oz / 355 ml.": {
+    "nombre": "Mirinda - 12 oz / 355 ml.",
+    "descripcion": "Non-alcoholic drink."
+  },
+  "Pepsi - 12 oz / 355 ml.": {
+    "nombre": "Pepsi - 12 oz / 355 ml.",
+    "descripcion": "Non-alcoholic drink."
+  },
+  "Pepsi 500Ml": {
+    "nombre": "Pepsi 500 ml",
+    "descripcion": ""
+  },
+  "Seltzer 12 oz / 355 ml.": {
+    "nombre": "Seltzer 12 oz / 355 ml.",
+    "descripcion": ""
+  },
+  "Smirnofft - 12 oz / 355 ml.": {
+    "nombre": "Smirnoff Ice - 12 oz / 355 ml.",
+    "descripcion": "Imported beer."
+  },
+  "Sol - 12 oz / 355 ml.": {
+    "nombre": "Sol - 12 oz / 355 ml.",
+    "descripcion": "Imported beer."
+  },
+  "Toña - 12 oz / 355 ml.": {
+    "nombre": "Toña - 12 oz / 355 ml.",
+    "descripcion": "Domestic beer."
+  },
+  "Victoria Frost - 12 oz / 355 ml.": {
+    "nombre": "Victoria Frost - 12 oz / 355 ml.",
+    "descripcion": "Domestic beer."
+  },
+
+  "Alitas picantes o barbacoa": {
+    "nombre": "Spicy or BBQ Wings",
+    "descripcion": "6 pieces with french fries and celery and carrot sticks."
+  },
+  "Bandeja de alas": {
+    "nombre": "Wing Platter",
+    "descripcion": "12 chicken wings, french fries, 4 sauces: BBQ, Buffalo, Ranch, tomato sauce. Celery and carrot sticks."
+  },
+  "Chilaquiles de pollo": {
+    "nombre": "Chicken Chilaquiles",
+    "descripcion": "Chips covered in red sauce, shredded chicken, mozzarella cheese, cream, grated cheese, served with special sauce and jalapeño."
+  },
+  "Nachos de Pollo": {
+    "nombre": "Chicken Nachos",
+    "descripcion": "Chips, refried beans, chicken pieces, mozzarella cheese, shredded lettuce, cream, pico de gallo, cheddar cheese and jalapeño slices."
+  },
+  "Tostones Mixtos": {
+    "nombre": "Mixed Tostones",
+    "descripcion": "Crispy tostones topped with ground beef bites and melted cheese. An irresistible combination of homemade flavor and Caribbean texture."
+  },
+
+  "Arroz con camaron.": {
+    "nombre": "Rice with Shrimp",
+    "descripcion": "Served with: lettuce salad and house sauce. Comes with tostones or green plantain slices."
+  },
+  "Camarones al gusto (Empanizados, al ajillo o a la diabla)": {
+    "nombre": "Shrimp Your Way",
+    "descripcion": "Breaded, garlic or diabla. Served with rice, lettuce salad and french fries."
+  },
+  "Churrasco argentino": {
+    "nombre": "Argentine Churrasco",
+    "descripcion": "Served with: rice, grilled cheese, lettuce salad, grilling chorizo, tostones or french fries and chimichurri."
+  },
+  "Costillas de Cerdo": {
+    "nombre": "Pork Ribs",
+    "descripcion": "Rice, lettuce salad, french fries or tostones, sautéed vegetables."
+  },
+  "Dedos de Pescado": {
+    "nombre": "Fish Fingers",
+    "descripcion": "Served with pink sauce, house salad and fries."
+  },
+  "Dedos de Pollo": {
+    "nombre": "Chicken Fingers",
+    "descripcion": "Served with french fries, pink sauce and salad."
+  },
+  "Fettuccini en salsa con pollo": {
+    "nombre": "Fettuccine with Chicken",
+    "descripcion": "Fettuccine pasta, chicken pieces, parmesan cheese."
+  },
+  "Filete de pollo con salsa jalapeña": {
+    "nombre": "Chicken Fillet with Jalapeño Sauce",
+    "descripcion": "Rice, lettuce salad, tostones or french fries, and our special jalapeño sauce."
+  },
+  "Pescado Entero": {
+    "nombre": "Whole Fish",
+    "descripcion": "Whole golden crispy fish, served with white rice, plantain tostones, tomato and lime. A Caribbean classic that combines homemade flavor with tropical freshness."
+  },
+
+  "Carne Asada al estilo Sazón Caribeño": {
+    "nombre": "Grilled Beef, Sazón Caribeño Style",
+    "descripcion": "Beef fillet, tajadas, salad and pico de gallo."
+  },
+  "Hamburguesa clásica": {
+    "nombre": "Classic Burger",
+    "descripcion": "Tomato, lettuce, red onion, sauce, beef, cheese and french fries."
+  },
+  "Hamburguesa Jack Daniel's": {
+    "nombre": "Jack Daniel's Burger",
+    "descripcion": "Red onion, bacon, yellow cheese, special sauce, pickle and french fries."
+  },
+  "Patty caribeño": {
+    "nombre": "Caribbean Patty",
+    "descripcion": "6 beef-filled patties with red sauce."
+  },
+  "Quesadilla de pollo": {
+    "nombre": "Chicken Quesadilla",
+    "descripcion": "Flour tortilla, sautéed chicken, gratinated cheese, pink sauce and pico de gallo."
+  },
+  "Tajadas con pollo": {
+    "nombre": "Tajadas with Chicken",
+    "descripcion": "Tajadas, chicken fillet, salad and pico de gallo."
+  },
+
+  "Cazuela de frijoles.": {
+    "nombre": "Bean Casserole",
+    "descripcion": "Refried bean casserole (melted cheese, cream) served with tortilla chips and pico de gallo."
+  },
+  "Patí Caribeño (Beef Patty)": {
+    "nombre": "Caribbean Beef Patty",
+    "descripcion": "Small pastries filled with beef seasoned with Caribbean spices, baked until golden and crispy. A classic full of flavor and tradition. Special offer: take 6 for the price of 5 and enjoy more of this delicious treat!"
+  },
+  "Tostones con Queso": {
+    "nombre": "Tostones with Cheese",
+    "descripcion": ""
+  },
+
+  "Cerdo a la Plancha": {
+    "nombre": "Grilled Pork",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+  "Cerdo con Salsa Jalapeña": {
+    "nombre": "Pork with Jalapeño Sauce",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+  "Estofado de cerdo.": {
+    "nombre": "Pork Stew",
+    "descripcion": "Pork pieces, rice, tajadas, house salad."
+  },
+  "Filete de pescado a la Plancha.": {
+    "nombre": "Grilled Fish Fillet",
+    "descripcion": "Served with rice, pink sauce, house salad and tajadas."
+  },
+  "Filete de Pescado Empanizado": {
+    "nombre": "Breaded Fish Fillet",
+    "descripcion": "Served with rice, pink sauce, house salad and tajadas."
+  },
+  "Filete de Pollo a la Plancha": {
+    "nombre": "Grilled Chicken Fillet",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+  "Filete de Pollo Empanizado": {
+    "nombre": "Breaded Chicken Fillet",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+  "Milanesa de Pollo": {
+    "nombre": "Chicken Milanesa",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+  "Pollo con Salsa Jalapeña": {
+    "nombre": "Chicken with Jalapeño Sauce",
+    "descripcion": "Served with rice, fried beans, house salad and tajadas."
+  },
+
+  "Ceviche de camarón": {
+    "nombre": "Shrimp Ceviche",
+    "descripcion": "Fresh shrimp in lime juice, cilantro and a touch of Caribbean spices. Refreshing and full of flavor."
+  },
+  "Ceviche de Pescado.": {
+    "nombre": "Fish Ceviche",
+    "descripcion": "Fresh fish pieces, vegetables, lettuce, green plantain slices or crackers."
+  },
+  "Coctel de Camaron.": {
+    "nombre": "Shrimp Cocktail",
+    "descripcion": "Fresh shrimp in lime juice, cilantro, a touch of Caribbean spices and the exquisite house touch that makes a unique flavor."
+  },
+  "Coctel Mixto": {
+    "nombre": "Mixed Cocktail",
+    "descripcion": "Shrimp and fresh fish marinated in lime juice, with red onion and cilantro. A light and refreshing classic from the sea."
+  },
+
+  "Extra Arroz": { "nombre": "Extra Rice", "descripcion": "" },
+  "Extra Chile criollo": { "nombre": "Extra Creole Chili", "descripcion": "" },
+  "Extra Ensalada": { "nombre": "Extra Salad", "descripcion": "" },
+  "Extra Frijoles Fritos": { "nombre": "Extra Fried Beans", "descripcion": "" },
+  "Extra Frijoles molidos": { "nombre": "Extra Refried Beans", "descripcion": "" },
+  "Extra Jalapeños": { "nombre": "Extra Jalapeños", "descripcion": "" },
+  "Extra Papas Fritas": { "nombre": "Extra French Fries", "descripcion": "" },
+  "Extra Queso mozzarella": { "nombre": "Extra Mozzarella Cheese", "descripcion": "" },
+  "Extra Salsas": { "nombre": "Extra Sauces", "descripcion": "" },
+  "Extra Tajadas": { "nombre": "Extra Tajadas", "descripcion": "" },
+  "Extra Tostones": { "nombre": "Extra Tostones", "descripcion": "" },
+
+  "SOPA DE CAMARON": { "nombre": "Shrimp Soup", "descripcion": "" },
+  "SOPA DE PEZCADO": { "nombre": "Fish Soup", "descripcion": "" },
+  "Sopa de Res": { "nombre": "Beef Soup", "descripcion": "" },
+  "SOPA MIXTA Pescado/Camaron": { "nombre": "Mixed Soup (Fish / Shrimp)", "descripcion": "" }
+}

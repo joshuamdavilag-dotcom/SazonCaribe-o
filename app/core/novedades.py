@@ -13,6 +13,23 @@ Reglas:
 
 NOVEDADES = [
     {
+        "version": "1.4.0",
+        "publicada_en": "2026-11-14T12:00",
+        "titulo": "La carta de clientes se actualiza sola y ya tiene versión en inglés",
+        "resumen": (
+            "La Carta Digital ahora se arma con el menú real del sistema: lo "
+            "que creas, editas u ocultas en Gestión de Menú aparece en la "
+            "carta, y los clientes pueden leerla en español o en inglés."
+        ),
+        "detalle": [
+            "La carta de clientes se actualiza sola: ya no hay que generar ni reemplazar imágenes.",
+            "Los platillos nuevos aparecen automáticamente, con su foto y su precio en córdobas.",
+            "En Gestión de Menú hay campos nuevos para el nombre y la descripción en inglés.",
+            "La carta tiene un selector ES / EN; si un platillo todavía no tiene traducción, se muestra en español.",
+            "El botón Ampliar permite acercar la hoja para leer la letra pequeña, también en el celular.",
+        ],
+    },
+    {
         "version": "1.3.0",
         "publicada_en": "2026-11-06T18:00",
         "titulo": "Importación de inventario desde archivos",

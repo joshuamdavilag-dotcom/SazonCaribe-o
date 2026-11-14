@@ -349,6 +349,7 @@ async def startup_event():
         _migrate_nomina_periodos()
         _migrate_backups_contenido()
         _migrate_menu_item_imagen_tiempo()
+        _migrate_menu_ingles()
         _migrate_asistencia_utc_a_local()
         _migrate_asistencias_anulada()
         _migrate_usuarios_turno_habilitado()
@@ -365,6 +366,7 @@ async def startup_event():
         _migrate_nombres_archivados()
         _fix_unidades_medida()
         _sembrar_novedades()
+        _sembrar_traducciones_carta()
         _auto_seed_admin()
         _fix_joshi_password()
         _seed_harca27_admin()
@@ -718,6 +720,20 @@ def _migrate_menu_item_imagen_tiempo():
         "ALTER TABLE menu_items ADD COLUMN imagen_url VARCHAR(500) NULL")
     _add_column_if_not_exists("menu_items", "tiempo_preparacion",
         "ALTER TABLE menu_items ADD COLUMN tiempo_preparacion INT NULL")
+
+
+def _migrate_menu_ingles():
+    """Agrega las columnas en inglés de la Carta Digital (idempotente).
+
+    La carta pública lee `nombre_en` / `descripcion_en` (platillos) y
+    `nombre_en` (categorías) y cae al texto en español cuando están vacías.
+    """
+    _add_column_if_not_exists("menu_items", "nombre_en",
+        "ALTER TABLE menu_items ADD COLUMN nombre_en VARCHAR(100) NULL")
+    _add_column_if_not_exists("menu_items", "descripcion_en",
+        "ALTER TABLE menu_items ADD COLUMN descripcion_en TEXT NULL")
+    _add_column_if_not_exists("categorias_menu", "nombre_en",
+        "ALTER TABLE categorias_menu ADD COLUMN nombre_en VARCHAR(50) NULL")
 
 
 def _migrate_asistencia_utc_a_local():
@@ -1588,6 +1604,24 @@ async def _cierre_caja_watcher():
         except Exception:
             logger.exception("Falló el cierre automático de caja")
         await asyncio.sleep(60)
+
+
+def _sembrar_traducciones_carta() -> None:
+    """Completa las traducciones de la Carta Digital que falten (una vez).
+
+    Nunca pisa lo que ya está escrito: a partir del primer arranque, las
+    traducciones se editan desde Gestión de Menú.
+    """
+    from app.core.database import SessionLocal
+    from app.db.traducciones import sembrar_traducciones_carta
+
+    try:
+        with SessionLocal() as db:
+            tocados = sembrar_traducciones_carta(db)
+        if tocados:
+            logger.info("Traducciones de la Carta sembradas: %s registro(s)", tocados)
+    except Exception:
+        logger.warning("No se pudieron sembrar las traducciones de la Carta", exc_info=True)
 
 
 def _sembrar_novedades() -> None:
