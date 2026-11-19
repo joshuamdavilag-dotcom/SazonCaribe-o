@@ -1,6 +1,8 @@
 # Sazón Caribeño POS
 
-Sistema de gestión para restaurante (**ERP / POS**) construido con **FastAPI + SQLAlchemy 2.x + Pydantic v2** y **MySQL** (PostgreSQL/SQLite soportados como fallback). Incluye un SPA en **Vanilla JS** para el personal y una **Carta Digital pública** (menú por QR, sin autenticación) para los clientes.
+Sistema integral de gestión para restaurantes (**ERP / POS**) construido con **FastAPI + SQLAlchemy 2.x + Pydantic v2** y base de datos **MySQL/MariaDB** (PostgreSQL y SQLite soportados como alternativas). Incluye un SPA en **Vanilla JS** para el personal y una **Carta Digital pública** (menú por QR, sin autenticación) para los clientes.
+
+> Nota honesta: esto empezó siendo un POS y terminó siendo un pequeño ERP. Si vienes buscando el archivo donde está "todo", no existe. Aquí todo está en su sitio, más o menos.
 
 ---
 
@@ -13,35 +15,37 @@ Sistema de gestión para restaurante (**ERP / POS**) construido con **FastAPI + 
 - [Puesta en marcha](#puesta-en-marcha)
 - [Variables de entorno](#variables-de-entorno)
 - [Flujo de arranque](#flujo-de-arranque)
-- [Roles y permisos (RBAC)](#roles-y-permisos-rbac)
+- [Roles y permisos](#roles-y-permisos)
 - [Módulos y reglas de negocio](#módulos-y-reglas-de-negocio)
+- [Carta Digital](#carta-digital)
 - [API](#api)
-- [API pública (Carta Digital)](#api-pública-carta-digital)
 - [Despliegue](#despliegue)
 - [Pruebas](#pruebas)
 - [Documentación adicional](#documentación-adicional)
-- [Estado del proyecto](#estado-del-proyecto)
+- [Estado del proyecto y deuda técnica](#estado-del-proyecto-y-deuda-técnica)
+- [Notas del desarrollador](#notas-del-desarrollador)
 
 ---
 
 ## Características
 
-- **Salón**: mapa de mesas por zona, estados (LIBRE/OCUPADA/RESERVADA/MANTENIMIENTO), apodo temporal de mesa.
-- **Órdenes / Comandas**: órdenes por mesa o para llevar, comandas editables, descuentos por producto y globales, pago con liberación automática de mesa, venta retroactiva.
-- **KDS (Panel de Cocina)**: vista dedicada con botones "Empezar Preparación" / "Listo", auto-refresh y modo pantalla completa para cocineros.
-- **Menú**: categorías dinámicas, platillos con imagen (multi-part → ImgBB), tiempo de preparación y recetas.
-- **Inventario**: insumos, categorías, unidades de medida con conversión transitiva, empaques por insumo, movimientos (ENTRADA/SALIDA) y producción por lote (preparaciones).
-- **Personal**: puestos, empleados, usuarios, plantillas de turno y habilitación dinámica de turnos para vendedores.
-- **Asistencia**: check-in/check-out, horas extras, edición de horarios, anulación con auditoría, heartbeat y cierre automático de turnos huérfanos.
-- **Nómina**: cálculo quincenal, adelantos de salario, pago y recalculación.
-- **Caja**: historial del día, ventas del día (vista acotada para meseros), cierre de caja con archivado, anulación de pedidos y devolución de líneas con motivo.
-- **Gastos**: CRUD de gastos operativos y gastos automáticos por consumo de insumos; edición y eliminación auditadas (borrado lógico con motivo).
-- **Reportes**: cierre financiero por periodo (diario/semanal/quincenal/mensual/anual), utilidad neta, top platillos y descuentos.
+- **Salón**: mapa de mesas por zona, estados (LIBRE, OCUPADA, RESERVADA, MANTENIMIENTO), apodo temporal del cliente, fusión de mesas con colores y desfusión sin cerrar comandas.
+- **Órdenes y comandas**: varias comandas por mesa o para llevar, edición completa de la comanda, descuentos por línea y globales, pagos parciales y divididos, comprobantes individuales, anulación y devolución de líneas con auditoría, venta retroactiva.
+- **KDS (Panel de Cocina)**: vista con botones "Empezar preparación" y "Listo", tiempos de espera con semáforo, auto-refresco y perfil de cocinero por puesto.
+- **Menú y recetas**: categorías y platillos dinámicos, imagen subida a ImgBB con compresión WebP, tiempo de preparación, recetas con conversión de unidades, producción por lote.
+- **Inventario**: insumos, categorías, unidades con conversión transitiva, empaque por insumo, movimientos ENTRADA/SALIDA, alertas de stock y **importación inteligente** desde Excel, CSV, TXT, PDF o DOCX con apoyo de IA.
+- **Personal**: puestos, empleados, usuarios, plantillas de turno, habilitación individual o masiva de turnos y permisos funcionales por usuario.
+- **Asistencia**: check-in/check-out, heartbeat, día de negocio configurable, cierre automático auditado, reactivación de turnos, edición de horarios y anulación con motivo.
+- **Nómina**: prorrateo por día (1 a 30 días), horas extras, adelantos, pago y recálculo de nóminas pendientes.
+- **Caja**: historial del día, panel acotado de ventas para meseros, cierre manual y cierre automático a medianoche, anulación de pedidos y devolución de líneas.
+- **Gastos**: CRUD con filtros, gastos automáticos por consumo de insumos, edición y eliminación lógica auditadas.
+- **Reportes**: cierre financiero por periodo, utilidad neta, descuentos, top de platillos y desglose de gastos.
+- **Auditoría**: bitácora paginada con antes/después, consulta para administración y eliminación de registros solo por Administrador.
 - **Calendario**: planificación de disponibilidad de platillos y llegadas de insumos, más consulta de asistencias reales.
-- **Cámaras**: registro, control de acceso y clips de video vía puente WebRTC.
-- **Pagos en línea**: arquitectura de gateway con adaptador deshabilitado por defecto.
-- **Auditoría**: bitácora de acciones sensibles (`RegistroAuditoria`).
-- **Carta Digital pública**: menú filtrado y curado para clientes, sin exponer costos ni inventario.
+- **Notificaciones push**: Web Push con VAPID, preferencias por usuario (cocina, mesero, todas, fuera de turno) y service worker con enlaces profundos.
+- **Estudio de mercado**: generación mensual o manual con Gemini, métricas reales del negocio, documentos adjuntos, chat asesor e informe HTML descargable con gráficas SVG.
+- **Copias de seguridad**: volcado completo dentro de la base de datos, descarga, restauración y copia automática mensual.
+- **Carta Digital pública**: libro de páginas que se voltean, generado en el navegador desde la API, con selector ES/EN, fotos progresivas y visor de zoom.
 
 ---
 
@@ -52,42 +56,50 @@ Sistema de gestión para restaurante (**ERP / POS**) construido con **FastAPI + 
 | Framework | FastAPI 0.138.0 + Uvicorn |
 | ORM | SQLAlchemy 2.x (`Mapped`, `mapped_column`, `relationship`) |
 | Schemas | Pydantic v2 (`ConfigDict(from_attributes=True)`) |
-| Base de datos | MySQL / MariaDB vía PyMySQL (PostgreSQL vía psycopg2, SQLite fallback) |
+| Base de datos | MySQL/MariaDB vía PyMySQL (PostgreSQL vía psycopg2, SQLite local) |
 | Auth | python-jose (JWT HS256) + bcrypt directo |
-| Migraciones | Alembic (declarado) + migraciones de arranque idempotentes en `app/main.py` |
-| Imágenes | ImgBB API (vía `httpx`) + Pillow (resize/WebP) |
-| Frontend | SPA Vanilla JS + CSS propio (sin build step) |
-| HTTP client | httpx 0.28.1 |
-| Pruebas | scripts E2E con `requests` + pytest |
+| Migraciones | `create_all` + migraciones de arranque idempotentes en `app/main.py` (Alembic está declarado, pero no se usa todavía) |
+| Imágenes | ImgBB API vía `httpx` + Pillow (validación, resize y WebP) |
+| Frontend | SPA Vanilla JS + CSS propio, sin build step |
+| Utilidades CSS | Tailwind precompilado (`css/tailwind.min.css`, ~30 KB) |
+| Push | `pywebpush` 2.0.1 + VAPID derivado de `SECRET_KEY` |
+| IA | Google Gemini (rotación de modelos y reintentos) |
+| Libro de la carta | StPageFlip vendorizado (sin CDN) |
+| Zona horaria | `tzdata` + `ZoneInfo("America/Managua")` |
+| Pruebas | pytest (177 pruebas) |
 
 ---
 
 ## Arquitectura
 
-Patrón por capas: **API → Service → Repository → Model**, con schemas Pydantic como contrato de entrada/salida.
+Patrón por capas: **API → Service → Repository → Model**, con schemas Pydantic como contrato de entrada y salida.
 
 ```
-Request HTTP
+Solicitud HTTP
    │
    ▼
-API (app/api/endpoints/*)        ← valida rol, arma dependencias, delega
+API (app/api/endpoints/*)        valida token, rol o permiso y delega
    │
    ▼
-Service (app/services/*)         ← reglas de negocio, lanza HTTPException
+Service (app/services/*)         reglas de negocio; lanza HTTPException
    │
    ▼
-Repository (app/repositories/*)  ← SQLAlchemy, joinedload, queries
+Repository (app/repositories/*)  SQLAlchemy, joinedload, consultas
    │
    ▼
-Model (app/models/*)             ← tablas y relaciones
+Model (app/models/*)             tablas y relaciones
 ```
 
-Principios:
+Principios que sí se respetan:
 
-- Los **servicios** concentran las reglas de negocio y son los únicos que lanzan `HTTPException` (404/400/403) ante violaciones de reglas.
-- Los **repositorios** solo acceden a datos (con `joinedload` para eager loading) y no conocen HTTP.
-- Los **schemas** definen contratos; los de respuesta usan `from_attributes=True` para serializar ORM.
-- El **frontend** consume exclusivamente `/api/v1/*` (ERP) o `/api/public/*` (carta), nunca la base de datos.
+- Los **servicios** concentran las reglas de negocio y son los que lanzan `HTTPException` (400/403/404) ante violaciones.
+- Los **repositorios** solo acceden a datos y no conocen HTTP.
+- Los **schemas** definen contratos; los de respuesta usan `from_attributes=True`.
+- El **frontend** consume `/api/v1/*` (ERP) o `/api/public/*` (carta), nunca la base de datos.
+
+Principios que se respetan "cuando se puede":
+
+- La capa API no debería tener lógica de negocio. En la práctica hay endpoints que calculan cosas; están marcados en la documentación técnica para no repetir el pecado.
 
 ---
 
@@ -95,37 +107,52 @@ Principios:
 
 ```
 app/
-├── main.py                  # App FastAPI, CORS, registro de routers, mounts estáticos,
-│                            #   migraciones de arranque, watchers (heartbeat, retención de clips)
+├── main.py                  # App FastAPI, CORS, routers, mounts, migraciones de arranque y watchers
 ├── core/
 │   ├── config.py            # Settings (Pydantic Settings) leídos de .env
-│   ├── database.py          # Engine, SessionLocal, Base, get_db(); detección de dialecto
-│   ├── security.py          # bcrypt directo + JWT (SECRET_KEY/ALGORITHM/EXPIRACIÓN)
-│   ├── tiempo.py            # Hora local Managua + día de negocio (ventana_dia_negocio)
-│   └── vapid.py             # Claves VAPID derivadas de SECRET_KEY (Web Push)
+│   ├── database.py          # Engine, SessionLocal, Base, get_db()
+│   ├── security.py          # bcrypt directo + JWT
+│   ├── tiempo.py            # Hora local Managua y día de negocio
+│   ├── permisos.py          # Catálogo de 18 permisos y resolución de overrides
+│   ├── vapid.py             # Claves VAPID derivadas de SECRET_KEY
+│   ├── slug.py              # Generador de slugs públicos estilo Render
+│   └── novedades.py         # Fuente de verdad de las novedades del sistema
 ├── api/
-│   ├── deps.py              # get_current_user, requerir_rol(roles)
-│   ├── auditoria.py         # Router de bitácora de auditoría
+│   ├── deps.py              # get_current_user, requerir_rol, requerir_permiso
+│   ├── auditoria.py         # Router de bitácora
 │   └── endpoints/           # Un archivo por dominio (personal, orden, caja, ...)
 ├── schemas/                 # Contratos Pydantic por dominio
 ├── models/                  # Modelos SQLAlchemy por dominio
 ├── repositories/            # Acceso a datos por dominio
 ├── services/                # Reglas de negocio por dominio
+├── utils/
+│   └── calculations.py      # Cálculo de horas extras
 ├── db/
-│   ├── init_db.py           # Crea tablas y siembra datos de prueba (python -m app.db.init_db)
-│   ├── cerrar_turnos_huerfanos.py  # Script manual de cierre de turnos
-│   ├── actualizar_ejecutivos.py    # Ajusta precios/estructura de platos ejecutivos
-│   └── restructurar_menu.py        # Reorganiza categorías/platillos del menú
+│   ├── init_db.py           # Crea tablas y siembra datos de prueba
+│   ├── traducciones.py      # Siembra inicial de traducciones EN
+│   ├── traducciones_carta.json
+│   ├── actualizar_ejecutivos.py
+│   ├── cerrar_turnos_huerfanos.py
+│   └── restructurar_menu.py
 └── Templates/               # Frontend servido por FastAPI
-    ├── index.html           # SPA del ERP (personal autenticado)
-    ├── css/style.css        # Design tokens + estilos del POS
-    ├── js/app.js            # Toda la lógica del SPA
-    ├── sw.js                # Service Worker de notificaciones push (Web Push)
-    └── carta/               # Carta Digital pública (sin auth): index.html, css/, js/, img/
+    ├── index.html           # SPA del ERP
+    ├── css/style.css        # Design tokens, componentes y modo oscuro
+    ├── css/tailwind.min.css # Utilidades precompiladas
+    ├── js/app.js            # Lógica del SPA
+    ├── sw.js                # Service Worker de Web Push
+    └── carta/               # Carta Digital pública
+        ├── index.html
+        ├── css/estilo.css
+        ├── js/menu-libro.js
+        ├── vendor/page-flip.browser.js
+        └── img/
 docs/
-├── CALENDARIO.md            # Guía funcional y técnica del calendario
-└── CAMARAS.md               # Guía del módulo de cámaras y puente WebRTC
-tests/                       # Scripts E2E y tests unitarios
+├── CALENDARIO.md
+├── CAMARAS.md
+└── DOCUMENTACION_TECNICA.md
+tests/                       # 30 archivos de pruebas, 177 casos con pytest
+tools/
+└── purgar_auditoria.py      # Archivo masivo de auditoría con respaldo previo
 ```
 
 ---
@@ -134,12 +161,15 @@ tests/                       # Scripts E2E y tests unitarios
 
 ### Requisitos
 
-- Python **3.12** (o compatible)
-- MySQL/MariaDB en ejecución (o dejar `DATABASE_URL` vacío para usar SQLite local)
+- Python **3.12** o superior (producción usa 3.12)
+- MySQL/MariaDB en ejecución, o dejar `DATABASE_URL` vacío para usar SQLite local
 
 ### Instalación
 
 ```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -147,7 +177,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edita .env con tus credenciales
+# Editar .env con credenciales y claves
 ```
 
 ### Inicializar la base de datos
@@ -156,7 +186,7 @@ cp .env.example .env
 python -m app.db.init_db
 ```
 
-`init_db.py` crea todas las tablas y siembra catálogos, usuarios y datos de prueba (incluye empleados con asistencias/nóminas del periodo de prueba).
+`init_db.py` crea todas las tablas y siembra catálogos, usuarios y datos de prueba.
 
 ### Ejecutar
 
@@ -168,21 +198,21 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 | Recurso | URL |
 |---------|-----|
-| ERP (SPA) | http://localhost:8000/Templates/index.html |
+| ERP (SPA) | http://localhost:8000/ |
 | Carta Digital | http://localhost:8000/carta/ |
-| Swagger | http://localhost:8000/docs |
+| Documentación interactiva | http://localhost:8000/docs |
 | Healthcheck | http://localhost:8000/healthcheck |
 
 ### Usuarios sembrados
 
 | Usuario | Contraseña | Rol | Notas |
 |---------|-----------|-----|-------|
-| `joshi_0211` | `@0420311001000V` | Administrador | Auto-sembrado en arranque si la BD está vacía |
+| `joshi_0211` | `@0420311001000V` | Administrador | Auto-sembrado en arranque si la base está vacía |
 | `admin` | `password123` | Administrador | Sembrado por `init_db.py` |
 | `gerente` | `password123` | Gerente | Sembrado por `init_db.py` |
 | `mesero` | `password123` | Vendedor | Sembrado por `init_db.py` |
 
-> Los usuarios Administrador y Gerente saltan la verificación de turno habilitado. Los **Vendedores** requieren que gerencia habilite su turno (`turno_habilitado=True`).
+> Las cuentas de prueba son para desarrollo. Cámbialas antes de publicar el sistema en producción. Sí, esto va en serio.
 
 ---
 
@@ -192,9 +222,9 @@ Definidas en `app/core/config.py` (Pydantic Settings, archivo `.env`). Ver `.env
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
-| `DATABASE_URL` | *(vacío)* | URL de conexión. Vacío ⇒ SQLite local. Acepta `mysql+pymysql://`, `postgresql://` |
-| `SQLITE_PATH` | `./data/sazon_caribeno.db` | Archivo SQLite (solo si `DATABASE_URL` vacío) |
-| `SECRET_KEY` | `your-secret-key-...` | Clave de firma JWT |
+| `DATABASE_URL` | *(vacío)* | URL de conexión. Vacío usa SQLite. Acepta `mysql+pymysql://` y `postgresql://` |
+| `SQLITE_PATH` | `./data/sazon_caribeno.db` | Archivo SQLite cuando `DATABASE_URL` está vacío |
+| `SECRET_KEY` | `your-secret-key-...` | Firma de JWT y base de derivación VAPID |
 | `ALGORITHM` | `HS256` | Algoritmo JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `525600` | Expiración del token (365 días) |
 | `HARCA27_PASSWORD` | *(vacío)* | Contraseña opcional para crear la cuenta `Harca27` |
@@ -203,204 +233,237 @@ Definidas en `app/core/config.py` (Pydantic Settings, archivo `.env`). Ver `.env
 | `ENVIRONMENT` | `development` | Entorno |
 | `HEARTBEAT_INTERVAL_SECONDS` | `300` | Intervalo del watcher de heartbeat |
 | `HEARTBEAT_TIMEOUT_SECONDS` | `900` | Umbral para cerrar turnos huérfanos |
-| `HORA_INICIO_DIA` | `7` | Hora de corte del día de negocio (7:00 AM → 7:00 AM) |
+| `AUTO_CERRAR_TURNOS` | `false` | Cierre automático de turnos (hoy se controla por usuario, no por esta bandera) |
+| `HORA_INICIO_DIA` | `7` | Hora de corte del día de negocio (7:00 a 7:00) |
 | `HOURS_PER_DAY` | `8` | Horas laborales por día |
 | `OVERTIME_MULTIPLIER` | `1.0` | Multiplicador de horas extra (sin recargo) |
-| `IVA_RATE` | `0.0` | IVA deshabilitado (precios netos) |
-| `CORS_ORIGINS` | `http://127.0.0.1:5500,http://localhost:5500` | Orígenes permitidos (coma-separados) |
-| `IMGBB_API_KEY` | *(vacío)* | API key de ImgBB para subir imágenes de platillos |
-| `CAMERA_BRIDGE_BASE_URL` | *(vacío)* | Origen HTTPS del puente WebRTC (sin credenciales) |
-| `CAMERA_STORAGE_DIR` | `app/data/camera-clips` | Directorio de clips de cámara |
-| `CAMERA_ICE_SERVERS_JSON` | `[]` | Servidores STUN/TURN para WebRTC |
+| `IVA_RATE` | `0.0` | IVA deshabilitado: los precios ya lo incluyen |
+| `CORS_ORIGINS` | `http://127.0.0.1:5500,http://localhost:5500` | Orígenes permitidos, separados por coma |
+| `CARTA_RUTA_PUBLICA` | `/carta` | Ruta pública de la Carta Digital |
+| `IMGBB_API_KEY` | *(vacío)* | API key de ImgBB para imágenes de platillos |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | *(derivadas)* | Claves VAPID. Si faltan se derivan de `SECRET_KEY` |
+| `VAPID_SUBJECT` | `mailto:admin@sazoncaribeno.com` | Contacto del servidor push |
+| `PUSH_TTL` | `3600` | Vida de la notificación push en segundos |
+| `PUSH_TIMEOUT` | `15` | Timeout del envío push |
+| `CAMERA_BRIDGE_BASE_URL` | *(vacío)* | Origen HTTPS del puente WebRTC |
+| `CAMERA_STORAGE_DIR` | `app/data/camera-clips` | Directorio de clips de cámaras |
+| `CAMERA_ICE_SERVERS_JSON` | `[]` | Servidores STUN/TURN |
 | `CAMERA_TURN_SHARED_SECRET` | *(vacío)* | Secreto compartido con Coturn |
-| `PAYMENT_PROVIDER` | `disabled` | Proveedor de pagos activo |
+| `GEMINI_API_KEY` | *(vacío)* | API key de Google AI Studio |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Modelo principal |
+| `GEMINI_MODELOS_RESPALDO` | `gemini-3.6-flash,...` | Modelos de respaldo separados por coma |
+| `GEMINI_TIMEOUT` | `120` | Espera por respuesta |
+| `GEMINI_MAX_INTENTOS` | `4` | Intentos totales rotando modelos |
+| `GEMINI_MAX_CARACTERES_DOCUMENTO` | `120000` | Texto máximo enviado a la IA por documento |
+| `ESTUDIO_MERCADO_DIA` | `1` | Día del mes para el estudio automático |
+| `ESTUDIO_MERCADO_HORA` | `6` | Hora local desde la que corre el estudio automático |
+| `ESTUDIO_MERCADO_INTERVALO_SEGUNDOS` | `3600` | Frecuencia del watcher de estudio |
+| `PAYMENT_PROVIDER` | `disabled` | Proveedor de pagos; deshabilitado por defecto |
 | `PAYMENT_CURRENCY` | `NIO` | Moneda ISO 4217 |
-| `PAYMENT_SUCCESS_URL` | *(vacío)* | URL de retorno tras pago exitoso |
-| `PAYMENT_CANCEL_URL` | *(vacío)* | URL de retorno al cancelar checkout |
-| `VAPID_PUBLIC_KEY` | *(derivada)* | Clave pública VAPID. Si se deja vacía se **deriva de `SECRET_KEY`** (determinista, estable entre reinicios) |
-| `VAPID_PRIVATE_KEY` | *(derivada)* | Clave privada VAPID. Si se deja vacía se **deriva de `SECRET_KEY`** |
-| `VAPID_SUBJECT` | `mailto:admin@sazoncaribeno.com` | Contacto del servidor de push (claim `sub` del JWT VAPID) |
-| `PUSH_TTL` | `3600` | Segundos de vida de la notificación push (0 = entregar solo si el dispositivo está en línea) |
-| `PUSH_TIMEOUT` | `15` | Timeout (segundos) de la llamada HTTP al servicio de push |
+| `PAYMENT_SUCCESS_URL` / `PAYMENT_CANCEL_URL` | *(vacío)* | URLs de retorno del checkout |
 
-> **Las claves VAPID no necesitan configurarse en producción**: si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están definidas, `app/core/vapid.py` las deriva de `SECRET_KEY` de forma determinista. Mientras `SECRET_KEY` no cambie (en Render es un valor generado y estable), las suscripciones de los dispositivos siguen siendo válidas entre reinicios. Si defines las claves a mano, deben ser un par coherente (las dos base64url de 65/32 bytes).
+> Las claves VAPID no requieren configuración manual: `app/core/vapid.py` las deriva de `SECRET_KEY` de forma determinista. Mientras `SECRET_KEY` no cambie, las suscripciones de los dispositivos siguen siendo válidas.
 
 ---
 
 ## Flujo de arranque
 
-`app/main.py` ejecuta, al iniciar, una secuencia idempotente (pensada como red de seguridad porque las migraciones formales no siempre se corren en producción):
+`app/main.py` ejecuta una secuencia idempotente al iniciar, pensada como red de seguridad porque las migraciones formales no siempre se corren en producción:
 
-1. `Base.metadata.create_all()` — crea las tablas faltantes.
-2. **Migraciones de columnas/estructura** (`_migrate_*`): agregan columnas y arreglan datos legacy si faltan. Son idempotentes (verifican `information_schema` antes de actuar). Ejemplos: `_migrate_orden_descuentos`, `_migrate_insumos_empaque`, `_migrate_usuarios_turno_habilitado`, `_migrate_menu_item_imagen_tiempo`.
-3. **Arreglos y saneamiento** (`_fix_*`): corrigen cadenas de unidades, liberan mesas huérfanas, sanean turnos, fuerzan la contraseña de `joshi_0211` y archivan nombres de platos/usuarios eliminados.
-4. **Auditoría de seguridad**: `_auditar_hashes()` reporta usuarios con hash no-bcrypt; `_auto_seed_admin()` / `_seed_harca27_admin()` crean cuentas administrativas si corresponde.
-5. **Tareas de fondo**: `_heartbeat_watcher()` (cierra turnos huérfanos) y `_camera_clip_retention_watcher()` (depura clips antiguos).
+1. `Base.metadata.create_all()` crea las tablas faltantes.
+2. **Migraciones de columnas y estructura** (`_migrate_*`): agregan columnas y corrigen datos legacy. Verifican `information_schema` antes de actuar.
+3. **Saneamiento** (`_fix_*`): cadenas de unidades, mesas huérfanas, turnos, nombres archivados y contraseña de `joshi_0211`.
+4. **Auditoría de seguridad**: `_auditar_hashes()` reporta hashes no bcrypt y se crean las cuentas administrativas si corresponde.
+5. **Siembra de novedades y traducciones**: `_sembrar_novedades()` y `_sembrar_traducciones_carta()` solo rellenan lo que falta.
+6. **Tareas de fondo**: heartbeat, cierre automático de caja, retención de clips, estudio de mercado mensual y difusión de novedades.
 
-> Estas funciones **no deben borrarse**: son la garantía de que la base de datos de producción mantenga su esquema sin depender de Alembic. Ver [Estado del proyecto](#estado-del-proyecto).
+> Estas funciones no deben borrarse sin reemplazarlas: son la garantía de que la base de producción mantenga su esquema.
 
 ---
 
-## Roles y permisos (RBAC)
+## Roles y permisos
 
-Roles definidos en `RolEnum` (`app/schemas/personal.py`): **Administrador**, **Gerente**, **Vendedor**.
+Roles definidos en `RolEnum` (`app/schemas/personal.py`): **Administrador**, **Gerente**, **Vendedor**. Además existen **18 permisos funcionales** que se pueden conceder o quitar por usuario.
+
+### Matriz de roles por defecto
 
 | Acción | Administrador | Gerente | Vendedor |
 |--------|:-------------:|:-------:|:--------:|
-| Leer la mayoría de endpoints | ✅ | ✅ | ✅ |
-| Escribir menú / inventario | ✅ | ✅ | ❌ |
-| Órdenes (crear, agregar/editar ítems) | ✅ | ✅ | ✅ |
-| Pagar orden (libera mesa) | ✅ | ✅ | ✅ |
-| Iniciar turno / check-in / check-out | ✅ | ✅ | ✅ |
-| Gestionar plantillas de turno (CRUD) | ✅ | ✅ | ❌ |
-| Habilitar turno de vendedores | ✅ | ✅ | ❌ |
-| Dar de baja empleado | ✅ | ✅ | ❌ |
-| Gastos operativos | ✅ | ✅ | ❌ |
-| Consultar calendario | ✅ | ✅ | ✅ |
-| Gestionar eventos de calendario | ✅ | ✅ | ❌ |
-| Cierre de caja financiero (reportes) | ✅ | ✅ | ❌ |
-| **Ver ventas del día (resumen)** | ✅ | ✅ | ✅ |
-| Cerrar caja (archivar) | ✅ | ✅ | ❌ |
-| Anular pedido / devolver ítem | ✅ | ✅ | ❌ |
-| Editar / eliminar gasto (con motivo) | ✅ | ✅ | ❌ |
-| Nómina | ✅ | ✅ | ❌ |
-| Cámaras (gestión) | ✅ | ✅ | ❌ |
-| Auditoría | ✅ | ✅ | ❌ |
+| Leer la mayoría de endpoints | Sí | Sí | Sí |
+| Menú e inventario (escritura) | Sí | Sí | No |
+| Órdenes (crear, editar, agregar ítems) | Sí | Sí | Sí |
+| Pagar orden y liberar mesa | Sí | Sí | Sí |
+| Iniciar turno, check-in y check-out | Sí | Sí | Sí |
+| Gestionar plantillas de turno | Sí | Sí | No |
+| Habilitar turnos de vendedores | Sí | Sí | No |
+| Dar de baja empleados | Sí | Sí | No |
+| Gastos operativos | Sí | Sí | No |
+| Consultar calendario | Sí | Sí | Sí |
+| Gestionar eventos de calendario | Sí | Sí | No |
+| Cierre de caja financiero | Sí | Sí | No |
+| Ver ventas del día (resumen) | Sí | Sí | Sí |
+| Cerrar caja (archivar) | Sí | Sí | No |
+| Anular pedido o devolver ítem | Sí | Sí | No |
+| Editar o eliminar gasto | Sí | Sí | No |
+| Nómina | Sí | Sí | No |
+| Auditoría | Sí | Sí | No |
+| Copias de seguridad | Sí | No | No |
 
-Reglas de sesión adicionales:
+### Permisos funcionales
 
-- `get_current_user` valida en **cada petición** el usuario fresco de BD: si `activo == False` → `403 USUARIO_DESACTIVADO`; si es Vendedor con `turno_habilitado == False` → `403 TURNO_DESHABILITADO`. Esto invalida de inmediato las sesiones abiertas al deshabilitar un turno.
-- El **cocinero** se identifica por su **Puesto** (nombre que contiene "cocin" o "chef"), no por rol. La app lo lleva directo al Panel de Cocina al iniciar sesión, pero **la navegación nunca se oculta por el puesto**: el bloqueo de navegación aplica solo al rol `Vendedor` y un Administrador/Gerente con puesto de cocina conserva sidebar y bottom nav completos.
+- Catálogo en `app/core/permisos.py`, agrupado en cinco áreas: Menú y Carta, Inventario, Caja y dinero, Personal y nómina, Administración.
+- `Usuario.permisos` guarda solo los overrides (`{clave: true/false}`); `NULL` significa "los del rol".
+- Los permisos críticos (`personal_gestionar`, `permisos_gestionar`, `auditoria_ver`, `backups_gestionar`) solo los concede un Administrador.
+- El rol Administrador conserva siempre el catálogo completo.
+- La UI bloquea elementos con `data-permiso` y `navigateTo()` valida contra `PERMISOS_PANTALLA`; el backend usa `requerir_permiso(clave)`.
+
+### Reglas de sesión
+
+- `get_current_user` valida en cada petición el usuario fresco de base de datos:
+  - `activo == False` devuelve `403 USUARIO_DESACTIVADO`.
+  - Vendedor con `turno_habilitado == False` devuelve `403 TURNO_DESHABILITADO`.
+- El **cocinero** se identifica por su **puesto** (nombre que contiene "cocin", "cosin" o "chef"), no por rol.
+- La navegación nunca se oculta por el puesto; como máximo se restringe por rol.
 
 ---
 
 ## Módulos y reglas de negocio
 
-Resumen de las reglas más relevantes. El detalle exhaustivo está en `AGENTS.md` y en `docs/`.
+Resumen de las reglas más relevantes. El detalle exhaustivo está en `AGENTS.md` y en `docs/DOCUMENTACION_TECNICA.md`.
 
-### Órdenes
+### Órdenes y comandas
 
-- Máquina de estados: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA`; cualquier estado puede pasar a `CANCELADA` (revierte stock). Estados terminales: `PAGADA`, `CANCELADA`.
-- **Varias comandas por mesa o fusión**. Una mesa `LIBRE` u `OCUPADA` puede recibir comandas simultáneas; la mesa pasa a `OCUPADA` con la primera y solo vuelve a `LIBRE` cuando se cobra o cancela la última. En una fusión, todas las comandas se registran en la mesa principal y el grupo se disuelve al terminar la última.
-- `mesa_id` es **nullable**: `NULL` = para llevar / venta directa (no marca mesa ocupada).
-- **Edición de comanda**: `PUT /ordenes/{id}/items` reemplaza el contenido con el estado final deseado, ajustando inventario por diferencia y recalculando totales.
-- **Pago y facturas individuales**: una comanda puede recibir varios pagos (abonos o partes de ítems). Cada pago positivo tiene un comprobante interno imprimible con folio HMAC opaco, único y no consecutivo; los comprobantes se pueden reimprimir desde el historial de pagos de la comanda. El folio se mantiene mientras no cambie `SECRET_KEY`. Este comprobante no sustituye una factura fiscal autorizada. La mesa (y su apodo) se liberan solo si no quedan otras comandas activas. Para agregar ítems a una comanda existente se usa `POST /ordenes/{id}/items`.
-- **Descuentos**: por línea (`descuento_porcentaje` / `descuento_monto`) o global (prorrateado). `Orden.total = subtotal − descuento_total`.
+- Máquina de estados: `PENDIENTE → PREPARANDO → ENTREGADA → PAGADA`; cualquier estado activo puede pasar a `CANCELADA`, que revierte stock.
+- `mesa_id` es nullable: `NULL` significa para llevar o venta directa y no marca mesa ocupada.
+- Varias comandas por mesa o fusión de mesas. La mesa solo vuelve a LIBRE cuando se cobra o cancela la última comanda.
+- Edición de comanda con `PUT /ordenes/{id}/items`: el cuerpo es el estado final deseado; el inventario se ajusta por diferencia.
+- Una comanda con pagos registrados no se puede editar, ampliar ni descontar.
+- Descuentos por línea o globales (prorrateados). `total = subtotal − descuento_total`.
+- Anulación y devolución de líneas son borrado lógico y auditado; nunca `db.delete`.
 
 ### Inventario
 
-- Movimientos `ENTRADA`/`SALIDA` sobre `Insumo.cantidad_actual`.
-- **Conversión de unidades** transitiva (`conversion_service.convertir_cantidad`) y **empaque por insumo** (`unidad_empaque_id` + `factor_empaque`).
-- Cada `SALIDA` (manual o por receta) genera automáticamente un `Gasto` de categoría `SUMINISTROS`.
-- **Producción por lote**: `PreparacionCocina` descuenta insumos cuyo `Receta.descuento_por_lote = True`.
-- Cambiar la unidad base de un insumo exige un `factor_conversion_unidad` y convierte stock, costo y recetas vinculadas.
+- Movimientos ENTRADA/SALIDA sobre `Insumo.cantidad_actual`.
+- Conversión transitiva de unidades y empaque por insumo (`unidad_empaque_id` + `factor_empaque`).
+- Cada SALIDA manual o por receta genera un `Gasto` de categoría `SUMINISTROS`.
+- Producción por lote: `PreparacionCocina` descuenta solo los insumos con `Receta.descuento_por_lote = True`.
+- Cambiar la unidad base de un insumo exige factor de conversión y convierte stock, costo y recetas.
+- Importación inteligente: analiza el archivo, propone filas editables y solo escribe cuando el usuario confirma, todo en una transacción.
 
 ### Asistencia y turnos
 
-- Timestamps en **hora local fija de Managua** (naive, sin conversión de zona).
-- **Día de negocio** configurable (`HORA_INICIO_DIA`, default 7 AM): los turnos que cruzan medianoche pertenecen al servicio del día anterior.
-- `iniciar_turno` es idempotente; no permite repetir el turno ya finalizado del día de negocio vigente.
-- **Heartbeat**: los vendedores envían latidos; el watcher cierra turnos cuyo dueño ya no puede continuar (usuario inactivo / turno deshabilitado).
-- **Cierres automáticos visibles**: todo cierre forzado (deshabilitación de turno o watcher) queda auditado como `TURNO_CERRADO_AUTOMATICAMENTE` con antes/después y causa; la API de habilitación de turnos informa cuántos turnos se cerraron (`turnos_cerrados`).
-- **Check-out honesto**: si el turno ya fue cerrado automáticamente, `POST /asistencia/check-out` responde `409` con la hora de salida registrada y la causa (no un "éxito" engañoso); el empleado ve la advertencia y gerencia puede corregirla con Editar Horarios.
-- **Habilitación de turnos con confirmation**: los botones de habilitación/deshabilitación masiva y por fila tienen etiquetas explícitas ("Habilitar Turnos (n/total)" / "Deshabilitar Turnos de Todos") y piden confirmación antes de deshabilitar, porque cerrar el turno de alguien es una acción forzosa.
-- **Anulación**: `DELETE /asistencia/{id}` es borrado lógico con motivo obligatorio; los registros anulados no cuentan para nómina.
+- Timestamps en hora local fija de Managua, sin conversión de zona.
+- Día de negocio configurable (`HORA_INICIO_DIA`, por defecto 7:00). Un turno iniciado a la 1:00 pertenece al servicio del día anterior.
+- `iniciar_turno` es idempotente y no permite repetir el turno ya finalizado del día de negocio.
+- Heartbeat: el watcher cierra turnos cuyo dueño ya no puede continuar (usuario inactivo o turno deshabilitado).
+- Todo cierre forzado queda auditado como `TURNO_CERRADO_AUTOMATICAMENTE` con causa y antes/después.
+- Check-out sobre un turno ya cerrado devuelve `409` con la hora registrada y la causa; nunca un éxito engañoso.
+- Anulación de asistencia: borrado lógico con motivo obligatorio; los registros anulados no cuentan para nómina.
 
 ### Nómina
 
-- `pago_base = salario_base / 2` (quincenal, fijo).
-- `tarifa_hora = salario_base / 240`; `pago_neto = pago_base + horas_extras×tarifa_hora − adelantos` (mínimo 0).
-- El salario es **por empleado** (`Empleado.salario_base`), no por puesto.
-- Recalculación explícita con `recalcular=true` o `PUT /nomina/{id}/recalcular` sobre nóminas `PENDIENTE`.
+- `salario_diario = salario_mensual / 30`; `pago_base = salario_diario × días_del_rango`.
+- Se puede pagar cualquier cantidad de días: 3 días es 10%, 7 días es 23.33%, 15 días es 50%, 30 días es 100%.
+- `tarifa_hora = salario_base / 240` (sin recargo); `pago_neto = pago_base + horas_extras × tarifa_hora − adelantos`, con mínimo 0.
+- El salario es por empleado (`Empleado.salario_base`), no por puesto.
+- Recálculo explícito con `recalcular=true` o `PUT /nomina/{id}/recalcular` sobre nóminas PENDIENTES.
 
 ### Caja y reportes
 
-- **Caja abierta** = registros con `cierre_caja_id IS NULL`.
+- Caja abierta son los registros con `cierre_caja_id IS NULL`.
 - `POST /caja/cierre` crea el `CierreCaja` y archiva órdenes pagadas y gastos pendientes.
-- Panel del mesero (`GET /caja/ventas-dia`) muestra solo total vendido y órdenes; **nunca** gastos, nómina ni utilidad.
-- `utilidad_neta = ingresos − nómina − insumos − gastos_operativos` (el costo de insumos usa solo el bucket `SUMINISTROS` para evitar doble contabilidad).
+- El cierre automático corre a medianoche de Managua y archiva también gastos aunque no haya órdenes pagadas.
+- El panel del mesero muestra solo total vendido y órdenes; nunca gastos, nómina ni utilidad.
+- `utilidad_neta = ingresos − nómina − insumos − gastos_operativos`; el costo de insumos usa solo el bucket `SUMINISTROS` para evitar doble contabilidad.
 
 ### Menú e imágenes
 
-- `imagen_url` es **gestionado solo por el servidor**: se sube por `POST /menu/items/{id}/imagen` (multipart), se valida por contenido con Pillow, se comprime a WebP (≤1080 px) y se publica en ImgBB.
+- `imagen_url` lo gestiona solo el servidor: se sube por `POST /menu/items/{id}/imagen`, se valida por contenido con Pillow, se comprime a WebP (máximo 1080 px) y se publica en ImgBB.
 - Borrado lógico de platillos (`disponible=False`). Si no tiene ventas, un reinicio puede purgarlo; con ventas, se archiva renombrando el nombre.
+- Traducciones EN editables desde el sistema (`nombre_en`, `descripcion_en`, `categorias_menu.nombre_en`).
 
-### Notificaciones push (cocina ↔ salón)
-
-Web Push con **VAPID** (`pywebpush`): el aviso llega al teléfono aunque la app esté cerrada o el navegador en segundo plano.
+### Notificaciones push
 
 | Flujo | Quién recibe | Cuándo |
 |-------|--------------|--------|
-| Nueva comanda | Usuarios de **cocina** (su `Puesto` contiene "cocin"/"cosin"/"chef") | `POST /ordenes/`, `POST /ordenes/{id}/items`, `PUT /ordenes/{id}/items` |
-| Comanda lista | El **mesero** que creó la orden (`orden.mesero_id`) | `PATCH /ordenes/{id}/estado` → `ENTREGADA` |
+| Nueva comanda | Usuarios con `avisos_cocina` activo | Al crear o editar una comanda |
+| Comanda lista | Mesero de la orden con `avisos_mesero` activo | Al pasar a ENTREGADA |
+| Comanda de otro mesero | Quien tenga `avisos_mesero_todas` | Al pasar a ENTREGADA |
+| Novedad del sistema | Usuarios activos | Al publicar una versión |
+| Estudio de mercado | Administración | Al completarse un estudio |
 
-Reglas:
+- El envío corre en segundo plano: un fallo de push nunca rompe el flujo de la orden.
+- Las suscripciones caducadas (404/410) se eliminan automáticamente.
+- El service worker vive en `/Templates/sw.js` y abre el ERP con enlaces profundos.
 
-- **Solo se notifica a quien tiene el turno abierto** (asistencia activa y no anulada). Si el turno ya se cerró o fue anulado, no se entrega ninguna notificación.
-- El mesero que creó la orden **no** recibe el aviso de cocina (evita autosnotificaciones).
-- Los envíos corren como **tarea en segundo plano** (`BackgroundTasks`) con su propia sesión de BD: un fallo de push **jamás** rompe el flujo de la orden (queda solo en el log).
-- Las suscripciones caducadas (respuesta `404`/`410` del servicio de push) se eliminan automáticamente.
-- El service worker vive en `/Templates/sw.js` (ámbito `/Templates/`) y abre el ERP con enlace profundo: `?pantalla=comandero` para cocina, `?pantalla=salon&mesa=<id>` para el mesero.
-- El cliente (JS) registra la suscripción con `POST /api/v1/push/subscribe` y la mantiene sincronizada en cada inicio de sesión.
+---
+
+## Carta Digital
+
+La carta pública es un **libro de páginas que se voltean**, dibujado en el navegador con los datos reales del menú. No hay imágenes fijas que regenerar: crear, editar, ocultar o borrar un platillo en Gestión de Menú se refleja al recargar la carta.
+
+- Fuentes de datos: `GET /api/public/menu` y `GET /api/public/categories`.
+- Motor: `app/Templates/carta/js/menu-libro.js` (agrupa, mide capacidad real, reparte parejo, encadena secciones, carga fotos en cola de 4 y reintenta fallos transitorios).
+- Hoja de 1200 × 1800 dibujada una vez y escalada con `transform: scale()`, sin reflow.
+- Bebidas y Extras se muestran como lista compacta sin fotos y comparten hojas.
+- Selector ES/EN con traducciones en base de datos y respaldo al español.
+- Visor de zoom a pantalla completa que clona la hoja, con gestos táctiles para iOS.
+- Ruta pública configurable con `CARTA_RUTA_PUBLICA`; los enlaces viejos a `/carta` redirigen conservando la subruta.
 
 ---
 
 ## API
 
-Todos los endpoints del ERP están bajo el prefijo **`/api/v1/`** y requieren autenticación (JWT `Bearer`) salvo el login y el healthcheck.
+Todos los endpoints del ERP están bajo **`/api/v1/`** y requieren JWT `Bearer` salvo el login y el healthcheck.
 
 ### Resumen por dominio
 
 | Dominio | Prefijo | Ejemplos |
 |---------|---------|----------|
-| Auth | `/api/v1/auth` | `POST /login`, `GET /me`, `POST /verify` |
-| Personal | `/api/v1/personal` | puestos, empleados, usuarios, reset-password, turnos masivos |
-| Asistencia | `/api/v1/asistencia` | turnos, check-in/out, heartbeat, editar-horarios, anular |
+| Auth | `/api/v1/auth` | `POST /login`, `GET /me` |
+| Personal | `/api/v1/personal` | puestos, empleados, usuarios, permisos, turnos masivos |
+| Asistencia | `/api/v1/asistencia` | turnos, check-in/out, heartbeat, editar-horarios, anular, reactivar |
 | Nómina | `/api/v1/nomina` | calcular, generar, pagar, recalcular, adelantos |
-| Inventario | `/api/v1/inventario` | insumos, movimientos, categorías, unidades, preparaciones |
+| Inventario | `/api/v1/inventario` | insumos, movimientos, categorías, unidades, preparaciones, importaciones |
 | Menú | `/api/v1/menu` | items, categorías, imagen, recetas |
-| Salón | `/api/v1/salon` | zonas, mesas, mapa, estado, apodo |
-| Órdenes | `/api/v1/ordenes` | crear, items, estado, pagar, descuentos, retroactiva, anular, devolver-item |
-| Caja | `/api/v1/caja` | historial-diario, ventas-dia, cierre |
-| Gastos | `/api/v1/gastos` | CRUD con filtro por rango + editar/eliminar auditado |
-| Descuentos | `/api/v1/descuentos` | descuentos frecuentes |
-| Calendario | `/api/v1/calendario` | eventos + asistencias reales |
+| Salón | `/api/v1/salon` | zonas, mesas, mapa, estado, apodo, fusión |
+| Órdenes | `/api/v1/ordenes` | crear, items, estado, pagar, pagos parciales, descuentos, retroactiva, anular, devolver-item |
+| Caja | `/api/v1/caja` | historial-diario, ventas-dia, cierre, cierre-automatico |
+| Gastos | `/api/v1/gastos` | CRUD con filtros y operaciones auditadas |
+| Descuentos | `/api/v1/descuentos` | catálogo de descuentos frecuentes |
+| Calendario | `/api/v1/calendario` | eventos y asistencias reales |
 | Reportes | `/api/v1/reportes` | cierre financiero por periodo |
+| Auditoría | `/api/v1/auditoria` | bitácora paginada y eliminación (solo Administrador) |
+| Push | `/api/v1/push` | config, preferencias, subscribe, subscriptions |
+| Backups | `/api/v1/backups` | crear, listar, descargar, restaurar, eliminar |
+| Estudio de mercado | `/api/v1/estudio-mercado` | generar, listar, detalle, exportar, documentos, chat |
+| Novedades | `/api/v1/novedades` | historial de versiones |
 | Cámaras | `/api/v1/cameras` | cámaras, accesos, clips, tokens de stream |
 | Pagos | `/api/v1/pagos` | disponibilidad, checkout, webhook |
-| Auditoría | `/api/v1/auditoria` | bitácora paginada |
-| Push | `/api/v1/push` | config, subscribe, unsubscribe, subscriptions |
-| Backups | `/api/v1/backups` | gestión de copias de seguridad |
 
 ### Parámetros de filtrado habituales
 
 | Endpoint | Parámetros |
 |----------|-----------|
-| `GET /ordenes/` | `?estado=&mesa_id=` |
+| `GET /ordenes/` | `?estado=&mesa_id=&solo_activas=&limite=` |
 | `GET /gastos/` | `?fecha_inicio=&fecha_fin=` |
 | `GET /nomina/empleados/{id}/adelantos` | `?fecha_inicio=&fecha_fin=` |
 | `GET /menu/items` | `?incluir_inactivos=true` (solo Admin/Gerente) |
-| `GET /calendario/` | `?desde=&hasta=` (rango máximo 63 días) |
-| `GET /reportes/cierre` | `?periodo=DIARIO|SEMANAL|QUINCENAL|MENSUAL|ANUAL` |
+| `GET /calendario/` | `?desde=&hasta=` (máximo 63 días) |
+| `GET /reportes/cierre` | `?periodo=DIARIO\|SEMANAL\|QUINCENAL\|MENSUAL\|ANUAL` |
 
-> La referencia interactiva completa está en **`/docs`** (Swagger UI) y **`/redoc`**.
+> La referencia interactiva completa está en `/docs` (Swagger UI) y `/redoc`. En producción esas rutas son públicas; ver "Estado del proyecto".
 
----
+### API pública de la Carta Digital
 
-## API pública (Carta Digital)
-
-Endpoints de **solo lectura**, sin autenticación, para el menú de clientes por QR. Reutilizan los mismos modelos sin duplicar datos.
+Solo lectura, sin autenticación, con campos públicos (sin costos, recetas, inventario, usuarios ni roles):
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/api/public/menu` | Todos los platillos disponibles |
 | GET | `/api/public/categories` | Todas las categorías |
 | GET | `/api/public/menu/{categoria_id}` | Platillos disponibles por categoría |
-| GET | `/api/public/item/{item_id}` | Detalle de un platillo disponible (404 si no existe/no disponible) |
-
-**Seguridad**: los endpoints públicos solo serializan `id`, `nombre`, `descripcion`, `precio`, `disponible`, `imagen_url`, `tiempo_preparacion` y `categoria`. Nunca exponen costos, recetas, inventario, usuarios ni roles.
-
-La Carta Digital (`app/Templates/carta/`, servida en `/carta/`) es un frontend **totalmente separado** del POS, sin autenticación y sin acceso al ERP.
+| GET | `/api/public/item/{item_id}` | Detalle de un platillo disponible |
 
 ---
 
@@ -413,32 +476,30 @@ La configuración de Render está en `render.yaml`:
 - **Start**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - **Healthcheck**: `/healthcheck`
 
-> En el dashboard de Render fija manualmente `IMGBB_API_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` y `SECRET_KEY`, y confirma las DB_*. Si `IMGBB_API_KEY` falta, la subida de imágenes responde 500.
+Checklist de producción:
 
-> **Push (Web Push)**: no requiere variables adicionales. Las claves VAPID se derivan de `SECRET_KEY` (mientras no cambies esa variable, las suscripciones de los dispositivos siguen siendo válidas). Verifica que `https://sazoncaribe-o.onrender.com/Templates/sw.js` responde 200 después del despliegue.
+1. `SECRET_KEY` estable y distinto al de desarrollo. Si cambia, se invalidan los JWT y las suscripciones push.
+2. `IMGBB_API_KEY` configurada; sin ella la subida de imágenes responde 500.
+3. `ACCESS_TOKEN_EXPIRE_MINUTES` no debe estar fijado en 480; el valor correcto es 525600.
+4. Verificar que `/Templates/sw.js` responde 200 y que `GET /api/v1/push/config` devuelve `habilitado: true`.
+5. Si `CARTA_RUTA_PUBLICA` no es `/carta`, los enlaces antiguos redirigen automáticamente.
+6. Tras el despliegue, comprobar el healthcheck y el login con una cuenta real.
 
-### Frontend en producción: assets con URL estable y despliegue manual
-
-- `app/Templates/index.html` carga `css/style.css` y `js/app.js` **sin parámetro de versión**: **la URL de los archivos nunca cambia**. El cache se resuelve con `Cache-Control: no-cache` + `ETag`/`304` (middleware `_revalidar_estaticos` en `app/main.py`), así que el navegador revalida en cada carga y nunca queda con un JS/CSS viejo **sin tocar ningún link**. No hay que subir ningún número de versión.
-- El URL público es único y no debe cambiar: `https://sazoncaribe-o.onrender.com/Templates/index.html` (la Carta Digital vive en `/carta/`). Ojo: `sazoncaribeo.onrender.com` (sin guion) devuelve 404 de routing de Render; el dominio del servicio es `sazoncaribe-o`. Los enlaces profundos de las notificaciones (`?pantalla=…`, `?mesa=…`) se borran de la barra de direcciones al cargar la app: la URL visible siempre es la canónica.
-- Si Render no despliega solo tras el push, haz **Manual Deploy → Clear build cache & deploy** en el servicio `sazoncaribe-o` y luego un hard-refresh (`Ctrl + Shift + R`) en el navegador.
+> En Render el filesystem es efímero. Por eso las copias de seguridad se guardan dentro de la base de datos y no en disco.
 
 ---
 
 ## Pruebas
 
-En `tests/` conviven dos tipos:
-
-- **Scripts E2E con `requests`** que consumen la API en ejecución (por ejemplo `test_ordenes.py`, `test_calendario.py`, `test_cameras_api.py`). La mayoría requiere tener la API corriendo y datos sembrados (`python -m app.db.init_db`).
-- **Tests unitarios / de integración** ejecutables con pytest (por ejemplo `test_horas_extras.py`, `test_nomina_calculator.py`, `test_password_auth.py`).
+La suite usa pytest y no toca la base real de producción:
 
 ```bash
-python -m app.db.init_db      # sembrar datos si el script lo requiere
-python -m app.main            # API en http://localhost:8000
-python tests/test_ordenes.py  # script E2E de ejemplo
-# o, para los tests con pytest:
-pytest tests/ -q
+python -m pytest tests -q
 ```
+
+Cobertura actual: **177 pruebas en 30 archivos**. Cubren autenticación, permisos, menú, inventario e importación, órdenes y pagos, fusión de mesas, cierre automático, auditoría, backups, calendario, carta digital, traducciones, seguridad y casos de regresión.
+
+Para pruebas manuales de la API se puede levantar el servidor y usar `/docs`; no hay scripts E2E con `requests` en la suite actual.
 
 ---
 
@@ -446,17 +507,47 @@ pytest tests/ -q
 
 | Documento | Contenido |
 |-----------|-----------|
-| `AGENTS.md` | Referencia técnica exhaustiva: estructura, reglas de negocio, patrones y estado |
+| `AGENTS.md` | Referencia técnica exhaustiva: estructura, reglas, patrones y estado |
+| `docs/DOCUMENTACION_TECNICA.md` | Especificación funcional y técnica completa del sistema (v2.0) |
+| `Sazon caribeño.pdf` | Especificación en PDF, generada desde `docs/DOCUMENTACION_TECNICA.md` |
+| `docs/archivo/` | Versiones anteriores de la especificación (v1.0, julio 2026) |
 | `docs/CALENDARIO.md` | Guía funcional y técnica del calendario |
 | `docs/CAMARAS.md` | Módulo de cámaras y puente WebRTC |
-| `DOCUMENTACION_FRONTEND.md` | Notas sobre el frontend |
+| `DOCUMENTACION_FRONTEND.md` | Notas del frontend |
 | `PRODUCT.md` | Descripción de producto |
 
 ---
 
-## Estado del proyecto
+## Estado del proyecto y deuda técnica
 
-- **Migraciones**: no se generan migraciones Alembic; el esquema se mantiene con `create_all` + migraciones de arranque idempotentes en `app/main.py`.
-- **Tokens**: no hay flujo de refresh; un único access token de larga duración (365 días).
-- **Pagos en línea**: la arquitectura de gateway existe pero permanece deshabilitada (`PAYMENT_PROVIDER=disabled`) hasta registrar un adaptador real.
-- **Zona horaria**: asistencia usa hora local fija de Managua sin conversión; registros históricos previos al cambio están en UTC naive.
+Lo que está pendiente, dicho sin adornos:
+
+- **Migraciones**: no se generan migraciones Alembic. El esquema se mantiene con `create_all` y migraciones de arranque idempotentes en `app/main.py`. Funciona, pero no es lo que un manual llamaría "buena práctica".
+- **Tokens**: no hay refresh token. Un único access token de 365 días; la sesión se corta por desactivación de usuario o turno, no por expiración.
+- **Pagos en línea**: la arquitectura del gateway existe, pero permanece deshabilitada hasta registrar un adaptador real.
+- **Seguridad pendiente**: `POST /auth/login` no tiene límite de intentos; los mensajes distinguen "no existe el usuario" de "contraseña incorrecta"; `/docs`, `/redoc` y `/openapi.json` son públicos.
+- **Credenciales**: la contraseña de `joshi_0211` se fuerza en cada arranque por compatibilidad histórica. Debe rotarse y eliminarse ese mecanismo.
+- **Cámaras**: el módulo existe y tiene pruebas, pero depende de un puente WebRTC externo y de almacenamiento persistente para clips.
+- **Zona horaria**: los registros históricos anteriores al cambio a hora local están en UTC naive (6 horas de diferencia).
+- **Código heredado**: hay archivos de utilidades sueltos en la raíz (`check_*.py`, `test_*.py`, `truncate_production.*`) que no forman parte de la aplicación y deberían moverse a `tools/` o eliminarse.
+- **Módulos vacíos**: `usuario_service.py` y algunos `__init__.py` no exportan lo que aparentan.
+
+---
+
+## Notas del desarrollador
+
+Un par de cosas que conviene saber antes de abrir un archivo al azar:
+
+- El corazón del sistema es `app/services/orden_service.py`. Si algo se rompe en ventas, casi siempre es ahí. Si funciona, no lo toques.
+- `app/main.py` tiene más funciones de arranque que una navidad. No son decorativas: son la migración real. Si las borras, la base de producción se queda a medias.
+- Las fechas de asistencia son hora local de Managua sin zona horaria. No agregues `Z`, no conviertas, no "arregles" eso: está así a propósito.
+- El motor de la Carta Digital mide cuántos platillos caben en una hoja antes de dibujarlos. Si cambias el CSS de la carta, vuelve a probar la paginación: no hay números mágicos que ajustar, pero sí un medidor que se ofende fácilmente.
+- El modo oscuro se resuelve con variables `--mix-*` y `color-mix()`. Escribir un color literal nuevo es la forma más rápida de que el tema claro se vea distinto y alguien lo note.
+- No hay build step para el frontend. Es Vanilla JS a propósito. Sí, 16 mil líneas en un solo archivo. No, todavía no vale la pena partirlo sin pruebas de regresión.
+- Las imágenes de varios platillos son el logo del restaurante. No es un bug del sistema; es lo que hay cargado en el menú.
+- Si algo falla y no sabes por qué, revisa primero el inventario y luego el turno. El 80% de los tickets raros vienen de ahí.
+- Este documento y el código se actualizan a mano. Si encuentras una contradicción, gana el código. Suerte para quien lea esto dentro de seis meses.
+
+---
+
+Hecho para Sazón Caribeño. Autor original: Joshua Davila. Sin licencia definida: úsalo, mantenlo y no culpes al compilador.

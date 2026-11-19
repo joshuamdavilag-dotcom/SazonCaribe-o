@@ -1,3 +1,10 @@
+"""
+Consultas de usuarios y resolución del perfil en una sola consulta.
+
+get_by_id_con_perfil carga usuario, empleado y puesto juntos; antes cada
+petición arrastraba el historial completo del empleado sin necesitarlo.
+"""
+
 from typing import Optional
 
 from sqlalchemy import func, select, update

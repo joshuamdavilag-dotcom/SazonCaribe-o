@@ -1,3 +1,9 @@
+"""
+Schemas públicos de la Carta Digital.
+
+Son deliberadamente reducidos: solo campos que un cliente puede ver.
+"""
+
 from decimal import Decimal
 from typing import Optional
 

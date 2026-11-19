@@ -1,3 +1,7 @@
+"""
+Registro de gastos manuales y automáticos por consumo de insumos.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List

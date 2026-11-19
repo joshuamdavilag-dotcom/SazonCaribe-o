@@ -1,3 +1,7 @@
+"""
+Conversión de cantidades entre unidades compatibles.
+"""
+
 from typing import Optional
 
 from fastapi import HTTPException, status

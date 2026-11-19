@@ -1,3 +1,10 @@
+"""
+Configuración del sistema mediante Pydantic Settings.
+
+Lee .env, normaliza la URL de la base y cae a SQLite cuando DATABASE_URL está
+vacía. También define los parámetros de push, cámaras, Gemini y pagos.
+"""
+
 from pydantic_settings import BaseSettings
 from pydantic import Field, model_validator
 from functools import lru_cache

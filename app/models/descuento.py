@@ -1,3 +1,7 @@
+"""
+Modelo del catálogo de descuentos frecuentes y su enum de tipo.
+"""
+
 import enum
 from decimal import Decimal
 from typing import Optional

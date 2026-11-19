@@ -1,3 +1,11 @@
+"""
+Reglas del menú: platillos, categorías, recetas e imágenes.
+
+Las imágenes se validan por contenido con Pillow, se comprimen a WebP y se
+publican en ImgBB con reintentos. Si ImgBB falla, el error se informa; nunca se
+ignora en silencio.
+"""
+
 import base64
 import time
 import uuid

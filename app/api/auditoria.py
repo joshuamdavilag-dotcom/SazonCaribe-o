@@ -1,3 +1,10 @@
+"""
+Router de la bitácora de auditoría.
+
+Consulta paginada para Administrador y Gerente, y eliminación física de un
+registro reservada al Administrador (la baja también deja huella).
+"""
+
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query

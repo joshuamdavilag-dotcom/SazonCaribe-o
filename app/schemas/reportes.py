@@ -1,3 +1,7 @@
+"""
+Schemas del cierre financiero por periodo.
+"""
+
 from datetime import date
 from decimal import Decimal
 from enum import Enum

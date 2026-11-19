@@ -1,3 +1,10 @@
+"""
+Cálculo de horas extras desde la salida programada del turno.
+
+Funciona con turnos nocturnos que cruzan medianoche y nunca devuelve valores
+negativos. El tope de 99.99 es una red de seguridad, no una regla de negocio.
+"""
+
 from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 

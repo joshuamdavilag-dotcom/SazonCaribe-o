@@ -1,3 +1,7 @@
+"""
+Modelos de categorías, platillos y recetas.
+"""
+
 from decimal import Decimal
 from typing import Optional, List
 

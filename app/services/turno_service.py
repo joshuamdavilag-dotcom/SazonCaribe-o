@@ -1,3 +1,10 @@
+"""
+Funciones sueltas para iniciar y cerrar turnos.
+
+Es el único módulo de servicios sin clase. No es el estilo del proyecto; se
+quedó así y cambiarlo ahora solo agregaría riesgo.
+"""
+
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status

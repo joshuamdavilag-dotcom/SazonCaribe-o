@@ -1,3 +1,7 @@
+"""
+Consultas de gastos por rango, totales y clasificación.
+"""
+
 from datetime import date
 from decimal import Decimal
 from typing import List

@@ -1,3 +1,7 @@
+"""
+Modelos de plantillas de turno y asistencias reales.
+"""
+
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional, List

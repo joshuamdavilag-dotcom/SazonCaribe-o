@@ -26,7 +26,6 @@ MAX_BYTES_DOCUMENTO = 25 * 1024 * 1024
 class ErrorExtraccion(Exception):
     """El documento no se pudo leer; el mensaje es apto para el usuario."""
 
-
 def extension_de(nombre: str) -> str:
     """Devuelve la extensión en minúsculas, con punto."""
     return os.path.splitext(nombre or "")[1].lower()

@@ -1,3 +1,7 @@
+"""
+Orquestación de pagos en línea sobre el gateway configurado.
+"""
+
 from decimal import Decimal, InvalidOperation
 import logging
 from urllib.parse import urlparse

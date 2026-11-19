@@ -1,3 +1,10 @@
+"""
+Modelo de copias de seguridad.
+
+El contenido se guarda en la propia base porque el filesystem del despliegue es
+efímero. En MySQL la columna es LONGTEXT: con TEXT, un volcado real no cabía.
+"""
+
 from datetime import datetime
 from typing import Optional
 

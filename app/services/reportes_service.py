@@ -1,3 +1,10 @@
+"""
+Cierre financiero por periodo.
+
+La utilidad neta resta nómina, insumos y gastos operativos. El costo de insumos
+sale del bucket SUMINISTROS para no contar dos veces lo mismo.
+"""
+
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session

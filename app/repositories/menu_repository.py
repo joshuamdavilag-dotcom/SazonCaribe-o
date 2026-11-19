@@ -1,3 +1,10 @@
+"""
+Consultas del menú, compartidas entre el ERP y la API pública.
+
+La consulta base permite excluir recetas e insumos, de modo que la carta
+pública no cargue información interna que no necesita.
+"""
+
 from typing import Optional, List
 
 from sqlalchemy import select, func

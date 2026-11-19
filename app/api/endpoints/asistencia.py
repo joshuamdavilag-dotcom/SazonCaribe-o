@@ -1,3 +1,11 @@
+"""
+Router de turnos y asistencia.
+
+Incluye check-in, check-out, heartbeat, edición de horarios, anulación y
+reactivación. El check-out de un turno ya cerrado responde 409 con la hora
+registrada y la causa: es preferible un error honesto a un éxito falso.
+"""
+
 from datetime import date, datetime
 from typing import List, Optional
 

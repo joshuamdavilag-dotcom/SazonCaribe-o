@@ -1,3 +1,7 @@
+"""
+Modelos del módulo de cámaras, accesos y clips.
+"""
+
 from datetime import datetime, timezone
 from typing import Optional
 

@@ -1,3 +1,10 @@
+"""
+Reglas de personal: empleados, usuarios, bajas, turnos y permisos.
+
+Incluye el cierre de asistencias al deshabilitar un turno y las guardas que
+impiden que alguien se quede sin administrador.
+"""
+
 from typing import List, Optional
 import uuid
 

@@ -1,3 +1,9 @@
+"""
+Router de personal: puestos, empleados, usuarios, permisos funcionales,
+
+habilitación de turnos y preferencias de avisos.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status

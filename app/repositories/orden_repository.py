@@ -1,3 +1,7 @@
+"""
+Consultas de órdenes con carga anticipada de mesa, zona y mesero para el KDS.
+"""
+
 from typing import Optional, List
 
 from sqlalchemy import select

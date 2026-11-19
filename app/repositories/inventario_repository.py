@@ -1,3 +1,7 @@
+"""
+Consultas de insumos, movimientos, unidades y preparaciones.
+"""
+
 from decimal import Decimal
 from typing import List
 

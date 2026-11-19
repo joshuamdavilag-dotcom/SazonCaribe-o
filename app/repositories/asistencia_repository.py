@@ -1,3 +1,9 @@
+"""
+Consultas de asistencias, incluido el seguimiento de heartbeat y el día de
+
+negocio.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List

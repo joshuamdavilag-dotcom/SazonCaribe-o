@@ -1,3 +1,7 @@
+"""
+Contratos Pydantic de entrada y salida de la API.
+"""
+
 from app.schemas.personal import (
     RolEnum,
     PuestoBase,

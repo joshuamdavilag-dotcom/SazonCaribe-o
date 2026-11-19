@@ -1,3 +1,7 @@
+"""
+Modelos de la importación de inventario: lote y filas detectadas.
+"""
+
 import enum
 from datetime import datetime
 from decimal import Decimal

@@ -1,3 +1,11 @@
+"""
+El corazón del sistema: órdenes, stock, descuentos, pagos y anulación.
+
+Concentra la máquina de estados, la validación de existencias, el ajuste de
+inventario por diferencia y el recálculo de totales. Si algo se rompe en ventas,
+casi siempre es aquí. Si funciona, no lo toques sin pruebas.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
@@ -6,6 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.clasificacion import es_categoria_bebida
 from app.core.tiempo import ahora_local
 from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.inventario import MovimientoInventario
@@ -278,9 +287,32 @@ class OrdenService:
                 descuento_monto=descuento_monto,
                 descuento_porcentaje=descuento_porcentaje,
                 motivo_descuento=item.motivo_descuento,
+                producto=producto,
             ))
 
         return detalles_creados, subtotal_acumulado, descuento_acumulado
+
+    # ================================================================== #
+    #  Clasificación de líneas (bebidas no pasan por cocina)              #
+    # ================================================================== #
+
+    @staticmethod
+    def _son_todas_bebidas(detalles: list[DetalleOrden]) -> bool:
+        """Indica si TODAS las líneas pertenecen a una categoría de bebidas.
+
+        Se usa para dos cosas: una comanda solo de bebidas nace ``ENTREGADA``
+        (no hay nada que cocinar) y una comanda ya lista no vuelve a cocina
+        cuando solo se le agregan bebidas. Con al menos un plato, manda la
+        cocina.
+        """
+        if not detalles:
+            return False
+        for detalle in detalles:
+            producto = getattr(detalle, "producto", None)
+            categoria = getattr(producto, "categoria", None) if producto else None
+            if not es_categoria_bebida(getattr(categoria, "nombre", None)):
+                return False
+        return True
 
     # ================================================================== #
     #  Mesa validation for new comandas                                   #
@@ -331,6 +363,10 @@ class OrdenService:
         mesa esté ``LIBRE`` u ``OCUPADA``. La mesa queda ``OCUPADA`` al crear la
         primera comanda.
 
+        Si todas las líneas son bebidas, la comanda nace ya ``ENTREGADA``: no
+        hay nada que cocinar, así que entra directo a "listo para servir" y no
+        aparece en la cola de cocina.
+
         Raises:
             HTTPException 404: si la mesa indicada no existe.
             HTTPException 400: si la mesa está reservada o en mantenimiento.
@@ -359,7 +395,11 @@ class OrdenService:
                     subtotal=subtotal,
                     descuento_total=descuento_total,
                     nombre_cliente=orden_in.nombre_cliente,
-                    estado=EstadoOrden.PENDIENTE,
+                    estado=(
+                        EstadoOrden.ENTREGADA
+                        if self._son_todas_bebidas(detalles_creados)
+                        else EstadoOrden.PENDIENTE
+                    ),
                     detalles=detalles_creados,
                 )
                 self.orden_repo.crear_orden(orden_db)
@@ -434,7 +474,10 @@ class OrdenService:
                     orden_id, detalles_creados, actor
                 )
 
-                if orden.estado != EstadoOrden.PENDIENTE:
+                if orden.estado != EstadoOrden.PENDIENTE and not (
+                    orden.estado == EstadoOrden.ENTREGADA
+                    and self._son_todas_bebidas(detalles_creados)
+                ):
                     orden.estado = EstadoOrden.PENDIENTE
 
             self.db.commit()
@@ -1367,7 +1410,10 @@ class OrdenService:
                     actor,
                 )
 
-                if vigentes and estado_original != EstadoOrden.PENDIENTE:
+                if vigentes and estado_original != EstadoOrden.PENDIENTE and not (
+                    estado_original == EstadoOrden.ENTREGADA
+                    and self._son_todas_bebidas(vigentes)
+                ):
                     orden.estado = EstadoOrden.PENDIENTE
 
             self.db.commit()

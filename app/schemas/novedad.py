@@ -1,3 +1,7 @@
+"""
+Schemas de novedades del sistema.
+"""
+
 from datetime import datetime
 from typing import List, Optional
 

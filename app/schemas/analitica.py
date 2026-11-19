@@ -1,3 +1,7 @@
+"""
+Schemas del cierre de caja legacy.
+"""
+
 from datetime import date
 from typing import Optional
 

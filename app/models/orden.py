@@ -1,3 +1,10 @@
+"""
+Modelos de órdenes y sus líneas, con estados y métodos de pago.
+
+La orden guarda totales desnormalizados (subtotal, descuento_total, total) que
+se recalculan cada vez que cambian las líneas o los descuentos.
+"""
+
 import enum
 from datetime import datetime
 from decimal import Decimal

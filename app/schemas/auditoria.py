@@ -1,3 +1,7 @@
+"""
+Schemas de la bitácora de auditoría.
+"""
+
 from datetime import datetime
 from typing import Any, Optional
 

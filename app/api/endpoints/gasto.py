@@ -1,3 +1,10 @@
+"""
+Router de gastos operativos.
+
+Además del CRUD, expone la edición y la eliminación lógica auditadas, que
+exigen motivo obligatorio.
+"""
+
 from datetime import date
 from typing import List, Optional
 

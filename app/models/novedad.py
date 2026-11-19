@@ -1,3 +1,7 @@
+"""
+Modelo de novedades versionadas del sistema.
+"""
+
 from datetime import datetime
 from typing import Optional
 

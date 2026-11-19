@@ -1,3 +1,10 @@
+"""
+Router del menú del ERP: categorías, platillos e imágenes.
+
+La subida de imagen valida por contenido, comprime y publica en ImgBB; el
+cliente nunca escribe la URL a mano.
+"""
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status

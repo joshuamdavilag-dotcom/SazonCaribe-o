@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user, requerir_permiso, requerir_rol
 from app.models.personal import Usuario
 from app.schemas.personal import RolEnum
-from app.models.orden import EstadoOrden
+from app.models.orden import EstadoOrden, Orden
 from app.schemas.orden import (
     OrdenCreate,
     OrdenResponse,
@@ -52,6 +52,24 @@ def get_pago_comanda_service(
 ) -> PagoComandaService:
     """Retorna el servicio de pagos de comanda ligado a la sesión de BD."""
     return PagoComandaService(db)
+
+
+def _notificar_comanda(
+    background_tasks: BackgroundTasks,
+    orden: Orden,
+) -> None:
+    """Avisa a cocina de una comanda nueva... salvo que no haya nada que cocinar.
+
+    Una comanda solo de bebidas nace ``ENTREGADA``: avisar a cocina sería ruido,
+    así que se avisa al mesero de que ya puede servirla.
+    """
+    tipo = (
+        "comanda_lista"
+        if orden.estado == EstadoOrden.ENTREGADA
+        else "nueva_comanda"
+    )
+    background_tasks.add_task(ejecutar_notificacion_push, orden.id, tipo)
+
 
 
 # =====================================================================
@@ -98,7 +116,7 @@ def crear_orden(
 ) -> OrdenResponse:
     """Abre una nueva orden con sus detalles y descuenta el inventario por receta."""
     orden = service.crear_orden(orden_in, current_user.id, current_user)
-    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    _notificar_comanda(background_tasks, orden)
     return orden
 
 
@@ -204,7 +222,7 @@ def agregar_items(
 ) -> OrdenResponse:
     """Agrega ítems a una orden abierta y descuenta los ingredientes del inventario."""
     orden = service.agregar_items_canonico(orden_id, body.items, current_user)
-    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    _notificar_comanda(background_tasks, orden)
     return orden
 
 
@@ -232,7 +250,7 @@ def editar_items(
 ) -> OrdenResponse:
     """Reemplaza el contenido de una comanda abierta y ajusta el inventario."""
     orden = service.editar_orden(orden_id, body.items, current_user)
-    background_tasks.add_task(ejecutar_notificacion_push, orden.id, "nueva_comanda")
+    _notificar_comanda(background_tasks, orden)
     return orden
 
 

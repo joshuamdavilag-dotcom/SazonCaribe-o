@@ -1,3 +1,10 @@
+"""
+Router del módulo de cámaras.
+
+Gestión de cámaras, accesos por usuario, tokens de stream y clips fragmentados.
+Depende de un puente WebRTC externo y de almacenamiento persistente.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status

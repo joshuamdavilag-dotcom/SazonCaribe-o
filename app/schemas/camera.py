@@ -1,3 +1,7 @@
+"""
+Schemas del módulo de cámaras.
+"""
+
 from datetime import datetime
 from typing import Any
 

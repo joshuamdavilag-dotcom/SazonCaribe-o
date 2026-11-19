@@ -1,3 +1,7 @@
+"""
+Router del cierre financiero por periodo.
+"""
+
 from datetime import date
 from typing import Optional
 

@@ -1,9 +1,14 @@
+"""
+Schemas de órdenes, líneas, descuentos y pagos.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
+from app.core.clasificacion import es_categoria_bebida
 from app.models.orden import EstadoOrden, MetodoPago
 
 
@@ -109,17 +114,25 @@ class DetalleOrdenResponse(BaseModel):
         default=None,
         description="Fecha y hora de la devolución"
     )
+    es_bebida: bool = Field(
+        default=False,
+        description=(
+            "True si el producto pertenece a una categoría de bebidas. "
+            "Las bebidas no pasan por cocina: van directo a listo para servir."
+        )
+    )
 
     @model_validator(mode='before')
     @classmethod
     def _fill_nombre(cls, data):
-        """Completa 'producto_nombre' con el nombre del producto relacionado."""
+        """Completa 'producto_nombre' y 'es_bebida' desde el producto."""
         if not isinstance(data, dict):
             nombre = getattr(data, 'producto_nombre', '') or ''
-            if not nombre:
-                producto = getattr(data, 'producto', None)
-                if producto is not None:
-                    setattr(data, 'producto_nombre', producto.nombre)
+            producto = getattr(data, 'producto', None)
+            if not nombre and producto is not None:
+                setattr(data, 'producto_nombre', producto.nombre)
+            categoria = getattr(producto, 'categoria', None) if producto else None
+            setattr(data, 'es_bebida', es_categoria_bebida(getattr(categoria, 'nombre', None)))
         return data
 
 

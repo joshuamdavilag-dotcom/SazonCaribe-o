@@ -86,6 +86,11 @@ class ImportacionInventarioService:
     # =========================================================================
 
     def analizar(self, nombre_archivo: str, contenido: bytes, actor: Optional[Usuario]) -> ImportacionInventarioResponse:
+        """Analiza el archivo y guarda un lote en revisión.
+
+        Primero intenta con reglas; si el archivo es difícil, consulta a Gemini. No
+        escribe nada en el inventario todavía.
+        """
         if not contenido:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo está vacío.")
         if len(contenido) > MAX_BYTES:
@@ -427,16 +432,22 @@ class ImportacionInventarioService:
     # =========================================================================
 
     def listar(self) -> list[ImportacionInventarioResumenResponse]:
+        """Devuelve los últimos lotes de importación.
+        """
         lotes = self.db.execute(
             select(ImportacionInventario).order_by(ImportacionInventario.id.desc()).limit(30)
         ).scalars().all()
         return [ImportacionInventarioResumenResponse.model_validate(lote) for lote in lotes]
 
     def obtener(self, importacion_id: int) -> ImportacionInventarioResponse:
+        """Devuelve un lote con sus filas detectadas.
+        """
         lote = self._lote(importacion_id)
         return ImportacionInventarioResponse.model_validate(lote)
 
     def eliminar(self, importacion_id: int) -> None:
+        """Descarta un lote que aún está en revisión.
+        """
         lote = self._lote(importacion_id)
         if lote.estado == EstadoImportacion.APLICADA:
             raise HTTPException(
@@ -465,6 +476,11 @@ class ImportacionInventarioService:
         payload: ImportacionAplicarRequest,
         actor: Usuario,
     ) -> ImportacionAplicarResponse:
+        """Aplica el estado final confirmado por el usuario.
+
+        Valida todo el lote antes de escribir y lo guarda en una sola transacción: si
+        una fila falla, no se aplica ninguna.
+        """
         lote = self._lote(importacion_id)
         if lote.estado == EstadoImportacion.APLICADA:
             raise HTTPException(

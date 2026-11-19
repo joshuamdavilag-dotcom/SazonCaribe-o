@@ -1,3 +1,7 @@
+"""
+CRUD de eventos del calendario y consulta combinada de asistencias.
+"""
+
 from datetime import date
 
 from fastapi import HTTPException

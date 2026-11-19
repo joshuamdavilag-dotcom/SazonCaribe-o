@@ -1,3 +1,7 @@
+"""
+Schemas de configuración y suscripciones Web Push.
+"""
+
 from datetime import datetime
 from typing import Optional
 

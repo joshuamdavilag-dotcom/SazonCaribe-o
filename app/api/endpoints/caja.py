@@ -1,3 +1,9 @@
+"""
+Router de caja: historial del día, resumen acotado para meseros, cierre manual
+
+y control del cierre automático de medianoche.
+"""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 

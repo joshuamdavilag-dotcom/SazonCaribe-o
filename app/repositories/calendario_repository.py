@@ -1,3 +1,7 @@
+"""
+Consultas de eventos y asistencias por rango de fechas.
+"""
+
 from datetime import date
 
 from sqlalchemy import or_, select

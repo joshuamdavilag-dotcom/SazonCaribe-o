@@ -1,3 +1,10 @@
+"""
+Hash de contraseñas y emisión de JWT.
+
+Usa bcrypt directamente en lugar de passlib. verificar_password tolera hashes
+corruptos o heredados devolviendo False en vez de lanzar un 500.
+"""
+
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Optional

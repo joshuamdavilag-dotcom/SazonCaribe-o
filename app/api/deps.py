@@ -1,3 +1,11 @@
+"""
+Dependencias de autenticación y autorización.
+
+get_current_user relee el usuario de la base en cada petición, de modo que
+desactivar una cuenta o quitar un turno surte efecto de inmediato. requerir_rol
+y requerir_permiso cubren la autorización por rol y por permiso funcional.
+"""
+
 from typing import List
 
 from fastapi import Depends, HTTPException, status

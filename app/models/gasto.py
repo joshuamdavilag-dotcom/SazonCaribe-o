@@ -1,3 +1,10 @@
+"""
+Modelo de gastos operativos y su categoría.
+
+Incluye las columnas de eliminación lógica: un gasto nunca se borra de verdad
+cuando puede existir historial contable detrás.
+"""
+
 import enum
 from datetime import datetime
 from decimal import Decimal

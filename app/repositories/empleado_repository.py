@@ -1,3 +1,7 @@
+"""
+Consultas de empleados y sus relaciones.
+"""
+
 from typing import Optional, List
 
 from sqlalchemy import select

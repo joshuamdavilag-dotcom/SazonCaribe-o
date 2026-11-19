@@ -1,3 +1,7 @@
+"""
+Router del catálogo de descuentos frecuentes reutilizables.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, Query, status

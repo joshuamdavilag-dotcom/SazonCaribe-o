@@ -1,3 +1,7 @@
+"""
+Router con el historial de novedades del sistema.
+"""
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 

@@ -1,3 +1,11 @@
+"""
+Registro de eventos de auditoría.
+
+registrar() guarda la acción de un actor humano y registrar_sistema() los
+eventos automáticos. El llamador es quien hace commit: aquí solo se agrega a la
+sesión.
+"""
+
 from datetime import date
 from typing import Any
 

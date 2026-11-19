@@ -1,3 +1,7 @@
+"""
+Schemas de gastos operativos.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional

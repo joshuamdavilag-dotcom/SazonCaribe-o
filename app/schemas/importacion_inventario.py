@@ -1,3 +1,7 @@
+"""
+Schemas de la importación de inventario.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, List, Optional

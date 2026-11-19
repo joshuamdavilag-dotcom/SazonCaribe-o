@@ -1,3 +1,9 @@
+"""
+Router de inventario: proveedores, insumos, movimientos, categorías, unidades
+
+de medida y producción por lote.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, Path, status

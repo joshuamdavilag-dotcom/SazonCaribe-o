@@ -1,3 +1,9 @@
+"""
+Router de suscripciones y preferencias de Web Push.
+
+Cada usuario administra sus propios dispositivos y decide qué avisos recibe.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status

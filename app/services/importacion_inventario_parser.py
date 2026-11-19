@@ -74,6 +74,8 @@ PATRON_NUMERO = re.compile(
 
 
 def normalizar_texto(valor: Any) -> str:
+    """Pasa el texto a minúsculas, sin acentos y sin espacios sobrantes.
+    """
     if valor is None:
         return ""
     texto = unicodedata.normalize("NFKD", str(valor))
@@ -84,6 +86,8 @@ def normalizar_texto(valor: Any) -> str:
 
 
 def normalizar_numero(valor: Any) -> Optional[Decimal]:
+    """Interpreta un número escrito a la nicaragüense (coma decimal, puntos de miles).
+    """
     if valor is None:
         return None
     if isinstance(valor, Decimal):
@@ -131,12 +135,16 @@ def normalizar_numero(valor: Any) -> Optional[Decimal]:
 
 
 def cuantizar(valor: Optional[Decimal]) -> Optional[Decimal]:
+    """Redondea a dos decimales con el criterio monetario habitual.
+    """
     if valor is None:
         return None
     return valor.quantize(Decimal("0.01"))
 
 
 def es_numerico(valor: Any) -> bool:
+    """Indica si el valor se puede interpretar como número.
+    """
     texto = str(valor or "").strip()
     if not texto:
         return False
@@ -148,6 +156,8 @@ def es_numerico(valor: Any) -> bool:
 
 
 def decodificar_texto(contenido: bytes) -> str:
+    """Decodifica bytes probando las codificaciones más frecuentes en archivos de compra.
+    """
     for codificacion in ("utf-8-sig", "utf-8", "latin-1"):
         try:
             return contenido.decode(codificacion)
@@ -163,6 +173,8 @@ def _texto_celda(valor: Any) -> str:
 
 
 def filas_desde_excel(contenido: bytes) -> Optional[list[list[str]]]:
+    """Devuelve las filas de la primera hoja con datos, o None si el archivo no es Excel.
+    """
     try:
         import openpyxl
     except ImportError:
@@ -182,6 +194,8 @@ def filas_desde_excel(contenido: bytes) -> Optional[list[list[str]]]:
 
 
 def filas_desde_csv(texto: str) -> list[list[str]]:
+    """Lee un CSV detectando el delimitador por tanteo.
+    """
     muestra = texto[:4096]
     try:
         dialecto = csv.Sniffer().sniff(muestra, delimiters=",;\t|")
@@ -194,6 +208,8 @@ def filas_desde_csv(texto: str) -> list[list[str]]:
 
 
 def filas_delimitadas(texto: str) -> list[list[str]]:
+    """Parte un texto delimitado (tab, punto y coma, barra) en filas y celdas.
+    """
     lineas = [linea for linea in texto.splitlines() if linea.strip()]
     if not lineas:
         return []
@@ -231,6 +247,8 @@ def _campo_de_encabezado(celda: str) -> Optional[str]:
 
 
 def detectar_encabezado(filas: list[list[str]]) -> tuple[Optional[int], dict[str, int]]:
+    """Busca la fila de encabezados y el índice de cada columna conocida.
+    """
     for indice, fila in enumerate(filas[:10]):
         mapa: dict[str, int] = {}
         for columna, celda in enumerate(fila):
@@ -258,6 +276,8 @@ def _columna_unidad(muestra: list[list[str]], excluir: set[int]) -> Optional[int
 
 
 def inferir_columnas(filas: list[list[str]]) -> dict[str, int]:
+    """Deduce las columnas cuando el archivo no trae encabezados reconocibles.
+    """
     muestra = [f for f in filas if any(c for c in f)][:30]
     if not muestra:
         return {}
@@ -337,6 +357,8 @@ def _asignar_numeros(numeros: list[Decimal], texto: str) -> tuple[Decimal, Optio
 
 
 def parsear_estructurado(filas: list[list[str]]) -> list[FilaDetectada]:
+    """Convierte filas tabulares en registros de producto detectados.
+    """
     if not filas:
         return []
     if max((len(f) for f in filas), default=0) < 2:
@@ -442,6 +464,8 @@ def _fila_desde_linea(linea: str, numero_fila: int) -> Optional[FilaDetectada]:
 
 
 def parsear_texto_libre(texto: str) -> list[FilaDetectada]:
+    """Extrae productos de un texto sin columnas, línea por línea.
+    """
     resultado: list[FilaDetectada] = []
     for numero_fila, linea in enumerate(texto.splitlines(), start=1):
         limpia = re.sub(r"^[\s\-\*\u2022•]+", "", linea).strip()
@@ -463,6 +487,11 @@ EMPAQUES_CANONICOS = {
 
 
 def extraer_unidad_y_factor(texto: Any) -> tuple[Optional[str], Optional[float], Optional[str]]:
+    """Separa el empaque de la unidad base y calcula el factor (por ejemplo, "cajilla x24").
+
+    Evalúa primero el empaque: si se mira la unidad base antes, "saco de 100 libras"
+    termina como cien sacos y nadie quiere eso en el inventario.
+    """
     original = str(texto or "")
     if not original.strip():
         return None, None, None
@@ -508,6 +537,8 @@ def extraer_unidad_y_factor(texto: Any) -> tuple[Optional[str], Optional[float],
 
 
 def unidad_canonica(palabra: str) -> Optional[str]:
+    """Devuelve el nombre estándar de una unidad escrita en singular o plural.
+    """
     n = normalizar_texto(palabra)
     for patron, canonica in PALABRAS_UNIDAD:
         if re.fullmatch(patron, n):
@@ -516,11 +547,15 @@ def unidad_canonica(palabra: str) -> Optional[str]:
 
 
 def es_palabra_empaque(texto: Optional[str]) -> bool:
+    """Indica si la palabra describe un empaque y no una unidad de medida.
+    """
     n = normalizar_texto(texto)
     return bool(n) and (n in PALABRAS_EMPAQUE or n in {p for p in PALABRAS_EMPAQUE})
 
 
 def limpiar_nombre(texto: Any) -> str:
+    """Quita ruido del nombre detectado (códigos, medidas repetidas, signos sueltos).
+    """
     original = str(texto or "").strip()
     limpio = re.sub(r"^[\s\-\*\u2022•]+", "", original)
     limpio = re.sub(r"^\d+[.)]\s*", "", limpio)
@@ -547,6 +582,8 @@ def limpiar_nombre(texto: Any) -> str:
 
 
 def mapear_items_ia(datos: Any) -> list[FilaDetectada]:
+    """Convierte la respuesta del modelo de IA en registros de producto.
+    """
     items = datos.get("items") if isinstance(datos, dict) else datos
     if not isinstance(items, list):
         return []
@@ -583,6 +620,8 @@ def mapear_items_ia(datos: Any) -> list[FilaDetectada]:
 
 
 def cobertura_precio(filas: list[FilaDetectada]) -> float:
+    """Calcula qué proporción de filas trae precio, para decidir si hace falta IA.
+    """
     if not filas:
         return 0.0
     return sum(1 for f in filas if f.precio_unitario is not None or f.precio_total is not None) / len(filas)

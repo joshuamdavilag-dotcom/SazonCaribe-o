@@ -1,3 +1,7 @@
+"""
+Servicios con las reglas de negocio del sistema.
+"""
+
 from app.services.personal_service import PersonalService
 from app.services.asistencia_service import AsistenciaService
 from app.services.nomina_service import NominaService

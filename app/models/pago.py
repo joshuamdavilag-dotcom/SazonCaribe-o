@@ -1,3 +1,7 @@
+"""
+Modelo de pagos en línea y su enum de estado.
+"""
+
 import enum
 from datetime import datetime
 from decimal import Decimal

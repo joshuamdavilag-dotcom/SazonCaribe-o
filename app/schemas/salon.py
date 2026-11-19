@@ -1,3 +1,7 @@
+"""
+Schemas de zonas y mesas.
+"""
+
 from enum import Enum
 from typing import Optional, List
 

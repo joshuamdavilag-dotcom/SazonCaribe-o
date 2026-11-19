@@ -1,3 +1,10 @@
+"""
+Repositorios de acceso a datos.
+
+Solo se exportan algunos; el resto se importa directamente desde los servicios.
+No es lo más elegante, pero funciona y cambiarlo no aporta valor ahora.
+"""
+
 from app.repositories.base_repository import BaseRepository
 from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository

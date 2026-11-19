@@ -1,3 +1,7 @@
+"""
+Modelo del cierre de caja que archiva órdenes y gastos.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import Integer, DateTime, Numeric, ForeignKey, func

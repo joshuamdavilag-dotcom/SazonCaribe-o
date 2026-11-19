@@ -1,3 +1,7 @@
+"""
+Modelo de suscripciones Web Push por dispositivo.
+"""
+
 from datetime import datetime
 from typing import Optional
 

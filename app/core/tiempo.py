@@ -1,3 +1,11 @@
+"""
+Hora local de Managua y definición del día de negocio.
+
+Todos los timestamps de asistencia se guardan como hora local naive, sin
+conversión. Si algo parece estar seis horas corrido, revisa primero si alguien
+agregó una conversión que no debía.
+"""
+
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 

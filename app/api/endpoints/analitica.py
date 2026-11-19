@@ -1,3 +1,7 @@
+"""
+Router del cierre de caja legacy, conservado por compatibilidad.
+"""
+
 from datetime import date
 from typing import Optional
 

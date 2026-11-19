@@ -1,3 +1,10 @@
+"""
+Router de copias de seguridad, exclusivo del Administrador.
+
+Crear, listar, descargar, eliminar y restaurar. La restauración reemplaza el
+contenido actual, así que conviene descargar una copia antes de usarla.
+"""
+
 import json
 from types import SimpleNamespace
 from typing import Any, Dict, List

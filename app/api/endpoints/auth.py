@@ -1,3 +1,10 @@
+"""
+Router de autenticación.
+
+Login con mensajes diferenciados (decisión de UX para diagnóstico interno) y
+GET /me para que el cliente refresque rol, puesto y permisos vigentes.
+"""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status

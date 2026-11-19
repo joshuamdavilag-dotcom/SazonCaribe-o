@@ -1,3 +1,10 @@
+"""
+Consultas de reportes financieros.
+
+Usa rangos semiabiertos sobre columnas DateTime para que los índices sirvan.
+Aplicar func.date a una columna indexada era la forma más cara de ignorarlos.
+"""
+
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Optional, List, Dict

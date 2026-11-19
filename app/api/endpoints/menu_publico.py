@@ -1,3 +1,10 @@
+"""
+Router de la API pública de la Carta Digital.
+
+Solo lectura y sin autenticación. Expone nombre, descripción, precio, imagen y
+tiempo de preparación; nunca costos, recetas, inventario, usuarios ni roles.
+"""
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Path

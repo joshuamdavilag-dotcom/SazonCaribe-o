@@ -1,3 +1,7 @@
+"""
+Router del salón: zonas, mesas, mapa, estados, apodos, fusión y desfusión.
+"""
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Path, Query, status

@@ -1,3 +1,7 @@
+"""
+Reglas del catálogo de descuentos frecuentes.
+"""
+
 from typing import List
 
 from fastapi import HTTPException, status

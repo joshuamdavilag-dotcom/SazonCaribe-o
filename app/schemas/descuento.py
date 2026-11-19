@@ -1,3 +1,7 @@
+"""
+Schemas del catálogo de descuentos frecuentes.
+"""
+
 from decimal import Decimal
 from typing import Optional
 

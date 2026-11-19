@@ -83,6 +83,8 @@ class PermisoService:
         )
 
     def obtener(self, usuario_id: int, actor: Usuario) -> PermisosUsuarioResponse:
+        """Devuelve el catálogo con el estado de cada permiso para el usuario indicado.
+        """
         objetivo = self._obtener_usuario(usuario_id)
         motivo = self._motivo_bloqueo(objetivo, actor)
         puede_editar = motivo is None
@@ -104,6 +106,11 @@ class PermisoService:
         request: ActualizarPermisosRequest,
         actor: Usuario,
     ) -> PermisosUsuarioResponse:
+        """Guarda el conjunto final de permisos calculando solo las diferencias con el rol.
+
+        Bloquea la autoedición, la edición de un Administrador y la concesión de permisos
+        críticos por parte de un Gerente.
+        """
         objetivo = self._obtener_usuario(usuario_id)
 
         motivo = self._motivo_bloqueo(objetivo, actor)

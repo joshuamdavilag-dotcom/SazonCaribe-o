@@ -1,3 +1,7 @@
+"""
+Lectura y escritura de la configuración persistente clave/valor.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import select

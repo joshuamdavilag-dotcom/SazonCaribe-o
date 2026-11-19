@@ -1,3 +1,7 @@
+"""
+Reglas de zonas, mesas, estados, apodos y fusión.
+"""
+
 import re
 from decimal import Decimal
 from typing import Optional, List

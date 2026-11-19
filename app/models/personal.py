@@ -1,3 +1,10 @@
+"""
+Modelos de puestos, empleados y usuarios.
+
+El salario vive en el empleado, no en el puesto. Los avisos push y los
+overrides de permisos también se guardan aquí.
+"""
+
 from datetime import date
 from decimal import Decimal
 from typing import Optional, List

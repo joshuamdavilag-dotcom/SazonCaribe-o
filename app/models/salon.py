@@ -1,3 +1,7 @@
+"""
+Modelos de zonas y mesas, incluida la fusión por grupo y color.
+"""
+
 import enum
 from typing import Optional, List
 

@@ -1,3 +1,10 @@
+"""
+Router del calendario de planificación.
+
+Cualquier usuario autenticado consulta; solo Administrador y Gerente escriben.
+El rango de consulta es inclusivo y no supera 63 días.
+"""
+
 from datetime import date
 import logging
 

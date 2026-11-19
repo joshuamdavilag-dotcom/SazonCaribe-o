@@ -1,3 +1,7 @@
+"""
+Schemas del calendario de planificación.
+"""
+
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Literal, Optional

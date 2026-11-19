@@ -1,3 +1,7 @@
+"""
+Router de pagos en línea. El proveedor está deshabilitado por defecto.
+"""
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, status
 from sqlalchemy.orm import Session
 

@@ -1,3 +1,7 @@
+"""
+Cálculo del cierre de caja legacy.
+"""
+
 from datetime import date
 
 from sqlalchemy.orm import Session

@@ -1,3 +1,7 @@
+"""
+Schemas de turnos, asistencias y horas extras.
+"""
+
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional

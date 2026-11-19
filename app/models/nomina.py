@@ -1,3 +1,7 @@
+"""
+Modelos de nómina y adelantos de salario.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List

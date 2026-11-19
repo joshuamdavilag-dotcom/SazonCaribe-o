@@ -1,3 +1,10 @@
+"""
+Cálculo de nómina prorrateada por día, horas extras y adelantos.
+
+El pago base es salario mensual entre 30 por los días del rango, así que pagar
+3, 7, 15 o 30 días funciona con la misma fórmula.
+"""
+
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import List

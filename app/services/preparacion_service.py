@@ -1,3 +1,7 @@
+"""
+Producción por lote: valida stock, descuenta insumos y registra el detalle.
+"""
+
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List

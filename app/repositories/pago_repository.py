@@ -1,3 +1,7 @@
+"""
+Consultas de pagos en línea y ledger de comandas.
+"""
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

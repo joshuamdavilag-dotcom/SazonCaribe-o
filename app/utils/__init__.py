@@ -1,0 +1,4 @@
+"""
+Utilidades auxiliares compartidas.
+"""
+

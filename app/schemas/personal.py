@@ -1,3 +1,9 @@
+"""
+Schemas de personal, usuarios y roles.
+
+RolEnum se define aquí y es la referencia para el resto del backend.
+"""
+
 from datetime import date
 from decimal import Decimal
 from enum import Enum

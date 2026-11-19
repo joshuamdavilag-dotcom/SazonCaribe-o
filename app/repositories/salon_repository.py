@@ -1,3 +1,7 @@
+"""
+Consultas de zonas, mesas y mapa del salón.
+"""
+
 from typing import Optional, List
 
 from sqlalchemy import select, func

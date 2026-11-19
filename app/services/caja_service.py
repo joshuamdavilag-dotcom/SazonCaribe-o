@@ -1,3 +1,11 @@
+"""
+Cierre de caja manual y automático.
+
+El automático corre una vez por día de Managua y archiva también gastos aunque
+no haya órdenes pagadas. Si la instancia estuvo dormida, se recupera al
+arrancar: la medianoche no siempre coincide con un proceso despierto.
+"""
+
 from datetime import date, datetime, time, timedelta
 
 from fastapi import HTTPException, status

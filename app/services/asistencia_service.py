@@ -1,3 +1,12 @@
+"""
+Reglas de asistencia: inicio y cierre de turnos, heartbeat, cierres forzados,
+
+anulación y reactivación.
+
+Todo cierre automático se audita con su causa y su antes/después. Ningún cambio
+forzado debe ser invisible.
+"""
+
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional

@@ -1,3 +1,10 @@
+"""
+Generación, purga y restauración de copias de seguridad.
+
+Serializa todas las tablas en JSON y lo guarda en la base. La restauración borra
+de hijos a padres e inserta de padres a hijos para respetar las claves foráneas.
+"""
+
 import json
 import os
 from datetime import datetime, date, time, timedelta

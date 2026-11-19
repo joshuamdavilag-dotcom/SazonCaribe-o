@@ -1,3 +1,7 @@
+"""
+Schemas de insumos, unidades, proveedores y movimientos.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional

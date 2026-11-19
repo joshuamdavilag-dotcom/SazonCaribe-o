@@ -8,7 +8,6 @@ unidades por redondeo.
 import base64
 import hashlib
 import hmac
-import unicodedata
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status
@@ -16,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.clasificacion import es_categoria_bebida
 from app.core.config import get_settings
 from app.models.menu import MenuItem
 from app.models.orden import DetalleOrden, EstadoOrden, MetodoPago, Orden
@@ -26,21 +26,6 @@ from app.services.salon_service import SalonService
 
 
 CENTAVO = Decimal("0.01")
-
-CATEGORIAS_BEBIDA = ("bebida", "trago", "coctel", "cocteler", "cerveza", "refresco", "jugo")
-
-
-def _sin_tildes(texto: str) -> str:
-    """Devuelve el texto en minúsculas y sin acentos."""
-    base = unicodedata.normalize("NFD", texto or "")
-    return "".join(c for c in base if unicodedata.category(c) != "Mn").lower()
-
-
-def es_categoria_bebida(nombre: str | None) -> bool:
-    """Indica si el nombre de categoría corresponde a bebidas."""
-    clave = _sin_tildes(str(nombre or ""))
-    return any(token in clave for token in CATEGORIAS_BEBIDA)
-
 
 
 def _a_centavos(monto: Decimal) -> int:

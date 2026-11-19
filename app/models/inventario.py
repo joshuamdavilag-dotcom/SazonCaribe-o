@@ -1,3 +1,10 @@
+"""
+Modelos de inventario: insumos, unidades, proveedores, movimientos y producción.
+
+La conversión de unidades se resuelve con una cadena transitiva, y cada insumo
+puede declarar su propio empaque con factor.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List

@@ -1,3 +1,7 @@
+"""
+Consultas del catálogo de descuentos frecuentes.
+"""
+
 from typing import List, Optional
 
 from sqlalchemy import select

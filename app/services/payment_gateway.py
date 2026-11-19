@@ -1,3 +1,9 @@
+"""
+Contrato de proveedores de pago y su resolución por configuración.
+
+La arquitectura está lista; el proveedor real sigue deshabilitado por defecto.
+"""
+
 from dataclasses import dataclass
 from typing import Literal, Mapping, Protocol
 

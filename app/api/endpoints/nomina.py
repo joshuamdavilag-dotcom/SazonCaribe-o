@@ -1,3 +1,9 @@
+"""
+Router de nómina: cálculo prorrateado por día, horas extras, adelantos, pago y
+
+recálculo de nóminas pendientes.
+"""
+
 from datetime import date
 from typing import List, Optional
 

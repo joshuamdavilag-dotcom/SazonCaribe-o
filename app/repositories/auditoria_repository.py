@@ -1,3 +1,7 @@
+"""
+Consultas paginadas de la bitácora de auditoría.
+"""
+
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import func, select

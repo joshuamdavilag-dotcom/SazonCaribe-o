@@ -1,3 +1,7 @@
+"""
+Repositorio genérico con operaciones CRUD reutilizables.
+"""
+
 from typing import TypeVar, Generic, Optional, List, Type
 
 from sqlalchemy import select, func

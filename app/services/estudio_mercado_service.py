@@ -135,7 +135,6 @@ acceso a la base de datos cuando el dato está en ese bloque.
 8. Si la pregunta requiere un dato que no está en "DATOS EN VIVO" ni en los estudios, dilo con \
 claridad y sugiere en qué pantalla del sistema consultarlo."""
 
-
 def rango_periodo(
     periodo: PeriodoEstudio,
     referencia: Optional[date] = None,
@@ -262,7 +261,6 @@ body { margin: 0; padding: 32px 16px 64px; background: #f1f5f9; color: #0f172a;
   .informe-seccion, .informe-tarjeta, .informe-grafica { break-inside: avoid; }
 }
 """
-
 
 def _esc(valor: Any) -> str:
     return html.escape(str(valor if valor is not None else ""))

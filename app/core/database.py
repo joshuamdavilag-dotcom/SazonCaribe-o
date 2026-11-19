@@ -1,3 +1,10 @@
+"""
+Motor de base de datos, sesión y base declarativa.
+
+Detecta el dialecto para ajustar el pool: SQLite en archivo usa el pool normal y
+SQLite en memoria necesita StaticPool para no perder la base entre conexiones.
+"""
+
 import os
 import ssl
 from sqlalchemy import create_engine

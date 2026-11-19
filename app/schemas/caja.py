@@ -1,3 +1,7 @@
+"""
+Schemas de historial diario, ventas del día y cierre de caja.
+"""
+
 from datetime import datetime
 from typing import Optional, List
 

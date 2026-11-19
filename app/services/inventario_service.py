@@ -1,3 +1,10 @@
+"""
+Movimientos de inventario, conversión de unidades y gasto automático.
+
+Cada salida genera un gasto de SUMINISTROS; es la forma en que el costo de
+insumos llega a los reportes sin duplicar la contabilidad.
+"""
+
 from decimal import Decimal
 from typing import List
 

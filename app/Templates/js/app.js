@@ -3862,13 +3862,16 @@ function renderCocinaCards() {
 
     const itemsHtml = (o.detalles || []).map(d => {
       const nombre = d.producto_nombre || `Producto #${d.producto_id}`;
+      const bebida = d.es_bebida
+        ? '<span class="kc-tag-bebida" title="Bebida: no pasa por cocina">Listo para servir</span>'
+        : '';
       const notas = d.notas ? `
             <span class="kc-notas"><span class="material-symbols-outlined text-[12px]">info</span>${d.notas}</span>` : '';
       return `
           <li class="flex items-start justify-between gap-2 px-3.5 py-2 border-b border-slate-100 last:border-none">
             <span class="kc-qty">${d.cantidad}×</span>
             <span class="min-w-0 flex-1">
-              <span class="block text-[13px] font-semibold text-slate-700 leading-snug">${nombre}</span>
+              <span class="block text-[13px] font-semibold text-slate-700 leading-snug">${nombre}${bebida}</span>
               ${notas}
             </span>
           </li>`;

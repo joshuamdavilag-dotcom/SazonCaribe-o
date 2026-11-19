@@ -1,3 +1,7 @@
+"""
+Modelo de la bitácora de auditoría con antes y después en JSON.
+"""
+
 from datetime import datetime
 from typing import Any, Optional
 

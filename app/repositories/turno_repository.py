@@ -1,3 +1,7 @@
+"""
+Consultas de plantillas de turno.
+"""
+
 from typing import Optional
 
 from sqlalchemy import func, select
