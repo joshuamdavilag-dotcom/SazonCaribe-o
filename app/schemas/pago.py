@@ -1,3 +1,7 @@
+"""
+Schemas de pagos en línea.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -37,8 +41,15 @@ class CheckoutSessionResponse(BaseModel):
     pago: PagoOnlineResponse
 
 
+class PagoItemSeleccion(BaseModel):
+    """Ítem elegido para cobrar (cantidad de unidades de una línea)."""
+
+    detalle_id: int = Field(..., gt=0)
+    cantidad: int = Field(..., gt=0)
+
+
 class PagoComandaCreate(BaseModel):
-    """Registra un pago total, un abono o la parte de un platillo."""
+    """Registra un pago total, un abono, una parte o una selección de ítems."""
 
     metodo_pago: MetodoPago
     monto: Decimal | None = Field(default=None, gt=0, decimal_places=2)
@@ -47,11 +58,29 @@ class PagoComandaCreate(BaseModel):
     personas: int | None = Field(default=None, gt=0)
     parte: int | None = Field(default=None, gt=0)
     division_id: int | None = Field(default=None, gt=0)
+    items: list[PagoItemSeleccion] | None = None
 
     @model_validator(mode="after")
     def validar_tipo_de_pago(self):
         if self.metodo_pago == MetodoPago.PAGO_EN_LINEA:
             raise ValueError("El pago en línea debe confirmarse por el proveedor.")
+
+        if self.items:
+            if self.division_id is not None or self.detalle_id is not None:
+                raise ValueError(
+                    "La selección de ítems no se combina con divisiones ni con un "
+                    "detalle suelto."
+                )
+            if self.monto is not None or self.personas is not None:
+                raise ValueError(
+                    "La selección de ítems calcula el monto sola: no envíe monto "
+                    "ni personas."
+                )
+            if self.cantidad is not None or self.parte is not None:
+                raise ValueError(
+                    "La selección de ítems indica la cantidad dentro de cada ítem."
+                )
+            return self
 
         if self.division_id is not None:
             if self.parte is None or any(
@@ -121,6 +150,8 @@ class DivisionPagoPreviewResponse(BaseModel):
 class ItemPagoResumenResponse(BaseModel):
     detalle_id: int
     producto_nombre: str
+    categoria_nombre: str | None = None
+    es_bebida: bool = False
     cantidad_total: int
     cantidad_disponible: int
     monto_disponible: Decimal

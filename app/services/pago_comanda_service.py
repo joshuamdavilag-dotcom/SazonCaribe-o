@@ -1,6 +1,14 @@
+"""
+Ledger de pagos parciales y divisiones de comanda.
+
+Trabaja en centavos enteros para que el reparto entre personas no pierda
+unidades por redondeo.
+"""
+
 import base64
 import hashlib
 import hmac
+import unicodedata
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status
@@ -9,14 +17,30 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.config import get_settings
+from app.models.menu import MenuItem
 from app.models.orden import DetalleOrden, EstadoOrden, MetodoPago, Orden
 from app.models.pago import EstadoPago, PagoOnline
-from app.models.pago_comanda import DivisionPagoComanda, PagoComanda
+from app.models.pago_comanda import DivisionPagoComanda, PagoComanda, PagoComandaItem
 from app.models.personal import Usuario
 from app.services.salon_service import SalonService
 
 
 CENTAVO = Decimal("0.01")
+
+CATEGORIAS_BEBIDA = ("bebida", "trago", "coctel", "cocteler", "cerveza", "refresco", "jugo")
+
+
+def _sin_tildes(texto: str) -> str:
+    """Devuelve el texto en minúsculas y sin acentos."""
+    base = unicodedata.normalize("NFD", texto or "")
+    return "".join(c for c in base if unicodedata.category(c) != "Mn").lower()
+
+
+def es_categoria_bebida(nombre: str | None) -> bool:
+    """Indica si el nombre de categoría corresponde a bebidas."""
+    clave = _sin_tildes(str(nombre or ""))
+    return any(token in clave for token in CATEGORIAS_BEBIDA)
+
 
 
 def _a_centavos(monto: Decimal) -> int:
@@ -82,7 +106,11 @@ class PagoComandaService:
     def _obtener_orden(self, orden_id: int, bloquear: bool = False) -> Orden:
         statement = (
             select(Orden)
-            .options(selectinload(Orden.detalles).joinedload(DetalleOrden.producto))
+            .options(
+                selectinload(Orden.detalles)
+                .joinedload(DetalleOrden.producto)
+                .joinedload(MenuItem.categoria)
+            )
             .where(Orden.id == orden_id)
         )
         if bloquear:
@@ -102,6 +130,43 @@ class PagoComandaService:
             )
         ).scalar_one()
         return Decimal(str(suma or 0)).quantize(CENTAVO)
+
+    def _cantidades_cobradas(self, orden_id: int) -> dict[int, int]:
+        """Unidades ya cobradas por ítem a través de pagos por selección."""
+        filas = self.db.execute(
+            select(
+                PagoComandaItem.detalle_orden_id,
+                func.coalesce(func.sum(PagoComandaItem.cantidad), 0),
+            )
+            .where(PagoComandaItem.orden_id == orden_id)
+            .group_by(PagoComandaItem.detalle_orden_id)
+        ).all()
+        return {detalle_id: int(cantidad or 0) for detalle_id, cantidad in filas}
+
+    def _disponibles(self, orden: Orden) -> dict[int, dict]:
+        """Unidades disponibles por ítem, descontando divisiones y cobros."""
+        divisiones = self._divisiones(orden)
+        reservadas: dict[int, int] = {}
+        for division in divisiones:
+            reservadas[division["detalle_id"]] = (
+                reservadas.get(division["detalle_id"], 0) + division["cantidad"]
+            )
+        cobradas = self._cantidades_cobradas(orden.id)
+
+        disponibles = {}
+        for detalle in orden.detalles:
+            vigente = detalle.cantidad - (detalle.cantidad_devuelta or 0)
+            usadas = reservadas.get(detalle.id, 0) + cobradas.get(detalle.id, 0)
+            disponible = max(vigente - usadas, 0)
+            if disponible <= 0:
+                continue
+            disponibles[detalle.id] = {
+                "detalle": detalle,
+                "vigente": vigente,
+                "disponible": disponible,
+                "inicio": vigente - disponible,
+            }
+        return disponibles
 
     def _divisiones(self, orden: Orden) -> list[dict]:
         divisiones = self.db.execute(
@@ -148,6 +213,8 @@ class PagoComandaService:
         return resultado
 
     def estado_pagos(self, orden_id: int) -> dict:
+        """Devuelve pagos, saldo, ítems disponibles y divisiones pendientes de la comanda.
+        """
         orden = self._obtener_orden(orden_id)
         pagos = self.db.execute(
             select(PagoComanda)
@@ -161,28 +228,25 @@ class PagoComandaService:
         saldo = max(Decimal(str(orden.total)).quantize(CENTAVO) - pagado, Decimal("0.00"))
 
         divisiones = self._divisiones(orden)
-        cantidad_dividida: dict[int, int] = {}
-        for division in divisiones:
-            cantidad_dividida[division["detalle_id"]] = (
-                cantidad_dividida.get(division["detalle_id"], 0) + division["cantidad"]
-            )
         items = []
-        for detalle in orden.detalles:
-            vigente = detalle.cantidad - (detalle.cantidad_devuelta or 0)
-            reservada = cantidad_dividida.get(detalle.id, 0)
-            disponible = max(vigente - reservada, 0)
-            if disponible <= 0:
-                continue
-            inicio = vigente - disponible
+        for info in self._disponibles(orden).values():
+            detalle = info["detalle"]
+            producto = detalle.producto
+            categoria = getattr(producto, "categoria", None) if producto else None
             items.append({
                 "detalle_id": detalle.id,
                 "producto_nombre": (
-                    detalle.producto.nombre if detalle.producto else
-                    f"Producto #{detalle.producto_id}"
+                    producto.nombre if producto else f"Producto #{detalle.producto_id}"
                 ),
-                "cantidad_total": vigente,
-                "cantidad_disponible": disponible,
-                "monto_disponible": self._importe_unidades(detalle, inicio, disponible),
+                "categoria_nombre": categoria.nombre if categoria else None,
+                "es_bebida": es_categoria_bebida(
+                    categoria.nombre if categoria else None
+                ),
+                "cantidad_total": info["vigente"],
+                "cantidad_disponible": info["disponible"],
+                "monto_disponible": self._importe_unidades(
+                    detalle, info["inicio"], info["disponible"]
+                ),
             })
         return {
             "orden_id": orden.id,
@@ -213,6 +277,8 @@ class PagoComandaService:
     def cotizar_division(
         self, orden_id: int, detalle_id: int, cantidad: int, personas: int
     ) -> dict:
+        """Reparte una cantidad entera entre varias personas; las unidades sobrantes van a las primeras.
+        """
         orden = self._obtener_orden(orden_id)
         if orden.estado in (EstadoOrden.PAGADA, EstadoOrden.CANCELADA):
             raise HTTPException(
@@ -276,6 +342,8 @@ class PagoComandaService:
         parte: int | None = None,
         division_id: int | None = None,
     ) -> dict:
+        """Registra un abono o una parte de ítem y libera las mesas cuando la comanda queda saldada.
+        """
         try:
             with self.db.begin_nested():
                 orden = self._obtener_orden(orden_id, bloquear=True)
@@ -425,6 +493,145 @@ class PagoComandaService:
                         SalonService(self.db).liberar_mesa_si_sin_comandas(orden.mesa_id)
                 else:
                     orden.metodo_pago = metodo_pago
+
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este pago ya fue registrado o la orden cambió mientras se cobraba.",
+            ) from exc
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return self.estado_pagos(orden_id)
+
+    def registrar_pago_items(
+        self,
+        orden_id: int,
+        metodo_pago: MetodoPago,
+        usuario: Usuario,
+        items: list,
+    ) -> dict:
+        """Cobra una selección de ítems de la comanda en un solo pago.
+
+        Cada entrada solo trae el detalle y las unidades: el monto se calcula
+        con el precio y el descuento reales de la línea, así el cajero no
+        reparte montos ni hace cuentas a mano.
+        """
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Selecciona al menos un ítem para cobrar.",
+            )
+
+        try:
+            with self.db.begin_nested():
+                orden = self._obtener_orden(orden_id, bloquear=True)
+                if orden.estado in (EstadoOrden.PAGADA, EstadoOrden.CANCELADA):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="La orden ya no acepta pagos.",
+                    )
+
+                checkout_activo = self.db.execute(
+                    select(PagoOnline.id).where(
+                        PagoOnline.orden_activa_id == orden_id,
+                        PagoOnline.estado == EstadoPago.PENDIENTE,
+                    )
+                ).scalar_one_or_none()
+                if checkout_activo:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Hay un pago en línea pendiente para esta orden.",
+                    )
+
+                saldo = (
+                    Decimal(str(orden.total)).quantize(CENTAVO)
+                    - self._suma_pagos(orden.id)
+                )
+                if saldo <= 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="La orden ya está completamente pagada.",
+                    )
+
+                disponibles = self._disponibles(orden)
+                consumidas: dict[int, int] = {}
+                lineas: list[tuple[DetalleOrden, int, Decimal]] = []
+                total = Decimal("0.00")
+
+                for entrada in items:
+                    detalle_id = int(getattr(entrada, "detalle_id", 0) or 0)
+                    pedidas = int(getattr(entrada, "cantidad", 0) or 0)
+                    info = disponibles.get(detalle_id)
+                    if not info:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="El ítem no pertenece a esta orden o ya fue pagado.",
+                        )
+                    if pedidas <= 0:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Cada ítem seleccionado necesita al menos una unidad.",
+                        )
+                    ya_consumidas = consumidas.get(detalle_id, 0)
+                    if ya_consumidas + pedidas > info["disponible"]:
+                        nombre = (
+                            info["detalle"].producto.nombre
+                            if info["detalle"].producto
+                            else f"#{detalle_id}"
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=(
+                                "La cantidad supera las unidades disponibles de "
+                                f"'{nombre}'."
+                            ),
+                        )
+                    consumidas[detalle_id] = ya_consumidas + pedidas
+                    monto_linea = self._importe_unidades(
+                        info["detalle"],
+                        info["inicio"] + ya_consumidas,
+                        pedidas,
+                    )
+                    total += monto_linea
+                    lineas.append((info["detalle"], pedidas, monto_linea))
+
+                if total <= 0 or total > saldo:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            "La selección debe sumar más de C$0.00 y no superar "
+                            f"el saldo de C${saldo:.2f}."
+                        ),
+                    )
+
+                pago = PagoComanda(
+                    orden_id=orden.id,
+                    usuario_id=usuario.id,
+                    metodo_pago=metodo_pago,
+                    monto=total,
+                )
+                self.db.add(pago)
+                self.db.flush()
+
+                for detalle, cantidad, monto_linea in lineas:
+                    self.db.add(PagoComandaItem(
+                        pago_id=pago.id,
+                        orden_id=orden.id,
+                        detalle_orden_id=detalle.id,
+                        cantidad=cantidad,
+                        monto=monto_linea,
+                    ))
+                self.db.flush()
+
+                orden.metodo_pago = metodo_pago
+                if saldo - total == 0:
+                    orden.estado = EstadoOrden.PAGADA
+                    if orden.mesa_id:
+                        SalonService(self.db).liberar_mesa_si_sin_comandas(orden.mesa_id)
 
             self.db.commit()
         except IntegrityError as exc:

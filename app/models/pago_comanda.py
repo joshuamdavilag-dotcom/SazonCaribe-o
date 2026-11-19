@@ -1,3 +1,7 @@
+"""
+Modelos del ledger de pagos parciales por comanda y sus divisiones por ítem.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -91,3 +95,39 @@ class PagoComanda(Base):
         back_populates="pagos"
     )
     usuario: Mapped[Usuario | None] = relationship(foreign_keys=[usuario_id])
+    items: Mapped[list["PagoComandaItem"]] = relationship(
+        back_populates="pago",
+        cascade="all, delete-orphan",
+    )
+
+
+class PagoComandaItem(Base):
+    """Ítem concreto cubierto por un pago (cobro por selección de la comanda).
+
+    Un mismo pago puede cubrir varios ítems, y un ítem puede pagarse en
+    varias tandas; la cantidad cobrada es la que descuenta disponibilidad.
+    """
+
+    __tablename__ = "pagos_comanda_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pago_id: Mapped[int] = mapped_column(
+        ForeignKey("pagos_comanda.id", name="fk_pagos_comanda_items_pago_id"),
+        nullable=False,
+        index=True,
+    )
+    orden_id: Mapped[int] = mapped_column(
+        ForeignKey("ordenes.id", name="fk_pagos_comanda_items_orden_id"),
+        nullable=False,
+        index=True,
+    )
+    detalle_orden_id: Mapped[int] = mapped_column(
+        ForeignKey("detalles_orden.id", name="fk_pagos_comanda_items_detalle_id"),
+        nullable=False,
+        index=True,
+    )
+    cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+
+    pago: Mapped[PagoComanda] = relationship(back_populates="items")
+

@@ -1,3 +1,10 @@
+"""
+Registro central de los modelos SQLAlchemy.
+
+Importar este paquete garantiza que todas las tablas queden registradas en
+Base.metadata antes de create_all.
+"""
+
 from app.models.personal import Puesto, Empleado, Usuario
 from app.models.asistencia import Turno, Asistencia
 from app.models.nomina import Nomina, AdelantoSalario
@@ -8,7 +15,7 @@ from app.models.orden import Orden, DetalleOrden, EstadoOrden, MetodoPago
 from app.models.caja import CierreCaja
 from app.models.gasto import Gasto, CategoriaGasto
 from app.models.pago import PagoOnline, EstadoPago
-from app.models.pago_comanda import PagoComanda, DivisionPagoComanda
+from app.models.pago_comanda import PagoComanda, PagoComandaItem, DivisionPagoComanda
 from app.models.calendario import EventoCalendario, TipoEventoCalendario, EstadoEventoCalendario
 from app.models.camera import Camera, CameraAccess, CameraClip
 from app.models.auditoria import RegistroAuditoria
@@ -67,6 +74,7 @@ __all__ = [
     "PagoOnline",
     "EstadoPago",
     "PagoComanda",
+    "PagoComandaItem",
     "DivisionPagoComanda",
     "EventoCalendario",
     "TipoEventoCalendario",

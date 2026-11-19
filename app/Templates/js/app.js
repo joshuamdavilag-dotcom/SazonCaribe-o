@@ -1,7 +1,24 @@
 /**
  * =========================================================================
- *  Sazón Caribeño POS — App Controller
- *  Vanilla JS SPA with FastAPI backend + sidebar layout
+ *  Sazón Caribeño POS - Controlador del SPA
+ *
+ *  Interfaz completa del ERP en Vanilla JS, sin framework y sin build step.
+ *  Consume la API en /api/v1 (o /api/public para la carta) y guarda la sesión
+ *  en localStorage. El backend sirve este archivo con ETag, así que la URL
+ *  nunca lleva parámetro de versión: el navegador revalida y recibe 304.
+ *
+ *  Mapa aproximado del archivo:
+ *    - Estado global y utilidades (escHtml, api, toasts, formato de moneda).
+ *    - Autenticación, navegación y control de permisos.
+ *    - Salón, comandas, KDS y cobro con pagos parciales.
+ *    - Menú, inventario, importación y producción por lote.
+ *    - Personal, asistencia, turnos y nómina.
+ *    - Caja, gastos, reportes, auditoría, calendario y estudio de mercado.
+ *    - Tema claro/oscuro, notificaciones push y novedades.
+ *
+ *  Nota honesta: son más de once mil líneas en un solo archivo y funciona.
+ *  Partirlo sin pruebas de regresión sería cambiar un problema conocido por
+ *  varios desconocidos. Si vienes a ordenarlo, trae pruebas primero.
  * =========================================================================
  */
 
@@ -55,6 +72,8 @@ const state = {
   paymentSelection: null,
   paymentQuote: null,
   paymentQuoteTimer: null,
+  paymentItemSelection: {},
+  paymentItemsById: {},
   paymentOnlineAvailable: false,
   heartbeatInterval: null,
   sessionPollInterval: null,
@@ -3978,6 +3997,8 @@ function openMetodoPago(orden, origen) {
   state.paymentSummary = null;
   state.paymentSelection = null;
   state.paymentQuote = null;
+  state.paymentItemSelection = {};
+  state.paymentItemsById = {};
   clearTimeout(state.paymentQuoteTimer);
   state.paymentMode = 'saldo';
   state.paymentOnlineAvailable = false;
@@ -4006,12 +4027,7 @@ async function actualizarResumenPagos() {
     if (state.paymentOrder?.id !== orden.id) return;
     state.paymentSummary = resumen;
     state.paymentLoading = false;
-    document.getElementById('payment-order-total').textContent =
-      `C$${Number(resumen.total).toFixed(2)}`;
-    document.getElementById('payment-order-paid').textContent =
-      `C$${Number(resumen.pagado_total).toFixed(2)}`;
-    document.getElementById('payment-order-balance').textContent =
-      `C$${Number(resumen.saldo_pendiente).toFixed(2)}`;
+    pintarTotalesPago(resumen);
     renderPaymentItems(resumen);
     renderPaymentDivisions(resumen);
     renderPaymentHistory(resumen);
@@ -4021,23 +4037,197 @@ async function actualizarResumenPagos() {
   }
 }
 
+function pintarTotalesPago(resumen) {
+  if (!resumen) return;
+  document.getElementById('payment-order-total').textContent =
+    `C$${Number(resumen.total).toFixed(2)}`;
+  document.getElementById('payment-order-paid').textContent =
+    `C$${Number(resumen.pagado_total).toFixed(2)}`;
+  document.getElementById('payment-order-balance').textContent =
+    `C$${Number(resumen.saldo_pendiente).toFixed(2)}`;
+}
+
 function renderPaymentItems(resumen) {
-  const select = document.getElementById('payment-item');
-  const selected = select.value;
+  const contenedor = document.getElementById('payment-items-groups');
   const items = resumen.items || [];
-  select.innerHTML = items.map(item =>
-    `<option value="${item.detalle_id}">${escHtml(item.producto_nombre)} · ${item.cantidad_disponible} disp.</option>`
-  ).join('');
-  if (items.some(item => String(item.detalle_id) === selected)) select.value = selected;
-  if (items.length) {
-    const quantity = document.getElementById('payment-quantity');
-    quantity.max = items.find(item => String(item.detalle_id) === select.value)?.cantidad_disponible || 1;
-    quantity.value = Math.min(Number(quantity.value) || 1, Number(quantity.max));
-    if (state.paymentMode === 'item' && !state.paymentSelection && !state.paymentQuote) {
-      clearTimeout(state.paymentQuoteTimer);
-      state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
+  state.paymentItemsById = {};
+  const seleccionPrevia = state.paymentItemSelection || {};
+  const seleccion = {};
+
+  items.forEach(item => {
+    const id = Number(item.detalle_id);
+    state.paymentItemsById[id] = item;
+    const pedidas = Number(seleccionPrevia[id] || 0);
+    if (pedidas > 0) {
+      seleccion[id] = Math.min(pedidas, Number(item.cantidad_disponible) || 0);
     }
+  });
+  state.paymentItemSelection = seleccion;
+
+  if (!items.length) {
+    contenedor.innerHTML =
+      '<p class="payment-items-vacio">Ya se cobraron todos los ítems de esta comanda.</p>';
+    pintarResumenSeleccionPago();
+    return;
   }
+
+  const grupos = [
+    { titulo: 'Platos', clave: 'platos', items: items.filter(item => !item.es_bebida) },
+    { titulo: 'Bebidas', clave: 'bebidas', items: items.filter(item => item.es_bebida) },
+  ].filter(grupo => grupo.items.length);
+
+  contenedor.innerHTML = grupos.map(grupo => `
+    <div class="payment-items-group">
+      <div class="payment-items-group-head">
+        <strong>${grupo.titulo}</strong>
+        <button type="button" data-payment-group="${grupo.clave}">Todos</button>
+      </div>
+      ${grupo.items.map(filaItemPago).join('')}
+    </div>`).join('');
+
+  contenedor.querySelectorAll('[data-payment-item-check]').forEach(casilla => {
+    casilla.addEventListener('change', () => {
+      alternarItemPago(Number(casilla.dataset.paymentItemCheck), casilla.checked);
+    });
+  });
+  contenedor.querySelectorAll('[data-payment-item-menos]').forEach(boton => {
+    boton.addEventListener('click', () => moverUnidadesPago(Number(boton.dataset.paymentItemMenos), -1));
+  });
+  contenedor.querySelectorAll('[data-payment-item-mas]').forEach(boton => {
+    boton.addEventListener('click', () => moverUnidadesPago(Number(boton.dataset.paymentItemMas), 1));
+  });
+  contenedor.querySelectorAll('[data-payment-group]').forEach(boton => {
+    boton.addEventListener('click', () => alternarGrupoPago(boton.dataset.paymentGroup));
+  });
+
+  pintarResumenSeleccionPago();
+}
+
+function filaItemPago(item) {
+  const id = Number(item.detalle_id);
+  const disponible = Number(item.cantidad_disponible) || 0;
+  const pedidas = Number(state.paymentItemSelection?.[id] || 0);
+  const marcado = pedidas > 0;
+
+  return `
+    <div class="payment-item-row ${marcado ? 'on' : ''}" data-payment-row="${id}">
+      <label class="payment-item-main">
+        <input type="checkbox" data-payment-item-check="${id}" ${marcado ? 'checked' : ''}>
+        <span class="payment-item-name">${escHtml(item.producto_nombre)}</span>
+        <strong class="payment-item-amount" data-payment-item-amount="${id}">C$${montoFilaPago(item, pedidas || disponible).toFixed(2)}</strong>
+      </label>
+      <div class="payment-item-foot">
+        <span class="payment-item-available">${disponible} disponible${disponible === 1 ? '' : 's'}</span>
+        <div class="payment-item-stepper" data-payment-item-stepper="${id}" ${marcado && disponible > 1 ? '' : 'hidden'}>
+          <button type="button" data-payment-item-menos="${id}" aria-label="Quitar una unidad">−</button>
+          <span data-payment-item-quantity="${id}">${pedidas || disponible}</span>
+          <button type="button" data-payment-item-mas="${id}" aria-label="Agregar una unidad">+</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function precioUnitarioPago(item) {
+  const disponible = Number(item?.cantidad_disponible) || 0;
+  if (!disponible) return 0;
+  return Number(item.monto_disponible) / disponible;
+}
+
+function montoFilaPago(item, unidades) {
+  return precioUnitarioPago(item) * (Number(unidades) || 0);
+}
+
+function montoSeleccionPago() {
+  let total = 0;
+  Object.entries(state.paymentItemSelection || {}).forEach(([id, unidades]) => {
+    const item = state.paymentItemsById?.[id];
+    if (!item) return;
+    total += montoFilaPago(item, unidades);
+  });
+  return Math.round(total * 100) / 100;
+}
+
+function unidadesSeleccionadasPago() {
+  return Object.values(state.paymentItemSelection || {})
+    .reduce((total, unidades) => total + Number(unidades || 0), 0);
+}
+
+function alternarItemPago(id, marcado) {
+  const item = state.paymentItemsById?.[id];
+  if (!item) return;
+  if (marcado) {
+    state.paymentItemSelection[id] = Number(item.cantidad_disponible) || 0;
+  } else {
+    delete state.paymentItemSelection[id];
+  }
+  pintarFilaPago(id);
+  pintarResumenSeleccionPago();
+}
+
+function moverUnidadesPago(id, delta) {
+  const item = state.paymentItemsById?.[id];
+  if (!item) return;
+  const disponible = Number(item.cantidad_disponible) || 0;
+  const actuales = Number(state.paymentItemSelection?.[id] || 0);
+  const nuevas = Math.min(Math.max(actuales + delta, 0), disponible);
+  if (nuevas === 0) {
+    delete state.paymentItemSelection[id];
+  } else {
+    state.paymentItemSelection[id] = nuevas;
+  }
+  pintarFilaPago(id);
+  pintarResumenSeleccionPago();
+}
+
+function alternarGrupoPago(clave) {
+  const items = Object.values(state.paymentItemsById || {}).filter(
+    item => Boolean(item.es_bebida) === (clave === 'bebidas')
+  );
+  const todosMarcados = items.length > 0
+    && items.every(item => Number(state.paymentItemSelection?.[item.detalle_id] || 0) > 0);
+  items.forEach(item => {
+    if (todosMarcados) {
+      delete state.paymentItemSelection[item.detalle_id];
+    } else {
+      state.paymentItemSelection[item.detalle_id] = Number(item.cantidad_disponible) || 0;
+    }
+    pintarFilaPago(Number(item.detalle_id));
+  });
+  pintarResumenSeleccionPago();
+}
+
+function pintarFilaPago(id) {
+  const fila = document.querySelector(`[data-payment-row="${id}"]`);
+  const item = state.paymentItemsById?.[id];
+  if (!fila || !item) return;
+  const pedidas = Number(state.paymentItemSelection?.[id] || 0);
+  const disponible = Number(item.cantidad_disponible) || 0;
+  fila.classList.toggle('on', pedidas > 0);
+  const casilla = fila.querySelector('[data-payment-item-check]');
+  if (casilla) casilla.checked = pedidas > 0;
+  const cantidad = fila.querySelector('[data-payment-item-quantity]');
+  if (cantidad) cantidad.textContent = String(pedidas || disponible);
+  const stepper = fila.querySelector('[data-payment-item-stepper]');
+  if (stepper) stepper.hidden = !(pedidas > 0 && disponible > 1);
+  const monto = fila.querySelector('[data-payment-item-amount]');
+  if (monto) monto.textContent = `C$${montoFilaPago(item, pedidas || disponible).toFixed(2)}`;
+}
+
+function pintarResumenSeleccionPago() {
+  const resumen = document.getElementById('payment-items-summary');
+  if (!resumen) return;
+  const unidades = unidadesSeleccionadasPago();
+  const total = montoSeleccionPago();
+  resumen.textContent = unidades > 0
+    ? `Se cobran ${unidades} ítem${unidades === 1 ? '' : 's'} · C$${total.toFixed(2)}`
+    : 'No has seleccionado ítems.';
+  resumen.classList.toggle('on', unidades > 0);
+  const botonTodos = document.getElementById('payment-items-all');
+  const items = Object.values(state.paymentItemsById || {});
+  const todos = items.length > 0
+    && items.every(item => Number(state.paymentItemSelection?.[item.detalle_id] || 0) > 0);
+  if (botonTodos) botonTodos.textContent = todos ? 'Quitar selección' : 'Seleccionar todo';
+  actualizarControlesPago();
 }
 
 function renderPaymentDivisions(resumen) {
@@ -4057,14 +4247,11 @@ function renderPaymentDivisions(resumen) {
     : '';
   container.querySelectorAll('[data-payment-division]').forEach(button => {
     button.addEventListener('click', () => {
-      state.paymentMode = 'item';
       state.paymentSelection = {
         divisionId: Number(button.dataset.paymentDivision),
         parte: Number(button.dataset.paymentPart),
         label: button.textContent.trim(),
       };
-      document.getElementById('payment-item-preview').textContent =
-        `Se cobrará esta parte pendiente: ${state.paymentSelection.label}.`;
       actualizarControlesPago();
     });
   });
@@ -4149,12 +4336,13 @@ function imprimirFacturaPago(pagoId) {
 function actualizarControlesPago() {
   const mode = state.paymentMode;
   document.getElementById('payment-amount-field').hidden = mode !== 'abono';
-  document.getElementById('payment-item-fields').hidden = mode !== 'item' || Boolean(state.paymentSelection);
+  document.getElementById('payment-items-panel').hidden =
+    mode !== 'items' || Boolean(state.paymentSelection);
   const selectedPortion = document.getElementById('payment-selected-portion');
   selectedPortion.hidden = !state.paymentSelection;
   selectedPortion.innerHTML = state.paymentSelection
-    ? `<strong>Parte seleccionada</strong><span>${escHtml(state.paymentSelection.label)}</span>
-       <button type="button" class="payment-change-portion" data-payment-clear-division>Cambiar parte</button>`
+    ? `<strong>Parte pendiente seleccionada</strong><span>${escHtml(state.paymentSelection.label)}</span>
+       <button type="button" class="payment-change-portion" data-payment-clear-division>Quitar</button>`
     : '';
   document.querySelectorAll('[data-payment-mode]').forEach(button => {
     const active = button.dataset.paymentMode === mode;
@@ -4164,80 +4352,50 @@ function actualizarControlesPago() {
   const summary = state.paymentSummary;
   const balance = Number(summary?.saldo_pendiente ?? state.paymentOrder?.total ?? 0);
   const amount = Number(document.getElementById('payment-amount').value);
-  const quotePart = state.paymentQuote?.partes?.find(
-    part => part.numero === Number(document.getElementById('payment-part').value)
-  );
-  const pagoValido = mode === 'saldo'
-    ? balance > 0
-    : mode === 'abono'
-      ? Number.isFinite(amount) && amount > 0 && amount <= balance
-      : Boolean(state.paymentSelection || quotePart);
+  const totalSeleccion = montoSeleccionPago();
+  const pagoValido = state.paymentSelection
+    ? true
+    : mode === 'saldo'
+      ? balance > 0
+      : mode === 'abono'
+        ? Number.isFinite(amount) && amount > 0 && amount <= balance
+        : totalSeleccion > 0 && totalSeleccion <= balance + 0.001;
   document.getElementById('btn-pago-online').disabled =
     state.paymentLoading || mode !== 'saldo' || balance <= 0
+    || Boolean(state.paymentSelection)
     || !state.paymentOnlineAvailable;
   setBotonesPagoLocal(state.paymentLoading || state.paymentBusy || !pagoValido);
 }
 
 function seleccionarModoPago(modo) {
-  if (!['saldo', 'abono', 'item'].includes(modo)) return;
+  if (!['saldo', 'abono', 'items'].includes(modo)) return;
   state.paymentMode = modo;
   state.paymentSelection = null;
-  state.paymentQuote = null;
-  clearTimeout(state.paymentQuoteTimer);
-  actualizarControlesPago();
-  if (modo === 'item') {
-    state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
-  }
-}
-
-async function cotizarDivisionPago() {
-  const orden = state.paymentOrder;
-  const detalleId = Number(document.getElementById('payment-item').value);
-  const cantidad = Number(document.getElementById('payment-quantity').value);
-  const personas = Number(document.getElementById('payment-personas').value);
-  const parteSelect = document.getElementById('payment-part');
-  const preview = document.getElementById('payment-item-preview');
-  state.paymentQuote = null;
-  actualizarControlesPago();
-  if (!orden || !detalleId || !cantidad || !personas) {
-    parteSelect.innerHTML = '';
-    preview.textContent = 'Selecciona un ítem e indica cantidad y personas.';
-    return;
-  }
-  preview.textContent = 'Calculando las partes…';
-  try {
-    const cotizacion = await api(`/ordenes/${orden.id}/pagos/cotizar-division`, {
-      method: 'POST',
-      body: JSON.stringify({ detalle_id: detalleId, cantidad, personas }),
-      silent: true,
+  if (modo !== 'items') {
+    state.paymentItemSelection = {};
+    document.querySelectorAll('[data-payment-row]').forEach(fila => {
+      fila.classList.remove('on');
+      const casilla = fila.querySelector('[data-payment-item-check]');
+      if (casilla) casilla.checked = false;
     });
-    if (state.paymentOrder?.id !== orden.id || state.paymentMode !== 'item' || state.paymentSelection) return;
-    if (
-      Number(document.getElementById('payment-item').value) !== detalleId
-      || Number(document.getElementById('payment-quantity').value) !== cantidad
-      || Number(document.getElementById('payment-personas').value) !== personas
-    ) return;
-    state.paymentQuote = cotizacion;
-    parteSelect.innerHTML = cotizacion.partes.map(part =>
-      `<option value="${part.numero}">Persona ${part.numero}: ${part.cantidad} unidad(es) · C$${Number(part.monto).toFixed(2)}</option>`
-    ).join('');
-    pintarVistaPreviaParte();
-  } catch (error) {
-    parteSelect.innerHTML = '';
-    preview.textContent = error?.message || 'No se pudo calcular la división.';
-    actualizarControlesPago();
+    pintarResumenSeleccionPago();
   }
+  actualizarControlesPago();
 }
 
-function pintarVistaPreviaParte() {
-  const quote = state.paymentQuote;
-  const parte = Number(document.getElementById('payment-part').value);
-  const selected = quote?.partes?.find(item => item.numero === parte);
-  const preview = document.getElementById('payment-item-preview');
-  preview.textContent = selected
-    ? `Esta parte pagará ${selected.cantidad} unidad(es): C$${Number(selected.monto).toFixed(2)}.`
-    : 'No hay una parte válida seleccionada.';
-  actualizarControlesPago();
+function alternarSeleccionTotalPago() {
+  const items = Object.values(state.paymentItemsById || {});
+  const todos = items.length > 0
+    && items.every(item => Number(state.paymentItemSelection?.[item.detalle_id] || 0) > 0);
+  items.forEach(item => {
+    if (todos) {
+      delete state.paymentItemSelection[item.detalle_id];
+    } else {
+      state.paymentItemSelection[item.detalle_id] = Number(item.cantidad_disponible) || 0;
+    }
+    pintarFilaPago(Number(item.detalle_id));
+  });
+  pintarResumenSeleccionPago();
 }
 
 async function verificarDisponibilidadPagoOnline() {
@@ -4265,6 +4423,8 @@ function cerrarMetodoPago() {
   state.paymentSummary = null;
   state.paymentSelection = null;
   state.paymentQuote = null;
+  state.paymentItemSelection = {};
+  state.paymentItemsById = {};
   state.paymentOnlineAvailable = false;
   clearTimeout(state.paymentQuoteTimer);
   setBotonesPagoLocal(false);
@@ -4302,16 +4462,19 @@ async function confirmarPagoLocal(metodo = 'EFECTIVO') {
     monto = Number(selected.monto);
     body.division_id = state.paymentSelection.divisionId;
     body.parte = state.paymentSelection.parte;
-  } else {
-    const selected = state.paymentQuote?.partes?.find(
-      p => p.numero === Number(document.getElementById('payment-part').value)
-    );
-    if (!selected) return showToast('Calcula una parte válida antes de cobrar', 'warning');
-    monto = Number(selected.monto);
-    body.detalle_id = Number(document.getElementById('payment-item').value);
-    body.cantidad = Number(document.getElementById('payment-quantity').value);
-    body.personas = Number(document.getElementById('payment-personas').value);
-    body.parte = selected.numero;
+  } else if (state.paymentMode === 'items') {
+    const items = Object.entries(state.paymentItemSelection || {}).map(([detalleId, cantidad]) => ({
+      detalle_id: Number(detalleId),
+      cantidad: Number(cantidad),
+    }));
+    if (!items.length) {
+      return showToast('Marca al menos un ítem para cobrar', 'warning');
+    }
+    monto = montoSeleccionPago();
+    if (!Number.isFinite(monto) || monto <= 0 || monto > Number(resumen.saldo_pendiente) + 0.001) {
+      return showToast('La selección no puede superar el saldo pendiente', 'warning');
+    }
+    body.items = items;
   }
   if (!confirm(`¿Confirmas registrar C$${monto.toFixed(2)} de la Orden #${orden.id} en ${etiqueta}?`)) return;
   state.paymentBusy = true;
@@ -4325,9 +4488,11 @@ async function confirmarPagoLocal(metodo = 'EFECTIVO') {
     state.paymentSummary = actualizado;
     state.paymentSelection = null;
     state.paymentQuote = null;
+    state.paymentItemSelection = {};
     state.paymentMode = 'saldo';
     document.getElementById('payment-amount').value = '';
     state.paymentLoading = false;
+    pintarTotalesPago(actualizado);
     renderPaymentItems(actualizado);
     renderPaymentDivisions(actualizado);
     renderPaymentHistory(actualizado);
@@ -11337,26 +11502,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('payment-selected-portion')?.addEventListener('click', (event) => {
     if (!event.target.closest('[data-payment-clear-division]')) return;
     state.paymentSelection = null;
-    state.paymentQuote = null;
     actualizarControlesPago();
-    cotizarDivisionPago();
   });
-  document.getElementById('payment-item')?.addEventListener('change', () => {
-    state.paymentSelection = null;
-    state.paymentQuote = null;
-    actualizarControlesPago();
-    state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 0);
-  });
-  ['payment-quantity', 'payment-personas'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', () => {
-      state.paymentSelection = null;
-      state.paymentQuote = null;
-      actualizarControlesPago();
-      clearTimeout(state.paymentQuoteTimer);
-      state.paymentQuoteTimer = setTimeout(cotizarDivisionPago, 250);
-    });
-  });
-  document.getElementById('payment-part')?.addEventListener('change', pintarVistaPreviaParte);
+  document.getElementById('payment-items-all')?.addEventListener('click', alternarSeleccionTotalPago);
   document.getElementById('modal-metodo-pago')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) cerrarMetodoPago();
   });

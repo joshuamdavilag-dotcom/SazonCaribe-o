@@ -1,6 +1,7 @@
 import unittest
 from datetime import date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -8,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
-from app.models.menu import MenuItem
+from app.models.menu import CategoriaMenu, MenuItem
 from app.models.orden import DetalleOrden, EstadoOrden, MetodoPago, Orden
 from app.models.pago_comanda import PagoComanda
 from app.models.personal import Usuario
@@ -240,6 +241,92 @@ class PagoComandaServiceTests(unittest.TestCase):
                 "TARJETA": (2, 12.0),
             },
         )
+
+    def test_seleccion_de_items_cobra_solo_lo_elegido(self) -> None:
+        bebida = MenuItem(
+            nombre="Refresco",
+            precio=Decimal("1.50"),
+            categoria_id=1,
+        )
+        self.db.add(bebida)
+        self.db.flush()
+        self.orden.detalles.append(DetalleOrden(
+            producto_id=bebida.id,
+            cantidad=4,
+            precio_unitario=Decimal("1.50"),
+            descuento_monto=Decimal("0.00"),
+            cantidad_devuelta=0,
+        ))
+        self.orden.total = Decimal("16.00")
+        self.orden.subtotal = Decimal("16.00")
+        self.db.commit()
+        bebida_id = self.orden.detalles[1].id
+
+        resumen = PagoComandaService(self.db).registrar_pago_items(
+            orden_id=self.orden.id,
+            metodo_pago=MetodoPago.EFECTIVO,
+            usuario=self.usuario,
+            items=[
+                SimpleNamespace(detalle_id=self.detalle_id, cantidad=2),
+                SimpleNamespace(detalle_id=bebida_id, cantidad=4),
+            ],
+        )
+
+        self.assertEqual(resumen["pagado_total"], Decimal("10.00"))
+        self.assertEqual(resumen["saldo_pendiente"], Decimal("6.00"))
+        self.assertFalse(resumen["completada"])
+        disponibles = {item["detalle_id"]: item["cantidad_disponible"] for item in resumen["items"]}
+        self.assertEqual(disponibles[self.detalle_id], 3)
+        self.assertNotIn(bebida_id, disponibles)
+        self.assertEqual(len(resumen["pagos"]), 1)
+
+    def test_seleccion_agrupa_bebidas_y_platos(self) -> None:
+        categoria_bebidas = CategoriaMenu(nombre="Bebidas", descripcion="")
+        self.db.add(categoria_bebidas)
+        self.db.flush()
+        self.producto.categoria_id = categoria_bebidas.id
+        self.db.commit()
+
+        resumen = PagoComandaService(self.db).estado_pagos(self.orden.id)
+
+        self.assertEqual(len(resumen["items"]), 1)
+        self.assertEqual(resumen["items"][0]["categoria_nombre"], "Bebidas")
+        self.assertTrue(resumen["items"][0]["es_bebida"])
+
+    def test_seleccion_rechaza_mas_unidades_de_las_disponibles(self) -> None:
+        with self.assertRaises(HTTPException) as raised:
+            PagoComandaService(self.db).registrar_pago_items(
+                orden_id=self.orden.id,
+                metodo_pago=MetodoPago.EFECTIVO,
+                usuario=self.usuario,
+                items=[SimpleNamespace(detalle_id=self.detalle_id, cantidad=6)],
+            )
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_seleccion_completa_paga_y_libera_la_mesa(self) -> None:
+        with patch.object(SalonService, "liberar_mesa_si_sin_comandas") as liberar:
+            resumen = PagoComandaService(self.db).registrar_pago_items(
+                orden_id=self.orden.id,
+                metodo_pago=MetodoPago.TARJETA,
+                usuario=self.usuario,
+                items=[SimpleNamespace(detalle_id=self.detalle_id, cantidad=5)],
+            )
+
+        self.db.refresh(self.orden)
+        self.assertTrue(resumen["completada"])
+        self.assertEqual(self.orden.estado, EstadoOrden.PAGADA)
+        self.assertEqual(self.orden.metodo_pago, MetodoPago.TARJETA)
+        liberar.assert_called_once_with(self.orden.mesa_id)
+
+    def test_seleccion_vacia_se_rechaza(self) -> None:
+        with self.assertRaises(HTTPException) as raised:
+            PagoComandaService(self.db).registrar_pago_items(
+                orden_id=self.orden.id,
+                metodo_pago=MetodoPago.EFECTIVO,
+                usuario=self.usuario,
+                items=[],
+            )
+        self.assertEqual(raised.exception.status_code, 400)
 
 
 if __name__ == "__main__":

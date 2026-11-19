@@ -1,3 +1,11 @@
+"""
+Router de órdenes y comandas.
+
+Crear, editar, cambiar estado, cobrar, dividir pagos, aplicar descuentos,
+anular y devolver líneas. Aquí también se disparan las notificaciones push de
+nueva comanda y de comanda lista.
+"""
+
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
@@ -301,6 +309,13 @@ def registrar_pago_orden(
     service: PagoComandaService = Depends(get_pago_comanda_service),
 ) -> EstadoPagosOrdenResponse:
     """Registra un cobro y mantiene la comanda abierta mientras quede saldo."""
+    if body.items:
+        return service.registrar_pago_items(
+            orden_id=orden_id,
+            metodo_pago=body.metodo_pago,
+            usuario=current_user,
+            items=body.items,
+        )
     return service.registrar_pago(
         orden_id=orden_id,
         metodo_pago=body.metodo_pago,

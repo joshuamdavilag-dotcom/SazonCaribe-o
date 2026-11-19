@@ -2052,29 +2052,21 @@
           <button type="button" class="payment-mode-choice" data-payment-mode="abono" aria-pressed="false">
             <span aria-hidden="true">＋</span><strong>Un abono</strong>
           </button>
-          <button type="button" class="payment-mode-choice" data-payment-mode="item" aria-pressed="false">
-            <span aria-hidden="true">÷</span><strong>Dividir ítem</strong>
+          <button type="button" class="payment-mode-choice" data-payment-mode="items" aria-pressed="false">
+            <span aria-hidden="true">☑</span><strong>Elegir ítems</strong>
           </button>
         </div>
         <div id="payment-amount-field" class="payment-fields" hidden>
           <label class="payment-field-label" for="payment-amount">Monto del abono</label>
           <input type="number" id="payment-amount" class="form-input" min="0.01" step="0.01" placeholder="C$0.00">
         </div>
-        <div id="payment-item-fields" class="payment-fields" hidden>
-          <label class="payment-field-label" for="payment-item">¿Qué ítem van a compartir?</label>
-          <select id="payment-item" class="form-input"></select>
-          <div class="payment-fields-row">
-            <label class="payment-field-label">Unidades del ítem
-              <input type="number" id="payment-quantity" class="form-input" min="1" step="1" value="1">
-            </label>
-            <label class="payment-field-label">Personas que comparten
-              <input type="number" id="payment-personas" class="form-input" min="1" step="1" value="1">
-            </label>
+        <div id="payment-items-panel" class="payment-items" hidden>
+          <div class="payment-items-head">
+            <span>Marca lo que se cobra en este pago</span>
+            <button type="button" id="payment-items-all" class="payment-items-all">Seleccionar todo</button>
           </div>
-          <p class="payment-item-help">Las unidades se reparten entre las personas. Si sobran, se asignan a las primeras partes.</p>
-          <label class="payment-field-label" for="payment-part">¿Qué persona paga ahora?</label>
-          <select id="payment-part" class="form-input"></select>
-          <p id="payment-item-preview" class="payment-item-preview">Selecciona un ítem para cotizar sus partes.</p>
+          <div id="payment-items-groups" class="payment-items-groups"></div>
+          <p id="payment-items-summary" class="payment-items-summary">No has seleccionado ítems.</p>
         </div>
         <div id="payment-selected-portion" class="payment-selected-portion" hidden></div>
         <div id="payment-open-portions" class="payment-open-portions" hidden></div>
