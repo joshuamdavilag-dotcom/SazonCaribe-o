@@ -943,10 +943,23 @@
 
   /* ---------- montaje del libro ---------- */
 
+  /* La primera .page puede estar oculta (la 1 cuando el libro ya avanzó),
+     y entonces mide 0: usar su ancho dejaba las hojas sin escalar y al
+     cambiar de idioma el libro se dibujaba a tamaño real (gigante). Se toma
+     el ancho de la primera página visible y, si no hay ninguna medida, se
+     deduce del propio libro. */
+  function anchoDePaginaVisible() {
+    var paginas = libroEl.querySelectorAll(".page");
+    for (var i = 0; i < paginas.length; i++) {
+      if (paginas[i].offsetWidth > 0) return paginas[i].offsetWidth;
+    }
+    var anchoLibro = libroEl.offsetWidth;
+    if (!anchoLibro) return 0;
+    return modoRetrato ? anchoLibro : anchoLibro / 2;
+  }
+
   function ajustarEscalaHojas() {
-    var primera = libroEl.querySelector(".page");
-    if (!primera) return;
-    var ancho = primera.offsetWidth;
+    var ancho = anchoDePaginaVisible();
     if (!ancho) return;
     var escalaHoja = ancho / ANCHO_HOJA;
     var hojas = libroEl.querySelectorAll(".hoja");
@@ -1383,6 +1396,9 @@
 
     construirLibro();
     montarLibro();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(ajustarEscalaHojas);
+    }
 
     var destino = Math.min(indice, estado.total - 1);
     if (destino > 0 && pageFlip) {

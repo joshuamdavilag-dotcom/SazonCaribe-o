@@ -143,3 +143,28 @@ def test_carta_no_redirige_al_sistema():
     """La carta y el sistema son entradas independientes."""
     html = _cliente().get(CARTA_RUTA_PUBLICA + "/").text
     assert "pos_token" not in html
+
+
+def test_carta_no_se_guarda_en_el_navegador():
+    """iPhone/Safari conservaba el libro viejo durante días aunque la URL no
+    cambiara (seguía mostrando precios en dólares ya corregidos). La carta se
+    sirve con no-store; las imágenes siguen cacheándose."""
+    cliente = _cliente()
+    for ruta in ("/", "/js/menu-libro.js", "/css/estilo.css"):
+        respuesta = cliente.get(CARTA_RUTA_PUBLICA + ruta)
+        assert respuesta.status_code == 200
+        assert "no-store" in respuesta.headers["cache-control"]
+    imagen = cliente.get(CARTA_RUTA_PUBLICA + "/img/placeholder.png")
+    if imagen.status_code == 200:
+        assert "max-age" in imagen.headers["cache-control"]
+
+
+def test_el_libro_mantiene_la_escala_al_cambiar_de_idioma():
+    """Regresión: al cambiar de idioma estando en una página interior, la
+    primera .page está oculta y mide 0; el libro quedaba sin escalar y se
+    dibujaba gigante. Se mide la primera página visible."""
+    js = _cliente().get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert "anchoDePaginaVisible" in js
+    ajuste = js.split("function ajustarEscalaHojas()")[1][:320]
+    assert "anchoDePaginaVisible()" in ajuste
+

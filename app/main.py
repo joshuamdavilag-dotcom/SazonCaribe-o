@@ -1,3 +1,15 @@
+"""
+Punto de entrada de la aplicación FastAPI de Sazón Caribeño.
+
+Registra routers, monta los estáticos del ERP y de la Carta Digital, aplica CORS
+y ejecuta la secuencia de arranque: creación de tablas, migraciones idempotentes
+y saneamiento de datos heredados, además de las tareas de fondo (heartbeat,
+cierre automático de caja, retención de clips, estudio de mercado y novedades).
+
+Las funciones _migrate_* y _fix_* no son decorativas: son la migración real del
+sistema. Si se borran, la base de producción se queda a medias. Ya pasó una vez.
+"""
+
 import asyncio
 import logging
 import os
@@ -304,6 +316,10 @@ async def _revalidar_estaticos(request: Request, call_next):
     el navegador nunca queda con código viejo sin tocar ninguna URL. Las
     imágenes y fuentes locales (que no cambian) se cachean 7 días para evitar
     viajes innecesarios al servidor en cada carga del ERP.
+
+    La Carta Digital usa ``no-store`` en HTML, CSS y JS: los teléfonos (sobre
+    todo iPhone/Safari) conservaban versiones viejas del libro durante días
+    aunque la URL no cambiara, y mostraban cosas ya corregidas.
     """
     response = await call_next(request)
     ruta = request.url.path
@@ -320,8 +336,13 @@ async def _revalidar_estaticos(request: Request, call_next):
         or ruta == CARTA_RUTA_PUBLICA
         or ruta.startswith(CARTA_RUTA_PUBLICA + "/")
     ):
+        es_carta = ruta == CARTA_RUTA_PUBLICA or ruta.startswith(CARTA_RUTA_PUBLICA + "/")
         if ruta.lower().endswith(EXTENSIONES_CACHE_LARGA):
             response.headers["Cache-Control"] = "public, max-age=604800"
+        elif es_carta:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         else:
             response.headers["Cache-Control"] = "no-cache"
     return response
