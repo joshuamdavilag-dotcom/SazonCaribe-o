@@ -586,6 +586,22 @@ input, select, textarea { font: inherit; }
   font-weight: 600;
 }
 
+/* Bebida dentro de una comanda mixta: cocina no la prepara, sale directo. */
+.kc-card .kc-tag-bebida {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, #2a9d8f 14%, var(--mix-surface-base));
+  color: color-mix(in srgb, #1d7368 var(--mix-ink-pct), var(--mix-ink-base));
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .kc-card .kc-tiempo {
   display: inline-flex;
   align-items: center;
