@@ -168,3 +168,29 @@ def test_el_libro_mantiene_la_escala_al_cambiar_de_idioma():
     ajuste = js.split("function ajustarEscalaHojas()")[1][:320]
     assert "anchoDePaginaVisible()" in ajuste
 
+
+def test_carta_usa_las_paginas_oficiales_escaneadas():
+    """La carta oficial (portada + 10 páginas) se sirve como imágenes y el
+    motor del libro las usa como hojas, conservando el volteo y el zoom."""
+    cliente = _cliente()
+    js = cliente.get(CARTA_RUTA_PUBLICA + "/js/menu-libro.js").text
+    assert "PAGINAS_OFICIALES" in js
+    assert "hoja--imagen" in js
+
+    portada = cliente.get(CARTA_RUTA_PUBLICA + "/img/menu/portada.webp")
+    assert portada.status_code == 200
+    assert portada.headers["content-type"].startswith("image/")
+
+    for numero in range(1, 11):
+        ruta = f"{CARTA_RUTA_PUBLICA}/img/menu/pagina-{numero:02d}.webp"
+        respuesta = cliente.get(ruta)
+        assert respuesta.status_code == 200, ruta
+        assert respuesta.headers["content-type"].startswith("image/")
+
+
+def test_carta_en_imagenes_oculta_el_selector_de_idioma():
+    """Las imágenes no tienen versión en inglés: el selector no debe verse
+    (el display de la clase pisa el atributo hidden si no hay regla)."""
+    css = _cliente().get(CARTA_RUTA_PUBLICA + "/css/estilo.css").text
+    assert ".idiomas[hidden]" in css
+

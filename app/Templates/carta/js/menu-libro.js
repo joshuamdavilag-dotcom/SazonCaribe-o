@@ -90,6 +90,23 @@
 
   var idioma = "es";
 
+  /* Carta oficial: las páginas son imágenes escaneadas de la carta impresa.
+     Con la lista vacía el libro se arma en vivo desde el menú de la base de
+     datos (versión dinámica con precios actualizados). */
+  var PAGINAS_OFICIALES = [
+    "img/menu/portada.webp",
+    "img/menu/pagina-01.webp",
+    "img/menu/pagina-02.webp",
+    "img/menu/pagina-03.webp",
+    "img/menu/pagina-04.webp",
+    "img/menu/pagina-05.webp",
+    "img/menu/pagina-06.webp",
+    "img/menu/pagina-07.webp",
+    "img/menu/pagina-08.webp",
+    "img/menu/pagina-09.webp",
+    "img/menu/pagina-10.webp"
+  ];
+
   var libroEl = document.getElementById("libro");
   var libroMarcoEl = libroEl.parentNode;
   var overlay = document.getElementById("cargando");
@@ -915,6 +932,17 @@
   function construirLibro() {
     limpiarColaFotos();
 
+    if (PAGINAS_OFICIALES.length) {
+      /* Modo carta impresa: cada hoja es una imagen a página completa. */
+      estado.grupos = [];
+      estado.hojas = PAGINAS_OFICIALES.map(function (ruta, indice) {
+        return hojaImagen(ruta, indice + 1);
+      });
+      estado.total = estado.hojas.length;
+      crearPaginasDom();
+      return;
+    }
+
     estado.grupos = agrupar(estado.menu, estado.categorias);
 
     var hojas = [hojaPortada(estado.grupos)];
@@ -925,6 +953,45 @@
     estado.total = hojas.length;
     crearPaginasDom();
   }
+
+  /* Hoja de imagen: el lienzo es 1200 x 1800 y la foto de la carta es más
+     alargada (1700 x 2833), así que se ajusta con object-fit: contain y las
+     franjas laterales se pintan del verde de la carta. La ruta real se guarda
+     en data-src: las páginas se descargan por cercanía (ver
+     cargarPaginasCercanas) porque once imágenes de ~700 KB no se bajan de
+     golpe en un teléfono. */
+  function hojaImagen(ruta, numero) {
+    var hoja = document.createElement("div");
+    hoja.className = "hoja hoja--imagen";
+
+    var img = document.createElement("img");
+    img.className = "h-imagen";
+    img.setAttribute("data-src", ruta);
+    img.setAttribute("data-pagina", String(numero));
+    img.decoding = "async";
+    img.draggable = false;
+
+    hoja.appendChild(img);
+    return hoja;
+  }
+
+  function cargarImagenPagina(img) {
+    if (!img || img.getAttribute("src")) return;
+    var ruta = img.getAttribute("data-src");
+    if (!ruta) return;
+    img.setAttribute("alt", TEXTOS[idioma].altPagina(Number(img.getAttribute("data-pagina")) || 1));
+    img.setAttribute("src", ruta);
+  }
+
+  function cargarPaginasCercanas(indice) {
+    if (!PAGINAS_OFICIALES.length) return;
+    cargarImagenPagina(paginasDom[indice] && paginasDom[indice].querySelector("img"));
+    [indice + 1, indice + 2, indice - 1].forEach(function (i) {
+      var pagina = paginasDom[i];
+      if (pagina) cargarImagenPagina(pagina.querySelector("img"));
+    });
+  }
+
 
   function crearPaginasDom() {
     paginasDom = [];
@@ -1028,10 +1095,12 @@
       pintarProgreso(evento.data);
       ajustarEscalaHojas();
       priorizarFotos(evento.data);
+      cargarPaginasCercanas(evento.data);
     });
 
     pintarProgreso(0);
     ajustarEscalaHojas();
+    cargarPaginasCercanas(0);
     libroEl.classList.add("listo");
     btnZoom.disabled = false;
     if (overlay) overlay.classList.add("oculto");
@@ -1124,6 +1193,7 @@
     var origen = paginasDom[indiceVisor];
     var hoja = origen ? origen.querySelector(".hoja") : null;
     if (hoja) {
+      cargarImagenPagina(hoja.querySelector("img"));
       var clon = hoja.cloneNode(true);
       clon.style.setProperty("--s", 1);
       forzarFotosDe(clon);
@@ -1375,6 +1445,7 @@
 
   async function cambiarIdioma(nuevo, guardar) {
     if (nuevo !== "es" && nuevo !== "en") return;
+    if (PAGINAS_OFICIALES.length) return;
     if (nuevo === idioma && estado.total) return;
 
     var indice = indiceActual();
@@ -1448,6 +1519,17 @@
     marcarIdioma();
     aplicarTextos();
 
+    if (PAGINAS_OFICIALES.length) {
+      /* La carta oficial son imágenes: no hay API que consultar ni textos que
+         traducir, así que el selector de idioma se oculta. */
+      var selector = document.querySelector(".idiomas");
+      if (selector) selector.hidden = true;
+      await precargarPrimerasPaginas();
+      construirLibro();
+      montarLibro();
+      return;
+    }
+
     try {
       var datos = await cargarMenu();
       estado.menu = datos.menu;
@@ -1464,6 +1546,20 @@
 
     construirLibro();
     montarLibro();
+  }
+
+  /* Espera las dos primeras imágenes para que el libro aparezca dibujado y no
+     como dos hojas en blanco mientras el resto se descarga. */
+  function precargarPrimerasPaginas() {
+    var primeras = PAGINAS_OFICIALES.slice(0, 2);
+    return Promise.all(primeras.map(function (ruta) {
+      return new Promise(function (resolver) {
+        var img = new Image();
+        img.onload = resolver;
+        img.onerror = resolver;
+        img.src = ruta;
+      });
+    }));
   }
 
   iniciar();

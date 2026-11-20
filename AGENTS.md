@@ -559,15 +559,23 @@ Endpoints de solo lectura **consumidos por la Carta Digital** (menú público pa
 - `MenuService.obtener_menu_publico()` / `obtener_categorias_publicas()` / `obtener_item_publico_por_id()` — reutilizan los repos públicos
 - Router `app/api/endpoints/menu_publico.py` registrado en `main.py` bajo prefijo `/api/public`
 
-### Carta Digital — libro dinámico conectado al menú (vigente)
+### Carta Digital — carta oficial en imágenes (vigente) y libro dinámico (respaldo)
 
-La carta pública **es un libro de páginas que se voltean, dibujado en el navegador** con los datos reales del menú. Ya **no son imágenes fijas**: el motor pide `GET /api/public/menu` y `GET /api/public/categories` al cargar, así que crear, editar, ocultar o borrar un platillo en **Gestión de Menú** se refleja en la carta sin regenerar nada ni subir fotos.
+**Modo vigente: la carta oficial escaneada.** Las páginas del libro son las imágenes de la carta impresa que entregó el negocio (`app/Templates/carta/img/menu/`): `portada.webp` + `pagina-01.webp` … `pagina-10.webp` (1700 × 2833, WebP calidad 82, ~7 MB en total). Se conservan intactos el **volteo** de StPageFlip, el **zoom** con pellizco/rueda y los controles de navegación; lo único que cambia es el contenido de cada hoja.
+
+- `PAGINAS_OFICIALES` (en `menu-libro.js`) es la lista de rutas. Si se deja vacía, el motor vuelve al libro dinámico armado desde `/api/public` (todo el código sigue ahí y los tests lo cubren).
+- Cada hoja es `.hoja.hoja--imagen` con un `<img class="h-imagen">` y `object-fit: contain` sobre el lienzo de 1200 × 1800: la foto es más alargada que el lienzo, así que quedan dos franjas laterales del verde de la carta (`#14442e`).
+- **Descarga por cercanía**: la ruta real vive en `data-src` y `cargarPaginasCercanas(indice)` baja la página actual y las dos siguientes en cada volteo (`precargarPrimerasPaginas()` espera las dos primeras antes de montar). Con `loading="lazy"` las páginas interiores nunca cargaban dentro del libro transformado y se veían en blanco.
+- **Sin selector de idioma**: las imágenes solo existen en español, así que `iniciar()` oculta `.idiomas` (regla `.idiomas[hidden] { display: none; }`, porque el `display` de la clase pisa el atributo) y `cambiarIdioma()` no hace nada.
+- **Para actualizar la carta**: reemplazar los `.webp` (mismo nombre) o ampliar `PAGINAS_OFICIALES`. Los originales JPG de alta resolución quedan fuera del repo.
+
+**Modo respaldo: libro dinámico conectado al menú.** Con `PAGINAS_OFICIALES` vacía, el motor pide `GET /api/public/menu` y `GET /api/public/categories` y dibuja la carta con los datos reales, de modo que crear, editar u ocultar un platillo se refleja al recargar.
 
 - `app/Templates/carta/index.html` — estructura: cabecera (`SAZÓN CARIBEÑO` + lema), selector de idioma `#btn-idioma-es` / `#btn-idioma-en`, `#libro` (sin `data-paginas` ni preload), overlay de carga `#cargando`, controles `#btn-prev` / `#btn-next`, progreso `#pagina-actual` / `#barra-progreso` / `#pagina-total`, pista de uso y el visor de zoom.
 - `app/Templates/carta/css/estilo.css` — paleta de la marca (Camarón `#C54320`, Verde `#006b33`, Amarillo `#F1E246`, Café `#5b400c`, crema `#f7f1e4`), sombra del lomo (`.libro-marco::after`), estilos de hoja (`.hoja`, `.h-titulo`, `.h-fila`, `.h-lista`, `.h-item`, portada/contra), visor y `@media (max-width: 820px)`.
 - `app/Templates/carta/js/menu-libro.js` — motor completo (ver abajo).
 - `app/Templates/carta/vendor/page-flip.browser.js` — StPageFlip (MIT), vendorizado, sin CDN.
-- `app/Templates/carta/img/` — fotos locales de respaldo (`placeholder`, logos). Las fotos de los platos vienen de `imagen_url` (ImgBB) del menú; **no borrar** `img/`: `tests/test_carta.py` verifica que las rutas legacy `/carta/img/platos/` sigan resolviendo.
+- `app/Templates/carta/img/` — fotos locales de respaldo (`placeholder`, logos) y la carpeta `menu/` con la carta oficial. Las fotos de los platos vienen de `imagen_url` (ImgBB) del menú; **no borrar** `img/`: `tests/test_carta.py` verifica que las rutas legacy `/carta/img/platos/` sigan resolviendo.
 - Se eliminó `app/Templates/carta/paginas/` (la colección de WebP ya no se carga) y los archivos de la SPA anterior (`css/style.css`, `js/app.js`, `img/hero-*.jpg`) quedan solo como respaldo histórico.
 
 **Cómo se arma el libro** (`construirLibro()`):
@@ -768,6 +776,11 @@ Invalid transitions return `400: No se puede cambiar de '{actual}' a '{nuevo}'`.
 - `editarOrdenKDS(id)` — botón "✏️ Editar" en tarjetas KDS (PENDIENTE/PREPARANDO/ENTREGADA); con mesa reusa `agregarAlPedido()`, sin mesa (para llevar) abre `openOrderModal(null, null, orden)`; ambas entran al modo edición que hace `PUT /ordenes/{id}/items` con el estado final de la comanda
 - **Auto-refresh**: `iniciarIntervalosSesion()` arranca `state.kdsRefreshInterval` (15 s) que recarga el KDS solo cuando `state.currentScreen === 'comandero'` y la pestaña está visible; se limpia en `logout()`
 - **Botón principal de cocina**: `.kc-btn-principal` (ancho completo, 52px, `order: -1`) domina la tarjeta — `PENDIENTE` → "🔥 Empezar Preparación" (rojo, `local_fire_department`), `PREPARANDO` → "🛎️ ¡Listo! Avisar al Mesero" (turquesa, `room_service`). "Cobrar", "Editar" y "Cancelar" siguen disponibles para el cocinero
+- **Las bebidas no pasan por cocina**: la única señal disponible es el nombre de la categoría (`app/core/clasificacion.py` → `es_categoria_bebida()`: bebida, trago, cóctel, cerveza, refresco, jugo, sin acentos). Aplicado en `OrdenService`:
+  - Una comanda **solo de bebidas** nace `ENTREGADA` ("Lista"), no `PENDIENTE`: entra directa a "listo para servir" y no aparece en la cola de cocina (`_son_todas_bebidas()`).
+  - Agregar **solo bebidas** a una comanda que ya está `ENTREGADA` no la devuelve a `PENDIENTE` (en `_agregar_items_interno` y en `editar_orden`). Agregar un plato sí la regresa a cocina.
+  - Push: `_notificar_comanda()` en `app/api/endpoints/orden.py` manda `comanda_lista` (mesero) en vez de `nueva_comanda` (cocina) cuando la comanda quedó `ENTREGADA`. En comandas mixtas, cada línea de bebida lleva el badge "Listo para servir" (`.kc-tag-bebida`) para que el cocinero sepa qué no debe preparar.
+  - `DetalleOrdenResponse.es_bebida` expone la clasificación; la misma función agrupa Platos/Bebidas en el cobro por selección.
 
 ### Notificaciones push (Web Push / VAPID)
 - **Arquitectura**: Web Push con VAPID (`pywebpush==2.0.1`). El aviso llega al teléfono aunque la app esté cerrada o el navegador en segundo plano (a diferencia de WebSocket/SSE, que exigen la pestaña abierta).
